@@ -47,7 +47,7 @@ from unittest.mock import patch
 import pytest
 
 # Import module under test
-from {{ module_name }}.path.to.module import ClassUnderTest
+from gas2mqtt.path.to.module import ClassUnderTest
 
 # Import shared fixtures (test data, async utilities)
 from tests.fixtures.async_utils import wait_for_condition
