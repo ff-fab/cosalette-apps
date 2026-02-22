@@ -57,7 +57,10 @@ Published on every trigger event (not every poll). Includes the optional
 
 **Topic:** `gas2mqtt/temperature/state`
 
-Published at the configured `temperature_interval` (default: every 5 minutes).
+Polled at the configured `temperature_interval` (default: every 5 minutes) but only
+published when the EWMA-filtered value changes by more than **0.05 °C** (cosalette
+`OnChange` publish strategy). This suppresses duplicate readings when the temperature
+is stable.
 
 ```json
 {

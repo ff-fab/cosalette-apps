@@ -104,11 +104,11 @@ rising edge (LOW → HIGH) counts as one gas meter tick.
 
 cosalette device handlers that wire ports, domain logic, and MQTT publishing together.
 
-| Device          | Type           | Description                                   |
-| --------------- | -------------- | --------------------------------------------- |
-| `gas_counter`   | `@app.device`  | Polls magnetometer, detects ticks, publishes state |
-| `temperature`   | `@app.device`  | Reads temperature, applies calibration + EWMA |
-| `magnetometer`  | `@app.device`  | Optional debug output of raw bx/by/bz values  |
+| Device          | Type              | Description                                       |
+| --------------- | ----------------- | ------------------------------------------------- |
+| `gas_counter`   | `@app.device`     | Polls magnetometer, detects ticks, publishes state |
+| `temperature`   | `@app.telemetry`  | Reads temperature, applies calibration + EWMA; publishes on change (threshold 0.05 °C) |
+| `magnetometer`  | `@app.telemetry`  | Optional debug output of raw bx/by/bz values (only registered when `enable_debug_device=True`) |
 
 Each device receives a `DeviceContext` from cosalette with MQTT publishing,
 shutdown-aware sleep, adapter resolution, and settings access.

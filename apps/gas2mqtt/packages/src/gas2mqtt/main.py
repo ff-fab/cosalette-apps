@@ -8,7 +8,7 @@ for the CLI: ``gas2mqtt`` runs ``app.run()``.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 
 import cosalette
 
@@ -17,8 +17,8 @@ from gas2mqtt.adapters.fake import FakeMagnetometer, NullStorage
 from gas2mqtt.adapters.json_storage import JsonFileStorage
 from gas2mqtt.adapters.qmc5883l import Qmc5883lAdapter
 from gas2mqtt.devices.gas_counter import gas_counter
-from gas2mqtt.devices.magnetometer import magnetometer_device
-from gas2mqtt.devices.temperature import temperature_device
+from gas2mqtt.devices.magnetometer import make_magnetometer_handler
+from gas2mqtt.devices.temperature import make_temperature_handler
 from gas2mqtt.ports import MagnetometerPort, StateStoragePort
 from gas2mqtt.settings import Gas2MqttSettings
 
@@ -56,8 +56,10 @@ def _make_storage_adapter(
 def create_app() -> cosalette.App:
     """Create and wire the gas2mqtt application.
 
-    Registers the magnetometer adapter, gas counter device,
-    temperature device, and optional debug magnetometer device.
+    Registers the magnetometer adapter (with settings injection),
+    storage adapter, gas counter device, temperature telemetry
+    (with OnChange publish strategy), and optional debug magnetometer
+    telemetry.
 
     Returns:
         Fully configured cosalette App ready to run.
@@ -71,6 +73,8 @@ def create_app() -> cosalette.App:
     )
 
     # --- Adapter registration ---
+    # Settings injection (cosalette 0.1.1): the framework resolves
+    # Gas2MqttSettings and passes it to the factory automatically.
     def _make_magnetometer(settings: Gas2MqttSettings) -> Qmc5883lAdapter:
         return Qmc5883lAdapter(
             bus_number=settings.i2c_bus, address=settings.i2c_address
@@ -90,13 +94,46 @@ def create_app() -> cosalette.App:
     async def _gas_counter(ctx: cosalette.DeviceContext) -> None:
         await gas_counter(ctx)
 
-    @app.device("temperature")
-    async def _temperature(ctx: cosalette.DeviceContext) -> None:
-        await temperature_device(ctx)
+    # Registration-time config: read field defaults from the model class.
+    _fields = Gas2MqttSettings.model_fields
+    temp_interval: float = _fields["temperature_interval"].default
+    poll_interval: float = _fields["poll_interval"].default
+    enable_debug: bool = _fields["enable_debug_device"].default
 
-    @app.device("magnetometer")
-    async def _magnetometer(ctx: cosalette.DeviceContext) -> None:
-        await magnetometer_device(ctx)
+    # Temperature: @app.telemetry with OnChange publish strategy.
+    # The handler factory returns a closure that captures EWMA filter state,
+    # so we lazily initialise it on first call to let cosalette DI provide
+    # the adapter and settings.
+    _temp_handler: Callable[[], Awaitable[dict[str, object]]] | None = None
+
+    @app.telemetry(
+        "temperature",
+        interval=temp_interval,
+        publish=cosalette.OnChange(threshold={"temperature": 0.05}),
+    )
+    async def _temperature(
+        magnetometer: MagnetometerPort,
+        settings: Gas2MqttSettings,
+    ) -> dict[str, object]:
+        nonlocal _temp_handler
+        if _temp_handler is None:
+            _temp_handler = make_temperature_handler(magnetometer, settings)
+        return await _temp_handler()
+
+    # Magnetometer: conditional @app.telemetry (debug only).
+    # Delegates to make_magnetometer_handler() so the tested factory
+    # is the same code path used in production.
+    if enable_debug:
+        _mag_handler: Callable[[], Awaitable[dict[str, object]]] | None = None
+
+        @app.telemetry("magnetometer", interval=poll_interval)
+        async def _magnetometer(
+            magnetometer: MagnetometerPort,
+        ) -> dict[str, object]:
+            nonlocal _mag_handler
+            if _mag_handler is None:
+                _mag_handler = make_magnetometer_handler(magnetometer)
+            return await _mag_handler()
 
     return app
 

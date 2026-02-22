@@ -2,30 +2,27 @@
 
 Verifies that ``create_app()`` correctly wires all components, that
 the lifespan properly manages the magnetometer adapter lifecycle,
-and that extracted device coroutines publish the expected MQTT state.
+and that handler factories integrate correctly with domain objects.
 
 Test Techniques Used:
 - Specification-based: App configuration matches expectations
-- Integration: Real device coroutines exercised end-to-end
+- Integration: Handler factories exercised end-to-end with real domain objects
 - State Transition: Lifespan startup/shutdown lifecycle
-- Branch Coverage: Magnetometer early-return when disabled
+- Branch Coverage: Magnetometer conditional registration
 - Error Guessing: Lifespan closes adapter even on error
 """
 
 from __future__ import annotations
 
-import asyncio
-import json
 from pathlib import Path
 
 import cosalette
 import pytest
-from cosalette.testing import FakeClock, MockMqttClient
 
 from gas2mqtt.adapters.fake import FakeMagnetometer, NullStorage
 from gas2mqtt.adapters.json_storage import JsonFileStorage
-from gas2mqtt.devices.magnetometer import magnetometer_device
-from gas2mqtt.devices.temperature import temperature_device
+from gas2mqtt.devices.magnetometer import make_magnetometer_handler
+from gas2mqtt.devices.temperature import make_temperature_handler
 from gas2mqtt.main import _make_storage_adapter, create_app, lifespan
 from gas2mqtt.ports import MagnetometerPort, StateStoragePort
 from tests.fixtures.config import make_gas2mqtt_settings
@@ -118,124 +115,108 @@ class TestLifespan:
 
 
 # ---------------------------------------------------------------------------
-# Temperature device wiring
+# Temperature handler wiring
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 class TestTemperatureDeviceWiring:
-    """Verify temperature_device() publishes calibrated state via MQTT."""
+    """Verify temperature handler integrates with the adapter pipeline."""
 
-    async def test_publishes_calibrated_temperature(self) -> None:
-        """temperature_device() publishes initial state, then exits on shutdown.
+    async def test_handler_produces_calibrated_state(self) -> None:
+        """Handler integrates magnetometer -> calibration -> EWMA.
 
-        Technique: Integration — end-to-end data flow through the real
-        device coroutine with shutdown pre-signalled so the loop exits
-        after the initial publish.
+        Technique: Integration — full data flow through handler with real
+        domain objects (EWMA filter, calibration).
         """
         # Arrange
         mag = FakeMagnetometer()
-        mag.temperature_raw = 2500  # → 0.008 * 2500 + 20.3 = 40.3
+        mag.temperature_raw = 2500  # -> 0.008 * 2500 + 20.3 = 40.3
         settings = make_gas2mqtt_settings(temperature_interval=0.01)
-        mqtt = MockMqttClient()
-        shutdown = asyncio.Event()
-
-        ctx = cosalette.DeviceContext(
-            name="temperature",
-            settings=settings,
-            mqtt=mqtt,
-            topic_prefix="gas2mqtt",
-            shutdown_event=shutdown,
-            adapters={MagnetometerPort: mag},
-            clock=FakeClock(),
-        )
-
-        # Pre-signal shutdown so the loop exits after the initial publish
-        shutdown.set()
+        handler = make_temperature_handler(mag, settings)
 
         # Act
-        await temperature_device(ctx)
+        result = await handler()
 
         # Assert
-        assert mqtt.publish_count >= 1
-        topic, raw_payload, _retain, _qos = mqtt.published[0]
-        assert topic == "gas2mqtt/temperature/state"
-        payload = json.loads(raw_payload)
-        assert payload["temperature"] == pytest.approx(40.3, abs=0.1)
+        assert result["temperature"] == pytest.approx(40.3, abs=0.1)
+
+    def test_temperature_registered_as_telemetry(self) -> None:
+        """create_app() registers temperature as a telemetry device.
+
+        Technique: Specification-based — verifying registration contract.
+        """
+        # Act
+        app = create_app()
+
+        # Assert
+        telemetry_names = [t.name for t in app._telemetry]  # noqa: SLF001
+        assert "temperature" in telemetry_names
 
 
 # ---------------------------------------------------------------------------
-# Debug magnetometer device wiring
+# Debug magnetometer wiring
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
 class TestMagnetometerDeviceWiring:
-    """Verify magnetometer_device() conditional behavior."""
+    """Verify magnetometer handler and conditional registration."""
 
-    async def test_publishes_raw_values_when_enabled(self) -> None:
-        """magnetometer_device() publishes raw bx/by/bz when enabled.
+    async def test_handler_returns_raw_values(self) -> None:
+        """make_magnetometer_handler returns raw bx/by/bz from adapter.
 
-        Technique: Integration — real device coroutine exercised with
-        shutdown pre-signalled so it exits after the initial publish.
+        Technique: Integration — handler uses real adapter interface.
         """
         # Arrange
         mag = FakeMagnetometer()
         mag.bx = 100
         mag.by = -200
         mag.bz = -5000
-        mqtt = MockMqttClient()
-        shutdown = asyncio.Event()
-
-        ctx = cosalette.DeviceContext(
-            name="magnetometer",
-            settings=make_gas2mqtt_settings(enable_debug_device=True),
-            mqtt=mqtt,
-            topic_prefix="gas2mqtt",
-            shutdown_event=shutdown,
-            adapters={MagnetometerPort: mag},
-            clock=FakeClock(),
-        )
-
-        # Pre-signal shutdown so the loop exits after the initial publish
-        shutdown.set()
+        handler = make_magnetometer_handler(mag)
 
         # Act
-        await magnetometer_device(ctx)
+        result = await handler()
 
         # Assert
-        assert mqtt.publish_count >= 1
-        topic, raw_payload, _retain, _qos = mqtt.published[0]
-        assert topic == "gas2mqtt/magnetometer/state"
-        payload = json.loads(raw_payload)
-        assert payload == {"bx": 100, "by": -200, "bz": -5000}
+        assert result == {"bx": 100, "by": -200, "bz": -5000}
 
-    async def test_noop_when_disabled(self) -> None:
-        """magnetometer_device() returns immediately when disabled.
+    def test_registered_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """create_app() registers magnetometer when debug device is on.
 
-        Technique: Branch Coverage — verifying the early-return path by
-        calling the real device coroutine and asserting zero publishes.
+        Technique: Branch Coverage — verifying conditional registration
+        (True branch) via the app's internal telemetry registry.
         """
-        # Arrange
-        mag = FakeMagnetometer()
-        mqtt = MockMqttClient()
-        shutdown = asyncio.Event()
+        # Arrange — patch the model field default so create_app() sees True
+        from pydantic import Field
 
-        ctx = cosalette.DeviceContext(
-            name="magnetometer",
-            settings=make_gas2mqtt_settings(enable_debug_device=False),
-            mqtt=mqtt,
-            topic_prefix="gas2mqtt",
-            shutdown_event=shutdown,
-            adapters={MagnetometerPort: mag},
-            clock=FakeClock(),
-        )
+        from gas2mqtt.settings import Gas2MqttSettings
 
-        # Act — call the real device coroutine
-        await magnetometer_device(ctx)
+        patched_fields = {
+            **Gas2MqttSettings.model_fields,
+            "enable_debug_device": Field(default=True, description="patched"),
+        }
+        monkeypatch.setattr(Gas2MqttSettings, "model_fields", patched_fields)
 
-        # Assert — no messages published when debug is off
-        assert mqtt.publish_count == 0
+        # Act
+        app = create_app()
+
+        # Assert
+        telemetry_names = [t.name for t in app._telemetry]  # noqa: SLF001
+        assert "magnetometer" in telemetry_names
+
+    def test_noop_when_disabled(self) -> None:
+        """create_app() does not register magnetometer when debug is off.
+
+        Technique: Branch Coverage — verifying conditional registration
+        behavior via the app's internal telemetry registry.
+        """
+        # Act — default settings have enable_debug_device=False
+        app = create_app()
+
+        # Assert
+        telemetry_names = [t.name for t in app._telemetry]  # noqa: SLF001
+        assert "magnetometer" not in telemetry_names
 
 
 # ---------------------------------------------------------------------------

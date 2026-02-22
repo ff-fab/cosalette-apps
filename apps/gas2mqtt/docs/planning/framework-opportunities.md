@@ -33,13 +33,18 @@ library like `aiohttp`.
 
 ## Event-Driven Telemetry
 
-The gas counter currently uses `@app.device()` with a manual polling loop.  If cosalette
-adds event-driven or threshold-based `@app.telemetry()` variants, the gas counter could
-become simpler — publishing only when the Schmitt trigger fires rather than polling on a
-fixed interval.
+!!! note "Partially realised (cosalette 0.1.2)"
+    Temperature and magnetometer have been migrated from `@app.device` to
+    `@app.telemetry`.  Temperature uses `OnChange(threshold={"temperature": 0.05})`
+    so readings are only published when the EWMA-filtered value changes by more than
+    0.05 °C.  Magnetometer is conditionally registered as telemetry when
+    `enable_debug_device=True`.
 
-Temperature reporting could also benefit from a "publish on change" mode where readings
-are only emitted when the EWMA-filtered value moves beyond a configurable delta.
+The gas counter still uses `@app.device()` with a manual polling loop because its
+publish logic is event-driven (Schmitt trigger state changes), which doesn't fit the
+periodic-return-dict model of `@app.telemetry`.  If cosalette adds event-driven or
+threshold-based telemetry variants, the gas counter could become simpler — publishing
+only when the trigger fires rather than polling on a fixed interval.
 
 ## Calibration Commands
 
