@@ -13,12 +13,13 @@ from collections.abc import AsyncIterator
 import cosalette
 
 from gas2mqtt import __version__
-from gas2mqtt.adapters.fake import FakeMagnetometer
+from gas2mqtt.adapters.fake import FakeMagnetometer, NullStorage
+from gas2mqtt.adapters.json_storage import JsonFileStorage
 from gas2mqtt.adapters.qmc5883l import Qmc5883lAdapter
 from gas2mqtt.devices.gas_counter import gas_counter
 from gas2mqtt.devices.magnetometer import magnetometer_device
 from gas2mqtt.devices.temperature import temperature_device
-from gas2mqtt.ports import MagnetometerPort
+from gas2mqtt.ports import MagnetometerPort, StateStoragePort
 from gas2mqtt.settings import Gas2MqttSettings
 
 
@@ -36,6 +37,20 @@ async def lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
         yield
     finally:
         magnetometer.close()
+
+
+def _make_storage_adapter(
+    settings: Gas2MqttSettings,
+) -> JsonFileStorage | NullStorage:
+    """Create the appropriate storage adapter based on settings.
+
+    Returns :class:`NullStorage` when ``state_file`` is ``None``
+    (persistence disabled), otherwise :class:`JsonFileStorage`
+    pointing at the configured path.
+    """
+    if settings.state_file is None:
+        return NullStorage()
+    return JsonFileStorage(settings.state_file)
 
 
 def create_app() -> cosalette.App:
@@ -62,6 +77,12 @@ def create_app() -> cosalette.App:
         )
 
     app.adapter(MagnetometerPort, _make_magnetometer, dry_run=FakeMagnetometer)
+
+    # --- Storage adapter registration ---
+    def _make_storage() -> JsonFileStorage | NullStorage:
+        return _make_storage_adapter(Gas2MqttSettings())
+
+    app.adapter(StateStoragePort, _make_storage, dry_run=NullStorage)
 
     # --- Device registration ---
 

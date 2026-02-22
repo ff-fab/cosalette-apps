@@ -5,6 +5,8 @@ All settings are loaded from environment variables (GAS2MQTT_ prefix),
 .env files, or CLI flags. Priority: CLI > env > .env > defaults.
 """
 
+from pathlib import Path
+
 import cosalette
 from pydantic import Field
 from pydantic_settings import SettingsConfigDict
@@ -83,6 +85,14 @@ class Gas2MqttSettings(cosalette.Settings):
         default=10.0,
         gt=0,
         description="Liters of gas per counter tick",
+    )
+
+    # State persistence
+    state_file: Path | None = Field(
+        default=None,
+        description="Path to JSON file for persisting device state between "
+        "restarts. When None, state is not persisted (counter and "
+        "consumption reset to zero on restart).",
     )
 
     # Debug device

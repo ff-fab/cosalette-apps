@@ -16,16 +16,18 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 import cosalette
 import pytest
 from cosalette.testing import FakeClock, MockMqttClient
 
-from gas2mqtt.adapters.fake import FakeMagnetometer
+from gas2mqtt.adapters.fake import FakeMagnetometer, NullStorage
+from gas2mqtt.adapters.json_storage import JsonFileStorage
 from gas2mqtt.devices.magnetometer import magnetometer_device
 from gas2mqtt.devices.temperature import temperature_device
-from gas2mqtt.main import create_app, lifespan
-from gas2mqtt.ports import MagnetometerPort
+from gas2mqtt.main import _make_storage_adapter, create_app, lifespan
+from gas2mqtt.ports import MagnetometerPort, StateStoragePort
 from tests.fixtures.config import make_gas2mqtt_settings
 
 # ---------------------------------------------------------------------------
@@ -234,3 +236,51 @@ class TestMagnetometerDeviceWiring:
 
         # Assert — no messages published when debug is off
         assert mqtt.publish_count == 0
+
+
+# ---------------------------------------------------------------------------
+# Storage adapter wiring
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+class TestStorageAdapterWiring:
+    """Verify StateStoragePort adapter registration.
+
+    Technique: Specification-based — adapter factory produces correct type
+    depending on the ``state_file`` setting.
+    """
+
+    def test_storage_adapter_returns_null_when_no_state_file(self) -> None:
+        """Factory returns NullStorage when state_file is None (default)."""
+        # Arrange
+        settings = make_gas2mqtt_settings(state_file=None)
+
+        # Act
+        storage = _make_storage_adapter(settings)
+
+        # Assert
+        assert isinstance(storage, NullStorage)
+
+    def test_storage_adapter_returns_json_file_when_configured(
+        self,
+        tmp_path: Path,
+    ) -> None:
+        """Factory returns JsonFileStorage when state_file is set."""
+        # Arrange
+        state_path = tmp_path / "state.json"
+        settings = make_gas2mqtt_settings(state_file=state_path)
+
+        # Act
+        storage = _make_storage_adapter(settings)
+
+        # Assert
+        assert isinstance(storage, JsonFileStorage)
+
+    def test_storage_port_registered_in_app(self) -> None:
+        """create_app() registers StateStoragePort in the adapter registry."""
+        # Act
+        app = create_app()
+
+        # Assert
+        assert StateStoragePort in app._adapters  # noqa: SLF001

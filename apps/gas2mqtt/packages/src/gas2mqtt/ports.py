@@ -65,3 +65,29 @@ class MagnetometerPort(Protocol):
         Called during application lifespan shutdown.
         """
         ...
+
+
+class StateStoragePort(Protocol):
+    """Port for persisting device state between app restarts.
+
+    Implementations store and retrieve key-value state data.
+    Keys are typically device names (e.g., "gas_counter").
+    Values are JSON-serializable dicts.
+    """
+
+    def load(self, key: str) -> dict[str, object] | None:
+        """Load saved state for the given key.
+
+        Returns:
+            The saved state dict, or None if no state exists.
+        """
+        ...
+
+    def save(self, key: str, data: dict[str, object]) -> None:
+        """Save state for the given key.
+
+        Args:
+            key: Identifier (typically device name).
+            data: JSON-serializable state dict.
+        """
+        ...
