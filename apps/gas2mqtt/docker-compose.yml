@@ -1,0 +1,28 @@
+services:
+  gas2mqtt:
+    build: .
+    restart: unless-stopped
+    devices:
+      - /dev/i2c-1:/dev/i2c-1
+    group_add:
+      - i2c
+    env_file: .env
+    environment:
+      # Override MQTT host to use Docker Compose service name
+      GAS2MQTT_MQTT__HOST: mosquitto
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '1883:1883'
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:

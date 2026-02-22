@@ -11,4 +11,3 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line(
         "markers", "integration: Integration tests (may require external services)"
     )
-    pass

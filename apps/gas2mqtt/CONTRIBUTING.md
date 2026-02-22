@@ -56,14 +56,33 @@ gas2mqtt/
 │   ├── Dockerfile              # Container image
 │   ├── post-create.sh          # Auto-setup script
 ├── packages/
-│   ├── src/gas2mqtt/      # Source code
-│   ├── tests/                  # All tests
-│   └── pyproject.toml          # Python configuration (Ruff, mypy, pytest)
+│   ├── src/gas2mqtt/           # Source code
+│   │   ├── main.py             # App factory, lifespan, device wiring
+│   │   ├── settings.py         # Pydantic settings (extends cosalette.Settings)
+│   │   ├── ports.py            # MagnetometerPort protocol
+│   │   ├── adapters/           # Hardware adapters
+│   │   │   ├── qmc5883l.py     # Production I2C adapter (smbus2)
+│   │   │   └── fake.py         # Test double + dry-run adapter
+│   │   ├── devices/            # cosalette device handlers
+│   │   │   ├── gas_counter.py  # Schmitt trigger tick detection
+│   │   │   ├── temperature.py  # EWMA-filtered temperature
+│   │   │   └── magnetometer.py # Optional raw debug output
+│   │   └── domain/             # Pure business logic (no I/O)
+│   │       ├── schmitt.py      # Schmitt trigger
+│   │       ├── ewma.py         # Exponential weighted moving average
+│   │       └── consumption.py  # Gas consumption tracker
+│   └── tests/                  # All tests (94 unit + 7 integration)
+│       ├── unit/               # Fast, isolated tests
+│       ├── integration/        # App wiring tests
+│       └── fixtures/           # Shared test fixtures
 ├── docs/                       # Documentation
 │   ├── adr/                    # Architecture Decision Records
-│   └── TODO/                   # Pending decisions and deferred topics
+│   └── planning/               # Planning docs and future opportunities
+├── Dockerfile                  # Production container image
+├── docker-compose.yml          # Docker Compose stack (app + Mosquitto)
+├── .env.example                # Configuration template
 ├── VERSIONING.md               # Version management documentation
-├── zensical.toml                # Documentation site config
+├── zensical.toml               # Documentation site config
 ```
 
 ## Code Quality

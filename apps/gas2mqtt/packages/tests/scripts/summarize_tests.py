@@ -27,7 +27,7 @@ Usage:
 
     # With custom paths:
     python tests/scripts/summarize_tests.py \
-        --unit-results results-unit.xml \
+        --unit-results results.xml \
 
         --coverage-file coverage.json
 
@@ -307,8 +307,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--unit-results",
         type=Path,
-        default=Path("results-unit.xml"),
-        help="Path to pytest JUnit XML file (default: results-unit.xml)",
+        default=Path("results.xml"),
+        help="Path to pytest JUnit XML file (default: results.xml)",
     )
     parser.add_argument(
         "--coverage-file",

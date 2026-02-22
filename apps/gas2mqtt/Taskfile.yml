@@ -11,6 +11,7 @@ version: '3'
 vars:
   PKG: packages
   MODULE_NAME: 'gas2mqtt'
+  COVERAGE_THRESHOLD: '80'
 
 tasks:
   default:
@@ -140,7 +141,7 @@ tasks:
     desc: Run all tests (unit + integration) with coverage and summary
     cmds:
       # Run all tests with coverage to enable threshold validation.
-      - cmd: uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
+      - cmd: uv run pytest {{.PKG}}/tests/ -v --tb=short --junitxml=results.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
         ignore_error: true
 
       - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json
@@ -148,7 +149,7 @@ tasks:
   test:unit:
     desc: Run unit tests only (fast, every change)
     cmds:
-      - uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml
+      - uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results.xml
 
   test:file:
     desc: 'Run specific test file or pattern (e.g.: task test:file -- packages/tests/unit/test_errors.py)'
@@ -266,10 +267,10 @@ tasks:
   # ===========================================================================
 
   ci:test:unit:
-    desc: CI unit tests with coverage summary
+    desc: CI unit + integration tests with coverage summary
     cmds:
-      - uv run pytest {{.PKG}}/tests/unit/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
-      - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under={{ coverage_threshold }}
+      - uv run pytest {{.PKG}}/tests/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results.xml
+      - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under={{.COVERAGE_THRESHOLD}}
 
   ci:test:integration:
     desc: CI integration tests (pytest)
