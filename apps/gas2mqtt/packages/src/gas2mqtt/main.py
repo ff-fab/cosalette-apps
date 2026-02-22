@@ -56,13 +56,10 @@ def create_app() -> cosalette.App:
     )
 
     # --- Adapter registration ---
-    # Factory callable: cosalette invokes this after parsing settings.
-    # A lightweight Gas2MqttSettings() reads the same env/.env values
-    # that the framework already parsed, ensuring the adapter receives
-    # the user-configured I2C bus and address.
-    def _make_magnetometer() -> Qmc5883lAdapter:
-        s = Gas2MqttSettings()
-        return Qmc5883lAdapter(bus_number=s.i2c_bus, address=s.i2c_address)
+    def _make_magnetometer(settings: Gas2MqttSettings) -> Qmc5883lAdapter:
+        return Qmc5883lAdapter(
+            bus_number=settings.i2c_bus, address=settings.i2c_address
+        )
 
     app.adapter(MagnetometerPort, _make_magnetometer, dry_run=FakeMagnetometer)
 

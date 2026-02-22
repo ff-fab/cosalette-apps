@@ -119,7 +119,7 @@ wheels = [
 
 [[package]]
 name = "cosalette"
-version = "0.1.0"
+version = "0.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiomqtt" },
@@ -127,9 +127,9 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/fd/34/ba14443a53f5b62eecbd09da2c12c22c690c6f0e7dde0af479916ed18eb1/cosalette-0.1.0.tar.gz", hash = "sha256:511f9ca621013c420843dfb86f3323c4261774132b77ca7c287c789471d6c556", size = 303066, upload-time = "2026-02-21T16:34:05.934Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/96/2e/1e8527b6d88741b5332b52f7a71b821a9653169db0763e57725e3f6b52c6/cosalette-0.1.1.tar.gz", hash = "sha256:0b2a5ac1205ae4e9cd16814f53bf75f5d04b3ba91c267e55f70618b6e950ac0b", size = 302690, upload-time = "2026-02-22T09:59:31.808Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ae/b7/1f553bbfceab07296901215db99938e2a89cf2f772551e162292688aad18/cosalette-0.1.0-py3-none-any.whl", hash = "sha256:49d61a83e601a3980dfb68c8b63d02eeef6a1d4031e305508e50d96fe16f710e", size = 42357, upload-time = "2026-02-21T16:34:04.604Z" },
+    { url = "https://files.pythonhosted.org/packages/95/ef/8020294cffee30ccb0c63d4aac5b0a0d5c45953d1e776d7a1c3cc2213f52/cosalette-0.1.1-py3-none-any.whl", hash = "sha256:2a6686052733cf5b2fbb57faecf64c615339f405c3a2cabe46177fbadd2203e0", size = 43015, upload-time = "2026-02-22T09:59:30.031Z" },
 ]
 
 [[package]]
@@ -258,7 +258,7 @@ docs = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.1.0" },
+    { name = "cosalette", specifier = ">=0.1.1" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "smbus2", specifier = ">=0.6.0" },
