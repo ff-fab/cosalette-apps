@@ -83,8 +83,10 @@ def create_app() -> cosalette.App:
     app.adapter(MagnetometerPort, _make_magnetometer, dry_run=FakeMagnetometer)
 
     # --- Storage adapter registration ---
-    def _make_storage() -> JsonFileStorage | NullStorage:
-        return _make_storage_adapter(Gas2MqttSettings())
+    # Settings injection (cosalette 0.1.1): the framework resolves
+    # Gas2MqttSettings and passes it to the factory automatically.
+    def _make_storage(settings: Gas2MqttSettings) -> JsonFileStorage | NullStorage:
+        return _make_storage_adapter(settings)
 
     app.adapter(StateStoragePort, _make_storage, dry_run=NullStorage)
 

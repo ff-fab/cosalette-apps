@@ -87,6 +87,19 @@ you need.
 | Poll interval        | `GAS2MQTT_POLL_INTERVAL`          | `1.0`    | Gas counter polling interval (seconds)|
 | Temperature interval | `GAS2MQTT_TEMPERATURE_INTERVAL`   | `300.0`  | Temperature report interval (seconds) |
 
+!!! warning "Registration-time settings"
+    `poll_interval`, `temperature_interval`, and `enable_debug_device` are read **once
+    at application startup** from their field defaults. Environment variables and `.env`
+    overrides do **not** affect these values because cosalette's `@app.telemetry`
+    decorator requires compile-time constants for the `interval` parameter, and
+    conditional device registration is resolved before the settings model is
+    instantiated.
+
+    To change the polling interval or enable the debug device, modify the defaults in
+    the source code and rebuild. Runtime settings (calibration coefficients, I2C
+    addresses, MQTT configuration) are injected normally via cosalette's DI system and
+    **do** respect environment variables.
+
 ### Temperature Calibration
 
 | Setting     | Env Variable              | Default | Description                    |
