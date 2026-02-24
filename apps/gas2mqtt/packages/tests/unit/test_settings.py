@@ -54,10 +54,10 @@ class TestGas2MqttSettingsDefaults:
         assert settings.temp_scale == 0.008
         assert settings.temp_offset == 20.3
 
-    def test_default_ewma_alpha(self) -> None:
-        """Default EWMA alpha matches legacy constant."""
+    def test_default_smoothing_tau(self) -> None:
+        """Default smoothing_tau gives alpha=0.2 at dt=300s."""
         settings = make_gas2mqtt_settings()
-        assert settings.ewma_alpha == 0.2
+        assert settings.smoothing_tau == 1200.0
 
     def test_consumption_tracking_disabled_by_default(self) -> None:
         """Consumption tracking is opt-in."""
@@ -122,25 +122,15 @@ class TestGas2MqttSettingsValidation:
         with pytest.raises(ValidationError):
             make_gas2mqtt_settings(temperature_interval=0)
 
-    def test_ewma_alpha_rejects_zero(self) -> None:
-        """EWMA alpha must be > 0."""
+    def test_smoothing_tau_rejects_zero(self) -> None:
+        """Smoothing tau must be > 0."""
         with pytest.raises(ValidationError):
-            make_gas2mqtt_settings(ewma_alpha=0)
+            make_gas2mqtt_settings(smoothing_tau=0)
 
-    def test_ewma_alpha_rejects_above_one(self) -> None:
-        """EWMA alpha must be <= 1."""
-        with pytest.raises(ValidationError):
-            make_gas2mqtt_settings(ewma_alpha=1.1)
-
-    def test_ewma_alpha_boundary_one(self) -> None:
-        """EWMA alpha of exactly 1.0 is valid (no smoothing)."""
-        settings = make_gas2mqtt_settings(ewma_alpha=1.0)
-        assert settings.ewma_alpha == 1.0
-
-    def test_ewma_alpha_accepts_near_zero(self) -> None:
-        """EWMA alpha near zero (heavy smoothing) is valid."""
-        settings = make_gas2mqtt_settings(ewma_alpha=0.001)
-        assert settings.ewma_alpha == 0.001
+    def test_smoothing_tau_accepts_small_positive(self) -> None:
+        """Very small smoothing tau (fast response) is valid."""
+        settings = make_gas2mqtt_settings(smoothing_tau=0.001)
+        assert settings.smoothing_tau == 0.001
 
     def test_liters_per_tick_rejects_zero(self) -> None:
         """Liters per tick must be > 0."""

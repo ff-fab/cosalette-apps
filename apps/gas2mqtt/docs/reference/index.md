@@ -12,7 +12,7 @@ What you need to configure and understand gas2mqtt:
 - **[Settings](settings.md)** — `Gas2MqttSettings` and its fields (env vars, defaults,
   validation)
 - **[Ports](ports.md)** — `MagnetometerPort` protocol and `MagneticReading` dataclass
-- **[Domain](domain.md)** — Schmitt trigger, EWMA filter, and consumption tracker
+- **[Domain](domain.md)** — Schmitt trigger and consumption tracker
 
 ## Internals
 

@@ -26,7 +26,7 @@ graph LR
 
     subgraph Domain
         ST[SchmittTrigger]
-        EWMA[EwmaFilter]
+        PT1[Pt1Filter<br><i>cosalette</i>]
         CT[ConsumptionTracker]
     end
 
@@ -50,7 +50,7 @@ graph LR
     MP --> MAG
     GC --> ST
     GC --> CT
-    TMP --> EWMA
+    TMP --> PT1
     GC --> APP
     TMP --> APP
     MAG --> APP
@@ -94,7 +94,6 @@ Pure business logic with **no I/O dependencies**. Each module is independently t
 | Module              | Purpose                                              |
 | ------------------- | ---------------------------------------------------- |
 | `SchmittTrigger`    | Hysteresis-based binary signal from continuous Bz    |
-| `EwmaFilter`        | Exponentially Weighted Moving Average smoothing      |
 | `ConsumptionTracker`| Cumulative gas consumption in m³                     |
 
 The Schmitt trigger converts the magnetic field into clean OPEN/CLOSED transitions. A
@@ -107,7 +106,7 @@ cosalette device handlers that wire ports, domain logic, and MQTT publishing tog
 | Device          | Type              | Description                                       |
 | --------------- | ----------------- | ------------------------------------------------- |
 | `gas_counter`   | `@app.device`     | Polls magnetometer, detects ticks, publishes state |
-| `temperature`   | `@app.telemetry`  | Reads temperature, applies calibration + EWMA; publishes on change (threshold 0.05 °C) |
+| `temperature`   | `@app.telemetry`  | Reads temperature, applies calibration + PT1 filter; publishes on change (threshold 0.05 °C) |
 | `magnetometer`  | `@app.telemetry`  | Optional debug output of raw bx/by/bz values (only registered when `enable_debug_device=True`) |
 
 Each device receives a `DeviceContext` from cosalette with MQTT publishing,

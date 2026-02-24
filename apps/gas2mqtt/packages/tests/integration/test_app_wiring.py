@@ -2,7 +2,7 @@
 
 Verifies that ``create_app()`` correctly wires all components, that
 the lifespan properly manages the magnetometer adapter lifecycle,
-and that handler factories integrate correctly with domain objects.
+and that device registration uses eager settings.
 
 Test Techniques Used:
 - Specification-based: App configuration matches expectations
@@ -21,8 +21,6 @@ import pytest
 
 from gas2mqtt.adapters.fake import FakeMagnetometer, NullStorage
 from gas2mqtt.adapters.json_storage import JsonFileStorage
-from gas2mqtt.devices.magnetometer import make_magnetometer_handler
-from gas2mqtt.devices.temperature import make_temperature_handler
 from gas2mqtt.main import _make_storage_adapter, create_app, lifespan
 from gas2mqtt.ports import MagnetometerPort, StateStoragePort
 from tests.fixtures.config import make_gas2mqtt_settings
@@ -115,31 +113,13 @@ class TestLifespan:
 
 
 # ---------------------------------------------------------------------------
-# Temperature handler wiring
+# Temperature registration
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-class TestTemperatureDeviceWiring:
-    """Verify temperature handler integrates with the adapter pipeline."""
-
-    async def test_handler_produces_calibrated_state(self) -> None:
-        """Handler integrates magnetometer -> calibration -> EWMA.
-
-        Technique: Integration — full data flow through handler with real
-        domain objects (EWMA filter, calibration).
-        """
-        # Arrange
-        mag = FakeMagnetometer()
-        mag.temperature_raw = 2500  # -> 0.008 * 2500 + 20.3 = 40.3
-        settings = make_gas2mqtt_settings(temperature_interval=0.01)
-        handler = make_temperature_handler(mag, settings)
-
-        # Act
-        result = await handler()
-
-        # Assert
-        assert result["temperature"] == pytest.approx(40.3, abs=0.1)
+class TestTemperatureRegistration:
+    """Verify temperature is registered as telemetry with PT1 filter."""
 
     def test_temperature_registered_as_telemetry(self) -> None:
         """create_app() registers temperature as a telemetry device.
@@ -155,48 +135,22 @@ class TestTemperatureDeviceWiring:
 
 
 # ---------------------------------------------------------------------------
-# Debug magnetometer wiring
+# Debug magnetometer registration
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.integration
-class TestMagnetometerDeviceWiring:
-    """Verify magnetometer handler and conditional registration."""
-
-    async def test_handler_returns_raw_values(self) -> None:
-        """make_magnetometer_handler returns raw bx/by/bz from adapter.
-
-        Technique: Integration — handler uses real adapter interface.
-        """
-        # Arrange
-        mag = FakeMagnetometer()
-        mag.bx = 100
-        mag.by = -200
-        mag.bz = -5000
-        handler = make_magnetometer_handler(mag)
-
-        # Act
-        result = await handler()
-
-        # Assert
-        assert result == {"bx": 100, "by": -200, "bz": -5000}
+class TestMagnetometerRegistration:
+    """Verify magnetometer conditional registration via eager settings."""
 
     def test_registered_when_enabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """create_app() registers magnetometer when debug device is on.
 
         Technique: Branch Coverage — verifying conditional registration
-        (True branch) via the app's internal telemetry registry.
+        (True branch) via eager settings and env var override.
         """
-        # Arrange — patch the model field default so create_app() sees True
-        from pydantic import Field
-
-        from gas2mqtt.settings import Gas2MqttSettings
-
-        patched_fields = {
-            **Gas2MqttSettings.model_fields,
-            "enable_debug_device": Field(default=True, description="patched"),
-        }
-        monkeypatch.setattr(Gas2MqttSettings, "model_fields", patched_fields)
+        # Arrange — set env var so eager settings picks up the override
+        monkeypatch.setenv("GAS2MQTT_ENABLE_DEBUG_DEVICE", "true")
 
         # Act
         app = create_app()
@@ -209,9 +163,9 @@ class TestMagnetometerDeviceWiring:
         """create_app() does not register magnetometer when debug is off.
 
         Technique: Branch Coverage — verifying conditional registration
-        behavior via the app's internal telemetry registry.
+        behavior (default settings have enable_debug_device=False).
         """
-        # Act — default settings have enable_debug_device=False
+        # Act
         app = create_app()
 
         # Assert

@@ -58,7 +58,7 @@ Published on every trigger event (not every poll). Includes the optional
 **Topic:** `gas2mqtt/temperature/state`
 
 Polled at the configured `temperature_interval` (default: every 5 minutes) but only
-published when the EWMA-filtered value changes by more than **0.05 °C** (cosalette
+published when the PT1-filtered value changes by more than **0.05 °C** (cosalette
 `OnChange` publish strategy). This suppresses duplicate readings when the temperature
 is stable.
 
@@ -70,7 +70,7 @@ is stable.
 
 | Field         | Type   | Description                               |
 | ------------- | ------ | ----------------------------------------- |
-| `temperature` | float  | EWMA-filtered temperature in °C           |
+| `temperature` | float  | PT1-filtered temperature in °C           |
 
 ### Magnetometer (Debug)
 

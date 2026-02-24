@@ -69,11 +69,10 @@ class Gas2MqttSettings(cosalette.Settings):
         default=20.3,
         description="Temperature calibration offset",
     )
-    ewma_alpha: float = Field(
-        default=0.2,
+    smoothing_tau: float = Field(
+        default=1200.0,
         gt=0,
-        le=1,
-        description="EWMA smoothing factor (0-1)",
+        description="PT1 filter time constant in seconds (higher = smoother)",
     )
 
     # Consumption tracking

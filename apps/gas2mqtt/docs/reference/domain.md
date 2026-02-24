@@ -7,10 +7,6 @@ testable and reusable.
 
 ::: gas2mqtt.domain.schmitt
 
-## EWMA Filter
-
-::: gas2mqtt.domain.ewma
-
 ## Consumption Tracker
 
 ::: gas2mqtt.domain.consumption

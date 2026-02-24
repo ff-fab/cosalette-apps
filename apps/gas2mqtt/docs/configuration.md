@@ -87,30 +87,19 @@ you need.
 | Poll interval        | `GAS2MQTT_POLL_INTERVAL`          | `1.0`    | Gas counter polling interval (seconds)|
 | Temperature interval | `GAS2MQTT_TEMPERATURE_INTERVAL`   | `300.0`  | Temperature report interval (seconds) |
 
-!!! warning "Registration-time settings"
-    `poll_interval`, `temperature_interval`, and `enable_debug_device` are read **once
-    at application startup** from their field defaults. Environment variables and `.env`
-    overrides do **not** affect these values because cosalette's `@app.telemetry`
-    decorator requires compile-time constants for the `interval` parameter, and
-    conditional device registration is resolved before the settings model is
-    instantiated.
-
-    To change the polling interval or enable the debug device, modify the defaults in
-    the source code and rebuild. Runtime settings (calibration coefficients, I2C
-    addresses, MQTT configuration) are injected normally via cosalette's DI system and
-    **do** respect environment variables.
-
 ### Temperature Calibration
 
 | Setting     | Env Variable              | Default | Description                    |
 | ----------- | ------------------------- | ------- | ------------------------------ |
 | Scale       | `GAS2MQTT_TEMP_SCALE`     | `0.008` | Calibration scale factor       |
 | Offset      | `GAS2MQTT_TEMP_OFFSET`    | `20.3`  | Calibration offset (°C)        |
-| EWMA alpha  | `GAS2MQTT_EWMA_ALPHA`     | `0.2`   | Smoothing factor (0–1)         |
+| Smoothing tau | `GAS2MQTT_SMOOTHING_TAU` | `1200.0` | PT1 filter time constant (seconds, higher = smoother) |
 
 The QMC5883L has a built-in temperature sensor. gas2mqtt applies an empirical linear
-calibration: `temp_celsius = temp_scale × raw + temp_offset`. The EWMA filter smooths
-readings to reduce noise — lower alpha values produce smoother output.
+calibration: `temp_celsius = temp_scale × raw + temp_offset`. The PT1 filter smooths
+readings to reduce noise. The time constant (τ) controls responsiveness — higher values
+produce smoother, slower-reacting output. With the default τ=1200s and polling interval
+of 300s, the effective smoothing factor is 0.2.
 
 ### Optional Features
 
@@ -161,7 +150,7 @@ GAS2MQTT_MQTT__PORT=1883
 # --- Temperature Calibration ---
 # GAS2MQTT_TEMP_SCALE=0.008
 # GAS2MQTT_TEMP_OFFSET=20.3
-# GAS2MQTT_EWMA_ALPHA=0.2
+# GAS2MQTT_SMOOTHING_TAU=1200.0
 
 # --- Consumption Tracking ---
 # GAS2MQTT_ENABLE_CONSUMPTION_TRACKING=false

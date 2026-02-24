@@ -15,7 +15,7 @@ optional debug data to an MQTT broker — ready for Home Assistant or any MQTT c
 ## Features
 
 - **Gas tick detection** — Schmitt trigger with configurable threshold and hysteresis
-- **Temperature monitoring** — EWMA-filtered, empirically calibrated
+- **Temperature monitoring** — PT1-filtered, empirically calibrated
 - **Consumption tracking** — optional cumulative m³ counter with MQTT set command
 - **Raw magnetometer output** — optional debug device for calibration
 - **Health reporting** — automatic heartbeats, per-device availability, and LWT
