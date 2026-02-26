@@ -116,10 +116,26 @@ uv tool install showboat 2>/dev/null || echo "⚠️  showboat install had issue
 cd /workspace
 if [ ! -d ".beads" ]; then
     echo "🔮 Initializing beads issue tracker..."
+    # Ensure Dolt database directory exists and is initialized
+    mkdir -p .beads/dolt
+    if command -v dolt >/dev/null 2>&1; then
+        (cd .beads/dolt && dolt init --name "vito2mqtt" --email "dev@vito2mqtt" 2>/dev/null || true)
+        # Start Dolt sql-server in the background for bd init
+        (cd .beads/dolt && nohup dolt sql-server -H 127.0.0.1 -P 3307 > /tmp/dolt-server.log 2>&1 &)
+        sleep 3  # Give Dolt server time to start
+    fi
     bd init --quiet --skip-hooks
     echo "✅ Beads initialized"
 else
     echo "✅ Beads already initialized"
+    # Ensure Dolt server is running for existing beads setup
+    if command -v dolt >/dev/null 2>&1 && [ -d ".beads/dolt" ]; then
+        if ! bd dolt test --quiet 2>/dev/null; then
+            echo "🔮 Starting Dolt server..."
+            (cd /workspace/.beads/dolt && nohup dolt sql-server -H 127.0.0.1 -P 3307 > /tmp/dolt-server.log 2>&1 &)
+            sleep 3
+        fi
+    fi
 fi
 
 # SSH: seed known_hosts for GitHub so the first git push doesn't trigger a TOFU prompt.

@@ -21,6 +21,9 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 # Install go-task (task runner - https://taskfile.dev)
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
 
+# Install Dolt (versioned database required by beads issue tracker)
+RUN sudo bash -c 'curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh | bash'
+
 # Configure uv to use project-local virtual environments
 ENV UV_PROJECT_ENVIRONMENT="/workspace/.venv"
 

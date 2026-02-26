@@ -34,3 +34,23 @@ fi
 if [ "$removed" -eq 1 ]; then
     echo "✅ Cleaned legacy Beads daemon artifacts"
 fi
+
+# Ensure Dolt sql-server is running (required for beads operations)
+if command -v dolt >/dev/null 2>&1 && [ -d ".beads/dolt" ]; then
+    if ! bd dolt test --quiet 2>/dev/null; then
+        echo "🔮 Starting Dolt server..."
+        # Initialize Dolt repo if .beads/dolt exists but wasn't initialized
+        if [ ! -f ".beads/dolt/.dolt/config.json" ] && [ ! -d ".beads/dolt/.dolt" ]; then
+            (cd .beads/dolt && dolt init --name "$(git config user.name || echo 'dev')" \
+                --email "$(git config user.email || echo 'dev@local')" 2>/dev/null || true)
+        fi
+        (cd /workspace/.beads/dolt && nohup dolt sql-server -H 127.0.0.1 -P 3307 \
+            > /tmp/dolt-server.log 2>&1 &)
+        sleep 2
+        if bd dolt test --quiet 2>/dev/null; then
+            echo "✅ Dolt server started"
+        else
+            echo "⚠️  Dolt server failed to start (check /tmp/dolt-server.log)"
+        fi
+    fi
+fi

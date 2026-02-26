@@ -1,13 +1,32 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
+## Issue Tracking
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` for workflow
+context, or install hooks (`bd hooks install`) for auto-injection.
+
+**Quick reference:**
+
+- `bd ready` - Find unblocked work
+- `bd create "Title" --type task --priority 2` - Create issue
+- `bd close <id>` - Complete work
+- `bd dolt push` - Push beads to remote
+
+For full workflow details: `bd prime`
+
+### Important Rules
+
+- ✅ Use bd for ALL task tracking
+- ✅ Always use `--json` flag for programmatic use
+- ✅ Link discovered work with `discovered-from` dependencies
+- ✅ Check `bd ready` before asking "what should I work on?"
+- ❌ Do NOT create markdown TODO lists
+- ❌ Do NOT use external issue trackers
+- ❌ Do NOT duplicate tracking systems
 
 ## GitHub Tooling Policy
 
 - Use **GitHub CLI (`gh`)** and **git CLI** directly for PR/issue workflows.
-- Do **not** rely on GitKraken MCP tools in this repository.
-- If an agent attempts GitKraken MCP and authentication is missing, switch immediately
-  to `gh` commands.
 
 Quick CLI equivalents:
 
@@ -33,16 +52,6 @@ Common prefixes: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`.
 Breaking changes: add `!` after the type (e.g., `feat!: redesign config`).
 
 These prefixes drive automated release versioning (if Release Please is enabled).
-
-## Quick Reference
-
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --status in_progress  # Claim work
-bd close <id>         # Complete work
-bd sync               # Sync with git
-```
 
 ## Landing the Plane (Session Completion)
 
@@ -88,25 +97,10 @@ until `git push` succeeds.
 - Beads state MUST be committed before pushing — the pre-push hook will reject pushes
   with uncommitted `.beads/` changes
 
-## Beads vs TODO: Two Systems, Distinct Purposes
-
-| System           | Purpose            | Content type            | Location     |
-| ---------------- | ------------------ | ----------------------- | ------------ |
-| **Beads (`bd`)** | Work tracking      | Actionable tasks, epics | `.beads/`    |
-| **TODO folder**  | Deferred decisions | Rich deliberation docs  | `docs/TODO/` |
-
-**Beads** tracks _work_: things to build, fix, or ship.
-
-**TODO items** (T1–Tn) are _deliberation documents_ — deferred decisions, architectural
-evaluations, and technical debt. They are mini-ADRs-in-waiting.
-
 ### Gate Tasks
 
-Phase-triggered TODOs get a **gate task** in beads as a dependency of the relevant work
-item. The gate task references the TODO doc but contains no decision logic itself.
-
-- Date-triggered TODOs stay markdown-only
-- When closing a gate task: create an ADR, update the TODO, or create new tasks
+Deferred work, technical debt and TODOs to revisit later get a **gate task** in beads as
+a dependency of the relevant work item.
 
 ## Showboat Demos
 
@@ -115,3 +109,6 @@ and their captured output — serving as both documentation and reproducible pro
 work. They are **opt-in**: create one when requested by the user, or suggest one after
 significant code changes. See the `showboat-demo` skill for the full workflow and
 conventions.
+
+<!-- BEGIN BEADS INTEGRATION -->
+<!-- END BEADS INTEGRATION -->
