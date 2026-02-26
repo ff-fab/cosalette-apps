@@ -9,7 +9,9 @@ from __future__ import annotations
 from collections.abc import Iterator
 
 import pytest
+
 from vito2mqtt.config import get_settings
+
 
 @pytest.fixture
 def _reset_settings_cache() -> Iterator[None]:

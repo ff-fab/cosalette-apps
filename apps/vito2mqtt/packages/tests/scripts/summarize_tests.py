@@ -123,9 +123,6 @@ def parse_junit_xml(path: Path) -> SuiteResult | None:
     )
 
 
-
-
-
 # =============================================================================
 # Coverage Integration
 # =============================================================================
@@ -268,14 +265,10 @@ def _render_summary(
             fail_parts.append(f"{total_failed} test failure(s)")
         if not coverage_ok:
             assert coverage is not None  # for type narrowing
-            fail_parts.append(
-                f"line coverage {coverage.line_pct:.1f}% < {fail_under}%"
-            )
+            fail_parts.append(f"line coverage {coverage.line_pct:.1f}% < {fail_under}%")
         detail = ", ".join(fail_parts)
         result_line = f"  Result: FAILED ✗ — {detail}"
-        result_colored = (
-            f"  Result: {_RED}FAILED ✗ — {detail}{_RESET}"
-        )
+        result_colored = f"  Result: {_RED}FAILED ✗ — {detail}{_RESET}"
 
     # Width = widest content line + padding for visual breathing room
     # Use plain text (no ANSI codes) for width calculation
@@ -335,10 +328,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--unit-only",
         action="store_true",
-
         help="Only check unit test results (no integration suites). "
         "Useful in CI where test suites run as separate jobs.",
-
     )
     return parser
 
@@ -349,7 +340,6 @@ def main() -> int:
 
     unit_result = parse_junit_xml(args.unit_results)
 
-
     found: list[SuiteResult] = []
     not_found: list[str] = []
 
@@ -357,8 +347,6 @@ def main() -> int:
         found.append(unit_result)
     else:
         not_found.append("Unit (pytest)")
-
-
 
     # Nothing at all — likely a configuration problem
     if not found:

@@ -7,8 +7,8 @@ A smart home app to control a Vitodens gas heating.
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands,
-project structure, and development guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
+structure, and development guidelines.
 
 ## License
 

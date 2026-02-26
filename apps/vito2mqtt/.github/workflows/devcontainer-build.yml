@@ -45,4 +45,3 @@ jobs:
           # Cache layers from GHCR for faster rebuilds
           cacheFrom: ghcr.io/ff-fab/vito2mqtt-devcontainer
           push: always
-

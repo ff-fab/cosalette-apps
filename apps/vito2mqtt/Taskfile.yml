@@ -12,7 +12,6 @@ vars:
   PKG: packages
   MODULE_NAME: 'vito2mqtt'
 
-
 tasks:
   default:
     desc: List available tasks
@@ -144,8 +143,6 @@ tasks:
       - cmd: uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
         ignore_error: true
 
-
-
       - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json
 
   test:unit:
@@ -164,16 +161,10 @@ tasks:
         fi
         uv run pytest {{.CLI_ARGS}} -v --tb=short
 
-
-
-
   test:integration:
     desc: Run integration tests (pytest)
     cmds:
       - uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration
-
-
-
 
   test:cov:
     desc: Run tests with coverage (terminal + XML for IDE)
@@ -280,16 +271,10 @@ tasks:
       - uv run pytest {{.PKG}}/tests/unit/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
       - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=80
 
-
-
-
   ci:test:integration:
     desc: CI integration tests (pytest)
     cmds:
       - uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration --junitxml=results-integration.xml
-
-
-
 
   ci:lint:
     desc: CI lint task (strict)
@@ -297,4 +282,3 @@ tasks:
       - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
       - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
       - uv run mypy {{.PKG}}/src/
-
