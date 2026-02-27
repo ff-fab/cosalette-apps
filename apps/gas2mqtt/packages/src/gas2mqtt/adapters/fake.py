@@ -6,7 +6,8 @@ The bz value can be controlled to simulate trigger events.
 
 from __future__ import annotations
 
-import copy
+from types import TracebackType
+from typing import Self
 
 from gas2mqtt.ports import MagneticReading
 
@@ -52,38 +53,16 @@ class FakeMagnetometer:
         """Mark the fake sensor as closed."""
         self.closed = True
 
+    async def __aenter__(self) -> Self:
+        """Enter async context: initialize the fake sensor."""
+        self.initialize()
+        return self
 
-class NullStorage:
-    """No-op adapter for StateStoragePort.
-
-    Used when persistence is disabled (state_file is None)
-    or in dry-run mode. load() always returns None,
-    save() silently discards data.
-    """
-
-    def load(self, key: str) -> dict[str, object] | None:  # noqa: ARG002
-        """Always returns None — no state persisted."""
-        return None
-
-    def save(self, key: str, data: dict[str, object]) -> None:  # noqa: ARG002
-        """Silently discards data — no-op."""
-
-
-class FakeStorage:
-    """Test double for StateStoragePort.
-
-    Stores state in an in-memory dict. Useful for unit tests
-    where you need to inspect saved state or pre-load state.
-    """
-
-    def __init__(self) -> None:
-        self._store: dict[str, dict[str, object]] = {}
-
-    def load(self, key: str) -> dict[str, object] | None:
-        """Return a deep copy of stored state, or None if absent."""
-        value = self._store.get(key)
-        return copy.deepcopy(value) if value is not None else None
-
-    def save(self, key: str, data: dict[str, object]) -> None:
-        """Store a deep copy of data, preventing mutation leakage."""
-        self._store[key] = copy.deepcopy(data)
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exit async context: close the fake sensor."""
+        self.close()

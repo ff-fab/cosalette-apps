@@ -23,10 +23,13 @@ is a QMC5883L — a lower-cost successor with a different register map.
 from __future__ import annotations
 
 import logging
+from types import TracebackType
+from typing import Self
 
 import smbus2
 
 from gas2mqtt.ports import MagneticReading
+from gas2mqtt.settings import Gas2MqttSettings
 
 logger = logging.getLogger(__name__)
 
@@ -63,9 +66,9 @@ class Qmc5883lAdapter:
         Bytes 7-8: Temperature (little-endian signed 16)
     """
 
-    def __init__(self, bus_number: int = 1, address: int = 0x0D) -> None:
-        self._bus_number = bus_number
-        self._address = address
+    def __init__(self, settings: Gas2MqttSettings) -> None:
+        self._bus_number = settings.i2c_bus
+        self._address = settings.i2c_address
         self._bus: smbus2.SMBus | None = None
 
     def initialize(self) -> None:
@@ -123,3 +126,20 @@ class Qmc5883lAdapter:
             self._bus.close()
             self._bus = None
             logger.info("QMC5883L I2C bus closed")
+
+    async def __aenter__(self) -> Self:
+        """Enter async context: initialize the sensor.
+
+        Enables cosalette 0.1.5 adapter lifecycle management.
+        """
+        self.initialize()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exit async context: close the I2C bus."""
+        self.close()

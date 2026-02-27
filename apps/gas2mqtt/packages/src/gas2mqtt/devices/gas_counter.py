@@ -31,7 +31,7 @@ import cosalette
 
 from gas2mqtt.domain.consumption import ConsumptionTracker
 from gas2mqtt.domain.schmitt import SchmittTrigger, TriggerState
-from gas2mqtt.ports import MagnetometerPort, StateStoragePort
+from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
 COUNTER_MODULUS = 0x10000
@@ -66,23 +66,22 @@ def _process_poll(
 
 
 def _restore_counter(
-    saved: dict[str, object] | None,
+    store: cosalette.DeviceStore,
     logger: logging.Logger,
 ) -> int:
     """Restore the tick counter from saved state.
 
-    Returns 0 if no saved state exists.
+    Returns 0 if the store has no counter value.
     """
-    if saved is None:
-        return 0
-    raw = saved.get("counter", 0)
+    raw = store.get("counter", 0)
     counter = int(raw) if isinstance(raw, (int, float, str)) else 0
-    logger.info("Restored counter=%d from saved state", counter)
+    if counter != 0:
+        logger.info("Restored counter=%d from saved state", counter)
     return counter
 
 
 def _restore_consumption(
-    saved: dict[str, object] | None,
+    store: cosalette.DeviceStore,
     settings: Gas2MqttSettings,
     logger: logging.Logger,
 ) -> ConsumptionTracker | None:
@@ -93,8 +92,8 @@ def _restore_consumption(
     if not settings.enable_consumption_tracking:
         return None
     initial_m3 = 0.0
-    if saved is not None and "consumption_m3" in saved:
-        raw = saved["consumption_m3"]
+    raw = store.get("consumption_m3")
+    if raw is not None:
         initial_m3 = float(raw) if isinstance(raw, (int, float, str)) else 0.0
         logger.info(
             "Restored consumption=%.3f m³ from saved state",
@@ -103,7 +102,10 @@ def _restore_consumption(
     return ConsumptionTracker(settings.liters_per_tick, initial_m3=initial_m3)
 
 
-async def gas_counter(ctx: cosalette.DeviceContext) -> None:
+async def gas_counter(
+    ctx: cosalette.DeviceContext,
+    store: cosalette.DeviceStore,
+) -> None:
     """Gas counter device — polls magnetometer, detects ticks.
 
     This is a long-running device coroutine intended for registration
@@ -115,19 +117,19 @@ async def gas_counter(ctx: cosalette.DeviceContext) -> None:
         ctx: Per-device context injected by cosalette. Provides MQTT
             publishing, shutdown-aware sleep, adapter resolution,
             and settings access.
+        store: Per-device persistent store injected by cosalette.
+            Already loaded on entry; saved by framework on shutdown.
     """
     settings: Gas2MqttSettings = ctx.settings  # type: ignore[assignment]
     magnetometer = ctx.adapter(MagnetometerPort)  # type: ignore[type-abstract]
-    storage = ctx.adapter(StateStoragePort)  # type: ignore[type-abstract]
     logger = logging.getLogger(f"cosalette.{ctx.name}")
 
     # --- Domain object initialisation ---
     trigger = SchmittTrigger(settings.trigger_level, settings.trigger_hysteresis)
 
     # --- Restore persisted state ---
-    saved = storage.load(ctx.name)
-    counter = _restore_counter(saved, logger)
-    consumption = _restore_consumption(saved, settings, logger)
+    counter = _restore_counter(store, logger)
+    consumption = _restore_consumption(store, settings, logger)
 
     def _build_state() -> dict[str, object]:
         """Build the state payload dict."""
@@ -156,35 +158,29 @@ async def gas_counter(ctx: cosalette.DeviceContext) -> None:
             logger.error("Invalid consumption command: %s", exc)
 
     def _save_state() -> None:
-        """Persist current state to storage."""
+        """Persist current state to the device store."""
         state = _build_state()
         # Remove trigger — it's transient, not worth persisting
         state.pop("trigger", None)
-        storage.save(ctx.name, state)
+        store.update(state)
+        store.save()
 
     # Publish initial state
     await ctx.publish_state(_build_state())
     _save_state()
 
-    try:
-        while not ctx.shutdown_requested:
-            try:
-                counter, should_publish = _process_poll(
-                    magnetometer,
-                    trigger,
-                    counter,
-                    consumption,
-                    logger,
-                )
-                if should_publish:
-                    await ctx.publish_state(_build_state())
-                    _save_state()
-            except OSError:
-                logger.exception("I2C read error")
-            await ctx.sleep(settings.poll_interval)
-    finally:
+    while not ctx.shutdown_requested:
         try:
-            _save_state()
-            logger.info("Gas counter state saved on shutdown")
-        except Exception:
-            logger.exception("Failed to save state on shutdown")
+            counter, should_publish = _process_poll(
+                magnetometer,
+                trigger,
+                counter,
+                consumption,
+                logger,
+            )
+            if should_publish:
+                await ctx.publish_state(_build_state())
+                _save_state()
+        except OSError:
+            logger.exception("I2C read error")
+        await ctx.sleep(settings.poll_interval)

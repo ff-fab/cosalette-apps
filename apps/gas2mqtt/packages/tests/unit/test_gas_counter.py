@@ -20,9 +20,9 @@ import cosalette
 import pytest
 from cosalette.testing import FakeClock, MockMqttClient
 
-from gas2mqtt.adapters.fake import FakeMagnetometer, FakeStorage
+from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.devices.gas_counter import COUNTER_MODULUS, gas_counter
-from gas2mqtt.ports import MagnetometerPort, StateStoragePort
+from gas2mqtt.ports import MagnetometerPort
 from tests.fixtures.async_utils import wait_for_condition
 from tests.fixtures.config import make_gas2mqtt_settings
 
@@ -42,16 +42,16 @@ def _make_context(
     enable_consumption: bool = False,
     liters_per_tick: float = 10.0,
     poll_interval: float = 0.01,
-    storage: FakeStorage | None = None,
-) -> cosalette.DeviceContext:
-    """Create a DeviceContext with custom settings for gas_counter tests."""
+    store: cosalette.MemoryStore | None = None,
+) -> tuple[cosalette.DeviceContext, cosalette.DeviceStore]:
+    """Create a DeviceContext and DeviceStore for gas_counter tests."""
 
     settings = make_gas2mqtt_settings(
         enable_consumption_tracking=enable_consumption,
         liters_per_tick=liters_per_tick,
         poll_interval=poll_interval,
     )
-    return cosalette.DeviceContext(
+    ctx = cosalette.DeviceContext(
         name="gas_counter",
         settings=settings,
         mqtt=mock_mqtt,
@@ -59,10 +59,13 @@ def _make_context(
         shutdown_event=asyncio.Event(),
         adapters={
             MagnetometerPort: fake_magnetometer,
-            StateStoragePort: storage or FakeStorage(),
         },
         clock=fake_clock,
     )
+    backend = store or cosalette.MemoryStore()
+    device_store = cosalette.DeviceStore(backend, "gas_counter")
+    device_store.load()
+    return ctx, device_store
 
 
 def _published_states(mock_mqtt: MockMqttClient) -> list[dict[str, object]]:
@@ -86,6 +89,7 @@ class TestGasCounterInitialState:
     async def test_publishes_initial_state(
         self,
         gas_counter_context: cosalette.DeviceContext,
+        gas_counter_store: cosalette.DeviceStore,
         mock_mqtt: MockMqttClient,
     ) -> None:
         """Device publishes counter=0, trigger=OPEN on startup.
@@ -97,7 +101,7 @@ class TestGasCounterInitialState:
         gas_counter_context._shutdown_event.set()
 
         # Act
-        await gas_counter(gas_counter_context)
+        await gas_counter(gas_counter_context, gas_counter_store)
 
         # Assert
         states = _published_states(mock_mqtt)
@@ -115,13 +119,13 @@ class TestGasCounterInitialState:
         Technique: Branch/Condition Coverage — consumption enabled path.
         """
         # Arrange
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt, fake_clock, fake_magnetometer, enable_consumption=True
         )
         ctx._shutdown_event.set()
 
         # Act
-        await gas_counter(ctx)
+        await gas_counter(ctx, store)
 
         # Assert
         states = _published_states(mock_mqtt)
@@ -130,6 +134,7 @@ class TestGasCounterInitialState:
     async def test_consumption_not_in_state_when_disabled(
         self,
         gas_counter_context: cosalette.DeviceContext,
+        gas_counter_store: cosalette.DeviceStore,
         mock_mqtt: MockMqttClient,
     ) -> None:
         """State omits consumption_m3 when tracking is disabled.
@@ -140,7 +145,7 @@ class TestGasCounterInitialState:
         gas_counter_context._shutdown_event.set()
 
         # Act
-        await gas_counter(gas_counter_context)
+        await gas_counter(gas_counter_context, gas_counter_store)
 
         # Assert
         states = _published_states(mock_mqtt)
@@ -168,8 +173,8 @@ class TestGasCounterTriggerDetection:
         """
         # Arrange
         fake_magnetometer.bz = BZ_HIGH
-        ctx = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
-        task = asyncio.create_task(gas_counter(ctx))
+        ctx, store = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Act — wait for at least one loop iteration to publish
         await wait_for_condition(
@@ -196,8 +201,8 @@ class TestGasCounterTriggerDetection:
         """
         # Arrange — first go HIGH, then go LOW
         fake_magnetometer.bz = BZ_HIGH
-        ctx = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
-        task = asyncio.create_task(gas_counter(ctx))
+        ctx, store = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Wait for rising edge
         await wait_for_condition(
@@ -231,8 +236,8 @@ class TestGasCounterTriggerDetection:
         """
         # Arrange — Bz in neutral zone (no trigger event)
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
-        task = asyncio.create_task(gas_counter(ctx))
+        ctx, store = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Act — let the loop run a few iterations
         await asyncio.sleep(0.05)
@@ -264,8 +269,8 @@ class TestGasCounterIncrement:
         Technique: Specification-based — counter tracks rising edges.
         """
         # Arrange
-        ctx = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
-        task = asyncio.create_task(gas_counter(ctx))
+        ctx, store = _make_context(mock_mqtt, fake_clock, fake_magnetometer)
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Act — trigger two full cycles: HIGH → LOW → HIGH
         fake_magnetometer.bz = BZ_HIGH
@@ -344,14 +349,14 @@ class TestGasCounterConsumption:
         """
         # Arrange — 10 liters/tick = 0.01 m³/tick
         fake_magnetometer.bz = BZ_HIGH
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
             liters_per_tick=10.0,
         )
-        task = asyncio.create_task(gas_counter(ctx))
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Act — wait for first tick
         await wait_for_condition(
@@ -387,10 +392,10 @@ class TestGasCounterCommand:
         """
         # Arrange
         fake_magnetometer.bz = BZ_NEUTRAL  # Stay in dead band
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt, fake_clock, fake_magnetometer, enable_consumption=True
         )
-        task = asyncio.create_task(gas_counter(ctx))
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Wait for initial state
         await wait_for_condition(
@@ -424,10 +429,10 @@ class TestGasCounterCommand:
         """
         # Arrange
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt, fake_clock, fake_magnetometer, enable_consumption=False
         )
-        task = asyncio.create_task(gas_counter(ctx))
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         await wait_for_condition(
             lambda: len(_published_states(mock_mqtt)) >= 1,
@@ -462,10 +467,10 @@ class TestGasCounterCommand:
         """
         # Arrange
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt, fake_clock, fake_magnetometer, enable_consumption=True
         )
-        task = asyncio.create_task(gas_counter(ctx))
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         await wait_for_condition(
             lambda: len(_published_states(mock_mqtt)) >= 1,
@@ -519,8 +524,8 @@ class TestGasCounterErrorHandling:
 
         error_mag.read = flaky_read  # type: ignore[assignment,method-assign]
 
-        ctx = _make_context(mock_mqtt, fake_clock, error_mag)
-        task = asyncio.create_task(gas_counter(ctx))
+        ctx, store = _make_context(mock_mqtt, fake_clock, error_mag)
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Act — let the loop run through the errors and a recovery
         await wait_for_condition(
@@ -557,15 +562,17 @@ class TestGasCounterStatePersistence:
 
         Technique: Specification-based — restore contract.
         """
-        # Arrange — pre-populate storage with saved state
-        storage = FakeStorage()
-        storage.save("gas_counter", {"counter": 42})
+        # Arrange — pre-populate backend with saved state
+        backend = cosalette.MemoryStore()
+        backend.save("gas_counter", {"counter": 42})
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(mock_mqtt, fake_clock, fake_magnetometer, storage=storage)
+        ctx, store = _make_context(
+            mock_mqtt, fake_clock, fake_magnetometer, store=backend
+        )
         ctx._shutdown_event.set()
 
         # Act
-        await gas_counter(ctx)
+        await gas_counter(ctx, store)
 
         # Assert
         states = _published_states(mock_mqtt)
@@ -582,20 +589,20 @@ class TestGasCounterStatePersistence:
         Technique: Specification-based — restore contract with consumption.
         """
         # Arrange
-        storage = FakeStorage()
-        storage.save("gas_counter", {"counter": 10, "consumption_m3": 99.5})
+        backend = cosalette.MemoryStore()
+        backend.save("gas_counter", {"counter": 10, "consumption_m3": 99.5})
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
-            storage=storage,
+            store=backend,
         )
         ctx._shutdown_event.set()
 
         # Act
-        await gas_counter(ctx)
+        await gas_counter(ctx, store)
 
         # Assert
         states = _published_states(mock_mqtt)
@@ -613,22 +620,22 @@ class TestGasCounterStatePersistence:
         Technique: State Transition Testing — shutdown lifecycle.
         """
         # Arrange
-        storage = FakeStorage()
+        backend = cosalette.MemoryStore()
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
-            storage=storage,
+            store=backend,
         )
         ctx._shutdown_event.set()
 
         # Act
-        await gas_counter(ctx)
+        await gas_counter(ctx, store)
 
         # Assert — state was persisted (trigger is NOT saved)
-        saved = storage.load("gas_counter")
+        saved = backend.load("gas_counter")
         assert saved is not None
         assert saved["counter"] == 0
         assert saved["consumption_m3"] == 0.0
@@ -645,17 +652,17 @@ class TestGasCounterStatePersistence:
         Technique: State Transition Testing — save on state change.
         """
         # Arrange
-        storage = FakeStorage()
+        backend = cosalette.MemoryStore()
         fake_magnetometer.bz = BZ_HIGH
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
             liters_per_tick=10.0,
-            storage=storage,
+            store=backend,
         )
-        task = asyncio.create_task(gas_counter(ctx))
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         # Act — wait for first tick
         await wait_for_condition(
@@ -666,7 +673,7 @@ class TestGasCounterStatePersistence:
         await task
 
         # Assert — state was saved with updated counter and consumption
-        saved = storage.load("gas_counter")
+        saved = backend.load("gas_counter")
         assert saved is not None
         assert saved["counter"] == 1
         assert saved["consumption_m3"] == 0.01
@@ -682,16 +689,16 @@ class TestGasCounterStatePersistence:
         Technique: Specification-based — save after manual set.
         """
         # Arrange
-        storage = FakeStorage()
+        backend = cosalette.MemoryStore()
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(
+        ctx, store = _make_context(
             mock_mqtt,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
-            storage=storage,
+            store=backend,
         )
-        task = asyncio.create_task(gas_counter(ctx))
+        task = asyncio.create_task(gas_counter(ctx, store))
 
         await wait_for_condition(
             lambda: len(_published_states(mock_mqtt)) >= 1,
@@ -708,36 +715,39 @@ class TestGasCounterStatePersistence:
         await task
 
         # Assert
-        saved = storage.load("gas_counter")
+        saved = backend.load("gas_counter")
         assert saved is not None
         assert saved["consumption_m3"] == 55.5
 
-    async def test_starts_fresh_with_null_storage(
+    async def test_starts_fresh_with_null_store(
         self,
         mock_mqtt: MockMqttClient,
         fake_clock: FakeClock,
         fake_magnetometer: FakeMagnetometer,
     ) -> None:
-        """Device starts at zero when using NullStorage (no persistence).
+        """Device starts at zero when using NullStore (no persistence).
 
-        Technique: Branch/Condition Coverage — NullStorage path.
+        Technique: Branch/Condition Coverage — NullStore path.
         """
-        # Arrange
-        from gas2mqtt.adapters.fake import NullStorage
-
-        storage = NullStorage()
+        # Arrange — NullStore backend means load() yields empty state
+        backend = cosalette.NullStore()
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx = _make_context(
-            mock_mqtt,
-            fake_clock,
-            fake_magnetometer,
-            enable_consumption=True,
-            storage=storage,
+        settings = make_gas2mqtt_settings(enable_consumption_tracking=True)
+        ctx = cosalette.DeviceContext(
+            name="gas_counter",
+            settings=settings,
+            mqtt=mock_mqtt,
+            topic_prefix="gas2mqtt",
+            shutdown_event=asyncio.Event(),
+            adapters={MagnetometerPort: fake_magnetometer},
+            clock=fake_clock,
         )
+        device_store = cosalette.DeviceStore(backend, "gas_counter")
+        device_store.load()
         ctx._shutdown_event.set()
 
         # Act
-        await gas_counter(ctx)
+        await gas_counter(ctx, device_store)
 
         # Assert — starts at zero
         states = _published_states(mock_mqtt)
@@ -755,17 +765,17 @@ class TestGasCounterStatePersistence:
         Technique: Round-trip Testing — full save/restart/restore cycle.
         """
         # Arrange — first run: tick once
-        storage = FakeStorage()
+        backend = cosalette.MemoryStore()
         fake_magnetometer.bz = BZ_HIGH
-        ctx1 = _make_context(
+        ctx1, store1 = _make_context(
             mock_mqtt,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
             liters_per_tick=10.0,
-            storage=storage,
+            store=backend,
         )
-        task1 = asyncio.create_task(gas_counter(ctx1))
+        task1 = asyncio.create_task(gas_counter(ctx1, store1))
 
         await wait_for_condition(
             lambda: any(s["counter"] == 1 for s in _published_states(mock_mqtt)),
@@ -774,19 +784,19 @@ class TestGasCounterStatePersistence:
         ctx1._shutdown_event.set()
         await task1
 
-        # Act — second run: simulate restart with fresh context but same storage
+        # Act — second run: simulate restart with fresh context but same backend
         mock_mqtt2 = MockMqttClient()
         fake_magnetometer.bz = BZ_NEUTRAL
-        ctx2 = _make_context(
+        ctx2, store2 = _make_context(
             mock_mqtt2,
             fake_clock,
             fake_magnetometer,
             enable_consumption=True,
             liters_per_tick=10.0,
-            storage=storage,
+            store=backend,
         )
         ctx2._shutdown_event.set()
-        await gas_counter(ctx2)
+        await gas_counter(ctx2, store2)
 
         # Assert — second run starts where first left off
         states2 = _published_states(mock_mqtt2)
