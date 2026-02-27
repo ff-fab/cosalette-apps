@@ -102,13 +102,13 @@ packages/src/vito2mqtt/
 ├── adapters/
 │   ├── __init__.py
 │   ├── optolink.py        # Real serial Optolink adapter
-│   └── fake_optolink.py   # Fake adapter for dry-run + testing
+│   └── fake_optolink.py   # Fake adapter for testing + dry-run mode
 └── optolink/              # Clean-room P300 protocol implementation
     ├── __init__.py
     ├── commands.py         # Vitodens 200-W command registry
     ├── codec.py            # Data type encoder/decoder
     ├── telegram.py         # P300 telegram framing
-    └── transport.py        # Serial transport layer
+    └── transport.py        # Session controller (init handshake + read/write orchestration)
 ```
 
 ### Architectural Decisions (Confirmed)
@@ -134,11 +134,12 @@ packages/src/vito2mqtt/
 
 **Signal Names: English throughout** — consistent English in code, topics, docs
 
-**Polling Intervals: Configurable via settings** with sensible defaults matching
-legacy intervals (300s, 3600s, 14400s)
+**Polling Intervals: Configurable via settings** with sensible defaults as
+defined in ADR-005 (300s for most domains, 3600s for system)
 
-**Connection Strategy: Connect per polling cycle** — legacy-proven, simpler fault
-tolerance. Serial connection opened/closed per-read, not persistent.
+**Connection Strategy: Connect per polling cycle** — simpler fault tolerance.
+Serial connection opened once per polling cycle, batching all reads for the domain
+group, then closed.
 
 ### Clean-Room Approach for pyvcontrol
 

@@ -34,8 +34,9 @@ port/adapter separation with structural subtyping (no inheritance required).
   cycle rather than maintaining a persistent connection
 - **Adapter lifecycle via async context manager** — adapters implement `__aenter__` /
   `__aexit__` for resource cleanup
-- **Adapters**: `SerialOptolinkAdapter` (real hardware), `FakeOptolinkAdapter` (tests),
-  `DryRunOptolinkAdapter` (development without hardware)
+- **Adapters**: `SerialOptolinkAdapter` (real hardware), `FakeOptolinkAdapter`
+  (testing and dry-run development — configurable to return deterministic responses
+  or plausible static data)
 
 ## Decision Drivers
 
@@ -72,8 +73,8 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 - Full test isolation — unit tests use `FakeOptolinkAdapter` with deterministic
   responses, no serial port required
-- Dry-run mode enables development and demo workflows on any machine, including CI
-  runners and developer laptops without boiler hardware
+- The same `FakeOptolinkAdapter` enables dry-run mode for development and demos on any
+  machine, including CI runners and developer laptops without boiler hardware
 - PEP 544 structural subtyping means adapters do not need to inherit from a base class,
   reducing coupling and enabling third-party adapters that satisfy the Protocol by shape
 - Connect-per-cycle strategy provides natural fault recovery — if a serial connection
