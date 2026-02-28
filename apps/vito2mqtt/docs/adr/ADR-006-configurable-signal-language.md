@@ -30,9 +30,9 @@ values creates a disconnect between the MQTT payload and the physical device.
 The affected data types are exclusively enum-type codecs that map byte values to
 human-readable strings:
 
-- **BA** — operating modes (Betriebsart): 8 modes
+- **BA** — operating modes (Betriebsart): 6 modes
 - **USV** — three-way switch valve states (Umschaltventil): 4 states
-- **ES** — error codes (Fehlerspeicher): ~30 historical error descriptions
+- **ES** — error codes (Fehlerspeicher): ~60 historical error descriptions
 
 Other data types (IS10, IUNON, IU3600, RT, CT, TI, PR2, PR3) produce numeric values,
 timestamps, or cycle timers that are inherently language-neutral and require no
@@ -62,7 +62,7 @@ A `signal_language` setting is added to `Vito2MqttSettings` (see ADR-005):
 
 | Setting           | Type            | Default | Notes                                      |
 | ----------------- | --------------- | ------- | ------------------------------------------ |
-| `signal_language` | `"de" \| "en"` | `"en"`  | Language for enum-type codec values         |
+| `signal_language` | `Literal["de", "en"]` | `"en"`  | Language for enum-type codec values |
 
 The caller (session controller or command executor) reads `signal_language` from settings
 and passes it to the codec on each call. The codec itself holds no state and has no
