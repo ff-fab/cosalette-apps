@@ -4,6 +4,11 @@
 
 Accepted **Date:** 2026-02-27
 
+> **Note:** The "English signal names" aspect of this decision has been refined by
+> ADR-006. Signal _keys_ (MQTT topic components, command registry names) remain English.
+> Signal _values_ from enum-type codecs (BA, USV, ES) are now configurable DE/EN per
+> ADR-006.
+
 ## Context
 
 The Viessmann Optolink interface uses the P300 serial protocol to communicate with the
