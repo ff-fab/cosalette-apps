@@ -6,10 +6,10 @@ Accepted **Date:** 2026-02-28
 
 ## Context
 
-The legacy pyvcontrol project used hardcoded German strings for operating modes (BA),
-switch valve states (USV), and error codes (ES). These strings originate from Viessmann's
-own documentation — the canonical labels for boiler states are German because Viessmann
-is a German manufacturer and the Vitodens 200-W's internal vocabulary is German.
+We know the German strings for operating modes (BA), switch valve states (USV), and
+error codes (ES). These strings originate from Viessmann's own documentation — the
+canonical labels for boiler states are German because Viessmann is a German manufacturer
+and the Vitodens 200-W's internal vocabulary is German.
 
 ADR-004 mandated "English signal names throughout the codebase" to make the project
 accessible to international contributors. However, this mandate conflated two distinct
