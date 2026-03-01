@@ -78,6 +78,20 @@ repos:
       - id: ruff-format
         name: Ruff (format Python)
 
+  # GPLv3 copyright header: Ensure all .py and .sh files have the header
+  - repo: local
+    hooks:
+      - id: gpl-header
+        name: GPLv3 copyright header
+        entry: python3 scripts/add_gpl_headers.py
+        language: system
+        types_or: [python, shell]
+        exclude: |
+          (?x)^(
+            docs/planning/legacy/.*|
+            .*/_version\.py$
+          )$
+
   # mypy: Type checking for Python
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.19.1

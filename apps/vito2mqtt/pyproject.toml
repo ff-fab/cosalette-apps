@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A smart home app to control a Vitodens gas heating."
 readme = "README.md"
 requires-python = ">=3.14"
-license = { text = "MIT" }
+license = { text = "GPL-3.0-or-later" }
 authors = [
     { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
 ]
