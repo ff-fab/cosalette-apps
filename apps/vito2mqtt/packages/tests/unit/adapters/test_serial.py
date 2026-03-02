@@ -254,6 +254,145 @@ class TestReadSignals:
             "burner_modulation": 55,
         }
 
+    async def test_read_signals_single_session_for_batch(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """Only one session is opened for the entire batch.
+
+        Technique: Wrap ``_open_session`` to count invocations.
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        call_count = 0
+        original_patch = make_open_session_patch(mock_session)
+
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _counting_open() -> AsyncIterator[MockP300Session]:
+            nonlocal call_count
+            call_count += 1
+            async with original_patch() as s:
+                yield s
+
+        adapter._open_session = _counting_open  # type: ignore[assignment]
+        mock_session.read.side_effect = [b"\xcb\x00", b"\x37"]
+
+        await adapter.read_signals(["outdoor_temperature", "burner_modulation"])
+
+        assert call_count == 1
+
+    async def test_read_signals_validates_all_before_io(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """An unknown signal name rejects the whole batch before any I/O.
+
+        Technique: Verify ``_open_session`` is never entered when
+        validation fails.
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        session_opened = False
+        original_patch = make_open_session_patch(mock_session)
+
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _tracking_open() -> AsyncIterator[MockP300Session]:
+            nonlocal session_opened
+            session_opened = True
+            async with original_patch() as s:
+                yield s
+
+        adapter._open_session = _tracking_open  # type: ignore[assignment]
+
+        with pytest.raises(InvalidSignalError, match="Unknown signal"):
+            await adapter.read_signals(["outdoor_temperature", "nonexistent_signal"])
+
+        assert not session_opened
+
+    async def test_read_signals_write_only_rejected_before_io(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """A write-only signal in the batch rejects before any I/O.
+
+        Technique: Same tracking wrapper — session must not be opened.
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        session_opened = False
+        original_patch = make_open_session_patch(mock_session)
+
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _tracking_open() -> AsyncIterator[MockP300Session]:
+            nonlocal session_opened
+            session_opened = True
+            async with original_patch() as s:
+                yield s
+
+        adapter._open_session = _tracking_open  # type: ignore[assignment]
+
+        with pytest.raises(InvalidSignalError, match="write-only"):
+            await adapter.read_signals(["outdoor_temperature", "hot_water_setpoint"])
+
+        assert not session_opened
+
+    async def test_read_signals_empty_returns_empty_dict(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """Empty names list returns ``{}`` without opening any session."""
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        session_opened = False
+        original_patch = make_open_session_patch(mock_session)
+
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _tracking_open() -> AsyncIterator[MockP300Session]:
+            nonlocal session_opened
+            session_opened = True
+            async with original_patch() as s:
+                yield s
+
+        adapter._open_session = _tracking_open  # type: ignore[assignment]
+
+        result = await adapter.read_signals([])
+
+        assert result == {}
+        assert not session_opened
+
+    async def test_read_signals_mid_batch_error_propagates(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """A DeviceError mid-batch propagates as OptolinkConnectionError.
+
+        First signal succeeds, second raises ``DeviceError`` — the
+        adapter's error-translation contract maps it to
+        ``OptolinkConnectionError``.
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
+        mock_session.read.side_effect = [
+            b"\xcb\x00",
+            DeviceError("handshake failed"),
+        ]
+
+        with pytest.raises(OptolinkConnectionError, match="Device communication"):
+            await adapter.read_signals(["outdoor_temperature", "burner_modulation"])
+
 
 # ---------------------------------------------------------------------------
 # Error mapping

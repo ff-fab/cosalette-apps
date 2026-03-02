@@ -31,10 +31,11 @@ from collections.abc import Sequence
 from datetime import datetime
 from typing import Any
 
+from vito2mqtt.adapters import lookup_command
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.errors import CommandNotWritableError, InvalidSignalError
 from vito2mqtt.optolink.codec import CycleTimeSchedule, ReturnStatus
-from vito2mqtt.optolink.commands import COMMANDS, AccessMode
+from vito2mqtt.optolink.commands import AccessMode
 
 # ---------------------------------------------------------------------------
 # Default value factories per type code
@@ -155,7 +156,7 @@ class FakeOptolinkAdapter:
         Raises:
             InvalidSignalError: If *name* is not in the command registry.
         """
-        cmd = self._lookup(name)
+        cmd = lookup_command(name)
         if cmd.access_mode == AccessMode.WRITE:
             msg = f"Signal {name!r} is write-only"
             raise InvalidSignalError(msg)
@@ -178,7 +179,7 @@ class FakeOptolinkAdapter:
             InvalidSignalError: If *name* is not in the command registry.
             CommandNotWritableError: If the signal is read-only.
         """
-        cmd = self._lookup(name)
+        cmd = lookup_command(name)
         if cmd.access_mode == AccessMode.READ:
             msg = f"Signal {name!r} is read-only"
             raise CommandNotWritableError(msg)
@@ -197,18 +198,3 @@ class FakeOptolinkAdapter:
         for name in names:
             results[name] = await self.read_signal(name)
         return results
-
-    # -- private helpers ----------------------------------------------------
-
-    @staticmethod
-    def _lookup(name: str) -> Any:
-        """Look up a command by signal name.
-
-        Raises:
-            InvalidSignalError: If *name* is not in the registry.
-        """
-        cmd = COMMANDS.get(name)
-        if cmd is None:
-            msg = f"Unknown signal: {name!r}"
-            raise InvalidSignalError(msg)
-        return cmd

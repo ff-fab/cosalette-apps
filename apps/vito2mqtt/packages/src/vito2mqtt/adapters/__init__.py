@@ -14,3 +14,32 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """Adapter implementations for vito2mqtt port interfaces."""
+
+from __future__ import annotations
+
+from vito2mqtt.errors import InvalidSignalError
+from vito2mqtt.optolink.commands import COMMANDS, Command
+
+__all__ = ["lookup_command"]
+
+
+def lookup_command(name: str) -> Command:
+    """Resolve a signal *name* to its :class:`Command` or raise.
+
+    Shared utility used by all adapter implementations to validate and
+    retrieve a command from the registry.
+
+    Args:
+        name: Signal identifier (must exist in ``COMMANDS``).
+
+    Returns:
+        The matching :class:`Command` instance.
+
+    Raises:
+        InvalidSignalError: If *name* is not in the command registry.
+    """
+    cmd = COMMANDS.get(name)
+    if cmd is None:
+        msg = f"Unknown signal: {name!r}"
+        raise InvalidSignalError(msg)
+    return cmd
