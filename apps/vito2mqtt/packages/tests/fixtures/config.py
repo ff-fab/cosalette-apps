@@ -16,31 +16,28 @@
 """Configuration test fixtures and factories.
 
 Provides fixtures for testing config.py:
-- Settings LRU cache management
+- Vito2MqttSettings construction helpers
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-
 import pytest
 
-from vito2mqtt.config import get_settings
+from vito2mqtt.config import Vito2MqttSettings
 
 
 @pytest.fixture
-def _reset_settings_cache() -> Iterator[None]:
-    """Clear Settings LRU cache before and after test.
+def vito2mqtt_settings(monkeypatch: pytest.MonkeyPatch) -> Vito2MqttSettings:
+    """Construct a Vito2MqttSettings with required env vars set.
 
-    The get_settings() function is cached with @lru_cache. Tests that modify
-    environment variables or config files need a fresh Settings instance.
+    Provides a ready-to-use settings instance with the minimum required
+    environment variables (``VITO2MQTT_SERIAL_PORT``) so tests don't need
+    to set them every time.
 
-    Usage:
-        def test_env_override(_reset_settings_cache, monkeypatch):
-            monkeypatch.setenv("OPENHAB_URL", "http://custom:8080")
-            settings = get_settings()
-            assert settings.openhab_url == "http://custom:8080"
+    Usage::
+
+        def test_something(vito2mqtt_settings):
+            assert vito2mqtt_settings.serial_port == "/dev/ttyUSB0"
     """
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
+    monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
+    return Vito2MqttSettings()

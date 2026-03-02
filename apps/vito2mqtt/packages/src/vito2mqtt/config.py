@@ -13,39 +13,47 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Application configuration via pydantic-settings.
+"""Application configuration via cosalette Settings.
 
-Configuration is loaded from environment variables and/or .env files.
+Configuration is loaded from environment variables (prefixed ``VITO2MQTT_``)
+and/or ``.env`` files.  MQTT and logging settings are inherited from
+:class:`cosalette.Settings`.
 """
 
-from functools import lru_cache
+from __future__ import annotations
+
 from typing import Literal
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from cosalette import Settings
+from pydantic_settings import SettingsConfigDict
 
 
-class Settings(BaseSettings):
-    """Application settings loaded from environment variables."""
+class Vito2MqttSettings(Settings):
+    """Vito2mqtt application settings.
+
+    Inherits ``mqtt`` and ``logging`` nested models from
+    :class:`cosalette.Settings`.  Application-specific fields are loaded
+    from environment variables with the ``VITO2MQTT_`` prefix.
+    """
 
     model_config = SettingsConfigDict(
+        env_prefix="VITO2MQTT_",
+        env_nested_delimiter="__",
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False,
     )
 
-    # Application settings
-    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    # Optolink serial connection
+    serial_port: str
+    """Serial device path (e.g. ``/dev/ttyUSB0``). **Required.**"""
 
-    # Network service settings
-    host: str = "127.0.0.1"
-    port: int = 1883
+    serial_baud_rate: int = 4800
+    """Baud rate for the Optolink serial connection."""
 
+    # Device identification
+    device_id: str = "vitodens200w"
+    """Device identifier used in MQTT topic hierarchy."""
 
-@lru_cache
-def get_settings() -> Settings:
-    """Get cached application settings.
-
-    Returns:
-        Settings instance (cached after first call).
-    """
-    return Settings()
+    # Internationalisation
+    signal_language: Literal["de", "en"] = "en"
+    """Language for signal names (see ADR-006)."""

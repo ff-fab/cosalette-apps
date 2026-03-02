@@ -14,6 +14,7 @@ dependencies = [
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "pyserial>=3.5",
+    "pyserial-asyncio>=0.6",
 ]
 
 [build-system]
@@ -138,6 +139,10 @@ disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = "vito2mqtt._version"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["serial_asyncio", "serial_asyncio.*"]
 ignore_missing_imports = true
 
 [tool.pyright]
