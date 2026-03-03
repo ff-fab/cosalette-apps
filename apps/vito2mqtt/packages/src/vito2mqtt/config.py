@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Literal
 
 from cosalette import Settings
+from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
 
@@ -57,3 +58,25 @@ class Vito2MqttSettings(Settings):
     # Internationalisation
     signal_language: Literal["de", "en"] = "en"
     """Language for signal names (see ADR-006)."""
+
+    # Per-domain polling intervals (seconds) — see ADR-005
+    polling_outdoor: float = Field(default=300.0, gt=0)
+    """Outdoor sensors polling interval (seconds)."""
+
+    polling_hot_water: float = Field(default=300.0, gt=0)
+    """Domestic hot water polling interval (seconds)."""
+
+    polling_burner: float = Field(default=300.0, gt=0)
+    """Burner telemetry polling interval (seconds)."""
+
+    polling_heating_radiator: float = Field(default=300.0, gt=0)
+    """M1 heating circuit polling interval (seconds)."""
+
+    polling_heating_floor: float = Field(default=300.0, gt=0)
+    """M2 floor heating polling interval (seconds)."""
+
+    polling_system: float = Field(default=3600.0, gt=0)
+    """System info polling interval (seconds)."""
+
+    polling_diagnosis: float = Field(default=300.0, gt=0)
+    """Diagnosis/error polling interval (seconds)."""

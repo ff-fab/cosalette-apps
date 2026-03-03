@@ -102,6 +102,65 @@ class TestDefaults:
         """
         assert settings.signal_language == "en"
 
+    # -- Per-domain polling interval defaults (ADR-005) --
+
+    def test_config_polling_outdoor_default(self, settings: Vito2MqttSettings) -> None:
+        """Default outdoor polling interval is 300 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_outdoor == 300.0
+
+    def test_config_polling_hot_water_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default hot water polling interval is 300 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_hot_water == 300.0
+
+    def test_config_polling_burner_default(self, settings: Vito2MqttSettings) -> None:
+        """Default burner polling interval is 300 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_burner == 300.0
+
+    def test_config_polling_heating_radiator_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default radiator heating polling interval is 300 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_heating_radiator == 300.0
+
+    def test_config_polling_heating_floor_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default floor heating polling interval is 300 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_heating_floor == 300.0
+
+    def test_config_polling_system_default(self, settings: Vito2MqttSettings) -> None:
+        """Default system polling interval is 3600 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_system == 3600.0
+
+    def test_config_polling_diagnosis_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default diagnosis polling interval is 300 s.
+
+        Technique: Specification-based — ADR-005 per-domain polling.
+        """
+        assert settings.polling_diagnosis == 300.0
+
 
 # ---------------------------------------------------------------------------
 # Custom values
@@ -130,6 +189,32 @@ class TestCustomValues:
         assert settings.device_id == "vitotronic300"
         assert settings.signal_language == "de"
 
+    def test_config_custom_polling_intervals(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Polling intervals accept user-supplied values via env vars.
+
+        Technique: Equivalence Partitioning — valid non-default class.
+        """
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_OUTDOOR", "60.0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_HOT_WATER", "120.0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_BURNER", "90.0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_HEATING_RADIATOR", "150.0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_HEATING_FLOOR", "180.0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_SYSTEM", "7200.0")
+        monkeypatch.setenv("VITO2MQTT_POLLING_DIAGNOSIS", "600.0")
+
+        settings = Vito2MqttSettings()
+
+        assert settings.polling_outdoor == 60.0
+        assert settings.polling_hot_water == 120.0
+        assert settings.polling_burner == 90.0
+        assert settings.polling_heating_radiator == 150.0
+        assert settings.polling_heating_floor == 180.0
+        assert settings.polling_system == 7200.0
+        assert settings.polling_diagnosis == 600.0
+
 
 # ---------------------------------------------------------------------------
 # Validation
@@ -148,6 +233,68 @@ class TestValidation:
         """
         monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
         monkeypatch.setenv("VITO2MQTT_SIGNAL_LANGUAGE", "fr")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+
+# ---------------------------------------------------------------------------
+# Polling interval validation
+# ---------------------------------------------------------------------------
+
+
+class TestPollingIntervalValidation:
+    """Polling intervals must be positive (gt=0)."""
+
+    @pytest.fixture()
+    def _base_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set required env var so only the polling field under test fails."""
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
+
+    @pytest.mark.usefixtures("_base_env")
+    @pytest.mark.parametrize(
+        "env_var",
+        [
+            "VITO2MQTT_POLLING_OUTDOOR",
+            "VITO2MQTT_POLLING_HOT_WATER",
+            "VITO2MQTT_POLLING_BURNER",
+            "VITO2MQTT_POLLING_HEATING_RADIATOR",
+            "VITO2MQTT_POLLING_HEATING_FLOOR",
+            "VITO2MQTT_POLLING_SYSTEM",
+            "VITO2MQTT_POLLING_DIAGNOSIS",
+        ],
+    )
+    def test_config_zero_polling_interval_raises(
+        self, monkeypatch: pytest.MonkeyPatch, env_var: str
+    ) -> None:
+        """A polling interval of 0 must be rejected (gt=0).
+
+        Technique: Error Guessing — boundary value zero.
+        """
+        monkeypatch.setenv(env_var, "0")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    @pytest.mark.parametrize(
+        "env_var",
+        [
+            "VITO2MQTT_POLLING_OUTDOOR",
+            "VITO2MQTT_POLLING_HOT_WATER",
+            "VITO2MQTT_POLLING_BURNER",
+            "VITO2MQTT_POLLING_HEATING_RADIATOR",
+            "VITO2MQTT_POLLING_HEATING_FLOOR",
+            "VITO2MQTT_POLLING_SYSTEM",
+            "VITO2MQTT_POLLING_DIAGNOSIS",
+        ],
+    )
+    def test_config_negative_polling_interval_raises(
+        self, monkeypatch: pytest.MonkeyPatch, env_var: str
+    ) -> None:
+        """A negative polling interval must be rejected (gt=0).
+
+        Technique: Error Guessing — invalid negative value.
+        """
+        monkeypatch.setenv(env_var, "-10")
         with pytest.raises(ValidationError):
             Vito2MqttSettings()
 
