@@ -70,6 +70,17 @@ def mock_app(settings: Vito2MqttSettings) -> MagicMock:
 class TestRegisterTelemetry:
     """Verify register_telemetry wires up all 7 signal groups."""
 
+    def test_rejects_wrong_settings_type(self) -> None:
+        """Must raise TypeError when app.settings is not Vito2MqttSettings.
+
+        Technique: Error Guessing — guard clause protects against misconfigured app.
+        """
+        app = MagicMock()
+        app.settings = object()  # Not Vito2MqttSettings
+
+        with pytest.raises(TypeError, match="Expected Vito2MqttSettings"):
+            register_telemetry(app)
+
     def test_registers_all_seven_groups(self, mock_app: MagicMock) -> None:
         """Must call add_telemetry exactly once per signal group.
 
@@ -114,6 +125,20 @@ class TestRegisterTelemetry:
             assert isinstance(call.kwargs["publish"], OnChange), (
                 f"Group {call.kwargs['name']!r}: "
                 f"expected OnChange, got {type(call.kwargs['publish'])}"
+            )
+
+    def test_uses_optolink_coalescing_group(self, mock_app: MagicMock) -> None:
+        """Every handler must be registered with group="optolink".
+
+        Technique: Specification-based — ADR-007 requires coalescing
+        via the "optolink" group for all signal handlers.
+        """
+        register_telemetry(mock_app)
+
+        for call in mock_app.add_telemetry.call_args_list:
+            assert call.kwargs["group"] == "optolink", (
+                f"Group {call.kwargs['name']!r}: "
+                f"expected group='optolink', got {call.kwargs.get('group')!r}"
             )
 
     def test_handler_functions_are_callable(self, mock_app: MagicMock) -> None:
