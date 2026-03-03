@@ -16,13 +16,16 @@
 """Telemetry handler registration for all signal groups.
 
 Registers one polling handler per signal group with the cosalette
-application.  Each handler reads its group's signals from the Optolink
-port and returns serialized values for MQTT publishing.
+application.  All handlers share the ``"optolink"`` coalescing group
+so they execute together at coinciding tick boundaries, minimizing
+serial bus sessions.  Each handler reads its group's signals from
+the Optolink port and returns serialized values for MQTT publishing.
 
 Architecture
 ------------
 ``register_telemetry(app)`` iterates over :data:`SIGNAL_GROUPS` and calls
-``app.add_telemetry()`` for each group.  Handler closures are created via
+``app.add_telemetry()`` for each group with ``group="optolink"`` to enable
+tick-aligned coalescing (see ADR-007).  Handler closures are created via
 the factory function ``_make_handler(group)`` to avoid the classic
 late-binding closure pitfall.
 """
@@ -132,4 +135,5 @@ def register_telemetry(app: App) -> None:
             func=_make_handler(group_name),
             interval=_get_interval(settings, group_name),
             publish=OnChange(),
+            group="optolink",
         )
