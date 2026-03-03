@@ -11,6 +11,8 @@
 {"issue_id":"workspace-105","label":"hexagonal"}
 {"issue_id":"workspace-1in","label":"integration"}
 {"issue_id":"workspace-1in","label":"testing"}
+{"issue_id":"workspace-24r","label":"cosalette"}
+{"issue_id":"workspace-24r","label":"framework"}
 {"issue_id":"workspace-3cy","label":"application"}
 {"issue_id":"workspace-3cy","label":"cosalette"}
 {"issue_id":"workspace-3e8","label":"clean-room"}
@@ -27,6 +29,8 @@
 {"issue_id":"workspace-4sg","label":"documentation"}
 {"issue_id":"workspace-6f7","label":"documentation"}
 {"issue_id":"workspace-6f7","label":"zensical"}
+{"issue_id":"workspace-6xf","label":"deferred"}
+{"issue_id":"workspace-6xf","label":"framework"}
 {"issue_id":"workspace-7sm","label":"clean-room"}
 {"issue_id":"workspace-7sm","label":"protocol"}
 {"issue_id":"workspace-7sm","label":"spec"}
@@ -35,12 +39,16 @@
 {"issue_id":"workspace-9kx","label":"documentation"}
 {"issue_id":"workspace-9yk","label":"application"}
 {"issue_id":"workspace-9yk","label":"cosalette"}
+{"issue_id":"workspace-bcb","label":"application"}
+{"issue_id":"workspace-bcb","label":"cosalette"}
 {"issue_id":"workspace-bto","label":"clean-room"}
 {"issue_id":"workspace-bto","label":"protocol"}
 {"issue_id":"workspace-bto","label":"spec"}
 {"issue_id":"workspace-bto","label":"tdd"}
 {"issue_id":"workspace-dj8","label":"adapters"}
 {"issue_id":"workspace-dj8","label":"hexagonal"}
+{"issue_id":"workspace-dy1","label":"cosalette"}
+{"issue_id":"workspace-dy1","label":"framework"}
 {"issue_id":"workspace-g4o","label":"clean-room"}
 {"issue_id":"workspace-g4o","label":"protocol"}
 {"issue_id":"workspace-g4o","label":"tdd"}
@@ -74,6 +82,8 @@
 {"issue_id":"workspace-t2z","label":"impl"}
 {"issue_id":"workspace-t2z","label":"protocol"}
 {"issue_id":"workspace-t2z","label":"tdd"}
+{"issue_id":"workspace-t8k","label":"cosalette"}
+{"issue_id":"workspace-t8k","label":"framework"}
 {"issue_id":"workspace-tg4","label":"deployment"}
 {"issue_id":"workspace-tg4","label":"integration"}
 {"issue_id":"workspace-w3d","label":"architecture"}
