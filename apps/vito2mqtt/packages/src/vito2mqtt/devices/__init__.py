@@ -19,6 +19,11 @@ from __future__ import annotations
 
 __all__ = ["SIGNAL_GROUPS", "COMMAND_GROUPS"]
 
+# ADR-002 invariant: COMMAND_GROUPS keys must be a subset of SIGNAL_GROUPS keys.
+# Both registries share the same MQTT namespace — telemetry publishes to
+# ``/{group}/state`` and commands subscribe to ``/{group}/set``.
+# Cosalette 0.1.7+ allows this via scoped name uniqueness.
+
 SIGNAL_GROUPS: dict[str, tuple[str, ...]] = {
     "outdoor": (
         "outdoor_temperature",

@@ -13,4 +13,40 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-# TODO
+"""Application composition root.
+
+Assembles the cosalette :class:`~cosalette.App` instance, wires
+adapters, registers telemetry and command handlers, and exposes
+the CLI entry point.
+"""
+
+from __future__ import annotations
+
+from cosalette import App
+
+from vito2mqtt._version import __version__
+from vito2mqtt.config import Vito2MqttSettings
+from vito2mqtt.devices.commands import register_commands
+from vito2mqtt.devices.telemetry import register_telemetry
+from vito2mqtt.ports import OptolinkPort
+
+__all__ = ["app", "cli"]
+
+
+app = App(
+    name="vito2mqtt",
+    version=__version__,
+    description="Viessmann boiler to MQTT bridge",
+    settings_class=Vito2MqttSettings,
+    adapters={
+        OptolinkPort: (
+            "vito2mqtt.adapters.serial:OptolinkAdapter",
+            "vito2mqtt.adapters.fake:FakeOptolinkAdapter",
+        ),
+    },
+)
+
+register_telemetry(app)
+register_commands(app)
+
+cli = app.cli

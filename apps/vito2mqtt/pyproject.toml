@@ -10,12 +10,15 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.6",
+    "cosalette>=0.1.7",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "pyserial>=3.5",
     "pyserial-asyncio>=0.6",
 ]
+
+[project.scripts]
+vito2mqtt = "vito2mqtt.main:cli"
 
 [build-system]
 requires = ["hatchling"]
