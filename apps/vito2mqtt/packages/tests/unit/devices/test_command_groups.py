@@ -88,6 +88,32 @@ class TestCommandGroupsIntegrity:
         """
         assert set(COMMAND_GROUPS.keys()) == _EXPECTED_GROUPS
 
+    def test_access_mode_counts(self) -> None:
+        """Exactly 42 writable signals are READ_WRITE, 1 is WRITE (system_time).
+
+        system_time uses TI encoding which is in _ENCODE_UNSUPPORTED,
+        so it stays WRITE-only.  All other writable commands support
+        read-before-write and are READ_WRITE.
+
+        Technique: Invariant Checking — access mode distribution.
+        """
+        write_only = [
+            cmd for cmd in COMMANDS.values() if cmd.access_mode == AccessMode.WRITE
+        ]
+        read_write = [
+            cmd for cmd in COMMANDS.values() if cmd.access_mode == AccessMode.READ_WRITE
+        ]
+
+        assert len(read_write) == 42, (
+            f"Expected 42 READ_WRITE commands, got {len(read_write)}: "
+            f"{[c.name for c in read_write]}"
+        )
+        assert len(write_only) == 1, (
+            f"Expected 1 WRITE-only command, got {len(write_only)}: "
+            f"{[c.name for c in write_only]}"
+        )
+        assert write_only[0].name == "system_time"
+
     def test_no_duplicate_signals_across_groups(self) -> None:
         """No signal name may appear in more than one command group.
 

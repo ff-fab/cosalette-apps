@@ -26,6 +26,8 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
@@ -35,6 +37,7 @@ from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices.commands import (
     _make_handler,
+    _parse_payload,
     _validate_payload,
     register_commands,
 )
@@ -193,6 +196,8 @@ class TestMakeHandler:
 
         Technique: Cross-reference — handler calls port.write_signal
         with correct signal name and deserialized value.
+        Uses __force=true to bypass read-before-write comparison,
+        ensuring the write always happens regardless of defaults.
         """
         fake = FakeOptolinkAdapter()
         handler = _make_handler(group)
@@ -202,7 +207,7 @@ class TestMakeHandler:
 
         # Pick a representative value based on type code.
         value = _test_value_for_type(type_code)
-        payload = json.dumps({first_signal: value})
+        payload = json.dumps({first_signal: value, "__force": True})
 
         await handler(payload=payload, port=fake)
 
@@ -372,3 +377,308 @@ def _test_value_for_type(type_code: str) -> object:
         "TI": "2026-03-04T12:00:00",
     }
     return values.get(type_code, 0)
+
+
+# ---------------------------------------------------------------------------
+# _parse_payload — __force meta-key extraction
+# ---------------------------------------------------------------------------
+
+
+class TestParsePayload:
+    """Verify _parse_payload extracts __force and validates signals."""
+
+    def test_force_true_extracted(self) -> None:
+        """__force=true is extracted and not passed as a signal key.
+
+        Technique: Specification-based — meta-key separation.
+        """
+        raw = json.dumps({"hot_water_setpoint": 55, "__force": True})
+        data, force = _parse_payload(raw, "hot_water")
+
+        assert force is True
+        assert "__force" not in data
+        assert data == {"hot_water_setpoint": 55}
+
+    def test_force_false_extracted(self) -> None:
+        """__force=false is extracted — defaults to no-force.
+
+        Technique: Equivalence Partitioning — explicit false value.
+        """
+        raw = json.dumps({"hot_water_setpoint": 55, "__force": False})
+        data, force = _parse_payload(raw, "hot_water")
+
+        assert force is False
+        assert "__force" not in data
+
+    def test_force_absent_defaults_false(self) -> None:
+        """Missing __force defaults to False.
+
+        Technique: Specification-based — default behaviour.
+        """
+        raw = json.dumps({"hot_water_setpoint": 55})
+        data, force = _parse_payload(raw, "hot_water")
+
+        assert force is False
+        assert data == {"hot_water_setpoint": 55}
+
+    def test_force_not_treated_as_unknown_signal(self) -> None:
+        """__force must not trigger the 'unknown signal' error.
+
+        Technique: Error Guessing — meta-key collision with validation.
+        """
+        raw = json.dumps({"hot_water_setpoint": 55, "__force": True})
+        # Should not raise
+        data, force = _parse_payload(raw, "hot_water")
+        assert force is True
+
+    def test_force_string_false_rejected(self) -> None:
+        """String "false" must be rejected — only JSON booleans allowed.
+
+        MQTT/Home Assistant templates often emit ``"false"`` as a string.
+        ``bool("false")`` is truthy in Python, which would silently
+        defeat the optimisation.  Strict typing catches this.
+
+        Technique: Error Guessing — truthy string coercion trap.
+        """
+        raw = json.dumps({"hot_water_setpoint": 55, "__force": "false"})
+        with pytest.raises(InvalidSignalError, match="__force.*must be a JSON boolean"):
+            _parse_payload(raw, "hot_water")
+
+    def test_force_integer_rejected(self) -> None:
+        """Integer 1 must be rejected — only JSON booleans allowed.
+
+        Technique: Error Guessing — int/bool confusion (bool subclasses int).
+        """
+        raw = json.dumps({"hot_water_setpoint": 55, "__force": 1})
+        with pytest.raises(InvalidSignalError, match="__force.*must be a JSON boolean"):
+            _parse_payload(raw, "hot_water")
+
+
+# ---------------------------------------------------------------------------
+# Read-Before-Write — handler behaviour tests
+# ---------------------------------------------------------------------------
+
+
+class TestReadBeforeWrite:
+    """Verify read-before-write optimization in command handlers."""
+
+    async def test_skips_write_when_value_unchanged(self) -> None:
+        """Handler must skip write_signal when the boiler value matches.
+
+        Technique: Specification-based — core optimisation path.
+        The fake adapter returns IUNON default 42, so sending 42 should
+        result in zero writes.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        # IUNON default from fake adapter is 42
+        payload = json.dumps({"hot_water_setpoint": 42})
+        await handler(payload=payload, port=fake)
+
+        assert "hot_water_setpoint" not in fake.writes
+
+    async def test_writes_when_value_differs(self) -> None:
+        """Handler must call write_signal when the incoming value differs.
+
+        Technique: Specification-based — value mismatch triggers write.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        # IUNON default is 42, sending 55 should trigger a write
+        payload = json.dumps({"hot_water_setpoint": 55})
+        await handler(payload=payload, port=fake)
+
+        assert fake.writes["hot_water_setpoint"] == 55
+
+    async def test_force_bypasses_comparison(self) -> None:
+        """__force=true must bypass read-before-write and write unconditionally.
+
+        Technique: Specification-based — force meta-key bypass.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        # Value matches default (42), but __force=true bypasses the read
+        payload = json.dumps({"hot_water_setpoint": 42, "__force": True})
+        await handler(payload=payload, port=fake)
+
+        assert fake.writes["hot_water_setpoint"] == 42
+
+    async def test_force_false_still_reads(self) -> None:
+        """__force=false behaves like absent __force — reads before write.
+
+        Technique: Equivalence Partitioning — explicit false same as absent.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        # Matches default (42) with __force=false — should skip write
+        payload = json.dumps({"hot_water_setpoint": 42, "__force": False})
+        await handler(payload=payload, port=fake)
+
+        assert "hot_water_setpoint" not in fake.writes
+
+    async def test_mixed_changed_unchanged_signals(self) -> None:
+        """Only changed signals are written; unchanged ones are skipped.
+
+        Technique: Cross-reference — partial write within a multi-signal payload.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        # hot_water_setpoint default is 42 (unchanged), pump_overrun default is 42
+        payload = json.dumps(
+            {
+                "hot_water_setpoint": 42,  # unchanged
+                "hot_water_pump_overrun": 999,  # changed
+            }
+        )
+        await handler(payload=payload, port=fake)
+
+        assert "hot_water_setpoint" not in fake.writes
+        assert fake.writes["hot_water_pump_overrun"] == 999
+
+    async def test_batch_reads_all_payload_signals(self) -> None:
+        """Handler must call read_signals with all READ_WRITE signal names from payload.
+
+        Technique: Specification-based — batch read efficiency.
+        Uses a custom adapter subclass to capture read_signals calls.
+        """
+
+        class TrackingAdapter(FakeOptolinkAdapter):
+            """Adapter that records read_signals calls."""
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.read_signals_calls: list[list[str]] = []
+
+            async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
+                self.read_signals_calls.append(list(names))
+                return await super().read_signals(names)
+
+        adapter = TrackingAdapter()
+        handler = _make_handler("hot_water")
+
+        payload = json.dumps(
+            {
+                "hot_water_setpoint": 55,
+                "hot_water_pump_overrun": 120,
+            }
+        )
+        await handler(payload=payload, port=adapter)
+
+        assert len(adapter.read_signals_calls) == 1
+        assert set(adapter.read_signals_calls[0]) == {
+            "hot_water_setpoint",
+            "hot_water_pump_overrun",
+        }
+
+    async def test_read_failure_propagates(self) -> None:
+        """Read failure must propagate — no fallback to unconditional write.
+
+        Technique: Error Guessing — read error must not be swallowed.
+        """
+
+        class FailingAdapter(FakeOptolinkAdapter):
+            """Adapter whose read_signals always raises."""
+
+            async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
+                msg = "Simulated read failure"
+                raise OSError(msg)
+
+        adapter = FailingAdapter()
+        handler = _make_handler("hot_water")
+
+        payload = json.dumps({"hot_water_setpoint": 55})
+
+        with pytest.raises(OSError, match="Simulated read failure"):
+            await handler(payload=payload, port=adapter)
+
+        # No writes should have occurred
+        assert adapter.writes == {}
+
+    async def test_is10_unchanged_skips_write(self) -> None:
+        """IS10 (float) unchanged value is correctly detected.
+
+        Technique: Cross-reference — serialization round-trip for IS10 type.
+        IS10 decodes to exact tenths (int/10), so float equality is safe.
+        FakeOptolinkAdapter returns 20.5 for IS10 signals.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("heating_radiator")
+
+        # IS10 default is 20.5 — sending same value should skip write
+        payload = json.dumps({"heating_curve_gradient_m1": 20.5})
+        await handler(payload=payload, port=fake)
+
+        assert "heating_curve_gradient_m1" not in fake.writes
+
+    async def test_is10_changed_triggers_write(self) -> None:
+        """Changed IS10 (float) value must be written.
+
+        Technique: Cross-reference — different float triggers write.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("heating_radiator")
+
+        payload = json.dumps({"heating_curve_gradient_m1": 15.0})
+        await handler(payload=payload, port=fake)
+
+        assert fake.writes["heating_curve_gradient_m1"] == 15.0
+
+    async def test_force_only_payload_is_noop(self) -> None:
+        """Payload with only __force and no signals must be a no-op.
+
+        Technique: Equivalence Partitioning — force-only edge case.
+        No reads, no writes, returns None.
+        """
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        payload = json.dumps({"__force": True})
+        result = await handler(payload=payload, port=fake)
+
+        assert result is None
+        assert fake.writes == {}
+
+    async def test_ct_schedule_unchanged_skips_write(self) -> None:
+        """CT (CycleTimeSchedule) unchanged value is correctly detected.
+
+        Technique: Cross-reference — serialization round-trip for CT type.
+        CT uses passthrough serialization, so list comparison applies.
+        """
+        default_schedule = [
+            [[None, None], [None, None]],
+            [[None, None], [None, None]],
+            [[None, None], [None, None]],
+            [[None, None], [None, None]],
+        ]
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        # Send the same default CT schedule — should skip write
+        payload = json.dumps({"timer_hw_monday": default_schedule})
+        await handler(payload=payload, port=fake)
+
+        assert "timer_hw_monday" not in fake.writes
+
+    async def test_ct_schedule_changed_triggers_write(self) -> None:
+        """Changed CT schedule must be written.
+
+        Technique: Cross-reference — different schedule triggers write.
+        """
+        new_schedule = [
+            [[8, 0], [22, 0]],
+            [[None, None], [None, None]],
+            [[None, None], [None, None]],
+            [[None, None], [None, None]],
+        ]
+        fake = FakeOptolinkAdapter()
+        handler = _make_handler("hot_water")
+
+        payload = json.dumps({"timer_hw_monday": new_schedule})
+        await handler(payload=payload, port=fake)
+
+        assert fake.writes["timer_hw_monday"] == new_schedule

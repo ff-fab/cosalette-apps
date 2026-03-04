@@ -121,9 +121,6 @@ class TestDefaultResponses:
     def test_default_ct_returns_empty_schedule(self) -> None:
         """CT default returns an empty schedule.
 
-        All CT signals are WRITE-only in the command registry, so we
-        test the default factory directly rather than via read_signal.
-
         Technique: Specification-based — validate internal default.
         """
         result = _get_default("CT", "en")
@@ -136,7 +133,7 @@ class TestDefaultResponses:
     def test_default_ti_returns_datetime(self) -> None:
         """TI default returns current-ish datetime.
 
-        All TI signals are WRITE-only in the command registry, so we
+        system_time is the only TI signal and is WRITE-only, so we
         test the default factory directly rather than via read_signal.
 
         Technique: Specification-based — validate internal default.
@@ -198,14 +195,14 @@ class TestSignalValidation:
     async def test_read_signal_write_only_raises_invalid_signal(self) -> None:
         """Reading a WRITE-only signal raises InvalidSignalError.
 
-        ``hot_water_setpoint`` is ``AccessMode.WRITE`` — reading must fail.
+        ``system_time`` is ``AccessMode.WRITE`` — reading must fail.
         Ensures behavioral parity with OptolinkAdapter.
 
         Technique: Error Guessing — write-only guard on read path.
         """
         adapter = FakeOptolinkAdapter()
         with pytest.raises(InvalidSignalError, match="write-only"):
-            await adapter.read_signal("hot_water_setpoint")
+            await adapter.read_signal("system_time")
 
 
 # ---------------------------------------------------------------------------

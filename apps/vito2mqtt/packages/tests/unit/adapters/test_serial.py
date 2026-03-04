@@ -111,13 +111,13 @@ class TestSignalValidation:
     ) -> None:
         """Reading a WRITE-only signal raises InvalidSignalError.
 
-        ``hot_water_setpoint`` is AccessMode.WRITE — reading must fail.
+        ``system_time`` is AccessMode.WRITE — reading must fail.
 
         Technique: Error Guessing — write-only guard on read path.
         """
         adapter = OptolinkAdapter(vito2mqtt_settings)
         with pytest.raises(InvalidSignalError, match="write-only"):
-            await adapter.read_signal("hot_water_setpoint")
+            await adapter.read_signal("system_time")
 
 
 # ---------------------------------------------------------------------------
@@ -341,7 +341,7 @@ class TestReadSignals:
         adapter._open_session = _tracking_open  # type: ignore[assignment]
 
         with pytest.raises(InvalidSignalError, match="write-only"):
-            await adapter.read_signals(["outdoor_temperature", "hot_water_setpoint"])
+            await adapter.read_signals(["outdoor_temperature", "system_time"])
 
         assert not session_opened
 

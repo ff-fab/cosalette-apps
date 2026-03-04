@@ -296,7 +296,7 @@ class TestSpecificCommands:
                 0x6300,
                 1,
                 "IUNON",
-                AccessMode.WRITE,
+                AccessMode.READ_WRITE,
                 id="hot_water_setpoint",
             ),
             pytest.param(
@@ -368,7 +368,7 @@ class TestSpecificCommands:
                 0x2000,
                 8,
                 "CT",
-                AccessMode.WRITE,
+                AccessMode.READ_WRITE,
                 id="timer_m1_monday",
             ),
         ],
@@ -400,9 +400,10 @@ class TestAccessModeDistribution:
     """
 
     def test_read_and_write_counts(self) -> None:
-        """Registry has expected counts of READ and WRITE commands.
+        """Registry has expected counts of READ, WRITE, and READ_WRITE commands.
 
         Technique: Specification-based — distribution check.
+        After read-before-write: 46 READ, 1 WRITE (system_time), 42 READ_WRITE.
         """
         read_count = sum(
             1 for cmd in COMMANDS.values() if cmd.access_mode == AccessMode.READ
@@ -410,13 +411,18 @@ class TestAccessModeDistribution:
         write_count = sum(
             1 for cmd in COMMANDS.values() if cmd.access_mode == AccessMode.WRITE
         )
-        # 89 total, 0 READ_WRITE → read + write = 89
-        assert read_count + write_count == 89
-        assert read_count > 0
-        assert write_count > 0
+        rw_count = sum(
+            1 for cmd in COMMANDS.values() if cmd.access_mode == AccessMode.READ_WRITE
+        )
+        assert read_count == 46
+        assert write_count == 1
+        assert rw_count == 42
+        assert read_count + write_count + rw_count == 89
 
-    def test_all_timer_commands_are_write(self) -> None:
-        """Every timer_* command has AccessMode.WRITE.
+    def test_all_timer_commands_are_read_write(self) -> None:
+        """Every timer_* command has AccessMode.READ_WRITE.
+
+        Timers support read-before-write to avoid redundant EEPROM writes.
 
         Technique: Equivalence Partitioning — timer category invariant.
         """
@@ -425,7 +431,9 @@ class TestAccessModeDistribution:
         ]
         assert len(timer_cmds) == 28  # 7 days × 4 groups
         for cmd in timer_cmds:
-            assert cmd.access_mode == AccessMode.WRITE, f"{cmd.name} should be WRITE"
+            assert cmd.access_mode == AccessMode.READ_WRITE, (
+                f"{cmd.name} should be READ_WRITE"
+            )
 
     def test_all_error_history_commands_are_read(self) -> None:
         """Every error_history_* command has AccessMode.READ.
