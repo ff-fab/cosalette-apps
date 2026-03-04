@@ -13,11 +13,11 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Telemetry device definitions and signal group registry."""
+"""Telemetry device definitions, signal group and command group registries."""
 
 from __future__ import annotations
 
-__all__ = ["SIGNAL_GROUPS"]
+__all__ = ["SIGNAL_GROUPS", "COMMAND_GROUPS"]
 
 SIGNAL_GROUPS: dict[str, tuple[str, ...]] = {
     "outdoor": (
@@ -79,5 +79,58 @@ SIGNAL_GROUPS: dict[str, tuple[str, ...]] = {
         "error_history_8",
         "error_history_9",
         "error_history_10",
+    ),
+}
+
+COMMAND_GROUPS: dict[str, tuple[str, ...]] = {
+    "hot_water": (
+        "hot_water_setpoint",
+        "hot_water_pump_overrun",
+        "timer_hw_monday",
+        "timer_hw_tuesday",
+        "timer_hw_wednesday",
+        "timer_hw_thursday",
+        "timer_hw_friday",
+        "timer_hw_saturday",
+        "timer_hw_sunday",
+    ),
+    "heating_radiator": (
+        "heating_curve_gradient_m1",
+        "heating_curve_level_m1",
+        "room_temperature_setpoint_m1",
+        "room_temperature_setpoint_economy_m1",
+        "room_temperature_setpoint_party_m1",
+        "operating_mode_party_m1",
+        "timer_m1_monday",
+        "timer_m1_tuesday",
+        "timer_m1_wednesday",
+        "timer_m1_thursday",
+        "timer_m1_friday",
+        "timer_m1_saturday",
+        "timer_m1_sunday",
+    ),
+    "heating_floor": (
+        "heating_curve_gradient_m2",
+        "heating_curve_level_m2",
+        "room_temperature_setpoint_m2",
+        "room_temperature_setpoint_economy_m2",
+        "room_temperature_setpoint_party_m2",
+        "operating_mode_party_m2",
+        "timer_m2_monday",
+        "timer_m2_tuesday",
+        "timer_m2_wednesday",
+        "timer_m2_thursday",
+        "timer_m2_friday",
+        "timer_m2_saturday",
+        "timer_m2_sunday",
+    ),
+    "system": (
+        "timer_cp_monday",
+        "timer_cp_tuesday",
+        "timer_cp_wednesday",
+        "timer_cp_thursday",
+        "timer_cp_friday",
+        "timer_cp_saturday",
+        "timer_cp_sunday",
     ),
 }
