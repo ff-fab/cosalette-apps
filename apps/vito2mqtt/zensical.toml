@@ -40,6 +40,24 @@ edit_uri = "edit/main/docs/"
 
 nav = [
     { "Home" = "index.md" },
+    { "Getting Started" = "getting-started/index.md" },
+    { "Guides" = [
+        { "index" = "guides/index.md" },
+    ]},
+    { "Reference" = [
+        { "Configuration" = "reference/configuration.md" },
+        { "MQTT Signals" = "reference/signals.md" },
+    ]},
+    { "Architecture" = [
+        { "index" = "adr/index.md" },
+        { "ADR-001: Framework Choice" = "adr/ADR-001-framework-choice.md" },
+        { "ADR-002: MQTT Topic Layout" = "adr/ADR-002-mqtt-topic-layout.md" },
+        { "ADR-003: Hardware Abstraction" = "adr/ADR-003-hardware-abstraction.md" },
+        { "ADR-004: Optolink Protocol" = "adr/ADR-004-optolink-protocol-design.md" },
+        { "ADR-005: Configuration" = "adr/ADR-005-configuration-settings.md" },
+        { "ADR-006: Signal Language" = "adr/ADR-006-configurable-signal-language.md" },
+        { "ADR-007: Coalescing Groups" = "adr/ADR-007-telemetry-coalescing-groups.md" },
+    ]},
 ]
 
 # Note: exclude_docs is not yet supported in zensical.toml (see Zensical docs).
