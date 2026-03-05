@@ -40,6 +40,18 @@ edit_uri = "edit/main/docs/"
 
 nav = [
     { "Home" = "index.md" },
+    { "Getting Started" = "getting-started.md" },
+    { "Setup" = "setup.md" },
+    { "User Guide" = "user-guide.md" },
+    { "Operations" = "operations.md" },
+    { "Troubleshooting" = "troubleshooting.md" },
+    { "Reference" = "reference.md" },
+    { "ADRs" = [
+        { "ADR-001: Application Framework" = "adr/ADR-001-application-framework.md" },
+        { "ADR-002: Sensor ID Management" = "adr/ADR-002-sensor-id-management-strategy.md" },
+        { "ADR-003: Hardware Abstraction" = "adr/ADR-003-hardware-abstraction.md" },
+        { "ADR-004: Registry & Persistence" = "adr/ADR-004-sensor-registry-and-persistence.md" },
+    ]},
 ]
 
 # Note: exclude_docs is not yet supported in zensical.toml (see Zensical docs).

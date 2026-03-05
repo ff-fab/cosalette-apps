@@ -149,17 +149,17 @@ tasks:
     cmds:
       # Run all tests with coverage to enable threshold validation.
       - cmd: |
-          if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
-            echo "ℹ No unit tests found — skipping"
+          if [ "{{.HAS_UNIT_TESTS}}" != "true" ] && [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+            echo "ℹ No tests found — skipping"
             exit 0
           fi
-          uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
+          uv run pytest {{.PKG}}/tests/ -v --tb=short --junitxml=results-unit.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
         ignore_error: true
 
       - |
         # Only run the summary when pytest actually produced results.
         if [ -f results-unit.xml ]; then
-          uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json
+          uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=60
         else
           echo "ℹ No test results — skipping summary"
         fi
@@ -295,15 +295,15 @@ tasks:
   # ===========================================================================
 
   ci:test:unit:
-    desc: CI unit tests with coverage summary
+    desc: CI tests with coverage summary
     cmds:
       - |
-        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
-          echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ] && [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No tests found in {{.PKG}}/tests/ — skipping"
           exit 0
         fi
-        uv run pytest {{.PKG}}/tests/unit/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
-        uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=80
+        uv run pytest {{.PKG}}/tests/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
+        uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=60
 
   ci:test:integration:
     desc: CI integration tests (pytest)

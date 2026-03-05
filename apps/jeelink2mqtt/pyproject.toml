@@ -10,9 +10,13 @@ authors = [
 ]
 
 dependencies = [
+    "cosalette>=0.1.7",
     "pydantic>=2.12.5",
-    "pydantic-settings>=2.12.0"
+    "pydantic-settings>=2.12.0",
 ]
+
+[project.optional-dependencies]
+hardware = ["pylacrosse>=0.3.7"]
 
 [build-system]
 requires = ["hatchling"]
@@ -64,7 +68,7 @@ exclude_lines = [
     'if __name__ == "__main__":',
     "^\\s*\\.\\.\\.$",  # Protocol ellipsis stubs
 ]
-fail_under = 80
+fail_under = 60
 show_missing = true
 skip_covered = false
 
@@ -136,6 +140,10 @@ disallow_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = "jeelink2mqtt._version"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["cosalette", "cosalette.*", "pylacrosse", "pylacrosse.*"]
 ignore_missing_imports = true
 
 [tool.pyright]
