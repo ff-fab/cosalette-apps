@@ -35,8 +35,8 @@ from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
 from vito2mqtt.devices.telemetry import (
     _INTERVAL_ATTR,
-    _get_interval,
     _make_handler,
+    _make_interval,
     register_telemetry,
 )
 from vito2mqtt.optolink.codec import ReturnStatus
@@ -55,11 +55,9 @@ def settings(monkeypatch: pytest.MonkeyPatch) -> Vito2MqttSettings:
 
 
 @pytest.fixture()
-def mock_app(settings: Vito2MqttSettings) -> MagicMock:
-    """App mock with a real settings instance and a tracked add_telemetry."""
-    app = MagicMock()
-    app.settings = settings
-    return app
+def mock_app() -> MagicMock:
+    """App mock with a tracked add_telemetry."""
+    return MagicMock()
 
 
 # ---------------------------------------------------------------------------
@@ -69,17 +67,6 @@ def mock_app(settings: Vito2MqttSettings) -> MagicMock:
 
 class TestRegisterTelemetry:
     """Verify register_telemetry wires up all 7 signal groups."""
-
-    def test_rejects_wrong_settings_type(self) -> None:
-        """Must raise TypeError when app.settings is not Vito2MqttSettings.
-
-        Technique: Error Guessing — guard clause protects against misconfigured app.
-        """
-        app = MagicMock()
-        app.settings = object()  # Not Vito2MqttSettings
-
-        with pytest.raises(TypeError, match="Expected Vito2MqttSettings"):
-            register_telemetry(app)
 
     def test_registers_all_seven_groups(self, mock_app: MagicMock) -> None:
         """Must call add_telemetry exactly once per signal group.
@@ -95,21 +82,20 @@ class TestRegisterTelemetry:
         }
         assert registered_names == set(SIGNAL_GROUPS.keys())
 
-    def test_uses_settings_polling_intervals(
-        self, mock_app: MagicMock, settings: Vito2MqttSettings
-    ) -> None:
-        """Each group's interval must come from the matching settings field.
+    def test_uses_deferred_polling_intervals(self, mock_app: MagicMock) -> None:
+        """Each group's interval must be a callable (deferred resolver).
 
-        Technique: Cross-reference — intervals match _INTERVAL_ATTR mapping.
+        Technique: Specification-based — intervals are callables resolved
+        lazily by cosalette after settings are built.
         """
         register_telemetry(mock_app)
 
         for call in mock_app.add_telemetry.call_args_list:
             group = call.kwargs["name"]
-            expected = getattr(settings, _INTERVAL_ATTR[group])
-            assert call.kwargs["interval"] == expected, (
-                f"Group {group!r}: expected interval {expected}, "
-                f"got {call.kwargs['interval']}"
+            interval = call.kwargs["interval"]
+            assert callable(interval), (
+                f"Group {group!r}: expected callable interval, "
+                f"got {type(interval).__name__}"
             )
 
     def test_uses_on_change_publish_strategy(self, mock_app: MagicMock) -> None:
@@ -155,30 +141,31 @@ class TestRegisterTelemetry:
 
 
 # ---------------------------------------------------------------------------
-# _get_interval
+# _make_interval
 # ---------------------------------------------------------------------------
 
 
-class TestGetInterval:
-    """Verify _get_interval maps groups to settings fields correctly."""
+class TestMakeInterval:
+    """Verify _make_interval produces correct resolver callables."""
 
     @pytest.mark.parametrize(
         ("group", "attr"),
         list(_INTERVAL_ATTR.items()),
         ids=list(_INTERVAL_ATTR.keys()),
     )
-    def test_returns_correct_interval_per_group(
+    def test_resolver_returns_correct_interval_per_group(
         self,
         settings: Vito2MqttSettings,
         group: str,
         attr: str,
     ) -> None:
-        """Each group must resolve to the correct settings attribute.
+        """Each group's resolver must return the correct settings value.
 
         Technique: Specification-based — _INTERVAL_ATTR defines the mapping.
         """
-        expected = getattr(settings, attr)
-        assert _get_interval(settings, group) == expected
+        resolver = _make_interval(group)
+        expected = float(getattr(settings, attr))
+        assert resolver(settings) == expected
 
     def test_interval_attr_covers_all_groups(self) -> None:
         """_INTERVAL_ATTR must have an entry for every signal group.
@@ -186,6 +173,14 @@ class TestGetInterval:
         Technique: Cross-reference — SIGNAL_GROUPS ↔ _INTERVAL_ATTR.
         """
         assert set(_INTERVAL_ATTR.keys()) == set(SIGNAL_GROUPS.keys())
+
+    def test_resolver_is_callable(self) -> None:
+        """_make_interval must return a callable.
+
+        Technique: Specification-based — cosalette expects Callable[[Settings], float].
+        """
+        resolver = _make_interval("outdoor")
+        assert callable(resolver)
 
 
 # ---------------------------------------------------------------------------

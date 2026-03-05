@@ -34,9 +34,8 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from cosalette import App, OnChange
+from cosalette import App, OnChange, Settings
 
-from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
 from vito2mqtt.optolink.commands import COMMANDS
@@ -65,17 +64,29 @@ _INTERVAL_ATTR: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _get_interval(settings: Vito2MqttSettings, group: str) -> float:
-    """Look up the polling interval for *group* from application settings.
+def _make_interval(group: str) -> Callable[[Settings], float]:
+    """Create a callable that extracts the polling interval from settings.
+
+    Uses the factory pattern (like ``_make_handler``) to capture
+    *group* at creation time, avoiding late-binding closure issues.
+
+    The callable is resolved by cosalette's ``_resolve_intervals()``
+    in ``_run_async()`` after settings are properly built — this
+    allows registration at module-import time without requiring
+    settings to be available.
 
     Args:
-        settings: The application settings instance.
-        group: Signal group name (must be a key in ``_INTERVAL_ATTR``).
+        group: Signal group name (key in ``_INTERVAL_ATTR``).
 
     Returns:
-        Polling interval in seconds.
+        Callable suitable for ``app.add_telemetry(interval=...)``.
     """
-    return float(getattr(settings, _INTERVAL_ATTR[group]))
+    attr = _INTERVAL_ATTR[group]
+
+    def resolver(settings: Settings) -> float:
+        return float(getattr(settings, attr))
+
+    return resolver
 
 
 def _make_handler(
@@ -113,27 +124,23 @@ def register_telemetry(app: App) -> None:
     """Register telemetry handlers for all signal groups.
 
     Creates one telemetry device per group defined in
-    :data:`~vito2mqtt.devices.SIGNAL_GROUPS`, using the polling
-    intervals from application settings and an :class:`OnChange`
+    :data:`~vito2mqtt.devices.SIGNAL_GROUPS`, using deferred polling
+    intervals resolved from settings at runtime and an :class:`OnChange`
     publish strategy.
 
-    Args:
-        app: The cosalette application instance.  Must have been
-            constructed with ``settings_class=Vito2MqttSettings``.
-    """
-    settings = app.settings
-    if not isinstance(settings, Vito2MqttSettings):
-        msg = (
-            f"Expected Vito2MqttSettings, got {type(settings).__name__}. "
-            "Ensure App was constructed with settings_class=Vito2MqttSettings."
-        )
-        raise TypeError(msg)
+    Intervals are provided as callables (see :func:`_make_interval`)
+    so that registration can happen at module-import time without
+    requiring settings to be available — this allows ``--help`` and
+    ``--version`` to work without environment variables.
 
+    Args:
+        app: The cosalette application instance.
+    """
     for group_name in SIGNAL_GROUPS:
         app.add_telemetry(
             name=group_name,
             func=_make_handler(group_name),
-            interval=_get_interval(settings, group_name),
+            interval=_make_interval(group_name),
             publish=OnChange(),
             group="optolink",
         )

@@ -23,34 +23,11 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import os
-
-import pytest
 from cosalette import App
 
 from vito2mqtt._version import __version__
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.ports import OptolinkPort
-
-
-@pytest.fixture(autouse=True, scope="module")
-def _ensure_serial_port_env():
-    """Set VITO2MQTT_SERIAL_PORT before main.py is first imported.
-
-    Module-level code in ``main.py`` constructs the ``App`` instance and
-    calls ``register_telemetry`` / ``register_commands``, both of which
-    access ``app.settings``.  Settings construction requires the serial
-    port environment variable.  This module-scoped fixture guarantees
-    the variable is present before any test triggers the import.
-    """
-    key = "VITO2MQTT_SERIAL_PORT"
-    prev = os.environ.get(key)
-    os.environ[key] = "/dev/ttyUSB0"
-    yield
-    if prev is None:
-        os.environ.pop(key, None)
-    else:
-        os.environ[key] = prev
 
 
 class TestAppConstruction:
@@ -84,13 +61,13 @@ class TestAppConstruction:
         assert app._version == __version__
 
     def test_app_settings_type(self) -> None:
-        """App must use Vito2MqttSettings.
+        """App must use Vito2MqttSettings as its settings class.
 
         Technique: Specification-based.
         """
         from vito2mqtt.main import app
 
-        assert isinstance(app.settings, Vito2MqttSettings)
+        assert app._settings_class is Vito2MqttSettings
 
 
 class TestAdapterRegistration:

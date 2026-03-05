@@ -50,7 +50,6 @@ from typing import Any
 
 from cosalette import App
 
-from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices._serialization import deserialize_value, serialize_value
 from vito2mqtt.errors import InvalidSignalError
@@ -182,17 +181,8 @@ def register_commands(app: App) -> None:
     :data:`~vito2mqtt.devices.COMMAND_GROUPS`.
 
     Args:
-        app: The cosalette application instance.  Must have been
-            constructed with ``settings_class=Vito2MqttSettings``.
+        app: The cosalette application instance.
     """
-    settings = app.settings
-    if not isinstance(settings, Vito2MqttSettings):
-        msg = (
-            f"Expected Vito2MqttSettings, got {type(settings).__name__}. "
-            "Ensure App was constructed with settings_class=Vito2MqttSettings."
-        )
-        raise TypeError(msg)
-
     for group_name in COMMAND_GROUPS:
         app.add_command(
             name=group_name,

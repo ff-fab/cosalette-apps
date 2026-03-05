@@ -33,7 +33,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
-from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices.commands import (
     _make_handler,
@@ -50,18 +49,9 @@ from vito2mqtt.optolink.commands import COMMANDS
 
 
 @pytest.fixture()
-def settings(monkeypatch: pytest.MonkeyPatch) -> Vito2MqttSettings:
-    """Construct Vito2MqttSettings with the required env var set."""
-    monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
-    return Vito2MqttSettings()
-
-
-@pytest.fixture()
-def mock_app(settings: Vito2MqttSettings) -> MagicMock:
-    """App mock with a real settings instance and a tracked add_command."""
-    app = MagicMock()
-    app.settings = settings
-    return app
+def mock_app() -> MagicMock:
+    """App mock with a tracked add_command."""
+    return MagicMock()
 
 
 # ---------------------------------------------------------------------------
@@ -71,17 +61,6 @@ def mock_app(settings: Vito2MqttSettings) -> MagicMock:
 
 class TestRegisterCommands:
     """Verify register_commands wires up all 4 command groups."""
-
-    def test_rejects_wrong_settings_type(self) -> None:
-        """Must raise TypeError when app.settings is not Vito2MqttSettings.
-
-        Technique: Error Guessing — guard clause protects against misconfigured app.
-        """
-        app = MagicMock()
-        app.settings = object()  # Not Vito2MqttSettings
-
-        with pytest.raises(TypeError, match="Expected Vito2MqttSettings"):
-            register_commands(app)
 
     def test_registers_all_four_groups(self, mock_app: MagicMock) -> None:
         """Must call add_command exactly once per command group.
