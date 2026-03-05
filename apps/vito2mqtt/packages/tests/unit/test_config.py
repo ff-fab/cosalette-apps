@@ -161,6 +161,35 @@ class TestDefaults:
         """
         assert settings.polling_diagnosis == 300.0
 
+    # -- Legionella treatment defaults --
+
+    def test_config_legionella_temperature_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default legionella temperature is 68 °C.
+
+        Technique: Specification-based — safe default for thermal disinfection.
+        """
+        assert settings.legionella_temperature == 68
+
+    def test_config_legionella_duration_minutes_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default legionella duration is 40 minutes.
+
+        Technique: Specification-based — standard treatment duration.
+        """
+        assert settings.legionella_duration_minutes == 40
+
+    def test_config_legionella_safety_margin_minutes_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default legionella safety margin is 30 minutes.
+
+        Technique: Specification-based — margin for heating window check.
+        """
+        assert settings.legionella_safety_margin_minutes == 30
+
 
 # ---------------------------------------------------------------------------
 # Custom values
@@ -214,6 +243,24 @@ class TestCustomValues:
         assert settings.polling_heating_floor == 180.0
         assert settings.polling_system == 7200.0
         assert settings.polling_diagnosis == 600.0
+
+    def test_config_custom_legionella_values(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legionella settings accept user-supplied values via env vars.
+
+        Technique: Equivalence Partitioning — valid non-default class.
+        """
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_TEMPERATURE", "75")
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_DURATION_MINUTES", "60")
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_SAFETY_MARGIN_MINUTES", "15")
+
+        settings = Vito2MqttSettings()
+
+        assert settings.legionella_temperature == 75
+        assert settings.legionella_duration_minutes == 60
+        assert settings.legionella_safety_margin_minutes == 15
 
 
 # ---------------------------------------------------------------------------
@@ -297,6 +344,92 @@ class TestPollingIntervalValidation:
         monkeypatch.setenv(env_var, "-10")
         with pytest.raises(ValidationError):
             Vito2MqttSettings()
+
+
+# ---------------------------------------------------------------------------
+# Legionella validation
+# ---------------------------------------------------------------------------
+
+
+class TestLegionellaValidation:
+    """Legionella settings validation."""
+
+    @pytest.fixture()
+    def _base_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Set required env var so only the legionella field under test fails."""
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_zero_legionella_temperature_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legionella temperature of 0 must be rejected (gt=0).
+
+        Technique: Error Guessing — boundary value zero.
+        """
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_TEMPERATURE", "0")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_zero_legionella_duration_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legionella duration of 0 must be rejected (gt=0).
+
+        Technique: Error Guessing — boundary value zero.
+        """
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_DURATION_MINUTES", "0")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_negative_legionella_temperature_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative legionella temperature must be rejected (gt=0).
+
+        Technique: Error Guessing — invalid negative value.
+        """
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_TEMPERATURE", "-10")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_negative_legionella_duration_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative legionella duration must be rejected (gt=0).
+
+        Technique: Error Guessing — invalid negative value.
+        """
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_DURATION_MINUTES", "-10")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_negative_legionella_safety_margin_raises(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Negative legionella safety margin must be rejected (ge=0).
+
+        Technique: Error Guessing — invalid negative value.
+        """
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_SAFETY_MARGIN_MINUTES", "-1")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_zero_legionella_safety_margin_valid(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Legionella safety margin of 0 must be accepted (ge=0).
+
+        Technique: Boundary Value Analysis — zero is valid for ge=0.
+        """
+        monkeypatch.setenv("VITO2MQTT_LEGIONELLA_SAFETY_MARGIN_MINUTES", "0")
+        settings = Vito2MqttSettings()
+        assert settings.legionella_safety_margin_minutes == 0
 
 
 # ---------------------------------------------------------------------------

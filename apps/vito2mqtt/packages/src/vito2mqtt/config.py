@@ -80,3 +80,13 @@ class Vito2MqttSettings(Settings):
 
     polling_diagnosis: float = Field(default=300.0, gt=0)
     """Diagnosis/error polling interval (seconds)."""
+
+    # Legionella treatment settings
+    legionella_temperature: int = Field(default=68, gt=0)
+    """Target hot-water temperature during legionella treatment (°C)."""
+
+    legionella_duration_minutes: int = Field(default=40, gt=0)
+    """Duration of the legionella treatment cycle (minutes)."""
+
+    legionella_safety_margin_minutes: int = Field(default=30, ge=0)
+    """Minimum remaining heating-window time for treatment to begin (minutes)."""

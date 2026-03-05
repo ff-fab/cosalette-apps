@@ -124,6 +124,33 @@ class TestCommandRegistration:
         assert command_names <= telemetry_names
 
 
+class TestDeviceRegistration:
+    """Verify device handlers are registered."""
+
+    def test_legionella_device_registered(self) -> None:
+        """The legionella device must be registered.
+
+        Technique: Structural — register_legionella populates _devices.
+        """
+        from vito2mqtt.main import app
+
+        device_names = {d.name for d in app._devices}
+        assert "legionella" in device_names
+
+
+class TestStoreConfiguration:
+    """Verify store is configured."""
+
+    def test_app_has_store(self) -> None:
+        """The app must have a store configured for device persistence.
+
+        Technique: Specification-based — legionella device requires DeviceStore.
+        """
+        from vito2mqtt.main import app
+
+        assert app._store is not None
+
+
 class TestCliEntryPoint:
     """Verify the CLI entry point is importable and callable."""
 
