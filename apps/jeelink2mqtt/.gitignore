@@ -234,3 +234,4 @@ dolt-server.lock
 dolt-server.activity
 dolt-server.log
 dolt-monitor.pid
+data/

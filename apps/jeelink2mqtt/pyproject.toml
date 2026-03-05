@@ -68,7 +68,7 @@ exclude_lines = [
     'if __name__ == "__main__":',
     "^\\s*\\.\\.\\.$",  # Protocol ellipsis stubs
 ]
-fail_under = 60
+fail_under = 90
 show_missing = true
 skip_covered = false
 
