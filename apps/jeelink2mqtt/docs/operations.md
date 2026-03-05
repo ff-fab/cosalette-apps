@@ -6,68 +6,28 @@ Deployment, monitoring, persistence, and logging configuration.
 
 ## Docker Deployment
 
-### Dockerfile
+The repository includes production-ready Docker files at the repo root:
 
-```dockerfile
-# syntax=docker/dockerfile:1
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
+- **Dockerfile** — multi-stage build using `uv` for fast dependency resolution
+- **docker-compose.yml** — full stack with Mosquitto MQTT broker
 
-WORKDIR /app
-COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev
+### Build and Run
 
-COPY packages/src/ packages/src/
-
-FROM python:3.14-slim-bookworm
-
-WORKDIR /app
-COPY --from=builder /app/.venv /app/.venv
-COPY --from=builder /app/packages/src/ packages/src/
-
-ENV PATH="/app/.venv/bin:$PATH"
-
-# Persistence volume
-VOLUME /app/data
-
-ENTRYPOINT ["jeelink2mqtt"]
+```bash
+docker compose up -d
 ```
 
-### docker-compose.yml
+To run in dry-run mode (no hardware or MQTT required):
 
-```yaml
-services:
-  jeelink2mqtt:
-    build: .
-    restart: unless-stopped
-    devices:
-      - "/dev/ttyUSB0:/dev/ttyUSB0"
-    volumes:
-      - jeelink-data:/app/data
-    environment:
-      JEELINK2MQTT_SERIAL_PORT: /dev/ttyUSB0
-      JEELINK2MQTT_MQTT__HOST: mosquitto
-      JEELINK2MQTT_SENSORS: >-
-        [
-          {"name": "office", "temp_offset": -0.5},
-          {"name": "outdoor", "staleness_timeout": 900}
-        ]
-      JEELINK2MQTT_STALENESS_TIMEOUT_SECONDS: "600"
-      JEELINK2MQTT_MEDIAN_FILTER_WINDOW: "7"
-    depends_on:
-      - mosquitto
-
-  mosquitto:
-    image: eclipse-mosquitto:2
-    restart: unless-stopped
-    ports:
-      - "1883:1883"
-    volumes:
-      - mosquitto-data:/mosquitto/data
-
-volumes:
-  jeelink-data:
-  mosquitto-data:
+```bash
+docker compose run --rm jeelink2mqtt --dry-run
 ```
+
+### Configuration
+
+Environment variables are set in `docker-compose.yml`.  Edit them
+directly or override with a `.env` file alongside the compose file.
+See [Reference](reference.md) for the full list of settings.
 
 !!! warning "Device passthrough"
 

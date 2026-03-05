@@ -18,6 +18,9 @@ dependencies = [
 [project.optional-dependencies]
 hardware = ["pylacrosse>=0.3.7"]
 
+[project.scripts]
+jeelink2mqtt = "jeelink2mqtt.main:main"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

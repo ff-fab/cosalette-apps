@@ -14,53 +14,44 @@ framework.
 
 ## Key Features
 
-!!! info "Smart Sensor ID Management"
+**Smart Sensor ID Management**
+:   LaCrosse sensors generate a new random ID on every battery swap.
+    jeelink2mqtt's auto-adopt algorithm detects the change and re-maps
+    the ID automatically — no manual intervention needed
+    ([ADR-002](adr/ADR-002-sensor-id-management-strategy.md)).
 
-    LaCrosse sensors generate a new random ID on every battery swap.
-    jeelink2mqtt's **auto-adopt** algorithm detects the change and
-    re-maps the ID automatically — no manual intervention needed in
-    the common single-battery-failure case (exactly-one-stale condition,
-    see [ADR-002](adr/ADR-002-sensor-id-management-strategy.md)).
-
-!!! info "Per-Sensor Calibration Offsets"
-
-    Each sensor can carry individual temperature and humidity offsets,
-    compensating for manufacturing tolerances.  Compare against a
+**Per-Sensor Calibration Offsets**
+:   Each sensor can carry individual temperature and humidity offsets,
+    compensating for manufacturing tolerances. Compare against a
     reference thermometer once, set the offset, forget about it.
 
-!!! info "Median Filter Signal Conditioning"
+**Median Filter Signal Conditioning**
+:   A configurable sliding-window median filter (default window 7)
+    rejects spurious outlier readings before they reach your dashboard.
 
-    A configurable sliding-window median filter (default window 7)
-    rejects spurious outlier readings before they reach your
-    dashboard.
-
-!!! info "MQTT Command Interface"
-
-    Manual mapping control (`assign`, `reset`, `reset_all`,
+**MQTT Command Interface**
+:   Manual mapping control (`assign`, `reset`, `reset_all`,
     `list_unknown`) via JSON commands on `jeelink2mqtt/mapping/set`.
-    Useful when multiple sensors fail simultaneously and auto-adopt
-    is disabled.
+    Useful when multiple sensors fail simultaneously.
 
-!!! info "Dry-Run Mode"
+**Dry-Run Mode**
+:   Run without hardware — a fake adapter generates synthetic readings
+    so you can validate configuration and MQTT integration before
+    plugging in the receiver.
 
-    Run without hardware — a fake adapter generates synthetic
-    readings so you can validate configuration and MQTT integration
-    before plugging in the receiver.
-
-!!! info "Persistent Registry"
-
-    Sensor mappings are persisted to `data/jeelink2mqtt.json` and
-    survive restarts.  No lost state after a reboot.
+**Persistent Registry**
+:   Sensor mappings are persisted to `data/jeelink2mqtt.json` and
+    survive restarts. No lost state after a reboot.
 
 ---
 
 ## Architecture Overview
 
 ```mermaid
-flowchart LR
+flowchart TD
     A[🔌 JeeLink USB] --> B[Serial Adapter]
     B --> C[Frame Parser]
-    C --> D[Registry\nauto-adopt]
+    C --> D[Registry — auto-adopt]
     D --> E[Median Filter]
     E --> F[Calibrate]
     F --> G[MQTT Broker]
