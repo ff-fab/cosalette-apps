@@ -86,6 +86,30 @@ raises hot water temperature to kill bacteria.
     remaining in the current heating window to complete the full cycle. Setting this
     too low risks an incomplete treatment.
 
+### State Persistence
+
+The device store records runtime state such as legionella treatment timestamps.
+By default, the store file is located following the
+[XDG Base Directory](https://specifications.freedesktop.org/basedir-spec/latest/)
+convention.
+
+| Environment Variable | Type | Default | Description |
+|---------------------|------|---------|-------------|
+| `VITO2MQTT_STORE_PATH` | `str` | `~/.local/state/vito2mqtt/store.json` | Path to JSON store file |
+
+Resolution order:
+
+1. `VITO2MQTT_STORE_PATH` — explicit override (highest priority)
+2. `$XDG_STATE_HOME/vito2mqtt/store.json` — XDG state directory
+3. `~/.local/state/vito2mqtt/store.json` — XDG default fallback
+
+!!! tip "Docker deployments"
+    In Docker, set `VITO2MQTT_STORE_PATH=/data/store.json` and mount a named volume
+    at `/data` to persist state across container restarts. The provided
+    `docker-compose.yml` configures this automatically.
+
+Parent directories are created automatically on first write.
+
 ---
 
 ## Complete `.env` Example
@@ -111,6 +135,11 @@ VITO2MQTT_MQTT__PASSWORD=secret
 VITO2MQTT_DEVICE_ID=vitodens200w
 VITO2MQTT_SIGNAL_LANGUAGE=en
 VITO2MQTT_LOGGING__LEVEL=INFO
+
+# ---------------------------------------------------------------------------
+# State Persistence (optional — defaults to XDG_STATE_HOME)
+# ---------------------------------------------------------------------------
+# VITO2MQTT_STORE_PATH=/custom/path/store.json
 
 # ---------------------------------------------------------------------------
 # Polling Intervals (seconds)

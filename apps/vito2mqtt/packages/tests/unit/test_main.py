@@ -150,6 +150,17 @@ class TestStoreConfiguration:
 
         assert app._store is not None
 
+    def test_store_is_json_file_store(self) -> None:
+        """The store must be a JsonFileStore instance.
+
+        Technique: Specification-based — verifies the store backend type.
+        """
+        from cosalette import JsonFileStore
+
+        from vito2mqtt.main import app
+
+        assert isinstance(app._store, JsonFileStore)
+
 
 class TestCliEntryPoint:
     """Verify the CLI entry point is importable and callable."""

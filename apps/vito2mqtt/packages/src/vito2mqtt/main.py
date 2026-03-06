@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from cosalette import App, JsonFileStore
 
+from vito2mqtt._store_path import resolve_store_path
 from vito2mqtt._version import __version__
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices.commands import register_commands
@@ -39,7 +40,7 @@ app = App(
     version=__version__,
     description="Viessmann boiler to MQTT bridge",
     settings_class=Vito2MqttSettings,
-    store=JsonFileStore("vito2mqtt_store.json"),  # relative to CWD
+    store=JsonFileStore(resolve_store_path()),
     adapters={
         OptolinkPort: (
             "vito2mqtt.adapters.serial:OptolinkAdapter",

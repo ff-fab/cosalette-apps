@@ -37,6 +37,12 @@ services:
     # Load configuration from .env file
     # Environment variables override .env values (useful for docker-compose override)
     env_file: .env
+    environment:
+      # Store state in the persistent volume
+      VITO2MQTT_STORE_PATH: /data/store.json
+    volumes:
+      # Persist device state (legionella timestamps, etc.) across container restarts
+      - vito2mqtt_data:/data
     # Grant device access: serial port /dev/ttyUSB0 on host → /dev/ttyUSB0 in container
     # Device must exist on host; if using different port (e.g., /dev/ttyUSB1), update both
     devices:
@@ -72,6 +78,9 @@ volumes:
     driver: local
   # Mosquitto logs: diagnostic information
   mosquitto_logs:
+    driver: local
+  # vito2mqtt state: device store (JSON)
+  vito2mqtt_data:
     driver: local
 
 # Define custom bridge network for service-to-service communication

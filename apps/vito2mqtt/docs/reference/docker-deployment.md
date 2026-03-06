@@ -198,22 +198,52 @@ sudo chmod 666 /dev/ttyUSB0
 # Or add container user to dialout group (requires container rebuild)
 ```
 
-## Persistence
+## Data Persistence
+
+vito2mqtt stores device state (e.g., legionella treatment timestamps) in a JSON
+file. In Docker, this is persisted via a named volume:
+
+```yaml
+volumes:
+  - vito2mqtt_data:/data
+environment:
+  VITO2MQTT_STORE_PATH: /data/store.json
+```
+
+The `docker-compose.yml` configures this automatically. The state file survives
+container restarts and image upgrades.
+
+### Inspecting or Resetting State
+
+```bash
+# View the current store contents
+docker exec vito2mqtt-app cat /data/store.json
+
+# Reset state (removes all stored data)
+docker compose down
+docker volume rm vito2mqtt_vito2mqtt_data
+docker compose up -d
+```
 
 ### Mosquitto Data Volume
 
 Messages and subscriptions are stored in the named volume `mosquitto_data`.
 This persists across container restarts and removals until explicitly deleted.
 
+!!! note "Volume name prefix"
+    Docker Compose prefixes volume names with the project name (directory name by
+    default). If you cloned into `vito2mqtt/`, the actual volume names are
+    `vito2mqtt_mosquitto_data`, `vito2mqtt_vito2mqtt_data`, etc.
+
 ```bash
-# Inspect volume
-docker volume inspect mosquitto_data
+# Inspect volume (prefix matches your project directory name)
+docker volume inspect vito2mqtt_mosquitto_data
 
 # List all volumes
 docker volume ls
 
 # Delete volume (warning: removes persisted data)
-docker volume rm mosquitto_data
+docker volume rm vito2mqtt_mosquitto_data
 ```
 
 ## Monitoring and Debugging

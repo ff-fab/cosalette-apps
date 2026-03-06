@@ -71,6 +71,10 @@ RUN useradd -m -u 1000 vito
 WORKDIR /app
 RUN chown -R vito:vito /app
 
+# Create data directory for persistent state (device store)
+# This directory is the default mount point for the vito2mqtt_data volume
+RUN mkdir -p /data && chown vito:vito /data
+
 # Copy wheels from builder and requirements
 COPY --from=builder /build/wheels /tmp/wheels
 
@@ -82,6 +86,9 @@ RUN pip install --no-cache-dir --no-index --find-links /tmp/wheels vito2mqtt && 
 
 # Switch to non-root user
 USER vito
+
+# Declare volume mount point for persistent state
+VOLUME /data
 
 # Expose health check port (if cosalette supports it; otherwise remove)
 # Default MQTT doesn't expose a port in the container, broker is external
