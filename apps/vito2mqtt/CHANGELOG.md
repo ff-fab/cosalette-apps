@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.2](https://github.com/ff-fab/vito2mqtt/compare/v0.1.1...v0.1.2) (2026-03-06)
+
+
+### Features
+
+* add Docker deployment infrastructure ([#19](https://github.com/ff-fab/vito2mqtt/issues/19)) ([76eafc0](https://github.com/ff-fab/vito2mqtt/commit/76eafc0c9ea9cb3a5756a1a619a5911f89016aed))
+* make store path configurable via VITO2MQTT_STORE_PATH ([#22](https://github.com/ff-fab/vito2mqtt/issues/22)) ([bb296c2](https://github.com/ff-fab/vito2mqtt/commit/bb296c23bf397303eebd83a7ba1a13bc9342fa00))
+
+
+### Reverts
+
+* undo direct commits to main (use PR instead) ([36d02a7](https://github.com/ff-fab/vito2mqtt/commit/36d02a7e74c8f3c8ce2d7fe3a53e45fb704e7c8d))
+
 ## [0.1.1](https://github.com/ff-fab/vito2mqtt/compare/v0.1.0...v0.1.1) (2026-03-05)
 
 
