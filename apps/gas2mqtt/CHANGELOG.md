@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/ff-fab/gas2mqtt/compare/v0.1.3...v0.1.4) (2026-03-14)
+
+
+### Bug Fixes
+
+* build container inline in release-please workflow ([#17](https://github.com/ff-fab/gas2mqtt/issues/17)) ([d098da4](https://github.com/ff-fab/gas2mqtt/commit/d098da43e3b580c0533f49ff0275c755a16f765e))
+
 ## [0.1.3](https://github.com/ff-fab/gas2mqtt/compare/v0.1.2...v0.1.3) (2026-03-14)
 
 
