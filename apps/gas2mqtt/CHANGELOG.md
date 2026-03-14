@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/ff-fab/gas2mqtt/compare/v0.1.2...v0.1.3) (2026-03-14)
+
+
+### Bug Fixes
+
+* trigger container build on tag push, not release event ([#15](https://github.com/ff-fab/gas2mqtt/issues/15)) ([1ae6e88](https://github.com/ff-fab/gas2mqtt/commit/1ae6e88d61fee0d05db30b50d6a3e43c554a4afe))
+
 ## [0.1.2](https://github.com/ff-fab/gas2mqtt/compare/v0.1.1...v0.1.2) (2026-03-14)
 
 
