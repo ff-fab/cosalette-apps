@@ -6,7 +6,7 @@ COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Copy project files and lockfile for reproducible builds
-COPY pyproject.toml uv.lock ./
+COPY pyproject.toml uv.lock README.md ./
 COPY packages/src/ packages/src/
 
 # Install the application using locked dependencies (no cache to keep image small)
