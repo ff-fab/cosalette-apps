@@ -7,6 +7,10 @@
 # multi-arch container image to GHCR. Doing it here (rather than on a
 # release or tag event) avoids the GitHub Actions restriction that blocks
 # GITHUB_TOKEN-created events from triggering other workflow runs.
+#
+# Tag strategy:
+#   latest, 1.2.3, 1.2, 1  — stable release (this workflow)
+#   edge                    — current HEAD of main (this workflow + build-edge.yml)
 
 name: Release Please
 
@@ -64,6 +68,7 @@ jobs:
             type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
             type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag_name }}
+            type=raw,value=edge
 
       - name: Build and push
         uses: docker/build-push-action@v6

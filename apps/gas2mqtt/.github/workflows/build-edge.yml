@@ -1,22 +1,28 @@
-# Manual container rebuild — pushes latest to GHCR on demand.
+# Build edge image — rebuilds and pushes the edge tag to GHCR on demand.
 #
-# For automated release builds, see release-please.yml which runs the
-# container build inline after creating a GitHub Release. That workflow
-# avoids the GitHub Actions restriction blocking GITHUB_TOKEN-created
+# edge always reflects the current HEAD of main, regardless of release status.
+# Use this for base image security patches or to verify a build between releases.
+#
+# Tag strategy:
+#   edge    — current HEAD of main (this workflow + release-please.yml on release)
+#   latest  — latest stable release (release-please.yml only)
+#
+# For automated release builds (latest + versioned tags), see release-please.yml.
+# That workflow avoids the GitHub Actions restriction blocking GITHUB_TOKEN-created
 # events from triggering other workflow runs.
 
-name: Container
+name: Build edge image
 
 on:
-  workflow_dispatch: # Ad-hoc rebuild (e.g. base image security patch)
+  workflow_dispatch:
 
 permissions:
   contents: read
-  packages: write # Required to push to GHCR
+  packages: write
 
 jobs:
   build-push:
-    name: Build and push
+    name: Build and push edge
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -40,6 +46,6 @@ jobs:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/ff-fab/gas2mqtt:latest
+          tags: ghcr.io/ff-fab/gas2mqtt:edge
           cache-from: type=gha
           cache-to: type=gha,mode=max
