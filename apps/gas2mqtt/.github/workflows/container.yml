@@ -1,26 +1,14 @@
-# Build and push the application container image to GHCR.
+# Manual container rebuild — pushes latest to GHCR on demand.
 #
-# Triggered on version tag pushes created by Release Please (vX.Y.Z).
-# Using push.tags instead of release.published because Release Please creates
-# tags via GITHUB_TOKEN, and GitHub blocks release events from that token
-# from triggering other workflow runs.
-#
-# Produces versioned tags on ghcr.io/ff-fab/gas2mqtt:
-#
-#   ghcr.io/ff-fab/gas2mqtt:1.2.3    exact release tag
-#   ghcr.io/ff-fab/gas2mqtt:1.2      minor floating tag
-#   ghcr.io/ff-fab/gas2mqtt:1        major floating tag
-#   ghcr.io/ff-fab/gas2mqtt:latest   latest stable release (auto, non-pre-release only)
-#
-# Multi-arch: linux/amd64 (x86 servers) + linux/arm64 + linux/arm/v7 (Raspberry Pi).
+# For automated release builds, see release-please.yml which runs the
+# container build inline after creating a GitHub Release. That workflow
+# avoids the GitHub Actions restriction blocking GITHUB_TOKEN-created
+# events from triggering other workflow runs.
 
 name: Container
 
 on:
-  push:
-    tags:
-      - "v*.*.*"
-  workflow_dispatch: # Manual trigger for ad-hoc rebuilds (e.g. base image patches)
+  workflow_dispatch: # Ad-hoc rebuild (e.g. base image security patch)
 
 permissions:
   contents: read
@@ -46,24 +34,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract image metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/ff-fab/gas2mqtt
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable=${{ github.event_name == 'workflow_dispatch' }}
-
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64,linux/arm/v7
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ghcr.io/ff-fab/gas2mqtt:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
