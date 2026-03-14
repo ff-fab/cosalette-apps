@@ -38,14 +38,14 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
 
 === "Docker (recommended)"
 
-    Docker is the simplest way to run gas2mqtt. The provided `docker-compose.yml`
-    maps the I2C device and includes a Mosquitto broker.
+    Docker is the simplest way to run gas2mqtt. No repository clone needed — the
+    image is published to the GitHub Container Registry on every release.
 
     ```bash
-    # Clone and configure
-    git clone https://github.com/ff-fab/gas2mqtt.git
-    cd gas2mqtt
-    cp .env.example .env
+    # Download the Compose file, Mosquitto config, and configuration template
+    curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/docker-compose.yml -o docker-compose.yml
+    curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
+    curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
     # Edit .env with your MQTT broker and sensor settings
     ```
 
@@ -54,8 +54,13 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
     docker compose up -d
     ```
 
+    The image is pulled automatically from `ghcr.io/ff-fab/gas2mqtt:latest`.
     The container needs I2C host access (`/dev/i2c-1`), which `docker-compose.yml`
     maps automatically.
+
+    !!! note "Pin to a specific version"
+        Replace `latest` with a release tag (e.g. `0.2.0`) in `docker-compose.yml`
+        to pin the deployment and avoid surprises on restart.
 
     !!! note "Custom I2C bus"
         If your sensor is on a different bus (e.g., `/dev/i2c-0`), update both the

@@ -234,4 +234,6 @@ legacy/
 .beads/dolt/dolt-server.activity
 .beads/dolt/dolt-server.log
 .beads/dolt/dolt-monitor.pid
+.beads/dolt-server.pid
+.beads/dolt-server.port
 results-unit.xml

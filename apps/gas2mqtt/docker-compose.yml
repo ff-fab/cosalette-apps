@@ -1,6 +1,6 @@
 services:
   gas2mqtt:
-    build: .
+    image: ghcr.io/ff-fab/gas2mqtt:latest
     restart: unless-stopped
     devices:
       - /dev/i2c-1:/dev/i2c-1

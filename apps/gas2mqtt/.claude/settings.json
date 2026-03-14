@@ -1,5 +1,11 @@
 {
   "permissions": {
+    "allow": [
+      "Bash(bd close:*)",
+      "Bash(bd show:*)",
+      "Skill(pre-pr-gate)",
+      "Skill(pre-pr-gate:*)"
+    ],
     "allowedTools": [
       "Read",
       "Edit",
