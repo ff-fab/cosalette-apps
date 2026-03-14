@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/ff-fab/gas2mqtt/compare/v0.1.1...v0.1.2) (2026-03-14)
+
+
+### Bug Fixes
+
+* add latest tag fallback for workflow_dispatch ([#13](https://github.com/ff-fab/gas2mqtt/issues/13)) ([ee3467f](https://github.com/ff-fab/gas2mqtt/commit/ee3467fd1717735f72eb0778ecfa716a6f52f219))
+
 ## [0.1.1](https://github.com/ff-fab/gas2mqtt/compare/v0.1.0...v0.1.1) (2026-03-14)
 
 
