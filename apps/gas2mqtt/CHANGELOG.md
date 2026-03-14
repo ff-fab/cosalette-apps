@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.5](https://github.com/ff-fab/gas2mqtt/compare/v0.1.4...v0.1.5) (2026-03-14)
+
+
+### Features
+
+* adopt edge tag convention, rename container workflow ([#23](https://github.com/ff-fab/gas2mqtt/issues/23)) ([bab848e](https://github.com/ff-fab/gas2mqtt/commit/bab848ef7a215fb758ccdf6ece405f8d7673423d))
+* two-job release workflow, Alpine image, inline compose docs ([#19](https://github.com/ff-fab/gas2mqtt/issues/19)) ([f367db8](https://github.com/ff-fab/gas2mqtt/commit/f367db8bf3063bd050ff8ec9daa71a4d52b2a839))
+
+
+### Bug Fixes
+
+* copy README.md into Docker build context ([#21](https://github.com/ff-fab/gas2mqtt/issues/21)) ([f0984b2](https://github.com/ff-fab/gas2mqtt/commit/f0984b2de8e625e7898daba29de7de9f219407b7))
+
 ## [0.1.4](https://github.com/ff-fab/gas2mqtt/compare/v0.1.3...v0.1.4) (2026-03-14)
 
 
