@@ -3,6 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 [![cosalette](https://img.shields.io/badge/framework-cosalette-orange)](https://github.com/ff-fab/cosalette)
+[![ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Fff--fab%2Fgas2mqtt-blue)](https://github.com/ff-fab/gas2mqtt/pkgs/container/gas2mqtt)
 
 Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter
 ticks, temperature, and optional raw debug data to MQTT.
@@ -11,32 +12,66 @@ Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework.
 
 > **📖 [Full Documentation](https://ff-fab.github.io/gas2mqtt/)**
 
+## Quick Start
+
+Create a directory on your Raspberry Pi and add this `docker-compose.yml`:
+
+```yaml
+services:
+  gas2mqtt:
+    image: ghcr.io/ff-fab/gas2mqtt:latest
+    restart: unless-stopped
+    devices:
+      - /dev/i2c-1:/dev/i2c-1
+    group_add:
+      - i2c
+    env_file: .env
+    environment:
+      GAS2MQTT_MQTT__HOST: mosquitto
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '1883:1883'
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  mosquitto-data:
+  mosquitto-log:
+```
+
+Then fetch the supporting files and start:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
+curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
+# Edit .env — set GAS2MQTT_MQTT__HOST and sensor thresholds
+docker compose up -d
+```
+
+See the [Getting Started guide](https://ff-fab.github.io/gas2mqtt/getting-started/) for
+wiring instructions, first-run verification, and manual install options.
+
 ## Features
 
 - Gas tick detection via Schmitt trigger with configurable thresholds
-- Temperature monitoring with EWMA filter and empirical calibration
+- Temperature monitoring with PT1 filter and empirical calibration
 - Optional raw magnetometer debug device
 - Optional gas consumption tracking (m³)
 - Automatic MQTT health reporting (heartbeats, LWT, availability)
-- Docker deployment ready
+- Multi-arch container image (`linux/amd64`, `linux/arm64`)
 
 ## Hardware
 
 - **Sensor:** QMC5883L 3-axis digital magnetometer
 - **Interface:** I2C (default bus 1, address 0x0D)
-- **Target:** Raspberry Pi (or any Linux SBC with I2C)
-
-## Quick Start
-
-```bash
-git clone https://github.com/ff-fab/gas2mqtt.git
-cd gas2mqtt
-cp .env.example .env    # edit with your MQTT broker settings
-docker compose up -d
-```
-
-See the [Getting Started guide](https://ff-fab.github.io/gas2mqtt/getting-started/) for
-Docker and manual install options, wiring instructions, and first-run verification.
+- **Target:** Raspberry Pi 3/4/5 or Zero 2 W (or any Linux SBC with I2C)
 
 ## Configuration
 
