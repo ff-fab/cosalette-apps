@@ -38,12 +38,43 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
 
 === "Docker (recommended)"
 
-    Docker is the simplest way to run gas2mqtt. No repository clone needed — the
-    image is published to the GitHub Container Registry on every release.
+    Docker is the simplest way to run gas2mqtt. Create a directory on your Pi,
+    copy this `docker-compose.yml` into it, and you're ready to go:
+
+    ```yaml title="docker-compose.yml"
+    services:
+      gas2mqtt:
+        image: ghcr.io/ff-fab/gas2mqtt:latest
+        restart: unless-stopped
+        devices:
+          - /dev/i2c-1:/dev/i2c-1
+        group_add:
+          - i2c
+        env_file: .env
+        environment:
+          # Override MQTT host to use Docker Compose service name
+          GAS2MQTT_MQTT__HOST: mosquitto
+        depends_on:
+          - mosquitto
+
+      mosquitto:
+        image: eclipse-mosquitto:2
+        restart: unless-stopped
+        ports:
+          - '1883:1883'
+        volumes:
+          - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+          - mosquitto-data:/mosquitto/data
+          - mosquitto-log:/mosquitto/log
+
+    volumes:
+      mosquitto-data:
+      mosquitto-log:
+    ```
+
+    Then download the Mosquitto config and create your env file:
 
     ```bash
-    # Download the Compose file, Mosquitto config, and configuration template
-    curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/docker-compose.yml -o docker-compose.yml
     curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
     curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
     # Edit .env with your MQTT broker and sensor settings
@@ -54,12 +85,19 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
     docker compose up -d
     ```
 
-    The image is pulled automatically from `ghcr.io/ff-fab/gas2mqtt:latest`.
-    The container needs I2C host access (`/dev/i2c-1`), which `docker-compose.yml`
+    The container needs I2C host access (`/dev/i2c-1`), which the Compose file
     maps automatically.
 
+    !!! tip "Download everything at once"
+        Prefer `curl` over copy-paste? Grab all three files in one go:
+        ```bash
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/docker-compose.yml -o docker-compose.yml
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
+        ```
+
     !!! note "Pin to a specific version"
-        Replace `latest` with a release tag (e.g. `0.2.0`) in `docker-compose.yml`
+        Replace `latest` with a release tag (e.g. `0.2.0`) in the `image:` line
         to pin the deployment and avoid surprises on restart.
 
     !!! note "Custom I2C bus"

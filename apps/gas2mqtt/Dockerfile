@@ -1,4 +1,4 @@
-FROM python:3.14-slim
+FROM python:3.14-alpine
 
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
@@ -13,7 +13,7 @@ COPY packages/src/ packages/src/
 RUN uv pip install --system --no-cache .
 
 # Run as non-root
-RUN useradd --create-home appuser
+RUN adduser -D appuser
 USER appuser
 
 # Entry point — reads config from environment / .env
