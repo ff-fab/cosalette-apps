@@ -21,6 +21,8 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 # Install go-task (task runner - https://taskfile.dev)
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
 
+
+
 # Configure uv to use project-local virtual environments
 ENV UV_PROJECT_ENVIRONMENT="/workspace/.venv"
 

@@ -25,14 +25,63 @@ ensure_git_repo() {
 
 echo "🏠 Setting up gas2mqtt development environment..."
 
-# Install beads (bd) — git-backed issue tracker for AI agents
+# Install dolt — versioned SQL database used by beads (bd) as its backing store.
 # Installed at runtime (not in Dockerfile) to avoid Docker layer cache staleness
 # and to support retry logic for network flakiness.
-install_bd() {
+install_dolt() {
     local attempts=3
     local n=1
     while [ "$n" -le "$attempts" ]; do
-        if curl -fsSL https://raw.githubusercontent.com/steveyegge/beads/main/scripts/install.sh | bash; then
+        if curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash; then
+            return 0
+        fi
+        echo "⚠️  dolt install attempt ${n}/${attempts} failed"
+        n=$((n + 1))
+        sleep 2
+    done
+    return 1
+}
+
+echo "🗃️  Installing/updating dolt (beads database backend)..."
+if install_dolt; then
+    hash -r
+    echo "✅ dolt $(dolt version 2>/dev/null | head -1)"
+else
+    echo "❌ Failed to install dolt after multiple attempts"
+    exit 1
+fi
+
+# Install beads (bd) — git-backed issue tracker for AI agents
+# Installed at runtime (not in Dockerfile) to avoid Docker layer cache staleness
+# and to support retry logic for network flakiness.
+#
+# We download the binary directly instead of piping the upstream install.sh to
+# bash, because that script's WSL-detection echo statements leak into command
+# substitutions and corrupt the download URL (stdout pollution bug).
+install_bd() {
+    local attempts=3
+    local n=1
+    local arch
+    arch="$(uname -m)"
+    case "$arch" in
+        x86_64)  arch="amd64" ;;
+        aarch64) arch="arm64" ;;
+    esac
+    # Resolve latest version tag from GitHub redirect
+    local latest_url
+    latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
+        https://github.com/steveyegge/beads/releases/latest)"
+    local version="${latest_url##*/}"          # e.g. "v0.60.0"
+    local ver_no_v="${version#v}"              # e.g. "0.60.0"
+    local tarball="beads_${ver_no_v}_linux_${arch}.tar.gz"
+    local url="https://github.com/steveyegge/beads/releases/download/${version}/${tarball}"
+
+    while [ "$n" -le "$attempts" ]; do
+        if curl -fsSL "$url" -o "/tmp/${tarball}" \
+            && tar -xzf "/tmp/${tarball}" -C /tmp \
+            && { install -m 755 /tmp/bd /usr/local/bin/bd 2>/dev/null \
+                || { mkdir -p "$HOME/.local/bin" && install -m 755 /tmp/bd "$HOME/.local/bin/bd"; }; }; then
+            rm -f "/tmp/${tarball}" /tmp/bd
             return 0
         fi
         echo "⚠️  bd install attempt ${n}/${attempts} failed"
@@ -79,7 +128,7 @@ if [ -d ".venv" ]; then
     fi
 fi
 
-uv sync --all-extras
+uv sync --all-groups
 echo "✅ Python dependencies installed"
 
 # Ensure git is available before git-dependent setup steps.

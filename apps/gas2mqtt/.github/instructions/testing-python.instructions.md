@@ -9,7 +9,7 @@ applyTo: 'packages/tests/**/*.py'
 > [Test File Template](../../docs/testing/test-file-template.md) — copy-paste
 > starting point with all conventions pre-applied.
 
-## Test Strategy (ADR-006)
+## Test Strategy
 
 | Layer       | Tool                           | Location             |
 | ----------- | ------------------------------ | -------------------- |

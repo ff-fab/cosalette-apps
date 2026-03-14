@@ -74,7 +74,7 @@ def mock_external_dependency():
     - File I/O
     - External services (OpenHAB, etc.)
     """
-    with patch("{{ module_name }}.path.to.module.external_call") as mock:
+    with patch("gas2mqtt.path.to.module.external_call") as mock:
         mock.return_value = "mocked_value"
         yield mock
 

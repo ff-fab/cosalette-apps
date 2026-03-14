@@ -56,10 +56,10 @@ while true; do
         exit 1
     fi
 
-    checks=$(gh pr checks "$PR" --json name,state,link 2>&1 | cat)
+    checks=$(gh pr checks "$PR" --json name,state,link 2>&1) || true
 
     # Guard against transient API errors (empty or non-JSON response)
-    if ! echo "$checks" | jq empty 2>/dev/null; then
+    if [ -z "$checks" ] || ! echo "$checks" | jq empty 2>/dev/null; then
         echo "$(date +%H:%M:%S) — API returned non-JSON, retrying..."
         sleep "$INTERVAL"
         continue

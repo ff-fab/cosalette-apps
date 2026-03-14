@@ -1,4 +1,4 @@
-_commit: v1.2.0
+_commit: v1.7.0
 _src_path: https://github.com/ff-fab/tmpl_python_project_kickstart
 author_email: mail@fabiankoerner.com
 author_name: Fabian Koerner
@@ -7,7 +7,8 @@ coverage_threshold: 80
 description: An app to read a domestic gas meter using a digital magnetometer.
 docs_style: user-journey
 github_org: ff-fab
-init_git_on_copy: true
+include_sbom: false
+init_git_on_copy: false
 license: MIT
 module_name: gas2mqtt
 project_name: gas2mqtt

@@ -220,3 +220,18 @@ __marimo__/
 # Migration files
 legacy/
 .github/instructions/cosalette-framework-reference.instructions.md
+
+# Beads / Dolt runtime artifacts (scoped to .beads/ to avoid false positives)
+.beads/**/.dolt/
+.beads/**/*.db
+.beads/bd.sock
+.beads/bd.sock.startlock
+.beads/sync-state.json
+.beads/last-touched
+.beads/dolt/dolt-server.pid
+.beads/dolt/dolt-server.port
+.beads/dolt/dolt-server.lock
+.beads/dolt/dolt-server.activity
+.beads/dolt/dolt-server.log
+.beads/dolt/dolt-monitor.pid
+results-unit.xml

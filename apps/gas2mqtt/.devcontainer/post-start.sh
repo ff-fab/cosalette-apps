@@ -1,7 +1,5 @@
 #!/bin/bash
-# Post-start cleanup script for devcontainer
-# Runs on every container start (including restarts) to clean stale artifacts
-# from the previous session.
+# Post-start hook: cleans stale beads daemon artifacts on every container start.
 set -euo pipefail
 
 cd /workspace

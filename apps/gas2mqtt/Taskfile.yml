@@ -11,7 +11,14 @@ version: '3'
 vars:
   PKG: packages
   MODULE_NAME: 'gas2mqtt'
-  COVERAGE_THRESHOLD: '80'
+
+  # Guard vars: detect whether test files exist.
+  # Used by test tasks to skip gracefully when directories are empty
+  # (common in early development). The find runs lazily per task invocation.
+  HAS_UNIT_TESTS:
+    sh: find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 . && echo true || echo false
+  HAS_INTEGRATION_TESTS:
+    sh: find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 . && echo true || echo false
 
 tasks:
   default:
@@ -141,15 +148,31 @@ tasks:
     desc: Run all tests (unit + integration) with coverage and summary
     cmds:
       # Run all tests with coverage to enable threshold validation.
-      - cmd: uv run pytest {{.PKG}}/tests/ -v --tb=short --junitxml=results.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
+      - cmd: |
+          if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+            echo "ℹ No unit tests found — skipping"
+            exit 0
+          fi
+          uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
         ignore_error: true
 
-      - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json
+      - |
+        # Only run the summary when pytest actually produced results.
+        if [ -f results-unit.xml ]; then
+          uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json
+        else
+          echo "ℹ No test results — skipping summary"
+        fi
 
   test:unit:
     desc: Run unit tests only (fast, every change)
     cmds:
-      - uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results.xml
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml
 
   test:file:
     desc: 'Run specific test file or pattern (e.g.: task test:file -- packages/tests/unit/test_errors.py)'
@@ -165,7 +188,12 @@ tasks:
   test:integration:
     desc: Run integration tests (pytest)
     cmds:
-      - uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration
+      - |
+        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No integration tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration
 
   test:cov:
     desc: Run tests with coverage (terminal + XML for IDE)
@@ -213,12 +241,14 @@ tasks:
       - task: test
 
   pre-pr:
-    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage)
+    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity)
     cmds:
       - pre-commit run --all-files
       - task: lint
       - task: typecheck
       - task: test
+      - task: complexity
+      - task: similarity
 
   # ===========================================================================
   # Documentation
@@ -244,14 +274,43 @@ tasks:
       - uv sync --group dev
 
   # ===========================================================================
+  # Update Tasks
+  # ===========================================================================
+
+  update:template:
+    desc: Update project from copier template (pulls latest template changes)
+    cmds:
+      - uvx --python 3.14 --with jinja2-time copier update --trust
+
+  update:deps:
+    desc: Update all dependencies to latest compatible versions
+    cmds:
+      - uv lock --upgrade
+      - uv sync --all-groups
+
+  # ===========================================================================
   # Code Quality
   # ===========================================================================
 
   complexity:
-    desc: Check code complexity (radon)
+    desc: Check code complexity (radon + cognitive complexity)
     cmds:
       - uv run radon cc {{.PKG}}/src/{{.MODULE_NAME}} --average --show-complexity
       - uv run xenon {{.PKG}}/src/{{.MODULE_NAME}} --max-absolute B --max-modules A --max-average A
+      - uv run flake8 --select CCR001 --max-cognitive-complexity 15 {{.PKG}}/src/{{.MODULE_NAME}}
+
+  similarity:
+    desc: Check for code duplication (symilar — ships with pylint)
+    cmds:
+      - |
+        OUTPUT=$(uv run symilar -d 4 --ignore-imports --ignore-signatures \
+          $(find {{.PKG}}/src/{{.MODULE_NAME}} -name '*.py'))
+        echo "$OUTPUT"
+        DUPES=$(printf '%s\n' "$OUTPUT" | sed -n 's/.*duplicates=\([0-9][0-9]*\).*/\1/p' | head -n1)
+        if [ "${DUPES:-0}" -gt 0 ]; then
+          echo "❌ Found $DUPES duplicate lines"
+          exit 1
+        fi
 
   # ===========================================================================
   # CI Helpers
@@ -269,13 +328,23 @@ tasks:
   ci:test:unit:
     desc: CI unit + integration tests with coverage summary
     cmds:
-      - uv run pytest {{.PKG}}/tests/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results.xml
-      - uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under={{.COVERAGE_THRESHOLD}}
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/unit/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
+        uv run python {{.PKG}}/tests/scripts/summarize_tests.py --unit-results=results-unit.xml --coverage-file=coverage.json --fail-under=80
 
   ci:test:integration:
     desc: CI integration tests (pytest)
     cmds:
-      - uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration --junitxml=results-integration.xml
+      - |
+        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No integration tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration --junitxml=results-integration.xml
 
   ci:lint:
     desc: CI lint task (strict)
