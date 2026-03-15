@@ -28,6 +28,8 @@ services:
     env_file: .env
     environment:
       GAS2MQTT_MQTT__HOST: mosquitto
+    volumes:
+      - gas2mqtt-data:/app/data
     depends_on:
       - mosquitto
 
@@ -42,6 +44,7 @@ services:
       - mosquitto-log:/mosquitto/log
 
 volumes:
+  gas2mqtt-data:
   mosquitto-data:
   mosquitto-log:
 ```

@@ -14,6 +14,7 @@ RUN uv pip install --system --no-cache .
 
 # Run as non-root
 RUN adduser -D appuser
+RUN mkdir -p /app/data && chown appuser:appuser /app/data
 USER appuser
 
 # Entry point — reads config from environment / .env
