@@ -1,4 +1,4 @@
-_commit: v1.3.0-7-g6f5ea21
+_commit: v1.8.2
 _src_path: https://github.com/ff-fab/tmpl_python_project_kickstart
 author_email: mail@fabiankoerner.com
 author_name: Fabian Koerner
@@ -6,9 +6,11 @@ codecov: true
 coverage_threshold: 80
 description: A smart home app to read in values of Jeelink temperature and humidity
   sensors.
+docker_publish: true
 docs_style: user-journey
 github_org: ff-fab
-init_git_on_copy: true
+include_sbom: false
+init_git_on_copy: false
 license: MIT
 module_name: jeelink2mqtt
 project_name: jeelink2mqtt

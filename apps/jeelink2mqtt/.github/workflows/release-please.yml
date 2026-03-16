@@ -2,10 +2,14 @@
 #
 # On every push to main, release-please updates (or opens) a release PR.
 # Merging that PR creates a GitHub Release with a SemVer tag (vX.Y.Z).
+
 #
-# When a release is created, the package is first published to TestPyPI.
-# After TestPyPI succeeds, PyPI publish requires manual approval via the
-# "pypi" GitHub Environment protection rule.
+# When a release is created, the publish job builds and pushes the
+# multi-arch container image to GHCR.
+#
+# Tag strategy:
+#   latest, 1.2.3, 1.2, 1  — stable release (this workflow)
+#   edge                    — current HEAD of main (this workflow + build-edge.yml)
 
 name: Release Please
 
@@ -13,14 +17,13 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-
 jobs:
   release-please:
     name: Release Please
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
@@ -31,58 +34,49 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  publish-testpypi:
-    name: Publish to TestPyPI
+  publish:
+    name: Publish container
     needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ubuntu-latest
-    environment: testpypi
     permissions:
       contents: read
-      id-token: write
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+
+      - name: Set up QEMU (cross-compilation for ARM)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
         with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - uses: actions/setup-python@v5
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
         with:
-          python-version: "3.14"
+          images: ghcr.io/ff-fab/jeelink2mqtt
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.release-please.outputs.tag_name }}
+            type=semver,pattern={{major}},value=${{ needs.release-please.outputs.tag_name }}
+            type=raw,value=latest
+            type=raw,value=edge
 
-      - name: Install build tools
-        run: pip install build
-
-      - name: Build package
-        run: python -m build
-
-      - name: Publish to TestPyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+      - name: Build and push
+        uses: docker/build-push-action@v6
         with:
-          repository-url: https://test.pypi.org/legacy/
-
-  publish-pypi:
-    name: Publish to PyPI
-    needs: [release-please, publish-testpypi]
-    if: needs.release-please.outputs.release_created == 'true'
-    runs-on: ubuntu-latest
-    environment: pypi
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.release-please.outputs.tag_name }}
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.14"
-
-      - name: Install build tools
-        run: pip install build
-
-      - name: Build package
-        run: python -m build
-
-      - name: Publish to PyPI
-        uses: pypa/gh-action-pypi-publish@release/v1
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

@@ -5,16 +5,13 @@ applyTo: '**/*.md'
 
 # Documentation Instructions
 
-## Documentation System\
+## Documentation System
 
 | Component      | Choice                                                         |
 | -------------- | -------------------------------------------------------------- |
 | Site Generator | Zensical (`zensical.toml`)                                     |
 | Theme          | Zensical (modern theme)                                        |
-
-
 | Structure      | User Journey (guided flow through tasks along lifecycle)       |
-
 | CLI            | `task docs:serve`, `task docs:build`                           |
 
 ## ADR Format

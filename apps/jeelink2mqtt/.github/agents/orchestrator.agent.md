@@ -93,6 +93,7 @@ When invoking subagents:
 - Provide the specific task, objective, files/functions, and test requirements
 - Tell them to work autonomously and only ask user for input on critical implementation decisions
 - Remind them NOT to proceed to next phase or write completion files (orchestrator handles this)
+- Remind them: brevity is a feature — if 200 lines could be 50, rewrite. If a senior engineer would call it overcomplicated, simplify.
 
 **code-review-subagent**:
 - Provide the phase objective, acceptance criteria, and modified files
@@ -189,6 +190,7 @@ CRITICAL PAUSE POINTS - You must stop and wait for user input at:
 1. After presenting the plan (before starting implementation)
 2. After each phase is reviewed and commit message is provided (before proceeding to next phase)
 3. After plan completion document is created
+4. **NEVER merge a PR** — only the user decides when to merge. Do not approve-and-merge, do not enable auto-merge, even if all CI checks pass.
 
 DO NOT proceed past these points without explicit user confirmation.
 </stopping_rules>

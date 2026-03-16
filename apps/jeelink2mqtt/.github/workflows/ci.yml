@@ -34,13 +34,13 @@ jobs:
     name: 'Lint & Type Check'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Prepare runner for devcontainer
         run: mkdir -p ~/.ssh # devcontainer.json mounts ~/.ssh; runners lack it
 
       - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -57,13 +57,13 @@ jobs:
     name: 'Unit Tests & Coverage'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Prepare runner for devcontainer
         run: mkdir -p ~/.ssh
 
       - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -86,7 +86,7 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-reports
           path: |
@@ -95,24 +95,26 @@ jobs:
           retention-days: 30
 
   complexity:
-    name: 'Code Complexity'
+    name: 'Code Quality (Complexity & Similarity)'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Prepare runner for devcontainer
         run: mkdir -p ~/.ssh
 
       - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Run complexity checks inside devcontainer
+      - name: Run quality checks inside devcontainer
         uses: devcontainers/ci@v0.3
         with:
           cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
           push: never
-          runCmd: task complexity
+          runCmd: |
+            task complexity
+            task similarity

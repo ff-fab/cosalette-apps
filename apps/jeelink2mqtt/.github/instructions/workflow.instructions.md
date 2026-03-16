@@ -52,7 +52,9 @@ applyTo: '**'
    **Always use `task ci:wait`** to wait for CI. Do not use `gh pr checks --watch`
    (opens alternate buffer, breaks agents) or ad-hoc polling loops.
 
-   Never merge unless directly requested by the user.
+   **NEVER merge a PR unless the user explicitly requests it.** Do not approve-and-merge,
+   do not enable auto-merge, do not merge after CI passes. Your job ends at creating the
+   PR and waiting for CI — the human reviewer decides when to merge.
 
 **Key principle:** `main` is always deployable.
 
@@ -82,10 +84,9 @@ Run `bd prime` for full workflow context.
 | `bd update <id> --claim`                     | Claim a task (assigns + in_progress) |
 | `bd close <id>`                              | Complete work                        |
 | `bd dep add <child> <parent>`                | Add dependency                       |
-| `bd sync`                                    | Export to JSONL (run at session end) |
 
 **Workflow:** Check `bd ready` at session start. Claim work, implement, close when done.
-Commit beads state (`bd sync && git add .beads/ && git commit`) before pushing.
+Commit beads state (`git add .beads/ && git commit`) before pushing.
 
 ### Beads vs TODO: Two Systems, Distinct Purposes
 
@@ -130,7 +131,7 @@ without duplicating the rich deliberation content into beads.
 ## Pre-PR Quality Gate
 
 Run `task pre-pr` to execute all quality gates before creating a PR. This task runs
-pre-commit + lint + typecheck + tests + coverage.
+pre-commit + lint + typecheck + tests + coverage + complexity.
 
 All checks must pass before pushing.
 
@@ -147,8 +148,7 @@ until `git push` succeeds.
 
    ```bash
    bd close <id>
-   bd sync
-   git add .beads/ && git commit -m "chore: sync beads state"
+   git add .beads/ && git commit -m "chore: update beads state"
    ```
 
 4. **PUSH TO REMOTE** — this is MANDATORY:
@@ -172,6 +172,7 @@ until `git push` succeeds.
 - If push fails, resolve and retry until it succeeds
 - Beads state MUST be committed before pushing — the pre-push hook will reject pushes
   with uncommitted `.beads/` changes
+- NEVER merge a PR — only the user decides when to merge
 
 ## Test Notes
 

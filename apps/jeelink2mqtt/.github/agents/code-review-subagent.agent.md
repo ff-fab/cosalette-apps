@@ -25,6 +25,9 @@ CRITICAL: You receive context from the parent agent including:
    - The phase objective was achieved
    - Code follows best practices (correctness, efficiency, readability, maintainability,
      security)
+   - Use #upstash/context7/* to verify API usage against current library docs
+   - **Code is concise** — if 200 lines could be 50, flag it. Ask: "Would a senior
+     engineer say this is overcomplicated?" If yes, mark as NEEDS_REVISION.
    - Tests were written and pass
    - No obvious bugs or edge cases were missed
    - Error handling is appropriate

@@ -16,7 +16,7 @@ user feedback.
    - Read relevant files identified in searches
    - Use code symbol searches for specific functions/classes
    - Explore dependencies and related code
-   - Use #upstash/context7/* for framework/library context as needed, if available
+   - Use #upstash/context7/* for framework/library context as needed
 
 2. **Stop research at 90% confidence** - you have enough context when you can answer:
    - What files/functions are relevant?

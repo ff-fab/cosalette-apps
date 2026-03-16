@@ -217,21 +217,19 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+# Beads / Dolt runtime artifacts (scoped to .beads/ to avoid false positives)
+.beads/**/.dolt/
+.beads/**/*.db
+.beads/bd.sock
+.beads/bd.sock.startlock
+.beads/sync-state.json
+.beads/last-touched
+.beads/dolt/dolt-server.pid
+.beads/dolt/dolt-server.port
+.beads/dolt/dolt-server.lock
+.beads/dolt/dolt-server.activity
+.beads/dolt/dolt-server.log
+.beads/dolt/dolt-monitor.pid
+.beads/dolt-monitor.pid
+
 docs/planning/legacy/
-
-# Dolt database files (added by bd init)
-.dolt/
-*.db
-
-# Runtime files
-bd.sock
-bd.sock.startlock
-sync-state.json
-last-touched
-dolt-server.pid
-dolt-server.port
-dolt-server.lock
-dolt-server.activity
-dolt-server.log
-dolt-monitor.pid
-data/
