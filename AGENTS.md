@@ -19,16 +19,32 @@ gh pr review <number> --comment --body "..."
 gh issue list --limit 50
 ```
 
+## Monorepo Layout
+
+This is a **uv workspace monorepo**. Apps live under `apps/<name>/`, each with its own
+`pyproject.toml`, `packages/src/`, and `packages/tests/`.
+
+```
+apps/
+  gas2mqtt/        # MIT
+  jeelink2mqtt/    # MIT
+  vito2mqtt/       # GPL-3.0-or-later
+taskfiles/
+  PythonApp.yml    # Reusable per-app task template
+```
+
 ## Commit Convention
 
 All commits **must** follow
 [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-<type>[optional scope]: <description>
+<type>(<scope>): <description>
 ```
 
 Common prefixes: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`.
+
+Scope by app when the change is app-specific: `feat(gas2mqtt): add retry logic`.
 
 Breaking changes: add `!` after the type (e.g., `feat!: redesign config`).
 
@@ -41,6 +57,13 @@ bd ready              # Find available work
 bd show <id>          # View issue details
 bd update <id> --claim  # Claim work (assigns + in_progress)
 bd close <id>         # Complete work
+
+# Per-app task commands (monorepo)
+task gas2mqtt:test:unit        # Run unit tests for gas2mqtt
+task gas2mqtt:lint             # Lint gas2mqtt
+task gas2mqtt:typecheck        # Type check gas2mqtt
+task test:all                  # Run tests for all apps
+task pre-pr                    # Full quality gate
 ```
 
 ## Landing the Plane (Session Completion)

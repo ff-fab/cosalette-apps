@@ -1,0 +1,41 @@
+name: CI (per-app)
+on:
+  workflow_call:
+    inputs:
+      app:
+        required: true
+        type: string
+
+concurrency:
+  group: ci-${{ inputs.app }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: task ${{ inputs.app }}:lint
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: task ${{ inputs.app }}:typecheck
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: task ${{ inputs.app }}:ci:test:unit
+      - uses: codecov/codecov-action@v5
+        if: always()
+        with:
+          files: apps/${{ inputs.app }}/coverage.xml
+          flags: ${{ inputs.app }}

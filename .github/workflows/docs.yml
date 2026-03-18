@@ -1,78 +1,60 @@
-# Documentation build & deploy
-#
-# - On pull requests: validates the docs build (no deploy)
-# - On push to main: builds and deploys to GitHub Pages
-#
-# Build runs inside the devcontainer (same as CI) using `task docs:build`.
-
 name: Documentation
-
 on:
   push:
     branches: [main]
     paths:
       - 'docs/**'
       - 'zensical.toml'
+      - 'apps/*/docs/**'
+      - 'apps/*/zensical.toml'
   pull_request:
-    branches: [main]
     paths:
       - 'docs/**'
       - 'zensical.toml'
+      - 'apps/*/docs/**'
+      - 'apps/*/zensical.toml'
 
-# Allow only one concurrent deployment; don't cancel PR builds
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
-# pages: write and id-token: write only needed for deploy (push to main).
-# PRs only need contents: read and packages: read.
 permissions:
-  contents: read
   pages: write
   id-token: write
-  packages: read # Pull the devcontainer image from GHCR
-
-env:
-  DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 jobs:
-  build:
-    name: Build Documentation
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      root: ${{ steps.filter.outputs.root }}
+      # Per-app filters added as apps are migrated
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            root:
+              - 'docs/**'
+              - 'zensical.toml'
+
+  build-root:
+    needs: detect
+    if: needs.detect.outputs.root == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group docs
+      - run: task docs:build
 
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build documentation inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          runCmd: task docs:build
-
-      - uses: actions/upload-pages-artifact@v4
-        if: github.event_name == 'push'
-        with:
-          path: site
-
-  deploy:
-    name: Deploy to GitHub Pages
+  deploy-root:
+    needs: build-root
     if: github.event_name == 'push'
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/configure-pages@v5
-
-      - uses: actions/deploy-pages@v4
-        id: deployment
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group docs
+      - run: task docs:build
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          keep_files: true
