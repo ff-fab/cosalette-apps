@@ -41,7 +41,8 @@
       "Bash(gh run watch *)",
       "Bash(gh repo view *)",
       "Bash(gh search *)",
-      "Bash(gh status *)"
+      "Bash(gh status *)",
+      "Bash(gh auth:*)"
     ],
     "deny": ["Bash(python *)", "Bash(python3 *)"],
     "additionalDirectories": ["/workspace"]

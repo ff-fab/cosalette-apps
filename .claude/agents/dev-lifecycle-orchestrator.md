@@ -7,7 +7,7 @@ description:
   require research, incremental implementation with test cycles, and code review gates
   before committing.'
 tools:
-  Glob, Grep, Read, WebFetch, WebSearch, Skill, TaskCreate, TaskGet, TaskUpdate,
+  Bash, Glob, Grep, Read, WebFetch, WebSearch, Skill, TaskCreate, TaskGet, TaskUpdate,
   TaskList, EnterWorktree, ExitWorktree, CronCreate, CronDelete, CronList, ToolSearch
 model: opus
 color: cyan
