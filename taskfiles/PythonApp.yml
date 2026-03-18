@@ -125,12 +125,12 @@ tasks:
   docs:serve:
     desc: 'Preview docs for {{.APP_NAME}}'
     cmds:
-      - uv run --group docs zensical serve --dev-addr 0.0.0.0:8001
+      - uv run --project {{.ROOT_DIR}} --group docs zensical serve --dev-addr 0.0.0.0:8001
 
   docs:build:
     desc: 'Build docs for {{.APP_NAME}}'
     cmds:
-      - uv run --group docs zensical build --clean
+      - uv run --project {{.ROOT_DIR}} --group docs zensical build --clean
 
   # ── CI Helpers ──────────────────────────────────────────────
   ci:test:unit:

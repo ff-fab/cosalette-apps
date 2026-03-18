@@ -1,12 +1,17 @@
 ## Epic Cosalette Migration Complete: App Wiring + Integration Tests
 
-Full application wiring in main.py with `create_app()` factory, lifespan for I2C lifecycle, adapter registration, and three device registrations. All device handlers delegate to extracted coroutines for testability.
+Full application wiring in main.py with `create_app()` factory, lifespan for I2C
+lifecycle, adapter registration, and three device registrations. All device handlers
+delegate to extracted coroutines for testability.
 
 **Files created/changed:**
 
-- `packages/src/gas2mqtt/main.py` — Full app wiring with `create_app()`, `lifespan`, three `@app.device` registrations
-- `packages/src/gas2mqtt/devices/temperature.py` — Added `temperature_device()` coroutine
-- `packages/src/gas2mqtt/devices/magnetometer.py` — Added `magnetometer_device()` coroutine
+- `packages/src/gas2mqtt/main.py` — Full app wiring with `create_app()`, `lifespan`,
+  three `@app.device` registrations
+- `packages/src/gas2mqtt/devices/temperature.py` — Added `temperature_device()`
+  coroutine
+- `packages/src/gas2mqtt/devices/magnetometer.py` — Added `magnetometer_device()`
+  coroutine
 - `packages/src/gas2mqtt/devices/__init__.py` — Updated exports
 - `packages/src/gas2mqtt/adapters/qmc5883l.py` — Added default constructor args
 - `pyproject.toml` — Added `[project.scripts]` entry point
@@ -27,7 +32,8 @@ Full application wiring in main.py with `create_app()` factory, lifespan for I2C
 - `TestTemperatureDeviceWiring` — 1 test (end-to-end publish)
 - `TestMagnetometerDeviceWiring` — 2 tests (enabled publish, disabled no-op)
 
-**Review Status:** APPROVED after revision (extracted device coroutines, tests exercise real handlers)
+**Review Status:** APPROVED after revision (extracted device coroutines, tests exercise
+real handlers)
 
 **Git Commit Message:**
 
