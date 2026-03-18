@@ -34,7 +34,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - run: pipx install reuse && reuse lint
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group dev
+      - run: uv run reuse lint
 
   # Per-app CI dispatched via matrix (uncomment after first migration)
   # app-ci:

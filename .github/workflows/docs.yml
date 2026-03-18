@@ -7,6 +7,12 @@ on:
       - 'zensical.toml'
       - 'apps/*/docs/**'
       - 'apps/*/zensical.toml'
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'zensical.toml'
+      - 'apps/*/docs/**'
+      - 'apps/*/zensical.toml'
 
 permissions:
   pages: write
@@ -28,9 +34,19 @@ jobs:
               - 'docs/**'
               - 'zensical.toml'
 
-  deploy-root:
+  build-root:
     needs: detect
     if: needs.detect.outputs.root == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --group docs
+      - run: task docs:build
+
+  deploy-root:
+    needs: build-root
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

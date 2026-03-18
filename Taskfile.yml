@@ -30,7 +30,7 @@ tasks:
     desc: Run tests for all apps
     cmds:
       - for: { var: APPS }
-        task: '{{.ITEM}}:test:unit'
+        task: '{{.ITEM}}:test'
 
   lint:all:
     desc: Lint all apps

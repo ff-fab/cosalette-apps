@@ -21,22 +21,14 @@ tasks:
   test:
     desc: 'Run all tests for {{.APP_NAME}} with coverage'
     cmds:
-      - cmd: |
-          if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
-            echo "ℹ No unit tests found — skipping"
-            exit 0
-          fi
-          uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ -v --tb=short \
-            --junitxml=results-unit.xml \
-            --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=json
-        ignore_error: true
       - |
-        if [ -f results-unit.xml ]; then
-          uv run python {{.PKG}}/tests/scripts/summarize_tests.py \
-            --coverage-file=coverage.json
-        else
-          echo "ℹ No test results — skipping summary"
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found — skipping"
+          exit 0
         fi
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ -v --tb=short \
+          --junitxml=results-unit.xml \
+          --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=json
 
   test:unit:
     desc: 'Run unit tests for {{.APP_NAME}}'
@@ -152,6 +144,4 @@ tasks:
         uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ \
           --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
           --cov-report=xml --cov-report=json --cov-report=term \
-          --junitxml=results-unit.xml
-        uv run python {{.PKG}}/tests/scripts/summarize_tests.py \
-          --coverage-file=coverage.json --fail-under=80
+          --junitxml=results-unit.xml --cov-fail-under=80
