@@ -9,42 +9,44 @@ applyTo: '**'
 
 **Never invoke `python` or `python -m` directly.** All commands go through either:
 
-1. **`task <name>`** — preferred, uses the Taskfile.yml definitions
-2. **`uv run <command>`** — fallback when no task exists
+1. **`task <app>:<name>`** — preferred, uses the Taskfile.yml definitions
+2. **`uv run --package <name> <command>`** — fallback when no task exists
 
 ## Task Commands (use these first)
 
 Run `task --list` to see all available tasks. Key tasks for development:
 
-| Need                          | Command                                      |
-| ----------------------------- | -------------------------------------------- |
-| Run all unit tests            | `task test:unit`                             |
-| Run a specific test file      | `task test:file -- packages/tests/unit/test_foo.py`   |
-| Run tests matching a pattern  | `task test:file -- -k test_my_function`      |
-| Run tests with coverage       | `task test:cov`                              |
-| Lint (ruff check + format)    | `task lint`                                  |
-| Fix lint issues               | `task lint:fix`                              |
-| Type check (mypy)             | `task typecheck`                             |
-| All checks (lint+type+test)   | `task check`                                 |
-| Complexity (radon + cognitive) | `task complexity`                            |
-| Duplication detection          | `task similarity`                            |
-| Pre-PR quality gate           | `task pre-pr`                                |
-| Wait for CI on a PR           | `task ci:wait -- <pr-number>`                |
-| Preview docs                  | `task docs:serve`                            |
-| Sync dependencies             | `task sync`                                  |
+| Need                          | Command                                              |
+| ----------------------------- | ---------------------------------------------------- |
+| Run all unit tests (one app)  | `task gas2mqtt:test:unit`                            |
+| Run a specific test file      | `task gas2mqtt:test:file -- packages/tests/unit/test_foo.py` |
+| Run tests matching a pattern  | `task gas2mqtt:test:file -- -k test_my_function`     |
+| Run tests with coverage       | `task gas2mqtt:test:cov`                             |
+| Lint (ruff check + format)    | `task gas2mqtt:lint`                                 |
+| Fix lint issues               | `task gas2mqtt:lint:fix`                             |
+| Type check (mypy)             | `task gas2mqtt:typecheck`                            |
+| All checks (lint+type+test)   | `task gas2mqtt:check`                                |
+| Complexity (radon + cognitive) | `task gas2mqtt:complexity`                           |
+| Duplication detection          | `task gas2mqtt:similarity`                           |
+| Run all apps' tests           | `task test:all`                                      |
+| Lint all apps                 | `task lint:all`                                      |
+| Pre-PR quality gate           | `task pre-pr`                                        |
+| Wait for CI on a PR           | `task ci:wait -- <pr-number>`                        |
+| Preview docs                  | `task docs:serve`                                    |
+| Sync dependencies             | `task sync`                                          |
 
 ## When no task exists
 
-For one-off commands not covered by the Taskfile, use `uv run` from the repo root:
+For one-off commands not covered by the Taskfile, use `uv run --package <name>` from
+the repo root:
 
 ```bash
-uv run pytest packages/tests/unit/test_foo.py -v
-uv run mypy packages/src/cosalette-apps/_health.py
-uv run ruff check packages/src/
+uv run --package gas2mqtt pytest apps/gas2mqtt/packages/tests/unit/test_foo.py -v
+uv run mypy apps/gas2mqtt/packages/src/
 
 # WRONG — never do this
-python -m pytest packages/tests/unit/test_foo.py -v
-python packages/tests/scripts/summarize_tests.py
+python -m pytest apps/gas2mqtt/packages/tests/unit/test_foo.py -v
+python apps/gas2mqtt/packages/tests/scripts/summarize_tests.py
 ```
 
 ## Why

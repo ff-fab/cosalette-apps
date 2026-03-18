@@ -62,7 +62,7 @@ repos:
         exclude: |
           (?x)^(
             \.vscode/settings\.json$|
-            packages/.*|
+            apps/.*/packages/.*|
             .*\.prompt\.md$|
             .*\.instructions\.md$|
             CHANGELOG\.md$
@@ -78,18 +78,17 @@ repos:
       - id: ruff-format
         name: Ruff (format Python)
 
-  # mypy: Type checking for Python
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
+  # mypy: Runs per-app via Taskfile (needs per-app dependencies).
+  # Use: task <app>:typecheck
+  # Global pre-commit mypy is disabled because workspace apps have
+  # different dependencies that can't be satisfied in a single hook.
+
+  # REUSE: Verify license annotations cover all files
+  - repo: https://github.com/fsfe/reuse-tool
+    rev: v5.0.2
     hooks:
-      - id: mypy
-        name: mypy (type check Python)
-        args: ['--strict']
-        files: ^packages/src/
-        additional_dependencies:
-          - pydantic>=2.10.0
-          - pydantic-settings>=2.6.0
-          - types-PyYAML>=6.0.0
+      - id: reuse
+        name: REUSE (license compliance)
 
   # Beads (bd): Export issue tracker JSONL and keep git in sync
   # pre-push: FAILS if .beads/ has uncommitted changes (forces commit-before-push)
