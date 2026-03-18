@@ -16,23 +16,21 @@ follow them.
 - [.github/instructions/documentation.instructions.md](.github/instructions/documentation.instructions.md)
   — Zensical site generator, ADR format
 
-## Skills
+## Monorepo Layout
 
-Reusable workflow definitions available as slash commands in Claude Code (`/pr-review`,
-`/pre-pr-gate`, `/showboat-demo`) and as Copilot skills. The canonical body lives in
-`.github/skills/`; `.claude/skills/` adds Claude Code metadata (`allowed-tools`).
+This is a **uv workspace monorepo**. Apps live under `apps/<name>/`.
 
-- **pr-review** — Fetch all PR feedback via
-  [fetch-pr-feedback.sh](.github/skills/pr-review/fetch-pr-feedback.sh), then analyze
-  CI, review comments, and code quality
-- **pre-pr-gate** — End-of-session workflow: `task pre-pr`, close beads, push, create PR
-- **showboat-demo** — Create reproducible proof-of-work demos with `showboat`
+- Per-app tasks: `task <app>:test:unit`, `task <app>:lint`, `task <app>:typecheck`
+- Cross-app: `task test:all`, `task lint:all`, `task check:all`
+- Use `uv run --package <name>` when no task exists
+- Commit scoping: `feat(gas2mqtt): ...`, `fix(jeelink2mqtt): ...`
 
 ## Key Rules
 
 - **Never push directly to `main`.** All changes go through PRs.
 - **Never merge a PR** unless the user explicitly asks.
-- **Conventional Commits required** (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
+- **Conventional Commits required** (`feat:`, `fix:`, `docs:`, `chore:`, etc.). Scope by
+  app when app-specific.
 - **Use `task <name>`** for all operations (run `task --list`). Fall back to `uv run`
   only when no task exists. Never invoke `python` directly.
 - **ADRs** live in `docs/adr/`. Follow existing decisions; create new ADRs for major

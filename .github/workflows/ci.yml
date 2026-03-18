@@ -1,120 +1,49 @@
-# Main CI pipeline — runs inside the devcontainer for tool parity with local dev.
-
 name: CI
-
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
   pull_request:
-    branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
-
-# Cancel in-progress runs for the same branch/PR — avoids wasting CI minutes
-# on superseded commits when you push twice quickly.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-  packages: read # Pull the devcontainer image from GHCR
-
-env:
-  DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 jobs:
-  lint:
-    name: 'Lint & Type Check'
+  detect:
+    runs-on: ubuntu-latest
+    outputs:
+      changes: ${{ steps.filter.outputs.changes }}
+      shared: ${{ steps.filter.outputs.shared }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/**'
+              - 'taskfiles/**'
+              - '.pre-commit-config.yaml'
+              - 'REUSE.toml'
+            # Per-app filters added as apps are migrated:
+            # gas2mqtt:
+            #   - 'apps/gas2mqtt/**'
+
+  # Shared infrastructure check (REUSE, pre-commit on shared files)
+  shared:
+    needs: detect
+    if: needs.detect.outputs.shared == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+      - run: pipx install reuse && reuse lint
 
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh # devcontainer.json mounts ~/.ssh; runners lack it
-
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run linting inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ci:lint
-
-  unit-tests:
-    name: 'Unit Tests & Coverage'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run unit tests inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ci:test:unit
-
-      - name: Upload coverage to Codecov
-        if: always()
-        uses: codecov/codecov-action@v5
-        with:
-          files: coverage.xml
-          fail_ci_if_error: false # Don't block PRs on Codecov outages
-          token: ${{ secrets.CODECOV_TOKEN }}
-
-      - name: Upload coverage artifacts
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-reports
-          path: |
-            coverage.xml
-            coverage.json
-          retention-days: 30
-
-  complexity:
-    name: 'Code Quality (Complexity & Similarity)'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Run quality checks inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: |
-            task complexity
-            task similarity
+  # Per-app CI dispatched via matrix (uncomment after first migration)
+  # app-ci:
+  #   needs: detect
+  #   if: needs.detect.outputs.changes != '[]'
+  #   strategy:
+  #     matrix:
+  #       app: ${{ fromJson(needs.detect.outputs.changes) }}
+  #     fail-fast: false
+  #   uses: ./.github/workflows/ci-app.yml
+  #   with:
+  #     app: ${{ matrix.app }}

@@ -1,0 +1,46 @@
+version = 1
+
+[[annotations]]
+path = ["apps/gas2mqtt/**", "apps/jeelink2mqtt/**"]
+SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
+path = "apps/vito2mqtt/**"
+SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
+SPDX-License-Identifier = "GPL-3.0-or-later"
+
+[[annotations]]
+path = [
+    "*.toml",
+    "*.yml",
+    "*.yaml",
+    "*.md",
+    "*.json",
+    "*.cfg",
+    "*.txt",
+    "*.lock",
+    "*.sh",
+    "Taskfile.yml",
+    "taskfiles/**",
+    "docs/**",
+    "scripts/**",
+    ".github/**",
+    ".devcontainer/**",
+    ".claude/**",
+    ".beads/**",
+    ".vscode/**",
+    ".pre-commit-config.yaml",
+    ".editorconfig",
+    ".gitignore",
+    ".gitattributes",
+    ".prettierignore",
+    ".prettierrc.json",
+    ".copier-answers.yml",
+    ".env",
+    ".editorconfig-checker.json",
+    "LICENSE",
+    "LICENSES/**",
+]
+SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
+SPDX-License-Identifier = "MIT"

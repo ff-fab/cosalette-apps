@@ -1,0 +1,157 @@
+# taskfiles/PythonApp.yml
+# Reusable task definitions for cosalette apps.
+# Included by root Taskfile.yml with per-app variables.
+version: '3'
+
+vars:
+  APP_NAME: '{{.APP_NAME}}'
+  MODULE_NAME: '{{.MODULE_NAME | default .APP_NAME}}'
+  PKG: packages
+
+  HAS_UNIT_TESTS:
+    sh: >-
+      find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \)
+      2>/dev/null | grep -qm1 . && echo true || echo false
+  HAS_INTEGRATION_TESTS:
+    sh: >-
+      find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \)
+      2>/dev/null | grep -qm1 . && echo true || echo false
+
+tasks:
+  test:
+    desc: 'Run all tests for {{.APP_NAME}} with coverage'
+    cmds:
+      - cmd: |
+          if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+            echo "ℹ No unit tests found — skipping"
+            exit 0
+          fi
+          uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ -v --tb=short \
+            --junitxml=results-unit.xml \
+            --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=json
+        ignore_error: true
+      - |
+        if [ -f results-unit.xml ]; then
+          uv run python {{.PKG}}/tests/scripts/summarize_tests.py \
+            --coverage-file=coverage.json
+        else
+          echo "ℹ No test results — skipping summary"
+        fi
+
+  test:unit:
+    desc: 'Run unit tests for {{.APP_NAME}}'
+    cmds:
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found — skipping"
+          exit 0
+        fi
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ -v --tb=short \
+          --junitxml=results-unit.xml
+
+  test:file:
+    desc: 'Run specific test file (e.g.: task {{.APP_NAME}}:test:file -- test_foo.py)'
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task {{.APP_NAME}}:test:file -- <path-or-pattern>" >&2
+          exit 1
+        fi
+        uv run --package {{.APP_NAME}} pytest {{.CLI_ARGS}} -v --tb=short
+
+  test:integration:
+    desc: 'Run integration tests for {{.APP_NAME}}'
+    cmds:
+      - |
+        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No integration tests found — skipping"
+          exit 0
+        fi
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/integration/ -v --tb=short \
+          -m integration
+
+  test:cov:
+    desc: 'Run tests with coverage for {{.APP_NAME}}'
+    cmds:
+      - uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ \
+        --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
+        --cov-report=term-missing --cov-report=xml
+
+  test:cov:html:
+    desc: 'Run tests with HTML coverage for {{.APP_NAME}}'
+    cmds:
+      - uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ \
+        --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
+        --cov-report=html --cov-report=term
+      - cmd: '{{if eq OS "darwin"}}open{{else}}xdg-open{{end}} htmlcov/index.html'
+        ignore_error: true
+
+  lint:
+    desc: 'Lint {{.APP_NAME}}'
+    cmds:
+      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
+
+  lint:fix:
+    desc: 'Fix lint issues for {{.APP_NAME}}'
+    cmds:
+      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/
+
+  typecheck:
+    desc: 'Type check {{.APP_NAME}}'
+    cmds:
+      - uv run mypy {{.PKG}}/src/
+
+  check:
+    desc: 'Run all checks for {{.APP_NAME}}'
+    cmds:
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  complexity:
+    desc: 'Check code complexity for {{.APP_NAME}}'
+    cmds:
+      - uv run radon cc {{.PKG}}/src/{{.MODULE_NAME}} --average --show-complexity
+      - uv run xenon {{.PKG}}/src/{{.MODULE_NAME}} --max-absolute B --max-modules A --max-average A
+      - uv run flake8 --select CCR001 --max-cognitive-complexity 15 {{.PKG}}/src/{{.MODULE_NAME}}
+
+  similarity:
+    desc: 'Check code duplication for {{.APP_NAME}}'
+    cmds:
+      - |
+        OUTPUT=$(uv run symilar -d 4 --ignore-imports --ignore-signatures \
+          $(find {{.PKG}}/src/{{.MODULE_NAME}} -name '*.py'))
+        echo "$OUTPUT"
+        DUPES=$(printf '%s\n' "$OUTPUT" | sed -n 's/.*duplicates=\([0-9][0-9]*\).*/\1/p' | head -n1)
+        if [ "${DUPES:-0}" -gt 0 ]; then
+          echo "❌ Found $DUPES duplicate lines"
+          exit 1
+        fi
+
+  docs:serve:
+    desc: 'Preview docs for {{.APP_NAME}}'
+    cmds:
+      - uv run --group docs zensical serve --dev-addr 0.0.0.0:8001
+
+  docs:build:
+    desc: 'Build docs for {{.APP_NAME}}'
+    cmds:
+      - uv run --group docs zensical build --clean
+
+  # ── CI Helpers ──────────────────────────────────────────────
+  ci:test:unit:
+    desc: 'CI unit tests with coverage for {{.APP_NAME}}'
+    cmds:
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
+          exit 0
+        fi
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ \
+          --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
+          --cov-report=xml --cov-report=json --cov-report=term \
+          --junitxml=results-unit.xml
+        uv run python {{.PKG}}/tests/scripts/summarize_tests.py \
+          --coverage-file=coverage.json --fail-under=80

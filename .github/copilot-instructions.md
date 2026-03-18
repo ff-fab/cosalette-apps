@@ -2,12 +2,14 @@
 
 ## Project Overview
 
-**cosalette-apps** - a Python project.
+**cosalette-apps** — a uv workspace monorepo for cosalette-based smart home apps.
+Apps live under `apps/<name>/`, each with its own `pyproject.toml` and `packages/` tree.
 
 ## Workflow
 
 - **Branching:** GitHub Flow — branch from `main`, open PR, squash-merge.
 - **Commits:** Conventional Commits required (`feat:`, `fix:`, `docs:`, `chore:`, etc.).
+  Scope by app when app-specific: `feat(gas2mqtt): add retry logic`.
 - **Releases:** Automated via Release Please (SemVer tags).
 - **Never push directly to `main`.**
 
