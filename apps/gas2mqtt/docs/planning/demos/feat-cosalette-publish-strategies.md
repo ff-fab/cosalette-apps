@@ -1,9 +1,13 @@
 # Cosalette Publish Strategies Migration
 
-*2026-02-22T20:25:58Z by Showboat 0.6.0*
+_2026-02-22T20:25:58Z by Showboat 0.6.0_
+
 <!-- showboat-id: 3923394e-cb78-4d0b-a816-5a16e59c76b5 -->
 
-Upgraded cosalette 0.1.0 → 0.1.2. Migrated temperature and magnetometer from @app.device (manual poll loops) to @app.telemetry with publish strategies. Temperature uses OnChange(threshold=0.05) to suppress duplicate publishes. Adapter factories use settings injection.
+Upgraded cosalette 0.1.0 → 0.1.2. Migrated temperature and magnetometer from @app.device
+(manual poll loops) to @app.telemetry with publish strategies. Temperature uses
+OnChange(threshold=0.05) to suppress duplicate publishes. Adapter factories use settings
+injection.
 
 ```bash
 uv run pytest packages/tests/ -q --no-header --tb=line 2>&1 | grep -oP '\d+ passed'

@@ -7,17 +7,17 @@ under the `gas2mqtt/` prefix. One topic accepts inbound commands.
 
 ## Topic Overview
 
-| Topic                                | Dir      | Payload                          | Retain | QoS |
-| ------------------------------------ | -------- | -------------------------------- | ------ | --- |
-| `gas2mqtt/gas_counter/state`         | outbound | Gas counter JSON                 | yes    | 1   |
-| `gas2mqtt/gas_counter/set`           | inbound  | Set consumption JSON             | —      | —   |
-| `gas2mqtt/gas_counter/availability`  | outbound | `"online"` / `"offline"`         | yes    | 1   |
-| `gas2mqtt/temperature/state`         | outbound | Temperature JSON                 | yes    | 1   |
-| `gas2mqtt/temperature/availability`  | outbound | `"online"` / `"offline"`         | yes    | 1   |
-| `gas2mqtt/magnetometer/state` ¹      | outbound | Raw magnetometer JSON            | yes    | 1   |
-| `gas2mqtt/magnetometer/availability` ¹ | outbound | `"online"` / `"offline"`       | yes    | 1   |
-| `gas2mqtt/status`                    | outbound | Heartbeat JSON + LWT `"offline"` | yes    | 1   |
-| `gas2mqtt/error`                     | outbound | Error JSON                       | no     | 1   |
+| Topic                                  | Dir      | Payload                          | Retain | QoS |
+| -------------------------------------- | -------- | -------------------------------- | ------ | --- |
+| `gas2mqtt/gas_counter/state`           | outbound | Gas counter JSON                 | yes    | 1   |
+| `gas2mqtt/gas_counter/set`             | inbound  | Set consumption JSON             | —      | —   |
+| `gas2mqtt/gas_counter/availability`    | outbound | `"online"` / `"offline"`         | yes    | 1   |
+| `gas2mqtt/temperature/state`           | outbound | Temperature JSON                 | yes    | 1   |
+| `gas2mqtt/temperature/availability`    | outbound | `"online"` / `"offline"`         | yes    | 1   |
+| `gas2mqtt/magnetometer/state` ¹        | outbound | Raw magnetometer JSON            | yes    | 1   |
+| `gas2mqtt/magnetometer/availability` ¹ | outbound | `"online"` / `"offline"`         | yes    | 1   |
+| `gas2mqtt/status`                      | outbound | Heartbeat JSON + LWT `"offline"` | yes    | 1   |
+| `gas2mqtt/error`                       | outbound | Error JSON                       | no     | 1   |
 
 ¹ Only active when `GAS2MQTT_ENABLE_DEBUG_DEVICE=true`.
 
@@ -47,11 +47,11 @@ Published on every trigger event (not every poll). Includes the optional
 }
 ```
 
-| Field             | Type     | Description                                |
-| ----------------- | -------- | ------------------------------------------ |
-| `counter`         | integer  | Cumulative tick count (wraps at 65536)     |
-| `trigger`         | string   | `"OPEN"` or `"CLOSED"` — current trigger state |
-| `consumption_m3`  | float    | Cumulative gas in m³ (optional)            |
+| Field            | Type    | Description                                    |
+| ---------------- | ------- | ---------------------------------------------- |
+| `counter`        | integer | Cumulative tick count (wraps at 65536)         |
+| `trigger`        | string  | `"OPEN"` or `"CLOSED"` — current trigger state |
+| `consumption_m3` | float   | Cumulative gas in m³ (optional)                |
 
 ### Temperature
 
@@ -59,8 +59,8 @@ Published on every trigger event (not every poll). Includes the optional
 
 Polled at the configured `temperature_interval` (default: every 5 minutes) but only
 published when the PT1-filtered value changes by more than **0.05 °C** (cosalette
-`OnChange` publish strategy). This suppresses duplicate readings when the temperature
-is stable.
+`OnChange` publish strategy). This suppresses duplicate readings when the temperature is
+stable.
 
 ```json
 {
@@ -68,9 +68,9 @@ is stable.
 }
 ```
 
-| Field         | Type   | Description                               |
-| ------------- | ------ | ----------------------------------------- |
-| `temperature` | float  | PT1-filtered temperature in °C           |
+| Field         | Type  | Description                    |
+| ------------- | ----- | ------------------------------ |
+| `temperature` | float | PT1-filtered temperature in °C |
 
 ### Magnetometer (Debug)
 
@@ -86,11 +86,11 @@ Only published when `GAS2MQTT_ENABLE_DEBUG_DEVICE=true`. Published at `poll_inte
 }
 ```
 
-| Field | Type    | Description                        |
-| ----- | ------- | ---------------------------------- |
-| `bx`  | integer | Magnetic field strength, X axis    |
-| `by`  | integer | Magnetic field strength, Y axis    |
-| `bz`  | integer | Magnetic field strength, Z axis    |
+| Field | Type    | Description                     |
+| ----- | ------- | ------------------------------- |
+| `bx`  | integer | Magnetic field strength, X axis |
+| `by`  | integer | Magnetic field strength, Y axis |
+| `bz`  | integer | Magnetic field strength, Z axis |
 
 ### Availability
 
@@ -108,9 +108,9 @@ automatically.
 
 **Topic:** `gas2mqtt/status`
 
-Periodic heartbeat published by the cosalette health reporter. Also used as the
-Last Will and Testament (LWT) — the broker publishes `"offline"` if gas2mqtt
-disconnects unexpectedly.
+Periodic heartbeat published by the cosalette health reporter. Also used as the Last
+Will and Testament (LWT) — the broker publishes `"offline"` if gas2mqtt disconnects
+unexpectedly.
 
 ```json title="Heartbeat"
 {
@@ -141,10 +141,9 @@ deduplicates consecutive identical errors.
 }
 ```
 
-!!! info "Per-device error topics"
-    In addition to the global error topic, cosalette publishes device-specific errors to
-    `gas2mqtt/{device}/error` (e.g., `gas2mqtt/gas_counter/error`). These have the same
-    payload format.
+!!! info "Per-device error topics" In addition to the global error topic, cosalette
+publishes device-specific errors to `gas2mqtt/{device}/error` (e.g.,
+`gas2mqtt/gas_counter/error`). These have the same payload format.
 
 ---
 
@@ -166,9 +165,8 @@ Set the cumulative consumption counter to an absolute value. Requires
 After receiving a valid command, gas2mqtt publishes an updated state to
 `gas2mqtt/gas_counter/state`.
 
-!!! warning "Consumption tracking must be enabled"
-    Commands sent when `enable_consumption_tracking` is `false` are logged as warnings
-    and ignored.
+!!! warning "Consumption tracking must be enabled" Commands sent when
+`enable_consumption_tracking` is `false` are logged as warnings and ignored.
 
 ---
 
@@ -180,11 +178,11 @@ gas2mqtt follows the cosalette topic convention:
 {prefix}/{device}/{channel}
 ```
 
-| Segment    | Value                                                    |
-| ---------- | -------------------------------------------------------- |
-| `prefix`   | App name — `gas2mqtt` by default                         |
-| `device`   | Device name: `gas_counter`, `temperature`, `magnetometer`|
-| `channel`  | `state`, `set`, `availability`, or `error`               |
+| Segment   | Value                                                     |
+| --------- | --------------------------------------------------------- |
+| `prefix`  | App name — `gas2mqtt` by default                          |
+| `device`  | Device name: `gas_counter`, `temperature`, `magnetometer` |
+| `channel` | `state`, `set`, `availability`, or `error`                |
 
 Global topics (`status`, `error`) omit the device segment:
 

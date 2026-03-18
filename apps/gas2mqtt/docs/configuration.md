@@ -1,7 +1,8 @@
 # Configuration
 
-gas2mqtt uses [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
-for configuration, giving you three ways to set any value:
+gas2mqtt uses
+[pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) for
+configuration, giving you three ways to set any value:
 
 1. **CLI flags** — highest priority
 2. **Environment variables** — `GAS2MQTT_` prefix
@@ -17,20 +18,20 @@ you need.
 
 ### MQTT
 
-| Setting       | Env Variable                | Default     | Description                |
-| ------------- | --------------------------- | ----------- | -------------------------- |
-| Host          | `GAS2MQTT_MQTT__HOST`       | `localhost` | MQTT broker hostname       |
-| Port          | `GAS2MQTT_MQTT__PORT`       | `1883`      | MQTT broker port           |
-| Username      | `GAS2MQTT_MQTT__USERNAME`   | —           | Broker username            |
-| Password      | `GAS2MQTT_MQTT__PASSWORD`   | —           | Broker password            |
-| Client ID     | `GAS2MQTT_MQTT__CLIENT_ID`  | *(auto)*    | MQTT client identifier (auto-generated if empty) |
-| Topic prefix  | `GAS2MQTT_MQTT__TOPIC_PREFIX` | *(app name)* | Root prefix for all MQTT topics |
-| Reconnect interval | `GAS2MQTT_MQTT__RECONNECT_INTERVAL` | `5.0` | Initial reconnect delay (seconds, exponential backoff) |
-| Reconnect max      | `GAS2MQTT_MQTT__RECONNECT_MAX_INTERVAL` | `300.0` | Upper bound for reconnect backoff (seconds) |
+| Setting            | Env Variable                            | Default      | Description                                            |
+| ------------------ | --------------------------------------- | ------------ | ------------------------------------------------------ |
+| Host               | `GAS2MQTT_MQTT__HOST`                   | `localhost`  | MQTT broker hostname                                   |
+| Port               | `GAS2MQTT_MQTT__PORT`                   | `1883`       | MQTT broker port                                       |
+| Username           | `GAS2MQTT_MQTT__USERNAME`               | —            | Broker username                                        |
+| Password           | `GAS2MQTT_MQTT__PASSWORD`               | —            | Broker password                                        |
+| Client ID          | `GAS2MQTT_MQTT__CLIENT_ID`              | _(auto)_     | MQTT client identifier (auto-generated if empty)       |
+| Topic prefix       | `GAS2MQTT_MQTT__TOPIC_PREFIX`           | _(app name)_ | Root prefix for all MQTT topics                        |
+| Reconnect interval | `GAS2MQTT_MQTT__RECONNECT_INTERVAL`     | `5.0`        | Initial reconnect delay (seconds, exponential backoff) |
+| Reconnect max      | `GAS2MQTT_MQTT__RECONNECT_MAX_INTERVAL` | `300.0`      | Upper bound for reconnect backoff (seconds)            |
 
-!!! info "Double-underscore delimiter"
-    MQTT settings are **nested** inside the settings model. Environment variables use
-    `__` (double underscore) to separate the nesting levels:
+!!! info "Double-underscore delimiter" MQTT settings are **nested** inside the settings
+model. Environment variables use `__` (double underscore) to separate the nesting
+levels:
 
     `GAS2MQTT_MQTT__HOST` → `settings.mqtt.host`
 
@@ -39,40 +40,39 @@ you need.
 
 ### Logging
 
-| Setting       | Env Variable                    | Default  | Description                   |
-| ------------- | ------------------------------- | -------- | ----------------------------- |
-| Level         | `GAS2MQTT_LOGGING__LEVEL`       | `INFO`   | Root log level                |
-| Format        | `GAS2MQTT_LOGGING__FORMAT`      | `json`   | `json` or `text` output format |
-| File          | `GAS2MQTT_LOGGING__FILE`        | —        | Optional log file path        |
-| Max file size | `GAS2MQTT_LOGGING__MAX_FILE_SIZE_MB` | `10` | Max log file size in MB before rotation |
-| Backup count  | `GAS2MQTT_LOGGING__BACKUP_COUNT` | `3`     | Number of rotated log files to keep |
+| Setting       | Env Variable                         | Default | Description                             |
+| ------------- | ------------------------------------ | ------- | --------------------------------------- |
+| Level         | `GAS2MQTT_LOGGING__LEVEL`            | `INFO`  | Root log level                          |
+| Format        | `GAS2MQTT_LOGGING__FORMAT`           | `json`  | `json` or `text` output format          |
+| File          | `GAS2MQTT_LOGGING__FILE`             | —       | Optional log file path                  |
+| Max file size | `GAS2MQTT_LOGGING__MAX_FILE_SIZE_MB` | `10`    | Max log file size in MB before rotation |
+| Backup count  | `GAS2MQTT_LOGGING__BACKUP_COUNT`     | `3`     | Number of rotated log files to keep     |
 
-!!! tip "Choosing a log format"
-    Use `json` (the default) for Docker and container environments — structured logs
-    are easier to parse with log aggregators. Use `text` for local development where
-    human-readable output is more convenient.
+!!! tip "Choosing a log format" Use `json` (the default) for Docker and container
+environments — structured logs are easier to parse with log aggregators. Use `text` for
+local development where human-readable output is more convenient.
 
 ### I2C / Sensor
 
-| Setting       | Env Variable              | Default       | Description                          |
-| ------------- | ------------------------- | ------------- | ------------------------------------ |
-| I2C bus       | `GAS2MQTT_I2C_BUS`       | `1`           | I2C bus number                       |
-| I2C address   | `GAS2MQTT_I2C_ADDRESS`   | `13` (0x0D)   | QMC5883L I2C address (decimal)       |
+| Setting     | Env Variable           | Default     | Description                    |
+| ----------- | ---------------------- | ----------- | ------------------------------ |
+| I2C bus     | `GAS2MQTT_I2C_BUS`     | `1`         | I2C bus number                 |
+| I2C address | `GAS2MQTT_I2C_ADDRESS` | `13` (0x0D) | QMC5883L I2C address (decimal) |
 
 ### Schmitt Trigger
 
-| Setting       | Env Variable                   | Default   | Description                          |
-| ------------- | ------------------------------ | --------- | ------------------------------------ |
-| Trigger level | `GAS2MQTT_TRIGGER_LEVEL`       | `-5000`   | Bz centre threshold                  |
-| Hysteresis    | `GAS2MQTT_TRIGGER_HYSTERESIS`  | `700`     | Dead-band half-width around level    |
+| Setting       | Env Variable                  | Default | Description                       |
+| ------------- | ----------------------------- | ------- | --------------------------------- |
+| Trigger level | `GAS2MQTT_TRIGGER_LEVEL`      | `-5000` | Bz centre threshold               |
+| Hysteresis    | `GAS2MQTT_TRIGGER_HYSTERESIS` | `700`   | Dead-band half-width around level |
 
-!!! tip "Calibrating the trigger"
-    Enable the debug magnetometer device (`GAS2MQTT_ENABLE_DEBUG_DEVICE=true`) to see
-    raw Bz values. Observe the range as the gas meter rotates, then set the trigger
-    level to the midpoint and hysteresis to half the swing.
+!!! tip "Calibrating the trigger" Enable the debug magnetometer device
+(`GAS2MQTT_ENABLE_DEBUG_DEVICE=true`) to see raw Bz values. Observe the range as the gas
+meter rotates, then set the trigger level to the midpoint and hysteresis to half the
+swing.
 
-!!! note "Switching thresholds"
-    The Schmitt trigger uses two thresholds derived from your settings:
+!!! note "Switching thresholds" The Schmitt trigger uses two thresholds derived from
+your settings:
 
     - **Upper threshold** = `trigger_level + trigger_hysteresis`
     - **Lower threshold** = `trigger_level − trigger_hysteresis`
@@ -82,17 +82,17 @@ you need.
 
 ### Polling
 
-| Setting              | Env Variable                      | Default  | Description                           |
-| -------------------- | --------------------------------- | -------- | ------------------------------------- |
-| Poll interval        | `GAS2MQTT_POLL_INTERVAL`          | `1.0`    | Gas counter polling interval (seconds)|
-| Temperature interval | `GAS2MQTT_TEMPERATURE_INTERVAL`   | `300.0`  | Temperature report interval (seconds) |
+| Setting              | Env Variable                    | Default | Description                            |
+| -------------------- | ------------------------------- | ------- | -------------------------------------- |
+| Poll interval        | `GAS2MQTT_POLL_INTERVAL`        | `1.0`   | Gas counter polling interval (seconds) |
+| Temperature interval | `GAS2MQTT_TEMPERATURE_INTERVAL` | `300.0` | Temperature report interval (seconds)  |
 
 ### Temperature Calibration
 
-| Setting     | Env Variable              | Default | Description                    |
-| ----------- | ------------------------- | ------- | ------------------------------ |
-| Scale       | `GAS2MQTT_TEMP_SCALE`     | `0.008` | Calibration scale factor       |
-| Offset      | `GAS2MQTT_TEMP_OFFSET`    | `20.3`  | Calibration offset (°C)        |
+| Setting       | Env Variable             | Default  | Description                                           |
+| ------------- | ------------------------ | -------- | ----------------------------------------------------- |
+| Scale         | `GAS2MQTT_TEMP_SCALE`    | `0.008`  | Calibration scale factor                              |
+| Offset        | `GAS2MQTT_TEMP_OFFSET`   | `20.3`   | Calibration offset (°C)                               |
 | Smoothing tau | `GAS2MQTT_SMOOTHING_TAU` | `1200.0` | PT1 filter time constant (seconds, higher = smoother) |
 
 The QMC5883L has a built-in temperature sensor. gas2mqtt applies an empirical linear
@@ -103,25 +103,25 @@ of 300s, the effective smoothing factor is 0.2.
 
 ### Optional Features
 
-| Setting              | Env Variable                           | Default  | Description                     |
-| -------------------- | -------------------------------------- | -------- | ------------------------------- |
-| Consumption tracking | `GAS2MQTT_ENABLE_CONSUMPTION_TRACKING` | `false`  | Enable cumulative m³ tracking   |
-| Liters per tick      | `GAS2MQTT_LITERS_PER_TICK`             | `10.0`   | Gas liters per counter tick     |
-| Debug device         | `GAS2MQTT_ENABLE_DEBUG_DEVICE`         | `false`  | Enable raw magnetometer output  |
+| Setting              | Env Variable                           | Default | Description                    |
+| -------------------- | -------------------------------------- | ------- | ------------------------------ |
+| Consumption tracking | `GAS2MQTT_ENABLE_CONSUMPTION_TRACKING` | `false` | Enable cumulative m³ tracking  |
+| Liters per tick      | `GAS2MQTT_LITERS_PER_TICK`             | `10.0`  | Gas liters per counter tick    |
+| Debug device         | `GAS2MQTT_ENABLE_DEBUG_DEVICE`         | `false` | Enable raw magnetometer output |
 
 ### State Persistence
 
-| Setting    | Env Variable             | Default | Description                                      |
-| ---------- | ------------------------ | ------- | ------------------------------------------------ |
-| State file | `GAS2MQTT_STATE_FILE`    | —       | Path to JSON file for persisting device state     |
+| Setting    | Env Variable          | Default | Description                                   |
+| ---------- | --------------------- | ------- | --------------------------------------------- |
+| State file | `GAS2MQTT_STATE_FILE` | —       | Path to JSON file for persisting device state |
 
-When set, gas2mqtt saves gas counter ticks and consumption data to this file and restores
-them on restart. Without it, both values reset to zero on every container recreate.
+When set, gas2mqtt saves gas counter ticks and consumption data to this file and
+restores them on restart. Without it, both values reset to zero on every container
+recreate.
 
-!!! tip "Docker deployments"
-    The `docker-compose.yml` maps a `gas2mqtt-data` volume to `/app/data`. Set
-    `GAS2MQTT_STATE_FILE=/app/data/state.json` in your `.env` to persist state across
-    container restarts.
+!!! tip "Docker deployments" The `docker-compose.yml` maps a `gas2mqtt-data` volume to
+`/app/data`. Set `GAS2MQTT_STATE_FILE=/app/data/state.json` in your `.env` to persist
+state across container restarts.
 
 ---
 
@@ -193,5 +193,6 @@ provides:
 - **Multiple sources** — environment variables, `.env` files, CLI flags, YAML, TOML
 - **Nested models** — MQTT settings are a sub-model, accessed via `__` delimiter
 
-See the [pydantic-settings documentation](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
+See the
+[pydantic-settings documentation](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
 for advanced usage.

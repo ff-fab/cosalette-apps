@@ -40,17 +40,17 @@ app = cosalette.App(..., lifespan=lifespan)
 app = cosalette.App(...)
 ```
 
-| Pros                                                    | Cons                                                           |
-| ------------------------------------------------------- | -------------------------------------------------------------- |
-| Removes ceremony for the common case (adapter init/close) | Implicit lifecycle may surprise users unfamiliar with the convention |
-| Every adapter with init/cleanup benefits for free        | Adapter protocol needs a convention (context manager vs named methods) |
-| `lifespan=` remains available for advanced use cases     | Edge case: adapters that must init in a specific order need the lifespan hook |
-| Mirrors FastAPI's dependency lifecycle auto-management    | Two lifecycle mechanisms to document and understand             |
+| Pros                                                      | Cons                                                                          |
+| --------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| Removes ceremony for the common case (adapter init/close) | Implicit lifecycle may surprise users unfamiliar with the convention          |
+| Every adapter with init/cleanup benefits for free         | Adapter protocol needs a convention (context manager vs named methods)        |
+| `lifespan=` remains available for advanced use cases      | Edge case: adapters that must init in a specific order need the lifespan hook |
+| Mirrors FastAPI's dependency lifecycle auto-management    | Two lifecycle mechanisms to document and understand                           |
 
-**Ecosystem note:** FastAPI moved from `@app.on_event("startup")` to `lifespan=`
-context managers in 0.93+, partly because the lifecycle-per-dependency pattern was so
-common. This is the same evolution — offer automatic management for the common case
-while keeping the explicit hook for complex scenarios.
+**Ecosystem note:** FastAPI moved from `@app.on_event("startup")` to `lifespan=` context
+managers in 0.93+, partly because the lifecycle-per-dependency pattern was so common.
+This is the same evolution — offer automatic management for the common case while
+keeping the explicit hook for complex scenarios.
 
 ---
 
@@ -77,11 +77,11 @@ app.adapter(MagnetometerPort, Qmc5883lAdapter, dry_run=FakeMagnetometer)
 app.adapter(MagnetometerPort, Qmc5883lAdapter.from_settings, dry_run=FakeMagnetometer)
 ```
 
-| Pros                                                    | Cons                                                                     |
-| ------------------------------------------------------- | ------------------------------------------------------------------------ |
-| Removes 2 factory functions (8 lines + docstrings)      | Option A: couples adapter to settings type                               |
-| Registration reads like a declaration                    | Option B: `from_settings` classmethod is boilerplate on the adapter side |
-| Consistent with how `init=` already works on telemetry   | Conditional logic (`state_file is None → NullStorage`) doesn't fit DI    |
+| Pros                                                   | Cons                                                                     |
+| ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| Removes 2 factory functions (8 lines + docstrings)     | Option A: couples adapter to settings type                               |
+| Registration reads like a declaration                  | Option B: `from_settings` classmethod is boilerplate on the adapter side |
+| Consistent with how `init=` already works on telemetry | Conditional logic (`state_file is None → NullStorage`) doesn't fit DI    |
 
 **Recommendation:** Option A with DI-injected constructors. The adapter already depends
 on config values — making it explicit via type hints is cleaner than hiding it behind a
@@ -109,11 +109,11 @@ app.device("gas_counter")(gas_counter)
 # or: app.add_device("gas_counter", gas_counter)
 ```
 
-| Pros                                                    | Cons                                                         |
-| ------------------------------------------------------- | ------------------------------------------------------------ |
-| Removes 3-line wrapper per imported device               | Imperative `app.add_device()` reads differently than decorators |
-| Devices defined in separate modules become first-class   | `app.device("gas_counter")(gas_counter)` is visually unusual |
-| FastAPI does exactly this with `app.add_api_route()`     | Minor — just syntactic                                       |
+| Pros                                                   | Cons                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------- |
+| Removes 3-line wrapper per imported device             | Imperative `app.add_device()` reads differently than decorators |
+| Devices defined in separate modules become first-class | `app.device("gas_counter")(gas_counter)` is visually unusual    |
+| FastAPI does exactly this with `app.add_api_route()`   | Minor — just syntactic                                          |
 
 **Teaching moment:** FastAPI offers both `@app.get("/")` (decorator) and
 `app.add_api_route("/", handler)` (imperative). Having both is the standard pattern —
@@ -147,11 +147,11 @@ async def _magnetometer(...): ...
 async def _magnetometer(...): ...
 ```
 
-| Pros                                                    | Cons                                                    |
-| ------------------------------------------------------- | ------------------------------------------------------- |
-| All devices visible in one flat list (no nesting)        | Adds a parameter to every decorator for a niche use case |
-| Device still defined even when disabled (introspection)  | Option B with lambda is less readable than `if` block    |
-| Mirrors FastAPI's `include_in_schema=` pattern           | Simple enough that `if` isn't really that bad            |
+| Pros                                                    | Cons                                                     |
+| ------------------------------------------------------- | -------------------------------------------------------- |
+| All devices visible in one flat list (no nesting)       | Adds a parameter to every decorator for a niche use case |
+| Device still defined even when disabled (introspection) | Option B with lambda is less readable than `if` block    |
+| Mirrors FastAPI's `include_in_schema=` pattern          | Simple enough that `if` isn't really that bad            |
 
 ---
 
@@ -174,11 +174,11 @@ app = cosalette.App(
 )
 ```
 
-| Pros                                                    | Cons                                                       |
-| ------------------------------------------------------- | ---------------------------------------------------------- |
-| Everything visible in the constructor — truly declarative | Complex dict literal with tuples is less readable           |
-| Mirrors Litestar's controller grouping                   | Harder to type-check; loses docstring opportunity           |
-| Smaller `create_app()` body                              | Non-standard pattern for Python DI                         |
+| Pros                                                      | Cons                                              |
+| --------------------------------------------------------- | ------------------------------------------------- |
+| Everything visible in the constructor — truly declarative | Complex dict literal with tuples is less readable |
+| Mirrors Litestar's controller grouping                    | Harder to type-check; loses docstring opportunity |
+| Smaller `create_app()` body                               | Non-standard pattern for Python DI                |
 
 ---
 
@@ -195,10 +195,10 @@ become:
                publish=OnTrigger())  # only publishes when return value changes
 ```
 
-| Pros                                                    | Cons                                                          |
-| ------------------------------------------------------- | ------------------------------------------------------------- |
-| Gas counter could become a simple telemetry function     | Schmitt trigger + counter + persistence + commands = too complex |
-| Removes the biggest `@app.device` in the app             | The gas counter genuinely needs `@app.device`                  |
+| Pros                                                 | Cons                                                             |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| Gas counter could become a simple telemetry function | Schmitt trigger + counter + persistence + commands = too complex |
+| Removes the biggest `@app.device` in the app         | The gas counter genuinely needs `@app.device`                    |
 
 **Verdict:** The gas counter is irreducibly stateful — this won't simplify it
 meaningfully.
@@ -207,14 +207,14 @@ meaningfully.
 
 ## Priority Summary
 
-| #   | Idea                          | Layer     | Impact     | Effort | Priority   | Status                          |
-| --- | ----------------------------- | --------- | ---------- | ------ | ---------- | ------------------------------- |
-| 1   | Adapter lifecycle protocol    | Framework | **High**   | Medium | **HIGH**   | ✅ Done (cosalette 0.1.5)        |
-| 2   | Settings-aware adapter DI     | Framework | **High**   | Medium | **HIGH**   | ✅ Done (cosalette 0.1.5)        |
-| 3   | Direct function registration  | Framework | **Medium** | Low    | **MEDIUM** | ✅ Done (cosalette 0.1.5)        |
-| 4   | Conditional `enabled=` param  | Framework | **Medium** | Low    | **MEDIUM** | ✅ Done (cosalette 0.1.5)        |
-| 5   | Declarative adapter block     | Framework | **Low**    | Medium | **LOW**    | ✅ Done (cosalette 0.1.5)        |
-| 6   | Event-driven telemetry        | Framework | **Low**    | High   | **LOW**    | N/A — gas counter is irreducibly stateful |
+| #   | Idea                         | Layer     | Impact     | Effort | Priority   | Status                                    |
+| --- | ---------------------------- | --------- | ---------- | ------ | ---------- | ----------------------------------------- |
+| 1   | Adapter lifecycle protocol   | Framework | **High**   | Medium | **HIGH**   | ✅ Done (cosalette 0.1.5)                 |
+| 2   | Settings-aware adapter DI    | Framework | **High**   | Medium | **HIGH**   | ✅ Done (cosalette 0.1.5)                 |
+| 3   | Direct function registration | Framework | **Medium** | Low    | **MEDIUM** | ✅ Done (cosalette 0.1.5)                 |
+| 4   | Conditional `enabled=` param | Framework | **Medium** | Low    | **MEDIUM** | ✅ Done (cosalette 0.1.5)                 |
+| 5   | Declarative adapter block    | Framework | **Low**    | Medium | **LOW**    | ✅ Done (cosalette 0.1.5)                 |
+| 6   | Event-driven telemetry       | Framework | **Low**    | High   | **LOW**    | N/A — gas counter is irreducibly stateful |
 
 ---
 

@@ -1,12 +1,14 @@
 # Adopt cosalette 0.1.5: declarative main.py
 
-*2026-02-27T19:37:39Z by Showboat 0.6.1*
+_2026-02-27T19:37:39Z by Showboat 0.6.1_
+
 <!-- showboat-id: c228543c-a2a6-4ba6-95fa-d61ddfc27688 -->
 
 Migrated gas2mqtt to cosalette 0.1.5 with a fully declarative main.py:
 
-- Adapter lifecycle: __aenter__/__aexit__ on adapters; Settings DI in constructors
-- Direct registration: app.add_device() and app.add_telemetry() replace create_app() factory
+- Adapter lifecycle: **aenter**/**aexit** on adapters; Settings DI in constructors
+- Direct registration: app.add_device() and app.add_telemetry() replace create_app()
+  factory
 - Store persistence: cosalette Store/DeviceStore replaces custom JsonFileStorage
 - Declarative adapters: adapters= dict on App constructor
 - All three device handlers extracted to separate files under devices/

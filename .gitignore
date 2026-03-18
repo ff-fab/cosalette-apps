@@ -170,7 +170,7 @@ venv.bak/
 .ropeproject
 
 # zensical documentation
-/site
+site/
 
 # mypy
 .mypy_cache/

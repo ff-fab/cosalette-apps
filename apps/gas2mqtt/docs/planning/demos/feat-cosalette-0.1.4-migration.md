@@ -1,9 +1,13 @@
 # Adopt cosalette 0.1.4: PT1 filter, init=, eager settings
 
-*2026-02-23T21:31:26Z by Showboat 0.6.0*
+_2026-02-23T21:31:26Z by Showboat 0.6.0_
+
 <!-- showboat-id: bffbebcd-b3aa-4976-af88-fc7f60e6a198 -->
 
-Upgraded cosalette 0.1.2 → 0.1.4. Replaced custom EwmaFilter with cosalette's Pt1Filter via init= callback. Used eager settings (app.settings) to eliminate model_fields hack. Inlined temperature and magnetometer handlers. Renamed ewma_alpha to smoothing_tau (1200.0s default). Deleted dead code: ewma.py, handler factories, test_ewma.py.
+Upgraded cosalette 0.1.2 → 0.1.4. Replaced custom EwmaFilter with cosalette's Pt1Filter
+via init= callback. Used eager settings (app.settings) to eliminate model_fields hack.
+Inlined temperature and magnetometer handlers. Renamed ewma_alpha to smoothing_tau
+(1200.0s default). Deleted dead code: ewma.py, handler factories, test_ewma.py.
 
 ```bash
 uv run pytest packages/tests/ -q 2>&1 | grep -oP '\d+ passed'

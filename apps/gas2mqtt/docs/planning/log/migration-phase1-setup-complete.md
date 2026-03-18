@@ -1,10 +1,17 @@
 ## Epic gas2mqtt Migration Complete: Phase 1 — Project Setup + Settings + Adapters
 
-Established the cosalette framework foundation: added dependencies, replaced scaffolded config with `Gas2MqttSettings`, defined `MagnetometerPort` protocol and `MagneticReading` dataclass, implemented production `Qmc5883lAdapter` and `FakeMagnetometer` test double, updated test fixtures, and wrote 34 unit tests covering defaults, validation boundaries, port behavior, and adapter lifecycle.
+Established the cosalette framework foundation: added dependencies, replaced scaffolded
+config with `Gas2MqttSettings`, defined `MagnetometerPort` protocol and
+`MagneticReading` dataclass, implemented production `Qmc5883lAdapter` and
+`FakeMagnetometer` test double, updated test fixtures, and wrote 34 unit tests covering
+defaults, validation boundaries, port behavior, and adapter lifecycle.
 
 **Files created/changed:**
-- `packages/src/gas2mqtt/settings.py` — `Gas2MqttSettings` extending `cosalette.Settings`
-- `packages/src/gas2mqtt/ports.py` — `MagneticReading` dataclass + `MagnetometerPort` protocol
+
+- `packages/src/gas2mqtt/settings.py` — `Gas2MqttSettings` extending
+  `cosalette.Settings`
+- `packages/src/gas2mqtt/ports.py` — `MagneticReading` dataclass + `MagnetometerPort`
+  protocol
 - `packages/src/gas2mqtt/adapters/__init__.py` — adapter package re-exports
 - `packages/src/gas2mqtt/adapters/qmc5883l.py` — production I2C adapter (QMC5883L)
 - `packages/src/gas2mqtt/adapters/fake.py` — `FakeMagnetometer` test double
@@ -22,6 +29,7 @@ Established the cosalette framework foundation: added dependencies, replaced sca
 - `packages/src/gas2mqtt/config.py` — deleted (replaced by settings.py)
 
 **Functions created/changed:**
+
 - `Gas2MqttSettings` — settings class with I2C, trigger, temperature, consumption fields
 - `MagneticReading` — frozen dataclass (bx, by, bz, temperature_raw)
 - `MagnetometerPort` — Protocol with `read()`, `initialize()`, `close()`
@@ -31,14 +39,18 @@ Established the cosalette framework foundation: added dependencies, replaced sca
 - `_IsolatedGas2MqttSettings` — env-isolated settings subclass for tests
 
 **Tests created/changed:**
+
 - `TestGas2MqttSettingsDefaults` — 12 tests verifying legacy-matching defaults
-- `TestGas2MqttSettingsValidation` — 12 tests (BVA boundaries, both rejection + acceptance)
+- `TestGas2MqttSettingsValidation` — 12 tests (BVA boundaries, both rejection +
+  acceptance)
 - `TestMagneticReading` — 4 tests (creation, immutability, equality)
 - `TestFakeMagnetometer` — 6 tests (defaults, config, lifecycle, protocol)
 
-**Review Status:** APPROVED (after revision — lint fixed, ValidationError, BVA boundaries added)
+**Review Status:** APPROVED (after revision — lint fixed, ValidationError, BVA
+boundaries added)
 
 **Git Commit Message:**
+
 ```
 feat: add cosalette framework setup with settings and adapters
 

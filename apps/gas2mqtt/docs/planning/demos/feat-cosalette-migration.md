@@ -1,9 +1,13 @@
 # gas2mqtt Migration to cosalette Framework
 
-*2026-02-22T07:31:42Z by Showboat 0.6.0*
+_2026-02-22T07:31:42Z by Showboat 0.6.0_
+
 <!-- showboat-id: bc29d189-1c23-4680-b63a-f77097b53a67 -->
 
-Full migration of gas2mqtt from a 185-line monolithic legacy script to the cosalette IoT framework. 7 phases: settings/ports/adapters, domain logic (Schmitt trigger, EWMA, consumption tracker), gas counter device, temperature device, debug magnetometer device, app wiring, and docs/deployment.
+Full migration of gas2mqtt from a 185-line monolithic legacy script to the cosalette IoT
+framework. 7 phases: settings/ports/adapters, domain logic (Schmitt trigger, EWMA,
+consumption tracker), gas counter device, temperature device, debug magnetometer device,
+app wiring, and docs/deployment.
 
 ```bash
 uv run pytest packages/tests/ -q --no-header 2>&1 | grep -oP '\d+ passed'

@@ -1,7 +1,7 @@
 # Architecture
 
-gas2mqtt follows the **Ports & Adapters** (hexagonal) architecture pattern. Domain
-logic has zero I/O dependencies — all hardware and network access goes through protocol
+gas2mqtt follows the **Ports & Adapters** (hexagonal) architecture pattern. Domain logic
+has zero I/O dependencies — all hardware and network access goes through protocol
 boundaries. The [cosalette](https://github.com/ff-fab/cosalette) IoT framework handles
 MQTT connectivity, health reporting, error isolation, and graceful shutdown.
 
@@ -67,8 +67,8 @@ graph LR
 The hardware boundary. Ports are Python `Protocol` classes that define the interface
 between domain logic and the outside world.
 
-| Port               | Methods                        | Purpose                    |
-| ------------------ | ------------------------------ | -------------------------- |
+| Port               | Methods                             | Purpose                 |
+| ------------------ | ----------------------------------- | ----------------------- |
 | `MagnetometerPort` | `read()`, `initialize()`, `close()` | Magnetometer I2C access |
 
 The port returns a `MagneticReading` dataclass with `bx`, `by`, `bz`, and
@@ -79,10 +79,10 @@ directly.
 
 Concrete implementations of ports. Swapped at runtime — production vs. test/dry-run.
 
-| Adapter             | Port               | Description                              |
-| ------------------- | ------------------ | ---------------------------------------- |
-| `Qmc5883lAdapter`   | `MagnetometerPort` | Production I2C adapter using `smbus2`    |
-| `FakeMagnetometer`  | `MagnetometerPort` | Returns configurable values for testing  |
+| Adapter            | Port               | Description                             |
+| ------------------ | ------------------ | --------------------------------------- |
+| `Qmc5883lAdapter`  | `MagnetometerPort` | Production I2C adapter using `smbus2`   |
+| `FakeMagnetometer` | `MagnetometerPort` | Returns configurable values for testing |
 
 Adapters are registered with `app.adapter()` and resolved via `ctx.adapter()` inside
 device functions — no global variables, no import-time side effects.
@@ -91,10 +91,10 @@ device functions — no global variables, no import-time side effects.
 
 Pure business logic with **no I/O dependencies**. Each module is independently testable.
 
-| Module              | Purpose                                              |
-| ------------------- | ---------------------------------------------------- |
-| `SchmittTrigger`    | Hysteresis-based binary signal from continuous Bz    |
-| `ConsumptionTracker`| Cumulative gas consumption in m³                     |
+| Module               | Purpose                                           |
+| -------------------- | ------------------------------------------------- |
+| `SchmittTrigger`     | Hysteresis-based binary signal from continuous Bz |
+| `ConsumptionTracker` | Cumulative gas consumption in m³                  |
 
 The Schmitt trigger converts the magnetic field into clean OPEN/CLOSED transitions. A
 rising edge (LOW → HIGH) counts as one gas meter tick.
@@ -103,11 +103,11 @@ rising edge (LOW → HIGH) counts as one gas meter tick.
 
 cosalette device handlers that wire ports, domain logic, and MQTT publishing together.
 
-| Device          | Type              | Description                                       |
-| --------------- | ----------------- | ------------------------------------------------- |
-| `gas_counter`   | `@app.device`     | Polls magnetometer, detects ticks, publishes state |
-| `temperature`   | `@app.telemetry`  | Reads temperature, applies calibration + PT1 filter; publishes on change (threshold 0.05 °C) |
-| `magnetometer`  | `@app.telemetry`  | Optional debug output of raw bx/by/bz values (only registered when `enable_debug_device=True`) |
+| Device         | Type             | Description                                                                                    |
+| -------------- | ---------------- | ---------------------------------------------------------------------------------------------- |
+| `gas_counter`  | `@app.device`    | Polls magnetometer, detects ticks, publishes state                                             |
+| `temperature`  | `@app.telemetry` | Reads temperature, applies calibration + PT1 filter; publishes on change (threshold 0.05 °C)   |
+| `magnetometer` | `@app.telemetry` | Optional debug output of raw bx/by/bz values (only registered when `enable_debug_device=True`) |
 
 Each device receives a `DeviceContext` from cosalette with MQTT publishing,
 shutdown-aware sleep, adapter resolution, and settings access.
@@ -164,8 +164,8 @@ magnetometer adapter, wires all devices, and returns a fully configured `App`.
 
 ## Further Reading
 
-- [Ports & Adapters (Hexagonal Architecture)](https://alistair.cockburn.us/hexagonal-architecture/) —
-  the architectural pattern used by gas2mqtt
+- [Ports & Adapters (Hexagonal Architecture)](https://alistair.cockburn.us/hexagonal-architecture/)
+  — the architectural pattern used by gas2mqtt
 - [cosalette documentation](https://ff-fab.github.io/cosalette/) — the IoT framework
 - [ADR-001: cosalette Migration](adr/ADR-001-cosalette-migration.md) — why gas2mqtt
   adopted cosalette

@@ -5,32 +5,32 @@ verifying that data flows to your MQTT broker.
 
 ## Prerequisites
 
-| Requirement       | Details                                              |
-| ----------------- | ---------------------------------------------------- |
-| **Raspberry Pi**  | Any model with I2C (Pi 3/4/5 or Zero 2 W)           |
-| **QMC5883L**      | 3-axis magnetometer breakout board (I2C, 0x0D)       |
-| **MQTT broker**   | Mosquitto, EMQX, or any MQTT 3.1.1+ broker          |
-| **Python**        | 3.14+ (Docker image includes this)                   |
+| Requirement      | Details                                        |
+| ---------------- | ---------------------------------------------- |
+| **Raspberry Pi** | Any model with I2C (Pi 3/4/5 or Zero 2 W)      |
+| **QMC5883L**     | 3-axis magnetometer breakout board (I2C, 0x0D) |
+| **MQTT broker**  | Mosquitto, EMQX, or any MQTT 3.1.1+ broker     |
+| **Python**       | 3.14+ (Docker image includes this)             |
 
 ### Wiring
 
 Connect the QMC5883L to the Raspberry Pi I2C pins:
 
-| QMC5883L | Raspberry Pi     |
-| -------- | ---------------- |
-| VCC      | 3.3V (pin 1)    |
-| GND      | GND (pin 6)     |
-| SDA      | GPIO 2 (pin 3)  |
-| SCL      | GPIO 3 (pin 5)  |
+| QMC5883L | Raspberry Pi   |
+| -------- | -------------- |
+| VCC      | 3.3V (pin 1)   |
+| GND      | GND (pin 6)    |
+| SDA      | GPIO 2 (pin 3) |
+| SCL      | GPIO 3 (pin 5) |
 
 <figure markdown>
   ![Raspberry Pi to QMC5883L wiring diagram](assets/images/rpi-qmc5883l-wiring.svg){ width="680" }
   <figcaption>Four-wire I2C connection — no external pull-up resistors needed (the breakout board includes them).</figcaption>
 </figure>
 
-!!! tip "Enable I2C"
-    Run `sudo raspi-config` → **Interface Options** → **I2C** → **Enable**, then reboot.
-    Verify with `i2cdetect -y 1` — you should see `0d` in the output.
+!!! tip "Enable I2C" Run `sudo raspi-config` → **Interface Options** → **I2C** →
+**Enable**, then reboot. Verify with `i2cdetect -y 1` — you should see `0d` in the
+output.
 
 ---
 
@@ -139,23 +139,23 @@ mosquitto_sub -h localhost -t "gas2mqtt/#" -v
 
 You should see messages on these topics within the first minute:
 
-| Topic                               | What it means                      |
-| ----------------------------------- | ---------------------------------- |
-| `gas2mqtt/status`                   | Heartbeat — the app is alive       |
-| `gas2mqtt/gas_counter/availability` | `"online"` — gas counter is ready  |
-| `gas2mqtt/temperature/availability` | `"online"` — temperature is ready  |
-| `gas2mqtt/gas_counter/state`        | Initial state (counter = 0)        |
-| `gas2mqtt/temperature/state`        | First temperature reading          |
+| Topic                               | What it means                     |
+| ----------------------------------- | --------------------------------- |
+| `gas2mqtt/status`                   | Heartbeat — the app is alive      |
+| `gas2mqtt/gas_counter/availability` | `"online"` — gas counter is ready |
+| `gas2mqtt/temperature/availability` | `"online"` — temperature is ready |
+| `gas2mqtt/gas_counter/state`        | Initial state (counter = 0)       |
+| `gas2mqtt/temperature/state`        | First temperature reading         |
 
 ### Verify a Gas Tick
 
-Move a magnet near the sensor. You should see `gas2mqtt/gas_counter/state` update
-with an incremented counter and the trigger changing between `"OPEN"` and `"CLOSED"`.
+Move a magnet near the sensor. You should see `gas2mqtt/gas_counter/state` update with
+an incremented counter and the trigger changing between `"OPEN"` and `"CLOSED"`.
 
-!!! warning "No messages?"
-    - Confirm the broker is reachable: `mosquitto_pub -h localhost -t test -m hello`
-    - Check gas2mqtt logs: `docker compose logs gas2mqtt` or the terminal output
-    - Verify I2C: `i2cdetect -y 1` should show `0d`
+!!! warning "No messages?" - Confirm the broker is reachable:
+`mosquitto_pub -h localhost -t test -m hello` - Check gas2mqtt logs:
+`docker compose logs gas2mqtt` or the terminal output - Verify I2C: `i2cdetect -y 1`
+should show `0d`
 
 ---
 

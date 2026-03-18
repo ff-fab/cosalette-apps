@@ -1,9 +1,8 @@
 ## Epic State Persistence Complete: Device Integration
 
-Modified the gas counter device to load state on startup and save state after
-every meaningful event (tick, command, shutdown). Extracted `_restore_counter()`
-and `_restore_consumption()` helper functions to keep cyclomatic complexity
-at rank A.
+Modified the gas counter device to load state on startup and save state after every
+meaningful event (tick, command, shutdown). Extracted `_restore_counter()` and
+`_restore_consumption()` helper functions to keep cyclomatic complexity at rank A.
 
 **Files created/changed:**
 
@@ -13,10 +12,10 @@ at rank A.
 
 **Functions created/changed:**
 
-- `_restore_counter(saved, logger)` — extract counter value from saved state
-  with type-safe narrowing
-- `_restore_consumption(saved, settings, logger)` — rebuild
-  `ConsumptionTracker` from saved state
+- `_restore_counter(saved, logger)` — extract counter value from saved state with
+  type-safe narrowing
+- `_restore_consumption(saved, settings, logger)` — rebuild `ConsumptionTracker` from
+  saved state
 - `gas_counter()` — now resolves `StateStoragePort`, loads/saves state
 
 **Tests created/changed:**

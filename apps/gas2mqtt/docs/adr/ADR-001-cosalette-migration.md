@@ -7,17 +7,17 @@ Accepted **Date:** 2026-02-22
 ## Context
 
 The gas2mqtt application originated as a single 185-line Python script (`hmc5883.py`)
-using direct `smbus`, `paho-mqtt`, and `argparse` calls.  While functional, this
+using direct `smbus`, `paho-mqtt`, and `argparse` calls. While functional, this
 monolithic design carried significant maintenance and reliability risks:
 
 - **No test coverage** — the script was untestable because I2C hardware access, MQTT
   publishing, and business logic were tightly coupled in a single loop.
 - **Hardcoded configuration** — MQTT credentials and sensor parameters were embedded in
-  source.  Changing anything required editing and redeploying the script.
+  source. Changing anything required editing and redeploying the script.
 - **No error isolation** — an exception in the polling loop would crash the entire
   process with no notification.
 - **No health reporting** — no heartbeats, no Last Will and Testament (LWT), no
-  per-device availability.  Silent failures were common.
+  per-device availability. Silent failures were common.
 - **Global mutable state** — the I2C bus handle, MQTT client, and counter state were all
   module-level globals, making the code fragile and order-dependent.
 - **Single sensor assumption** — adding a second sensor would require duplicating most
@@ -58,13 +58,13 @@ cosalette provides a declarative application model for IoT bridges:
 
 ## Decision Matrix
 
-| Criterion | cosalette | Manual Refactor | HA Add-on |
-| --- | --- | --- | --- |
-| Testability | 5 | 4 | 3 |
-| Operational visibility | 5 | 2 | 4 |
-| Migration effort | 4 | 3 | 2 |
-| Deployment flexibility | 5 | 5 | 2 |
-| Maintenance burden | 5 | 3 | 3 |
+| Criterion              | cosalette | Manual Refactor | HA Add-on |
+| ---------------------- | --------- | --------------- | --------- |
+| Testability            | 5         | 4               | 3         |
+| Operational visibility | 5         | 2               | 4         |
+| Migration effort       | 4         | 3               | 2         |
+| Deployment flexibility | 5         | 5               | 2         |
+| Maintenance burden     | 5         | 3               | 3         |
 
 _Scale: 1 (poor) to 5 (excellent)_
 
@@ -90,9 +90,9 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Negative
 
 - **Framework dependency** — the application now depends on cosalette's lifecycle and
-  conventions.  If cosalette's API changes, migration work is needed.
-- **Python 3.14+ requirement** — cosalette requires Python 3.14+, limiting deployment
-  to systems with recent Python.
+  conventions. If cosalette's API changes, migration work is needed.
+- **Python 3.14+ requirement** — cosalette requires Python 3.14+, limiting deployment to
+  systems with recent Python.
 - **Learning curve** — contributors need to understand cosalette's device model and DI
   system in addition to the domain logic.
 
