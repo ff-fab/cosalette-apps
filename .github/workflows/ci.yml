@@ -24,8 +24,8 @@ jobs:
               - '.pre-commit-config.yaml'
               - 'REUSE.toml'
             # Per-app filters added as apps are migrated:
-            # gas2mqtt:
-            #   - 'apps/gas2mqtt/**'
+            gas2mqtt:
+              - 'apps/gas2mqtt/**'
 
   # Shared infrastructure check (REUSE, pre-commit on shared files)
   shared:
@@ -38,14 +38,14 @@ jobs:
       - run: uv sync --group dev
       - run: uv run reuse lint
 
-  # Per-app CI dispatched via matrix (uncomment after first migration)
-  # app-ci:
-  #   needs: detect
-  #   if: needs.detect.outputs.changes != '[]'
-  #   strategy:
-  #     matrix:
-  #       app: ${{ fromJson(needs.detect.outputs.changes) }}
-  #     fail-fast: false
-  #   uses: ./.github/workflows/ci-app.yml
-  #   with:
-  #     app: ${{ matrix.app }}
+  # Per-app CI dispatched via matrix
+  app-ci:
+    needs: detect
+    if: needs.detect.outputs.changes != '[]'
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.detect.outputs.changes) }}
+      fail-fast: false
+    uses: ./.github/workflows/ci-app.yml
+    with:
+      app: ${{ matrix.app }}

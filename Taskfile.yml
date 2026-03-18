@@ -4,19 +4,17 @@ version: '3'
 
 vars:
   # Add apps here as they are migrated. Order doesn't matter.
-  APPS: []
+  APPS: [gas2mqtt]
 
 # ── Per-app includes ─────────────────────────────────────────
 # Each app is included from the reusable template with its own
 # directory and variables. Add a new block per migrated app.
-# Example (uncomment after Phase 2):
-#
-# includes:
-#   gas2mqtt:
-#     taskfile: ./taskfiles/PythonApp.yml
-#     dir: ./apps/gas2mqtt
-#     vars:
-#       APP_NAME: gas2mqtt
+includes:
+  gas2mqtt:
+    taskfile: ./taskfiles/PythonApp.yml
+    dir: ./apps/gas2mqtt
+    vars:
+      APP_NAME: gas2mqtt
 
 tasks:
   default:

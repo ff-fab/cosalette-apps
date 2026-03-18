@@ -46,7 +46,7 @@ pythonVersion = "3.14"
 venvPath = "."
 venv = ".venv"
 # Updated dynamically as apps are added:
-extraPaths = []
+extraPaths = ["apps/gas2mqtt/packages/src"]
 
 [dependency-groups]
 docs = [

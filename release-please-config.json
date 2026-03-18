@@ -5,5 +5,10 @@
   "bump-patch-for-minor-pre-major": true,
   "separate-pull-requests": true,
   "include-component-in-tag": true,
-  "packages": {}
+  "packages": {
+    "apps/gas2mqtt": {
+      "component": "gas2mqtt",
+      "release-type": "python"
+    }
+  }
 }
