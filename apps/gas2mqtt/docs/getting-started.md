@@ -78,8 +78,8 @@ output.
     Then download the Mosquitto config and create your env file:
 
     ```bash
-    curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
-    curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
+    curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/mosquitto.conf -o mosquitto.conf
+    curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/.env.example -o .env
     # Edit .env with your MQTT broker and sensor settings
     ```
 
@@ -94,9 +94,9 @@ output.
     !!! tip "Download everything at once"
         Prefer `curl` over copy-paste? Grab all three files in one go:
         ```bash
-        curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/docker-compose.yml -o docker-compose.yml
-        curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
-        curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/docker-compose.yml -o docker-compose.yml
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/mosquitto.conf -o mosquitto.conf
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/.env.example -o .env
         ```
 
     !!! note "Pin to a specific version"

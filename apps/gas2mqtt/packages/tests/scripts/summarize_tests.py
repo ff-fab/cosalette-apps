@@ -16,19 +16,18 @@ exit 1 when coverage drops below the threshold.
 
 Usage:
     # Test summary only:
-    python tests/scripts/summarize_tests.py
+    uv run tests/scripts/summarize_tests.py
 
     # With coverage gate (uses baked-in default of 80%):
-    python tests/scripts/summarize_tests.py --coverage-file=coverage.json
+    uv run tests/scripts/summarize_tests.py --coverage-file=coverage.json
 
     # Override the threshold:
-    python tests/scripts/summarize_tests.py \
+    uv run tests/scripts/summarize_tests.py \
         --coverage-file=coverage.json --fail-under=90
 
     # With custom paths:
-    python tests/scripts/summarize_tests.py \
+    uv run tests/scripts/summarize_tests.py \
         --unit-results results.xml \
-
         --coverage-file coverage.json
 
 Exit codes:

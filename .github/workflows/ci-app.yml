@@ -6,6 +6,9 @@ on:
         required: true
         type: string
 
+env:
+  DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
+
 concurrency:
   group: ci-${{ inputs.app }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,27 +16,69 @@ concurrency:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group dev
-      - run: task ${{ inputs.app }}:lint
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run linting inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task ${{ inputs.app }}:lint
 
   typecheck:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group dev
-      - run: task ${{ inputs.app }}:typecheck
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run type checking inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task ${{ inputs.app }}:typecheck
 
   test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group dev
-      - run: task ${{ inputs.app }}:ci:test:unit
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run unit tests inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task ${{ inputs.app }}:ci:test:unit
       - uses: codecov/codecov-action@v5
         if: always()
         with:

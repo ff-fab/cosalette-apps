@@ -157,8 +157,8 @@ framework for IoT-to-MQTT bridges. cosalette provides:
 - **Dependency injection** — adapters and settings resolved by type annotation
 - **Graceful shutdown** — SIGTERM/SIGINT → shutdown event → clean teardown
 
-The `create_app()` function in `main.py` is the composition root — it registers the
-magnetometer adapter, wires all devices, and returns a fully configured `App`.
+The module-level `app` object in `main.py` is the composition root — it registers the
+magnetometer adapter, wires all devices, and exposes a fully configured `App`.
 
 ---
 
