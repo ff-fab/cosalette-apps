@@ -45,6 +45,7 @@ tasks:
   check:all:
     desc: Run all checks for all apps
     cmds:
+      - task: reuse:lint
       - task: lint:all
       - task: typecheck:all
       - task: test:all
