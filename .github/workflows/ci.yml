@@ -4,11 +4,14 @@ on:
     branches: [main]
   pull_request:
 
+env:
+  DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
+
 jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      changes: ${{ steps.filter.outputs.changes }}
+      apps: ${{ steps.apps.outputs.apps }}
       shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v6
@@ -24,28 +27,49 @@ jobs:
               - '.pre-commit-config.yaml'
               - 'REUSE.toml'
             # Per-app filters added as apps are migrated:
-            # gas2mqtt:
-            #   - 'apps/gas2mqtt/**'
+            gas2mqtt:
+              - 'apps/gas2mqtt/**'
+      - name: Build app list (exclude non-app filters)
+        id: apps
+        run: |
+          # dorny/paths-filter outputs a JSON array of all matched filter names.
+          # Remove 'shared' since it is not an app — it has its own dedicated job.
+          apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "shared")]')
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
   # Shared infrastructure check (REUSE, pre-commit on shared files)
   shared:
     needs: detect
     if: needs.detect.outputs.shared == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group dev
-      - run: uv run reuse lint
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run shared checks inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: uv run reuse lint
 
-  # Per-app CI dispatched via matrix (uncomment after first migration)
-  # app-ci:
-  #   needs: detect
-  #   if: needs.detect.outputs.changes != '[]'
-  #   strategy:
-  #     matrix:
-  #       app: ${{ fromJson(needs.detect.outputs.changes) }}
-  #     fail-fast: false
-  #   uses: ./.github/workflows/ci-app.yml
-  #   with:
-  #     app: ${{ matrix.app }}
+  # Per-app CI dispatched via matrix
+  app-ci:
+    needs: detect
+    if: needs.detect.outputs.apps != '[]'
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.detect.outputs.apps) }}
+      fail-fast: false
+    uses: ./.github/workflows/ci-app.yml
+    with:
+      app: ${{ matrix.app }}

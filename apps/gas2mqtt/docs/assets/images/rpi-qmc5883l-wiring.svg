@@ -1,0 +1,284 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 660" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>Raspberry Pi to QMC5883L wiring diagram</title>
+  <desc>Wiring diagram showing the 4-wire I2C connection between a Raspberry Pi 40-pin GPIO header and a QMC5883L magnetometer breakout board: 3.3V (pin 1), SDA (pin 3), SCL (pin 5), and GND (pin 6).</desc>
+  <defs>
+    <style>
+      .pin-label { font-size: 8.5px; fill: #fff; font-weight: 600; }
+      .pin-num { font-size: 9.5px; fill: #ddd; }
+      .board-label { font-size: 16px; font-weight: 700; fill: #fff; }
+      .sub-label { font-size: 11px; fill: #ccc; }
+      .wire-label { font-size: 11px; font-weight: 600; }
+      .legend-text { font-size: 11px; fill: #555; }
+      .pin-3v3 { fill: #e63946; }
+      .pin-5v { fill: #9d4600; }
+      .pin-gnd { fill: #1d3557; }
+      .pin-gpio { fill: #4a7c59; }
+      .pin-sda { fill: #457b9d; }
+      .pin-scl { fill: #b8960c; }
+      .pin-uart { fill: #6a5e72; }
+      .pin-spi { fill: #5e6a72; }
+      .pin-id { fill: #555; }
+      .pin-highlight { stroke: #fff; stroke-width: 1.5; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect width="820" height="660" rx="8" fill="#fafafa" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Title -->
+  <text x="410" y="22" text-anchor="middle" font-size="18" font-weight="700" fill="#333">Raspberry Pi ↔ QMC5883L Wiring (I2C)</text>
+
+  <!-- ===== Raspberry Pi Board ===== -->
+  <rect x="30" y="100" width="310" height="520" rx="10" fill="#2d5016" stroke="#1a3a0a" stroke-width="2"/>
+  <text x="185" y="125" text-anchor="middle" class="board-label">Raspberry Pi</text>
+  <text x="185" y="139" text-anchor="middle" class="sub-label">40-Pin GPIO Header</text>
+
+  <!-- Row 1: Pin 1 (3.3V) / Pin 2 (5V) -->
+  <rect x="75" y="153" width="90" height="18" rx="3" class="pin-3v3 pin-highlight"/>
+  <text x="120" y="165" text-anchor="middle" class="pin-label">3.3V</text>
+  <text x="67" y="165" text-anchor="end" class="pin-num">1</text>
+  <rect x="195" y="153" width="90" height="18" rx="3" class="pin-5v"/>
+  <text x="240" y="165" text-anchor="middle" class="pin-label">5V</text>
+  <text x="293" y="165" text-anchor="start" class="pin-num">2</text>
+
+  <!-- Row 2: Pin 3 (SDA) / Pin 4 (5V) -->
+  <rect x="75" y="175" width="90" height="18" rx="3" class="pin-sda pin-highlight"/>
+  <text x="120" y="187" text-anchor="middle" class="pin-label">GPIO 2 (SDA)</text>
+  <text x="67" y="187" text-anchor="end" class="pin-num">3</text>
+  <rect x="195" y="175" width="90" height="18" rx="3" class="pin-5v"/>
+  <text x="240" y="187" text-anchor="middle" class="pin-label">5V</text>
+  <text x="293" y="187" text-anchor="start" class="pin-num">4</text>
+
+  <!-- Row 3: Pin 5 (SCL) / Pin 6 (GND) -->
+  <rect x="75" y="197" width="90" height="18" rx="3" class="pin-scl pin-highlight"/>
+  <text x="120" y="209" text-anchor="middle" class="pin-label">GPIO 3 (SCL)</text>
+  <text x="67" y="209" text-anchor="end" class="pin-num">5</text>
+  <rect x="195" y="197" width="90" height="18" rx="3" class="pin-gnd pin-highlight"/>
+  <text x="240" y="209" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="209" text-anchor="start" class="pin-num">6</text>
+
+  <!-- Row 4: Pin 7 (GPIO 4) / Pin 8 (TXD) -->
+  <rect x="75" y="219" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="231" text-anchor="middle" class="pin-label">GPIO 4</text>
+  <text x="67" y="231" text-anchor="end" class="pin-num">7</text>
+  <rect x="195" y="219" width="90" height="18" rx="3" class="pin-uart"/>
+  <text x="240" y="231" text-anchor="middle" class="pin-label">GPIO 14 (TXD)</text>
+  <text x="293" y="231" text-anchor="start" class="pin-num">8</text>
+
+  <!-- Row 5: Pin 9 (GND) / Pin 10 (RXD) -->
+  <rect x="75" y="241" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="120" y="253" text-anchor="middle" class="pin-label">GND</text>
+  <text x="67" y="253" text-anchor="end" class="pin-num">9</text>
+  <rect x="195" y="241" width="90" height="18" rx="3" class="pin-uart"/>
+  <text x="240" y="253" text-anchor="middle" class="pin-label">GPIO 15 (RXD)</text>
+  <text x="293" y="253" text-anchor="start" class="pin-num">10</text>
+
+  <!-- Row 6: Pin 11 (GPIO 17) / Pin 12 (GPIO 18) -->
+  <rect x="75" y="263" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="275" text-anchor="middle" class="pin-label">GPIO 17</text>
+  <text x="67" y="275" text-anchor="end" class="pin-num">11</text>
+  <rect x="195" y="263" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="275" text-anchor="middle" class="pin-label">GPIO 18</text>
+  <text x="293" y="275" text-anchor="start" class="pin-num">12</text>
+
+  <!-- Row 7: Pin 13 (GPIO 27) / Pin 14 (GND) -->
+  <rect x="75" y="285" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="297" text-anchor="middle" class="pin-label">GPIO 27</text>
+  <text x="67" y="297" text-anchor="end" class="pin-num">13</text>
+  <rect x="195" y="285" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="297" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="297" text-anchor="start" class="pin-num">14</text>
+
+  <!-- Row 8: Pin 15 (GPIO 22) / Pin 16 (GPIO 23) -->
+  <rect x="75" y="307" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="319" text-anchor="middle" class="pin-label">GPIO 22</text>
+  <text x="67" y="319" text-anchor="end" class="pin-num">15</text>
+  <rect x="195" y="307" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="319" text-anchor="middle" class="pin-label">GPIO 23</text>
+  <text x="293" y="319" text-anchor="start" class="pin-num">16</text>
+
+  <!-- Row 9: Pin 17 (3.3V) / Pin 18 (GPIO 24) -->
+  <rect x="75" y="329" width="90" height="18" rx="3" class="pin-3v3"/>
+  <text x="120" y="341" text-anchor="middle" class="pin-label">3.3V</text>
+  <text x="67" y="341" text-anchor="end" class="pin-num">17</text>
+  <rect x="195" y="329" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="341" text-anchor="middle" class="pin-label">GPIO 24</text>
+  <text x="293" y="341" text-anchor="start" class="pin-num">18</text>
+
+  <!-- Row 10: Pin 19 (MOSI) / Pin 20 (GND) -->
+  <rect x="75" y="351" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="120" y="363" text-anchor="middle" class="pin-label">GPIO 10 (MOSI)</text>
+  <text x="67" y="363" text-anchor="end" class="pin-num">19</text>
+  <rect x="195" y="351" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="363" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="363" text-anchor="start" class="pin-num">20</text>
+
+  <!-- Row 11: Pin 21 (MISO) / Pin 22 (GPIO 25) -->
+  <rect x="75" y="373" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="120" y="385" text-anchor="middle" class="pin-label">GPIO 9 (MISO)</text>
+  <text x="67" y="385" text-anchor="end" class="pin-num">21</text>
+  <rect x="195" y="373" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="385" text-anchor="middle" class="pin-label">GPIO 25</text>
+  <text x="293" y="385" text-anchor="start" class="pin-num">22</text>
+
+  <!-- Row 12: Pin 23 (SCLK) / Pin 24 (CE0) -->
+  <rect x="75" y="395" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="120" y="407" text-anchor="middle" class="pin-label">GPIO 11 (SCLK)</text>
+  <text x="67" y="407" text-anchor="end" class="pin-num">23</text>
+  <rect x="195" y="395" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="240" y="407" text-anchor="middle" class="pin-label">GPIO 8 (CE0)</text>
+  <text x="293" y="407" text-anchor="start" class="pin-num">24</text>
+
+  <!-- Row 13: Pin 25 (GND) / Pin 26 (CE1) -->
+  <rect x="75" y="417" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="120" y="429" text-anchor="middle" class="pin-label">GND</text>
+  <text x="67" y="429" text-anchor="end" class="pin-num">25</text>
+  <rect x="195" y="417" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="240" y="429" text-anchor="middle" class="pin-label">GPIO 7 (CE1)</text>
+  <text x="293" y="429" text-anchor="start" class="pin-num">26</text>
+
+  <!-- Row 14: Pin 27 (ID_SD) / Pin 28 (ID_SC) -->
+  <rect x="75" y="439" width="90" height="18" rx="3" class="pin-id"/>
+  <text x="120" y="451" text-anchor="middle" class="pin-label">GPIO 0 (ID_SD)</text>
+  <text x="67" y="451" text-anchor="end" class="pin-num">27</text>
+  <rect x="195" y="439" width="90" height="18" rx="3" class="pin-id"/>
+  <text x="240" y="451" text-anchor="middle" class="pin-label">GPIO 1 (ID_SC)</text>
+  <text x="293" y="451" text-anchor="start" class="pin-num">28</text>
+
+  <!-- Row 15: Pin 29 (GPIO 5) / Pin 30 (GND) -->
+  <rect x="75" y="461" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="473" text-anchor="middle" class="pin-label">GPIO 5</text>
+  <text x="67" y="473" text-anchor="end" class="pin-num">29</text>
+  <rect x="195" y="461" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="473" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="473" text-anchor="start" class="pin-num">30</text>
+
+  <!-- Row 16: Pin 31 (GPIO 6) / Pin 32 (GPIO 12) -->
+  <rect x="75" y="483" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="495" text-anchor="middle" class="pin-label">GPIO 6</text>
+  <text x="67" y="495" text-anchor="end" class="pin-num">31</text>
+  <rect x="195" y="483" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="495" text-anchor="middle" class="pin-label">GPIO 12</text>
+  <text x="293" y="495" text-anchor="start" class="pin-num">32</text>
+
+  <!-- Row 17: Pin 33 (GPIO 13) / Pin 34 (GND) -->
+  <rect x="75" y="505" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="517" text-anchor="middle" class="pin-label">GPIO 13</text>
+  <text x="67" y="517" text-anchor="end" class="pin-num">33</text>
+  <rect x="195" y="505" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="517" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="517" text-anchor="start" class="pin-num">34</text>
+
+  <!-- Row 18: Pin 35 (GPIO 19) / Pin 36 (GPIO 16) -->
+  <rect x="75" y="527" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="539" text-anchor="middle" class="pin-label">GPIO 19</text>
+  <text x="67" y="539" text-anchor="end" class="pin-num">35</text>
+  <rect x="195" y="527" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="539" text-anchor="middle" class="pin-label">GPIO 16</text>
+  <text x="293" y="539" text-anchor="start" class="pin-num">36</text>
+
+  <!-- Row 19: Pin 37 (GPIO 26) / Pin 38 (GPIO 20) -->
+  <rect x="75" y="549" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="561" text-anchor="middle" class="pin-label">GPIO 26</text>
+  <text x="67" y="561" text-anchor="end" class="pin-num">37</text>
+  <rect x="195" y="549" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="561" text-anchor="middle" class="pin-label">GPIO 20</text>
+  <text x="293" y="561" text-anchor="start" class="pin-num">38</text>
+
+  <!-- Row 20: Pin 39 (GND) / Pin 40 (GPIO 21) -->
+  <rect x="75" y="571" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="120" y="583" text-anchor="middle" class="pin-label">GND</text>
+  <text x="67" y="583" text-anchor="end" class="pin-num">39</text>
+  <rect x="195" y="571" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="583" text-anchor="middle" class="pin-label">GPIO 21</text>
+  <text x="293" y="583" text-anchor="start" class="pin-num">40</text>
+
+  <!-- USB/Ethernet hint -->
+  <rect x="115" y="597" width="130" height="18" rx="6" fill="#1a3a0a" stroke="#0d1f05" stroke-width="1"/>
+  <text x="180" y="610" text-anchor="middle" font-size="9" fill="#6a9f4a">USB / Ethernet</text>
+
+  <!-- ===== QMC5883L Breakout Board ===== -->
+  <rect x="540" y="155" width="230" height="240" rx="10" fill="#2b2b3d" stroke="#1a1a2e" stroke-width="2"/>
+  <text x="655" y="185" text-anchor="middle" class="board-label">QMC5883L</text>
+  <text x="655" y="201" text-anchor="middle" class="sub-label">Magnetometer Breakout</text>
+
+  <!-- Chip representation -->
+  <rect x="610" y="220" width="90" height="50" rx="4" fill="#3d3d5c" stroke="#555" stroke-width="1"/>
+  <text x="655" y="242" text-anchor="middle" font-size="10" fill="#aaa">QMC5883L</text>
+  <text x="655" y="256" text-anchor="middle" font-size="9" fill="#bbb">I2C: 0x0D</text>
+
+  <!-- Sensor pins -->
+  <rect x="565" y="290" width="60" height="24" rx="4" class="pin-3v3"/>
+  <text x="595" y="306" text-anchor="middle" class="pin-label">VCC</text>
+
+  <rect x="565" y="323" width="60" height="24" rx="4" class="pin-gnd"/>
+  <text x="595" y="339" text-anchor="middle" class="pin-label">GND</text>
+
+  <rect x="685" y="290" width="60" height="24" rx="4" class="pin-sda"/>
+  <text x="715" y="306" text-anchor="middle" class="pin-label">SDA</text>
+
+  <rect x="685" y="323" width="60" height="24" rx="4" class="pin-scl"/>
+  <text x="715" y="339" text-anchor="middle" class="pin-label">SCL</text>
+
+  <!-- Note about pull-ups -->
+  <text x="655" y="373" text-anchor="middle" font-size="11" fill="#aaa" font-style="italic">Built-in pull-up resistors</text>
+  <text x="655" y="389" text-anchor="middle" font-size="11" fill="#aaa" font-style="italic">No external pull-ups needed</text>
+
+  <!-- ===== Wires (drawn AFTER boards so they appear on top) ===== -->
+
+  <!-- 3.3V: Pin 1 → left → up → right → down → VCC -->
+  <path d="M 75 165 L 24 165 L 24 82 L 532 82 L 532 302 L 565 302"
+        fill="none" stroke="#e63946" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- SDA: Pin 3 → left → up → right → down to right → SDA -->
+  <path d="M 75 187 L 16 187 L 16 62 L 790 62 L 790 302 L 745 302"
+        fill="none" stroke="#457b9d" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- SCL: Pin 5 → left → up → right → down to right → SCL -->
+  <path d="M 75 209 L 8 209 L 8 42 L 800 42 L 800 335 L 745 335"
+        fill="none" stroke="#b8960c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- GND: Pin 6 → right → down → right → GND -->
+  <path d="M 285 209 L 522 209 L 522 335 L 565 335"
+        fill="none" stroke="#1d3557" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Wire labels on horizontal runs -->
+  <text x="300" y="39" text-anchor="middle" class="wire-label" fill="#b8960c">SCL (clock)</text>
+  <text x="300" y="59" text-anchor="middle" class="wire-label" fill="#457b9d">SDA (data)</text>
+  <text x="300" y="79" text-anchor="middle" class="wire-label" fill="#e63946">3.3V (power)</text>
+  <text x="420" y="202" text-anchor="middle" class="wire-label" fill="#1d3557">GND (ground)</text>
+
+  <!-- ===== Legend ===== -->
+  <rect x="30" y="630" width="760" height="24" rx="6" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
+  <text x="45" y="647" font-size="11" font-weight="600" fill="#333">Pin types:</text>
+
+  <rect x="110" y="637" width="12" height="12" rx="2" class="pin-3v3"/>
+  <text x="127" y="647" class="legend-text">3.3V</text>
+
+  <rect x="167" y="637" width="12" height="12" rx="2" class="pin-5v"/>
+  <text x="184" y="647" class="legend-text">5V</text>
+
+  <rect x="210" y="637" width="12" height="12" rx="2" class="pin-gnd"/>
+  <text x="227" y="647" class="legend-text">GND</text>
+
+  <rect x="262" y="637" width="12" height="12" rx="2" class="pin-sda"/>
+  <text x="279" y="647" class="legend-text">I2C SDA</text>
+
+  <rect x="332" y="637" width="12" height="12" rx="2" class="pin-scl"/>
+  <text x="349" y="647" class="legend-text">I2C SCL</text>
+
+  <rect x="404" y="637" width="12" height="12" rx="2" class="pin-gpio"/>
+  <text x="421" y="647" class="legend-text">GPIO</text>
+
+  <rect x="462" y="637" width="12" height="12" rx="2" class="pin-uart"/>
+  <text x="479" y="647" class="legend-text">UART</text>
+
+  <rect x="518" y="637" width="12" height="12" rx="2" class="pin-spi"/>
+  <text x="535" y="647" class="legend-text">SPI</text>
+
+  <rect x="565" y="637" width="12" height="12" rx="2" class="pin-id"/>
+  <text x="582" y="647" class="legend-text">ID EEPROM</text>
+
+  <rect x="660" y="635" width="16" height="16" rx="3" fill="none" stroke="#fff" stroke-width="1.5"/>
+  <text x="681" y="647" class="legend-text">= connected</text>
+</svg>
