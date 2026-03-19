@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 [![cosalette](https://img.shields.io/badge/framework-cosalette-orange)](https://github.com/ff-fab/cosalette)
-[![ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Fff--fab%2Fgas2mqtt-blue)](https://github.com/ff-fab/gas2mqtt/pkgs/container/gas2mqtt)
+[![ghcr.io](https://img.shields.io/badge/container-ghcr.io%2Fff--fab%2Fgas2mqtt-blue)](https://github.com/ff-fab/cosalette-apps/pkgs/container/gas2mqtt)
 
 Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter
 ticks, temperature, and optional raw debug data to MQTT.
@@ -52,8 +52,8 @@ volumes:
 Then fetch the supporting files and start:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/mosquitto.conf -o mosquitto.conf
-curl -fsSL https://raw.githubusercontent.com/ff-fab/gas2mqtt/main/.env.example -o .env
+curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/mosquitto.conf -o mosquitto.conf
+curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/.env.example -o .env
 # Edit .env — set GAS2MQTT_MQTT__HOST and sensor thresholds
 docker compose up -d
 ```

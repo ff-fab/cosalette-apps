@@ -14,6 +14,9 @@ on:
       - 'apps/*/docs/**'
       - 'apps/*/zensical.toml'
 
+env:
+  DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
+
 permissions:
   pages: write
   id-token: write
@@ -41,21 +44,49 @@ jobs:
     needs: detect
     if: needs.detect.outputs.root == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group docs
-      - run: task docs:build
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build root docs inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task docs:build
 
   deploy-root:
     needs: build-root
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group docs
-      - run: task docs:build
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build root docs inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task docs:build
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -66,21 +97,49 @@ jobs:
     needs: detect
     if: needs.detect.outputs.gas2mqtt == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group docs
-      - run: task gas2mqtt:docs:build
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build gas2mqtt docs inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task gas2mqtt:docs:build
 
   deploy-gas2mqtt:
     needs: build-gas2mqtt
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     steps:
       - uses: actions/checkout@v6
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --group docs
-      - run: task gas2mqtt:docs:build
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build gas2mqtt docs inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task gas2mqtt:docs:build
       - uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

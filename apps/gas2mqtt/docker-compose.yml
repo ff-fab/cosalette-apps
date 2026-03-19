@@ -1,5 +1,8 @@
 services:
   gas2mqtt:
+    build:
+      context: ../..
+      dockerfile: apps/gas2mqtt/Dockerfile
     image: ghcr.io/ff-fab/gas2mqtt:latest
     restart: unless-stopped
     devices:
