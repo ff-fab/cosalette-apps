@@ -60,7 +60,7 @@ jobs:
         with:
           cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
           push: never
-          runCmd: uv run reuse lint
+          runCmd: task reuse:lint
 
   # Per-app CI dispatched via matrix
   app-ci:
