@@ -1,0 +1,34 @@
+# Development and test files
+packages/tests/
+docs/
+legacy/
+scripts/
+.devcontainer/
+.github/
+.beads/
+
+# Build artifacts
+*.egg-info/
+dist/
+build/
+__pycache__/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+
+# Config files not needed in image
+Taskfile.yml
+pyrightconfig.json
+codecov.yml
+renovate.json
+release-please-config.json
+zensical.toml
+CONTRIBUTING.md
+AGENTS.md
