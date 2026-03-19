@@ -70,7 +70,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: read
     steps:
       - uses: actions/checkout@v6
@@ -123,7 +123,7 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: read
     steps:
       - uses: actions/checkout@v6
