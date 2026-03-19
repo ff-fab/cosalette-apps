@@ -1,0 +1,2032 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="A monorepo collection for various cosalette based smart home apps.">
+      
+      
+      
+        <link rel="canonical" href="https://ff-fab.github.io/cosalette-apps/planning/monorepo-analysis/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="zensical-0.0.27">
+    
+    
+      
+        <title>Monorepo Analysis: cosalette-apps - cosalette-apps</title>
+      
+    
+    
+      
+        
+      
+      <link rel="stylesheet" href="../../assets/stylesheets/modern/main.50057488.min.css">
+      
+        
+          
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/modern/palette.dfe2e883.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Inter:300,300i,400,400i,500,500i,700,700i%7CJetBrains+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Inter";--md-code-font:"JetBrains Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,t)=>(e<<5)-e+t.charCodeAt(0)),0),__md_get=(e,t=localStorage,a=__md_scope)=>JSON.parse(t.getItem(a.pathname+"."+e)),__md_set=(e,t,a=localStorage,_=__md_scope)=>{try{a.setItem(_.pathname+"."+e,JSON.stringify(t))}catch(e){}},document.documentElement.setAttribute("data-platform",navigator.platform)</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="cyan">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer" aria-label="Navigation"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#monorepo-analysis-cosalette-apps" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="cosalette-apps" class="md-header__button md-logo" aria-label="cosalette-apps" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer" aria-label="Navigation">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-menu" viewBox="0 0 24 24"><path d="M4 5h16M4 12h16M4 19h16"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            cosalette-apps
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Monorepo Analysis: cosalette-apps
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="slate" data-md-color-primary="teal" data-md-color-accent="cyan"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="none" data-md-color-scheme="default" data-md-color-primary="teal" data-md-color-accent="cyan"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search" aria-label="Search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-search" viewBox="0 0 24 24"><path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog" aria-label="Search">
+  <button type="button" class="md-search__button">
+    Search
+  </button>
+</div>
+      
+    
+    <div class="md-header__source">
+      
+        <a href="https://github.com/ff-fab/cosalette-apps" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ff-fab/cosalette-apps
+  </div>
+</a>
+      
+    </div>
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="cosalette-apps" class="md-nav__button md-logo" aria-label="cosalette-apps" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-book-open" viewBox="0 0 24 24"><path d="M12 7v14M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+
+    </a>
+    cosalette-apps
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/ff-fab/cosalette-apps" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+  </div>
+  <div class="md-source__repository">
+    ff-fab/cosalette-apps
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+<nav class="md-nav md-nav--secondary" aria-label="On this page">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      On this page
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#decisions-record" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Decisions Record
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#table-of-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Table of Contents
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+  
+    <a href="https://github.com/ff-fab/cosalette-apps/edit/main/docs/planning/monorepo-analysis.md" title="Edit this page" class="md-content__button md-icon" rel="edit">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-file-pen" viewBox="0 0 24 24"><path d="M12.659 22H18a2 2 0 0 0 2-2V8a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 14 2H6a2 2 0 0 0-2 2v9.34"/><path d="M14 2v5a1 1 0 0 0 1 1h5M10.378 12.622a1 1 0 0 1 3 3.003L8.36 20.637a2 2 0 0 1-.854.506l-2.867.837a.5.5 0 0 1-.62-.62l.836-2.869a2 2 0 0 1 .506-.853z"/></svg>
+    </a>
+  
+  
+
+
+<h1 id="monorepo-analysis-cosalette-apps">Monorepo Analysis: cosalette-apps<a class="headerlink" href="#monorepo-analysis-cosalette-apps" title="Permanent link">&para;</a></h1>
+<blockquote>
+<p><strong>Status:</strong> Decisions made — see <a href="#decisions-record">Decisions Record</a> below
+<strong>Author:</strong> AI-assisted analysis, March 2026
+<strong>Scope:</strong> Evaluate consolidating ~10 standalone IoT app repos into a single monorepo
+<strong>Implementation plan:</strong> <a href="../monorepo-implementation-plan/">monorepo-implementation-plan.md</a></p>
+</blockquote>
+<h3 id="decisions-record">Decisions Record<a class="headerlink" href="#decisions-record" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Question</th>
+<th>Decision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Licensing approach</td>
+<td><strong>Option A</strong> — REUSE + per-file GPL headers (belt and suspenders)</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Cosalette as workspace member?</td>
+<td><strong>No</strong> — keep as external PyPI dependency</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Build system</td>
+<td><strong>Option C</strong> — uv Workspaces + Taskfile (no Bazel sandbox)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Top-level directory naming</td>
+<td><strong><code>apps/</code></strong> as proposed</td>
+</tr>
+<tr>
+<td>5</td>
+<td>vito2mqtt migration</td>
+<td><strong>Include as planned</strong> in Phase 4</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="table-of-contents">Table of Contents<a class="headerlink" href="#table-of-contents" title="Permanent link">&para;</a></h2>
+<ul>
+<li><a href="#part-i--strategic-context">Part I — Strategic Context</a></li>
+<li><a href="#1-current-state-assessment">1. Current State Assessment</a></li>
+<li><a href="#2-monorepo-vs-polyrepo-vs-hybrid">2. Monorepo vs. Polyrepo vs. Hybrid</a></li>
+<li><a href="#part-ii--topic-deep-dives">Part II — Topic Deep-Dives</a></li>
+<li><a href="#3-licensing">3. Licensing</a></li>
+<li><a href="#4-build-system">4. Build System</a></li>
+<li><a href="#5-repository-structure">5. Repository Structure</a></li>
+<li><a href="#6-dependency-management">6. Dependency Management</a></li>
+<li><a href="#7-testing">7. Testing</a></li>
+<li><a href="#8-cicd">8. CI/CD</a></li>
+<li><a href="#9-taskfile">9. Taskfile</a></li>
+<li><a href="#10-environment--tooling">10. Environment &amp; Tooling</a></li>
+<li><a href="#11-documentation">11. Documentation</a></li>
+<li><a href="#12-deployment">12. Deployment</a></li>
+<li><a href="#13-release-management">13. Release Management</a></li>
+<li><a href="#14-migration-strategy">14. Migration Strategy</a></li>
+<li><a href="#part-iii--synthesis">Part III — Synthesis</a></li>
+<li><a href="#15-decision-matrix">15. Decision Matrix</a></li>
+<li><a href="#16-recommended-approach">16. Recommended Approach</a></li>
+<li><a href="#17-open-questions--risks">17. Open Questions &amp; Risks</a></li>
+</ul>
+<hr />
+<h1 id="part-i-strategic-context">Part I — Strategic Context<a class="headerlink" href="#part-i-strategic-context" title="Permanent link">&para;</a></h1>
+<h2 id="1-current-state-assessment">1. Current State Assessment<a class="headerlink" href="#1-current-state-assessment" title="Permanent link">&para;</a></h2>
+<h3 id="what-you-have-today">What You Have Today<a class="headerlink" href="#what-you-have-today" title="Permanent link">&para;</a></h3>
+<p>~10 IoT-to-MQTT bridge applications built on the <strong>cosalette</strong> framework, each in its
+own GitHub repository created from the same <strong>copier template</strong>. Three repos are already
+developed (gas2mqtt, jeelink2mqtt, vito2mqtt), the rest are planned.</p>
+<p>Each repo contains ~90% identical boilerplate:</p>
+<table>
+<thead>
+<tr>
+<th>Identical Across Repos</th>
+<th>Project-Specific</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Taskfile.yml (90%)</td>
+<td>Hardware dependencies (smbus2, serial)</td>
+</tr>
+<tr>
+<td>pyproject.toml structure</td>
+<td>Coverage thresholds</td>
+</tr>
+<tr>
+<td>.pre-commit-config.yaml (95%)</td>
+<td>ADRs and documentation content</td>
+</tr>
+<tr>
+<td>GitHub Actions workflows (80%)</td>
+<td>Dockerfile strategy (Alpine vs. slim)</td>
+</tr>
+<tr>
+<td>AGENTS.md, CLAUDE.md</td>
+<td>License (MIT vs. GPL)</td>
+</tr>
+<tr>
+<td>renovate.json, codecov.yml</td>
+<td>Entry point conventions</td>
+</tr>
+<tr>
+<td>pyrightconfig.json</td>
+<td>App-specific settings/ports/adapters</td>
+</tr>
+<tr>
+<td>docs structure (Zensical)</td>
+<td></td>
+</tr>
+<tr>
+<td>scripts/ directory</td>
+<td></td>
+</tr>
+<tr>
+<td>release-please-config.json</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-works">What Works<a class="headerlink" href="#what-works" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Copier template</strong> ensures high initial consistency when creating new projects</li>
+<li><strong>cosalette framework</strong> provides the real shared infrastructure (MQTT, logging,
+  health, configuration, testing utilities)</li>
+<li><strong>Per-repo CI</strong> is simple: each repo owns its workflows</li>
+<li><strong>Per-repo docs</strong> deploy independently to <code>ff-fab.github.io/&lt;app&gt;/</code></li>
+</ul>
+<h3 id="what-hurts">What Hurts<a class="headerlink" href="#what-hurts" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Pain Point</th>
+<th>Impact</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Template update friction</strong></td>
+<td><code>copier update</code> creates merge conflicts; easy to skip</td>
+</tr>
+<tr>
+<td><strong>No atomic cross-project changes</strong></td>
+<td>Updating a cosalette convention requires N separate PRs</td>
+</tr>
+<tr>
+<td><strong>Disjunct coding agent context</strong></td>
+<td>Agent working on gas2mqtt has no visibility into vito2mqtt's patterns or decisions</td>
+</tr>
+<tr>
+<td><strong>N×M maintenance</strong></td>
+<td>N repos × M config files = many places to keep in sync</td>
+</tr>
+<tr>
+<td><strong>Documentation scatter</strong></td>
+<td>Hard to ensure consistent look/feel across project docs</td>
+</tr>
+<tr>
+<td><strong>Cosalette version drift</strong></td>
+<td>Each repo pins its own cosalette version; upgrades are uncoordinated</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="2-monorepo-vs-polyrepo-vs-hybrid">2. Monorepo vs. Polyrepo vs. Hybrid<a class="headerlink" href="#2-monorepo-vs-polyrepo-vs-hybrid" title="Permanent link">&para;</a></h2>
+<h3 id="option-a-full-monorepo-all-apps-in-one-repo">Option A: Full Monorepo (All Apps in One Repo)<a class="headerlink" href="#option-a-full-monorepo-all-apps-in-one-repo" title="Permanent link">&para;</a></h3>
+<p>All apps live in <code>cosalette-apps</code>, including the GPL-licensed vito2mqtt.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Single source of truth for all configuration, CI, tooling</li>
+<li>Atomic cross-app changes (update a convention once, apply everywhere)</li>
+<li>Coding agents see the full context — can learn patterns from one app and apply to
+  another</li>
+<li>Single <code>copier</code> target eliminated — template maintenance becomes repo maintenance</li>
+<li>Shared lockfile ensures consistent dependency resolution</li>
+<li>Cost: every PR runs only the affected app's CI (with path filtering)</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>Mixed licensing complexity (MIT + GPL in same repo)</li>
+<li>Repo grows larger over time (git clone, IDE indexing)</li>
+<li>CI misconfiguration risk: a bad shared config change breaks all apps</li>
+<li>All apps share one issue tracker, PR queue, and release timeline concerns</li>
+<li>GPL source headers and compliance tooling needed for the GPL subset</li>
+</ul>
+<h3 id="option-b-polyrepo-status-quo-enhanced">Option B: Polyrepo (Status Quo, Enhanced)<a class="headerlink" href="#option-b-polyrepo-status-quo-enhanced" title="Permanent link">&para;</a></h3>
+<p>Keep separate repos, invest in better copier template automation and a template-update
+bot.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Clean per-project isolation (licensing, releases, CI)</li>
+<li>Simple mental model: one repo = one app</li>
+<li>GitHub's UI works best with single-purpose repos</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>Does not solve the three core pain points (atomic changes, template friction, agent
+  context)</li>
+<li>Copier update friction grows linearly with repo count</li>
+<li>No mechanism for coding agents to see cross-project patterns</li>
+</ul>
+<h3 id="option-c-hybrid-mit-monorepo-gpl-separate">Option C: Hybrid (MIT Monorepo + GPL Separate)<a class="headerlink" href="#option-c-hybrid-mit-monorepo-gpl-separate" title="Permanent link">&para;</a></h3>
+<p>All MIT-licensed apps in the monorepo; GPL-licensed apps (currently only vito2mqtt) stay
+in their own repos but consume the same cosalette framework.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Clean licensing: monorepo is MIT top-to-bottom, no mixed-license complexity</li>
+<li>Solves the pain points for the majority of projects (~9 of 10)</li>
+<li>GPL projects stay isolated with their own compliance tooling</li>
+<li>Can still share Taskfile templates, CI workflows via copier for the GPL repos</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>GPL projects don't benefit from monorepo advantages</li>
+<li>Two maintenance patterns (monorepo + standalone)</li>
+<li>If more GPL projects appear, the "exception" pool grows</li>
+</ul>
+<h3 id="recommendation">Recommendation<a class="headerlink" href="#recommendation" title="Permanent link">&para;</a></h3>
+<p><strong>Option A (Full Monorepo)</strong> is the best fit, with the understanding that mixed licensing
+is manageable via per-directory LICENSE files and REUSE annotations (see
+<a href="#3-licensing">Section 3</a>). The three core pain points — atomic changes, template
+friction, agent context — are all root-caused by having separate repos. The licensing
+overhead is small and well-solved.</p>
+<p>If the GPL compliance burden feels excessive after implementation, <strong>falling back to
+Option C</strong> is straightforward: extract vito2mqtt back out.</p>
+<hr />
+<h1 id="part-ii-topic-deep-dives">Part II — Topic Deep-Dives<a class="headerlink" href="#part-ii-topic-deep-dives" title="Permanent link">&para;</a></h1>
+<h2 id="3-licensing">3. Licensing<a class="headerlink" href="#3-licensing" title="Permanent link">&para;</a></h2>
+<h3 id="context">Context<a class="headerlink" href="#context" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>App</th>
+<th>License</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Most apps</td>
+<td>MIT</td>
+</tr>
+<tr>
+<td>vito2mqtt</td>
+<td>GPL-3.0-or-later</td>
+</tr>
+<tr>
+<td>cosalette</td>
+<td>MIT (external dep)</td>
+</tr>
+</tbody>
+</table>
+<p>GPL is chosen for vito2mqtt due to upstream dependencies. No shared code exists between
+apps beyond cosalette itself (which is MIT and GPL-compatible).</p>
+<h3 id="key-legal-facts">Key Legal Facts<a class="headerlink" href="#key-legal-facts" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>MIT and GPL code can coexist in the same repository</strong> — GPL only applies to code
+  that is combined/linked/distributed as a single program</li>
+<li>Each app is an <strong>independent program</strong> — gas2mqtt and vito2mqtt don't link against
+  each other</li>
+<li><strong>Distribution</strong> is per-Docker-image: the gas2mqtt image is MIT, the vito2mqtt image
+  is GPL</li>
+<li>The <code>license</code> field in <code>pyproject.toml</code> (PEP 639, SPDX expressions) applies
+  <strong>per-package</strong>, not per-repo</li>
+</ul>
+<h3 id="gpl-notice-requirements-background">GPL Notice Requirements — Background<a class="headerlink" href="#gpl-notice-requirements-background" title="Permanent link">&para;</a></h3>
+<p>The GPL v3 text says: <em>"It is safest to attach [the license notices] to the start of
+each source file..."</em> The key word is <strong>"safest"</strong> — it's a strong recommendation for
+maximum legal clarity, not a hard syntactic requirement. The legal obligation is that
+recipients can determine the license of every file they receive.</p>
+<ul>
+<li><strong>FSF (US)</strong> recommends per-file headers as "the most reliable method"</li>
+<li><strong>FSFE (Europe)</strong> endorses REUSE.toml annotations as a valid alternative that
+  satisfies the same goal (machine-verifiable, per-file license attribution)</li>
+<li><strong>In practice:</strong> both approaches are widely accepted in the GPL community. KDE (one
+  of the largest GPL codebases) uses REUSE without per-file headers for many file types.</li>
+</ul>
+<h3 id="option-a-reuse-per-file-gpl-headers-belt-and-suspenders">Option A: REUSE + Per-File GPL Headers (Belt and Suspenders)<a class="headerlink" href="#option-a-reuse-per-file-gpl-headers-belt-and-suspenders" title="Permanent link">&para;</a></h3>
+<p>Use REUSE.toml for machine-readable compliance verification across the entire monorepo,
+<strong>and</strong> keep per-file GPL headers on vito2mqtt's <code>.py</code> files for maximum legal safety.</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="c1"># REUSE.toml</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">1</span>
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="k">[[annotations]]</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;apps/gas2mqtt/**&quot;</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="n">SPDX-FileCopyrightText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2026 Fabian Koerner &lt;mail@fabiankoerner.com&gt;&quot;</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="n">SPDX-License-Identifier</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;MIT&quot;</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="k">[[annotations]]</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;apps/vito2mqtt/**&quot;</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="n">SPDX-FileCopyrightText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2026 Fabian Koerner &lt;mail@fabiankoerner.com&gt;&quot;</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="n">SPDX-License-Identifier</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;GPL-3.0-or-later&quot;</span>
+</span><span id="__span-0-13"><a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a>
+</span><span id="__span-0-14"><a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="k">[[annotations]]</span>
+</span><span id="__span-0-15"><a id="__codelineno-0-15" name="__codelineno-0-15" href="#__codelineno-0-15"></a><span class="n">path</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;*.toml&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;*.yml&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;*.yaml&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;*.md&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;Taskfile.yml&quot;</span><span class="p">]</span>
+</span><span id="__span-0-16"><a id="__codelineno-0-16" name="__codelineno-0-16" href="#__codelineno-0-16"></a><span class="n">SPDX-FileCopyrightText</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;2026 Fabian Koerner &lt;mail@fabiankoerner.com&gt;&quot;</span>
+</span><span id="__span-0-17"><a id="__codelineno-0-17" name="__codelineno-0-17" href="#__codelineno-0-17"></a><span class="n">SPDX-License-Identifier</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;MIT&quot;</span>
+</span></code></pre></div>
+<p>Directory structure:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>cosalette-apps/
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>├── LICENSE                    # MIT (root/shared code)
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>├── REUSE.toml                 # Machine-readable license map
+</span><span id="__span-1-4"><a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a>├── LICENSES/
+</span><span id="__span-1-5"><a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>│   ├── MIT.txt
+</span><span id="__span-1-6"><a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a>│   └── GPL-3.0-or-later.txt
+</span><span id="__span-1-7"><a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a>├── apps/
+</span><span id="__span-1-8"><a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a>│   ├── gas2mqtt/
+</span><span id="__span-1-9"><a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a>│   │   └── LICENSE            # MIT (per-app copy for tooling recognition)
+</span><span id="__span-1-10"><a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>│   └── vito2mqtt/
+</span><span id="__span-1-11"><a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a>│       ├── LICENSE            # GPL-3.0-or-later
+</span><span id="__span-1-12"><a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a>│       └── packages/src/vito2mqtt/
+</span><span id="__span-1-13"><a id="__codelineno-1-13" name="__codelineno-1-13" href="#__codelineno-1-13"></a>│           └── *.py           # Each file has GPL header comment
+</span></code></pre></div>
+<ul>
+<li>CI validation: <code>reuse lint</code> as a pre-commit hook (covers all apps)</li>
+<li>GPL headers enforced by a pre-commit hook scoped to <code>apps/vito2mqtt/**/*.py</code>
+  (keep/adapt the existing <code>add_gpl_headers.py</code> script)</li>
+<li>Adopted by KDE, Linux kernel, FSFE projects</li>
+</ul>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Maximum legal safety — satisfies both FSF and FSFE recommendations</li>
+<li>Machine-verifiable compliance for the entire monorepo (<code>reuse lint</code>)</li>
+<li>Per-file GPL headers give unambiguous notice even when files are extracted/copied</li>
+<li>Works with any number of licenses — future-proof</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>Two compliance mechanisms to maintain (REUSE.toml + header script)</li>
+<li>GPL header hook adds friction when creating new <code>.py</code> files in vito2mqtt</li>
+</ul>
+<h3 id="option-b-reuse-only-no-per-file-headers">Option B: REUSE Only (No Per-File Headers)<a class="headerlink" href="#option-b-reuse-only-no-per-file-headers" title="Permanent link">&para;</a></h3>
+<p>Rely solely on REUSE.toml for all license declarations. No per-file GPL headers.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Simplest maintenance — one TOML file covers everything</li>
+<li>REUSE.toml replaces vito2mqtt's custom <code>add_gpl_headers.py</code> entirely</li>
+<li>FSFE-endorsed as sufficient for GPL compliance</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>Does not follow the FSF's "safest" recommendation for GPL</li>
+<li>If a <code>.py</code> file is extracted from the repo without the REUSE.toml, its license is
+  not self-evident</li>
+<li>More conservative GPL interpretations may consider this insufficient</li>
+</ul>
+<h3 id="option-c-per-directory-license-files-only">Option C: Per-Directory LICENSE Files Only<a class="headerlink" href="#option-c-per-directory-license-files-only" title="Permanent link">&para;</a></h3>
+<p>Simpler approach: each app directory contains its own <code>LICENSE</code> file. No REUSE tooling.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Simple, no new tooling</li>
+<li>GitHub auto-detects LICENSE files in directories</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>No automated compliance verification</li>
+<li>Per-file GPL headers still needed (separate enforcement mechanism)</li>
+<li>Manual enforcement of license boundaries</li>
+</ul>
+<h3 id="option-d-keep-gpl-projects-separate">Option D: Keep GPL Projects Separate<a class="headerlink" href="#option-d-keep-gpl-projects-separate" title="Permanent link">&para;</a></h3>
+<p>Exclude vito2mqtt from the monorepo entirely.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Monorepo is MIT-only — zero licensing complexity</li>
+<li>vito2mqtt keeps its own GPL compliance tooling independently</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>vito2mqtt doesn't benefit from monorepo advantages</li>
+<li>Two maintenance patterns</li>
+</ul>
+<h3 id="recommendation_1">Recommendation<a class="headerlink" href="#recommendation_1" title="Permanent link">&para;</a></h3>
+<p><strong>Option A (REUSE + per-file GPL headers)</strong> is the safest choice. The REUSE.toml
+provides machine-verifiable compliance across the entire monorepo, while per-file GPL
+headers on vito2mqtt's source files satisfy the FSF's strongest recommendation. The
+overhead is modest: one TOML file, two license texts, and the existing GPL header
+script scoped to <code>apps/vito2mqtt/</code>.</p>
+<p>Option B (REUSE only) is a pragmatic alternative endorsed by FSFE, but given that
+vito2mqtt already has the <code>add_gpl_headers.py</code> tooling, keeping it costs little.</p>
+<p>If the GPL compliance burden feels excessive, Option D (separate repo) remains a clean
+fallback.</p>
+<hr />
+<h2 id="4-build-system">4. Build System<a class="headerlink" href="#4-build-system" title="Permanent link">&para;</a></h2>
+<h3 id="context_1">Context<a class="headerlink" href="#context_1" title="Permanent link">&para;</a></h3>
+<p>Your stated interest in Bazel is driven by <strong>learning</strong> (required for work) and
+<strong>hermetic reproducibility</strong>. Some apps may use Rust components via pyO3.</p>
+<h3 id="option-a-bazel-rules_python-rules_rust">Option A: Bazel (<code>rules_python</code> + <code>rules_rust</code>)<a class="headerlink" href="#option-a-bazel-rules_python-rules_rust" title="Permanent link">&para;</a></h3>
+<p>Bazel is the industry standard for large-scale, multi-language monorepos.</p>
+<p><strong>Maturity for Python:</strong> <code>rules_python</code> v1.9.0 is production-ready for core rules.
+<code>aspect_rules_py</code> improves IDE support and uses <code>uv</code> under the hood.</p>
+<p><strong>How it works:</strong></p>
+<ul>
+<li>Each package gets BUILD files defining <code>py_library</code>, <code>py_test</code>, <code>py_binary</code> targets</li>
+<li>Dependency resolution via <code>pip.parse()</code> from a requirements lockfile</li>
+<li><code>rules_rust</code> (v0.69.0) is production-ready; pyO3 extensions require manual wiring
+  (<code>rust_shared_library</code> → package as <code>py_library</code>)</li>
+<li>Docker images via <code>rules_oci</code> (successor to <code>rules_docker</code>) — builds OCI images
+  without Docker daemon</li>
+</ul>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li><strong>Learning investment pays off</strong> for your day job</li>
+<li>Hermetic builds — byte-for-byte reproducible</li>
+<li>Best-in-class build caching and incremental builds</li>
+<li>Rust/pyO3 integration (works, but no turnkey rule)</li>
+<li>Multi-language support if you ever add non-Python components</li>
+<li>Granular test caching — only re-runs tests whose inputs changed</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li><strong>Enormous setup cost</strong>: MODULE.bazel, toolchain registration, BUILD files, Starlark</li>
+<li>Python is second-class in Bazel's ecosystem (Go/Java/C++ are the primary citizens)</li>
+<li>pytest integration is <strong>fiddly</strong>: each <code>py_test</code> is an isolated process, conftest.py
+  fixtures and session-scoped fixtures need careful wiring</li>
+<li>IDE support is painful without <code>aspect_rules_py</code></li>
+<li>Debugging is harder (sandboxed execution, no easy <code>pdb</code>)</li>
+<li><strong>No release automation</strong> — Bazel doesn't handle versioning, changelogs, or SemVer.
+  You'd bolt on Release Please externally anyway</li>
+<li>Per-package versioning is <strong>not a Bazel concept</strong> — it doesn't know about your
+  packages' versions</li>
+<li>Overkill complexity: the build graph for ~10 small Python apps doesn't justify the
+  infrastructure</li>
+</ul>
+<h3 id="option-b-pants-build-system">Option B: Pants Build System<a class="headerlink" href="#option-b-pants-build-system" title="Permanent link">&para;</a></h3>
+<p>Pants was built Python-first and later expanded to other languages. It's the
+"Bazel for Python developers" alternative.</p>
+<p><strong>How it works:</strong></p>
+<ul>
+<li>Auto-generates BUILD files from Python imports (<code>pants tailor ::</code>)</li>
+<li>Dependency inference by reading import statements — no manual dependency declarations</li>
+<li>Native pytest, mypy, ruff, coverage, Docker integration</li>
+<li>Per-file caching — only re-runs changed tests</li>
+</ul>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Python-first design — concepts map to Python packaging</li>
+<li>Automatic dependency inference (killer feature)</li>
+<li>Better pytest integration than Bazel (supports conftest.py, plugins, batching)</li>
+<li>Docker backend with automatic PEX → image packaging</li>
+<li>Lower learning curve than Bazel (moderate vs. very high)</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li><strong>No Rust/pyO3 support</strong> — no Rust backend, would need escape hatches</li>
+<li>Still adds a meaningful infrastructure layer for ~10 small packages</li>
+<li>Smaller community than Bazel (though Python-focused)</li>
+<li>Another tool to learn (besides Bazel for work) — splits learning investment</li>
+<li><code>pants.toml</code> + BUILD files = parallel config system to pyproject.toml</li>
+</ul>
+<h3 id="option-c-uv-workspaces-taskfile-extend-current-stack">Option C: uv Workspaces + Taskfile (Extend Current Stack)<a class="headerlink" href="#option-c-uv-workspaces-taskfile-extend-current-stack" title="Permanent link">&para;</a></h3>
+<p>Build on what you already use. No new build system — just <code>uv</code> for dependency
+management, <code>Taskfile.yml</code> for orchestration, and <code>hatchling</code> for packaging.</p>
+<p><strong>How it works:</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="c1"># Root pyproject.toml</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a><span class="k">[tool.uv.workspace]</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="n">members</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;apps/*&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<p>Each app keeps its own <code>pyproject.toml</code>. One shared <code>uv.lock</code> at the root. Taskfile
+namespacing provides per-app and cross-app task execution.</p>
+<p>For Rust/pyO3 extensions: <strong>maturin</strong> (the standard Python tool for building Rust
+extensions) integrates natively with pyproject.toml and uv.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li><strong>Minimal overhead</strong> — you already use uv, Taskfile, hatchling</li>
+<li>No new paradigm, no BUILD files, no Starlark</li>
+<li>pyproject.toml remains the single source of truth (PEP 621)</li>
+<li>maturin handles Rust/pyO3 natively as a build backend — mature, widely adopted</li>
+<li>pytest/mypy/ruff/coverage work exactly as they do today</li>
+<li>Release Please, pre-commit, Renovate — all work unchanged</li>
+<li>Coding agents already understand this stack</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>No build caching (tests always re-run unless you add a caching layer)</li>
+<li>No hermetic builds (relies on uv lockfile fidelity, which is high but not Bazel-grade)</li>
+<li>No dependency inference (Python imports just work — this is "normal" Python)</li>
+<li>Orchestrating "run across all apps" requires Taskfile loops (vs. Bazel's <code>//...</code>)</li>
+<li>Less structured than Bazel — discipline comes from convention, not enforcement</li>
+</ul>
+<h3 id="option-d-bazel-as-learning-sandbox-uv-for-production">Option D: Bazel as Learning Sandbox + uv for Production<a class="headerlink" href="#option-d-bazel-as-learning-sandbox-uv-for-production" title="Permanent link">&para;</a></h3>
+<p>Use Bazel in a <strong>dedicated learning branch or subdirectory</strong> to build familiarity, while
+keeping the production workflow on uv + Taskfile. Migrate to Bazel later if the scale
+justifies it.</p>
+<p><strong>Advantages:</strong></p>
+<ul>
+<li>Learning Bazel on your own codebase (realistic practice)</li>
+<li>Production stays simple and reliable</li>
+<li>No risk of Bazel complexity blocking actual app development</li>
+<li>Can incrementally Bazel-ify one app at a time</li>
+</ul>
+<p><strong>Disadvantages:</strong></p>
+<ul>
+<li>Dual maintenance during the learning period</li>
+<li>Learning in isolation may miss integration challenges</li>
+</ul>
+<h3 id="recommendation_2">Recommendation<a class="headerlink" href="#recommendation_2" title="Permanent link">&para;</a></h3>
+<p><strong>Option C (uv Workspaces + Taskfile)</strong> for production, with <strong>Option D</strong> if you want
+Bazel learning on the side. The rationale:</p>
+<ol>
+<li><strong>Scale doesn't justify Bazel/Pants</strong>: ~10 small Python apps maintained by one
+   developer. These build systems solve problems at 100+ developers / 1000+ packages.</li>
+<li><strong>Learning Bazel ≠ using Bazel for everything</strong>: Learning it on your work codebase (or
+   a dedicated sandbox) is more effective than forcing it onto a project where it adds
+   friction.</li>
+<li><strong>Rust/pyO3</strong>: maturin is the Python ecosystem's answer and integrates cleanly with
+   uv + hatchling. Bazel's pyO3 wiring is manual and fragile.</li>
+<li><strong>Build caching</strong>: If this ever becomes a bottleneck (unlikely at your scale), you can
+   add a thin caching layer (e.g., <code>pytest-cache</code>, GHA cache) without switching build
+   systems.</li>
+</ol>
+<p><strong>If Bazel learning is a priority</strong>, consider adding a <code>bazel/</code> directory with
+<code>MODULE.bazel</code> and BUILD files for one or two apps. This gives you real practice without
+forcing the entire repo through Bazel's workflow.</p>
+<hr />
+<h2 id="5-repository-structure">5. Repository Structure<a class="headerlink" href="#5-repository-structure" title="Permanent link">&para;</a></h2>
+<h3 id="proposed-layout">Proposed Layout<a class="headerlink" href="#proposed-layout" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>cosalette-apps/
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>├── .github/
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>│   ├── copilot-instructions.md
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a>│   ├── instructions/          # Agent instruction files (shared)
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a>│   ├── skills/                # Agent skills (shared)
+</span><span id="__span-3-6"><a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a>│   ├── workflows/
+</span><span id="__span-3-7"><a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a>│   │   ├── ci-detect.yml      # Change detection (path-filter)
+</span><span id="__span-3-8"><a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a>│   │   ├── ci-app.yml         # Reusable per-app CI workflow
+</span><span id="__span-3-9"><a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a>│   │   ├── docs.yml           # Documentation deployment
+</span><span id="__span-3-10"><a id="__codelineno-3-10" name="__codelineno-3-10" href="#__codelineno-3-10"></a>│   │   ├── docker-app.yml     # Reusable per-app Docker build
+</span><span id="__span-3-11"><a id="__codelineno-3-11" name="__codelineno-3-11" href="#__codelineno-3-11"></a>│   │   └── release-please.yml # Manifest-mode releases
+</span><span id="__span-3-12"><a id="__codelineno-3-12" name="__codelineno-3-12" href="#__codelineno-3-12"></a>│   └── actions/               # Composite actions (if needed)
+</span><span id="__span-3-13"><a id="__codelineno-3-13" name="__codelineno-3-13" href="#__codelineno-3-13"></a>├── apps/
+</span><span id="__span-3-14"><a id="__codelineno-3-14" name="__codelineno-3-14" href="#__codelineno-3-14"></a>│   ├── gas2mqtt/
+</span><span id="__span-3-15"><a id="__codelineno-3-15" name="__codelineno-3-15" href="#__codelineno-3-15"></a>│   │   ├── pyproject.toml     # App-specific deps, metadata, license
+</span><span id="__span-3-16"><a id="__codelineno-3-16" name="__codelineno-3-16" href="#__codelineno-3-16"></a>│   │   ├── LICENSE            # MIT
+</span><span id="__span-3-17"><a id="__codelineno-3-17" name="__codelineno-3-17" href="#__codelineno-3-17"></a>│   │   ├── Dockerfile
+</span><span id="__span-3-18"><a id="__codelineno-3-18" name="__codelineno-3-18" href="#__codelineno-3-18"></a>│   │   ├── docker-compose.yml
+</span><span id="__span-3-19"><a id="__codelineno-3-19" name="__codelineno-3-19" href="#__codelineno-3-19"></a>│   │   ├── zensical.toml      # App docs config
+</span><span id="__span-3-20"><a id="__codelineno-3-20" name="__codelineno-3-20" href="#__codelineno-3-20"></a>│   │   ├── docs/              # App documentation
+</span><span id="__span-3-21"><a id="__codelineno-3-21" name="__codelineno-3-21" href="#__codelineno-3-21"></a>│   │   ├── packages/
+</span><span id="__span-3-22"><a id="__codelineno-3-22" name="__codelineno-3-22" href="#__codelineno-3-22"></a>│   │   │   ├── src/gas2mqtt/  # Source code
+</span><span id="__span-3-23"><a id="__codelineno-3-23" name="__codelineno-3-23" href="#__codelineno-3-23"></a>│   │   │   └── tests/         # App tests
+</span><span id="__span-3-24"><a id="__codelineno-3-24" name="__codelineno-3-24" href="#__codelineno-3-24"></a>│   │   └── README.md
+</span><span id="__span-3-25"><a id="__codelineno-3-25" name="__codelineno-3-25" href="#__codelineno-3-25"></a>│   ├── jeelink2mqtt/
+</span><span id="__span-3-26"><a id="__codelineno-3-26" name="__codelineno-3-26" href="#__codelineno-3-26"></a>│   │   └── ...                # Same structure
+</span><span id="__span-3-27"><a id="__codelineno-3-27" name="__codelineno-3-27" href="#__codelineno-3-27"></a>│   └── vito2mqtt/
+</span><span id="__span-3-28"><a id="__codelineno-3-28" name="__codelineno-3-28" href="#__codelineno-3-28"></a>│       ├── pyproject.toml     # license = &quot;GPL-3.0-or-later&quot;
+</span><span id="__span-3-29"><a id="__codelineno-3-29" name="__codelineno-3-29" href="#__codelineno-3-29"></a>│       ├── LICENSE            # GPL-3.0-or-later
+</span><span id="__span-3-30"><a id="__codelineno-3-30" name="__codelineno-3-30" href="#__codelineno-3-30"></a>│       └── ...
+</span><span id="__span-3-31"><a id="__codelineno-3-31" name="__codelineno-3-31" href="#__codelineno-3-31"></a>├── taskfiles/
+</span><span id="__span-3-32"><a id="__codelineno-3-32" name="__codelineno-3-32" href="#__codelineno-3-32"></a>│   └── PythonApp.yml          # Reusable Taskfile template
+</span><span id="__span-3-33"><a id="__codelineno-3-33" name="__codelineno-3-33" href="#__codelineno-3-33"></a>├── docs/
+</span><span id="__span-3-34"><a id="__codelineno-3-34" name="__codelineno-3-34" href="#__codelineno-3-34"></a>│   ├── index.md               # Root landing page
+</span><span id="__span-3-35"><a id="__codelineno-3-35" name="__codelineno-3-35" href="#__codelineno-3-35"></a>│   ├── adr/                   # Monorepo-level ADRs
+</span><span id="__span-3-36"><a id="__codelineno-3-36" name="__codelineno-3-36" href="#__codelineno-3-36"></a>│   ├── planning/              # Deliberation docs (like this one)
+</span><span id="__span-3-37"><a id="__codelineno-3-37" name="__codelineno-3-37" href="#__codelineno-3-37"></a>│   └── testing/
+</span><span id="__span-3-38"><a id="__codelineno-3-38" name="__codelineno-3-38" href="#__codelineno-3-38"></a>├── scripts/                   # Shared scripts
+</span><span id="__span-3-39"><a id="__codelineno-3-39" name="__codelineno-3-39" href="#__codelineno-3-39"></a>├── LICENSES/
+</span><span id="__span-3-40"><a id="__codelineno-3-40" name="__codelineno-3-40" href="#__codelineno-3-40"></a>│   ├── MIT.txt
+</span><span id="__span-3-41"><a id="__codelineno-3-41" name="__codelineno-3-41" href="#__codelineno-3-41"></a>│   └── GPL-3.0-or-later.txt
+</span><span id="__span-3-42"><a id="__codelineno-3-42" name="__codelineno-3-42" href="#__codelineno-3-42"></a>├── pyproject.toml             # Workspace root (uv workspace config)
+</span><span id="__span-3-43"><a id="__codelineno-3-43" name="__codelineno-3-43" href="#__codelineno-3-43"></a>├── uv.lock                    # Single shared lockfile
+</span><span id="__span-3-44"><a id="__codelineno-3-44" name="__codelineno-3-44" href="#__codelineno-3-44"></a>├── Taskfile.yml               # Root orchestrator (includes per-app tasks)
+</span><span id="__span-3-45"><a id="__codelineno-3-45" name="__codelineno-3-45" href="#__codelineno-3-45"></a>├── REUSE.toml                 # License declarations
+</span><span id="__span-3-46"><a id="__codelineno-3-46" name="__codelineno-3-46" href="#__codelineno-3-46"></a>├── .pre-commit-config.yaml    # Shared hooks
+</span><span id="__span-3-47"><a id="__codelineno-3-47" name="__codelineno-3-47" href="#__codelineno-3-47"></a>├── .beads/                    # Issue tracking
+</span><span id="__span-3-48"><a id="__codelineno-3-48" name="__codelineno-3-48" href="#__codelineno-3-48"></a>├── AGENTS.md
+</span><span id="__span-3-49"><a id="__codelineno-3-49" name="__codelineno-3-49" href="#__codelineno-3-49"></a>├── CLAUDE.md
+</span><span id="__span-3-50"><a id="__codelineno-3-50" name="__codelineno-3-50" href="#__codelineno-3-50"></a>├── LICENSE                    # MIT (root)
+</span><span id="__span-3-51"><a id="__codelineno-3-51" name="__codelineno-3-51" href="#__codelineno-3-51"></a>└── README.md
+</span></code></pre></div>
+<h3 id="design-decisions">Design Decisions<a class="headerlink" href="#design-decisions" title="Permanent link">&para;</a></h3>
+<p><strong>Why <code>apps/</code> not <code>packages/</code>?</strong></p>
+<p>The current monorepo skeleton uses <code>packages/</code> for the copier template's single-package
+layout. Switching to <code>apps/</code> avoids confusion with the existing <code>packages/src/</code> and
+<code>packages/tests/</code> convention inside each app. The name <code>apps/</code> also clearly communicates
+that each directory is an independently deployable application, not a library.</p>
+<p><strong>Why keep <code>packages/src/</code> and <code>packages/tests/</code> inside each app?</strong></p>
+<p>This preserves the existing app structure, minimizing migration diff. Each app's internal
+layout doesn't change — only its root path in the filesystem moves.</p>
+<p><strong>Why Dockerfiles per app?</strong></p>
+<p>Each app has different base image needs (Alpine vs. slim), different system dependencies
+(I2C tools vs. serial vs. Bluetooth), and different build strategies (single-stage vs.
+multi-stage). A shared Dockerfile template would be over-abstracted.</p>
+<hr />
+<h2 id="6-dependency-management">6. Dependency Management<a class="headerlink" href="#6-dependency-management" title="Permanent link">&para;</a></h2>
+<h3 id="how-uv-workspaces-handle-dependencies">How uv Workspaces Handle Dependencies<a class="headerlink" href="#how-uv-workspaces-handle-dependencies" title="Permanent link">&para;</a></h3>
+<p><strong>Root <code>pyproject.toml</code>:</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="k">[project]</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;cosalette-apps&quot;</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="n">requires-python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&gt;=3.14&quot;</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="k">[tool.uv.workspace]</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="n">members</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;apps/*&quot;</span><span class="p">]</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="k">[build-system]</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;hatchling&quot;</span><span class="p">]</span>
+</span><span id="__span-4-11"><a id="__codelineno-4-11" name="__codelineno-4-11" href="#__codelineno-4-11"></a><span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;hatchling.build&quot;</span>
+</span></code></pre></div>
+<p><strong>Per-app <code>pyproject.toml</code> (e.g., <code>apps/gas2mqtt/pyproject.toml</code>):</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[project]</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;gas2mqtt&quot;</span>
+</span><span id="__span-5-3"><a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a><span class="n">version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span>
+</span><span id="__span-5-4"><a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="n">requires-python</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;&gt;=3.14&quot;</span>
+</span><span id="__span-5-5"><a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="n">license</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;MIT&quot;</span>
+</span><span id="__span-5-6"><a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="n">dependencies</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-5-7"><a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a><span class="w">    </span><span class="s2">&quot;cosalette&gt;=0.2.0&quot;</span><span class="p">,</span>
+</span><span id="__span-5-8"><a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">    </span><span class="s2">&quot;pydantic&gt;=2.10.0&quot;</span><span class="p">,</span>
+</span><span id="__span-5-9"><a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">    </span><span class="s2">&quot;pydantic-settings&gt;=2.6.0&quot;</span><span class="p">,</span>
+</span><span id="__span-5-10"><a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">    </span><span class="s2">&quot;smbus2&gt;=0.6.0&quot;</span><span class="p">,</span>
+</span><span id="__span-5-11"><a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="p">]</span>
+</span><span id="__span-5-12"><a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a>
+</span><span id="__span-5-13"><a id="__codelineno-5-13" name="__codelineno-5-13" href="#__codelineno-5-13"></a><span class="k">[build-system]</span>
+</span><span id="__span-5-14"><a id="__codelineno-5-14" name="__codelineno-5-14" href="#__codelineno-5-14"></a><span class="n">requires</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;hatchling&quot;</span><span class="p">]</span>
+</span><span id="__span-5-15"><a id="__codelineno-5-15" name="__codelineno-5-15" href="#__codelineno-5-15"></a><span class="n">build-backend</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;hatchling.build&quot;</span>
+</span><span id="__span-5-16"><a id="__codelineno-5-16" name="__codelineno-5-16" href="#__codelineno-5-16"></a>
+</span><span id="__span-5-17"><a id="__codelineno-5-17" name="__codelineno-5-17" href="#__codelineno-5-17"></a><span class="k">[tool.hatch.build.targets.wheel]</span>
+</span><span id="__span-5-18"><a id="__codelineno-5-18" name="__codelineno-5-18" href="#__codelineno-5-18"></a><span class="n">packages</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;packages/src/gas2mqtt&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<h3 id="shared-lockfile">Shared Lockfile<a class="headerlink" href="#shared-lockfile" title="Permanent link">&para;</a></h3>
+<p><code>uv lock</code> produces a single <code>uv.lock</code> at the workspace root. This resolves all
+dependencies for all apps simultaneously, ensuring:</p>
+<ul>
+<li>Consistent versions of shared deps (pydantic, cosalette) across all apps</li>
+<li>No "works in gas2mqtt but breaks in vito2mqtt" scenarios from version skew</li>
+<li><code>uv sync --package gas2mqtt</code> installs only gas2mqtt's deps from the shared lock</li>
+</ul>
+<h3 id="commands">Commands<a class="headerlink" href="#commands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Install all deps</td>
+<td><code>uv sync</code></td>
+</tr>
+<tr>
+<td>Install one app's deps</td>
+<td><code>uv sync --package gas2mqtt</code></td>
+</tr>
+<tr>
+<td>Run command for one app</td>
+<td><code>uv run --package gas2mqtt pytest</code></td>
+</tr>
+<tr>
+<td>Add a dep to an app</td>
+<td><code>cd apps/gas2mqtt &amp;&amp; uv add smbus2</code></td>
+</tr>
+<tr>
+<td>Lock all deps</td>
+<td><code>uv lock</code></td>
+</tr>
+</tbody>
+</table>
+<h3 id="trade-offs">Trade-offs<a class="headerlink" href="#trade-offs" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Shared Lockfile (uv workspace)</th>
+<th>Separate Lockfiles (per-app)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Consistency</td>
+<td>Guaranteed — one resolution</td>
+<td>Can drift</td>
+</tr>
+<tr>
+<td>Isolation</td>
+<td>All deps in one <code>.venv</code></td>
+<td>Per-app <code>.venv</code></td>
+</tr>
+<tr>
+<td>Lock/install speed</td>
+<td>One <code>uv lock</code>, one <code>.venv</code></td>
+<td>N locks, N <code>.venv</code>s</td>
+</tr>
+<tr>
+<td>Accidental cross-deps</td>
+<td>Possible (app A imports app B's dep)</td>
+<td>No risk</td>
+</tr>
+<tr>
+<td>Cosalette version</td>
+<td>Unified across all apps</td>
+<td>Each app pins independently</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Mitigation for accidental cross-deps:</strong> Mypy and import linting can catch this. Ruff's
+<code>I</code> rules combined with <code>known-first-party</code> per-app will flag unexpected imports. This is
+a convention-level concern, not a hard isolation need.</p>
+<h3 id="cosalette-version-unification">Cosalette Version Unification<a class="headerlink" href="#cosalette-version-unification" title="Permanent link">&para;</a></h3>
+<p>With a shared lockfile, all apps use the <strong>same cosalette version</strong>. This is actually a
+significant advantage: framework upgrades become atomic, and you can test all apps against
+the new version in one PR.</p>
+<hr />
+<h2 id="7-testing">7. Testing<a class="headerlink" href="#7-testing" title="Permanent link">&para;</a></h2>
+<h3 id="per-app-test-isolation">Per-App Test Isolation<a class="headerlink" href="#per-app-test-isolation" title="Permanent link">&para;</a></h3>
+<p>Each app keeps its own test suite in <code>apps/&lt;name&gt;/packages/tests/</code>. Tests run in the
+app's context:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-6-1"><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="c1"># Run gas2mqtt tests only</span>
+</span><span id="__span-6-2"><a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a>task<span class="w"> </span>gas2mqtt:test:unit
+</span><span id="__span-6-3"><a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+</span><span id="__span-6-4"><a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="c1"># Under the hood:</span>
+</span><span id="__span-6-5"><a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a>uv<span class="w"> </span>run<span class="w"> </span>--package<span class="w"> </span>gas2mqtt<span class="w"> </span>pytest<span class="w"> </span>apps/gas2mqtt/packages/tests/unit/<span class="w"> </span>-v
+</span></code></pre></div>
+<h3 id="shared-test-fixtures">Shared Test Fixtures<a class="headerlink" href="#shared-test-fixtures" title="Permanent link">&para;</a></h3>
+<p>The cosalette framework already provides test utilities via <code>cosalette.testing</code>:
+<code>MockMqttClient</code>, <code>FakeClock</code>, <code>NullMqttClient</code>, <code>make_settings()</code>, <code>AppHarness</code>.</p>
+<p>If apps need <strong>additional</strong> shared fixtures (e.g., common assertions, test data
+generators), these should go into cosalette itself if they're broadly applicable, or into
+a <code>shared/testing/</code> directory in the monorepo for monorepo-specific helpers.</p>
+<h3 id="coverage">Coverage<a class="headerlink" href="#coverage" title="Permanent link">&para;</a></h3>
+<p>Per-app coverage thresholds are already different (80% vs. 90%). In the monorepo:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-7-1"><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="c1"># apps/gas2mqtt/pyproject.toml</span>
+</span><span id="__span-7-2"><a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="k">[tool.coverage.run]</span>
+</span><span id="__span-7-3"><a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a><span class="n">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;packages/src/gas2mqtt&quot;</span><span class="p">]</span>
+</span><span id="__span-7-4"><a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a>
+</span><span id="__span-7-5"><a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="k">[tool.coverage.report]</span>
+</span><span id="__span-7-6"><a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="n">fail_under</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">80</span>
+</span></code></pre></div>
+<p>Each app's <code>pyproject.toml</code> continues to own its coverage config. The Taskfile runs
+coverage per-app.</p>
+<h3 id="test-discovery-with-bazel-vs-pytest">Test Discovery with Bazel vs. pytest<a class="headerlink" href="#test-discovery-with-bazel-vs-pytest" title="Permanent link">&para;</a></h3>
+<p>If you explore Bazel on the side, note that Bazel's <code>py_test</code> creates <strong>isolated
+processes per test file</strong>. This means:</p>
+<ul>
+<li><code>conftest.py</code> fixtures work only if they're in the same package</li>
+<li>Session-scoped fixtures don't share state across test files</li>
+<li>Cosalette's <code>pytest_plugins</code> registration needs to be in each test file's scope</li>
+</ul>
+<p>With uv + pytest (the production path), none of this is a concern — pytest runs naturally
+with full fixture scoping.</p>
+<hr />
+<h2 id="8-cicd">8. CI/CD<a class="headerlink" href="#8-cicd" title="Permanent link">&para;</a></h2>
+<h3 id="architecture-path-filtered-reusable-workflows">Architecture: Path-Filtered Reusable Workflows<a class="headerlink" href="#architecture-path-filtered-reusable-workflows" title="Permanent link">&para;</a></h3>
+<p>The CI strategy has three layers:</p>
+<ol>
+<li><strong>Change detection</strong> — determines which apps changed</li>
+<li><strong>Per-app CI</strong> — reusable workflow called for each affected app</li>
+<li><strong>Docker build</strong> — triggered on releases/tags for affected apps</li>
+</ol>
+<h3 id="layer-1-change-detection">Layer 1: Change Detection<a class="headerlink" href="#layer-1-change-detection" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-8-1"><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="c1"># .github/workflows/ci-detect.yml</span>
+</span><span id="__span-8-2"><a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CI</span>
+</span><span id="__span-8-3"><a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a><span class="nt">on</span><span class="p">:</span>
+</span><span id="__span-8-4"><a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">push</span><span class="p">:</span>
+</span><span id="__span-8-5"><a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">    </span><span class="nt">branches</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">main</span><span class="p p-Indicator">]</span>
+</span><span id="__span-8-6"><a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">pull_request</span><span class="p">:</span>
+</span><span id="__span-8-7"><a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a>
+</span><span id="__span-8-8"><a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="nt">jobs</span><span class="p">:</span>
+</span><span id="__span-8-9"><a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="nt">detect</span><span class="p">:</span>
+</span><span id="__span-8-10"><a id="__codelineno-8-10" name="__codelineno-8-10" href="#__codelineno-8-10"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+</span><span id="__span-8-11"><a id="__codelineno-8-11" name="__codelineno-8-11" href="#__codelineno-8-11"></a><span class="w">    </span><span class="nt">outputs</span><span class="p">:</span>
+</span><span id="__span-8-12"><a id="__codelineno-8-12" name="__codelineno-8-12" href="#__codelineno-8-12"></a><span class="w">      </span><span class="nt">matrix</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ steps.filter.outputs.changes }}</span>
+</span><span id="__span-8-13"><a id="__codelineno-8-13" name="__codelineno-8-13" href="#__codelineno-8-13"></a><span class="w">      </span><span class="nt">gas2mqtt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ steps.filter.outputs.gas2mqtt }}</span>
+</span><span id="__span-8-14"><a id="__codelineno-8-14" name="__codelineno-8-14" href="#__codelineno-8-14"></a><span class="w">      </span><span class="nt">vito2mqtt</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ steps.filter.outputs.vito2mqtt }}</span>
+</span><span id="__span-8-15"><a id="__codelineno-8-15" name="__codelineno-8-15" href="#__codelineno-8-15"></a><span class="w">      </span><span class="nt">shared</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ steps.filter.outputs.shared }}</span>
+</span><span id="__span-8-16"><a id="__codelineno-8-16" name="__codelineno-8-16" href="#__codelineno-8-16"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-8-17"><a id="__codelineno-8-17" name="__codelineno-8-17" href="#__codelineno-8-17"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v6</span>
+</span><span id="__span-8-18"><a id="__codelineno-8-18" name="__codelineno-8-18" href="#__codelineno-8-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dorny/paths-filter@v4</span>
+</span><span id="__span-8-19"><a id="__codelineno-8-19" name="__codelineno-8-19" href="#__codelineno-8-19"></a><span class="w">        </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">filter</span>
+</span><span id="__span-8-20"><a id="__codelineno-8-20" name="__codelineno-8-20" href="#__codelineno-8-20"></a><span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-8-21"><a id="__codelineno-8-21" name="__codelineno-8-21" href="#__codelineno-8-21"></a><span class="w">          </span><span class="nt">filters</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">|</span>
+</span><span id="__span-8-22"><a id="__codelineno-8-22" name="__codelineno-8-22" href="#__codelineno-8-22"></a><span class="w">            </span><span class="no">gas2mqtt:</span>
+</span><span id="__span-8-23"><a id="__codelineno-8-23" name="__codelineno-8-23" href="#__codelineno-8-23"></a><span class="w">              </span><span class="no">- &#39;apps/gas2mqtt/**&#39;</span>
+</span><span id="__span-8-24"><a id="__codelineno-8-24" name="__codelineno-8-24" href="#__codelineno-8-24"></a><span class="w">            </span><span class="no">vito2mqtt:</span>
+</span><span id="__span-8-25"><a id="__codelineno-8-25" name="__codelineno-8-25" href="#__codelineno-8-25"></a><span class="w">              </span><span class="no">- &#39;apps/vito2mqtt/**&#39;</span>
+</span><span id="__span-8-26"><a id="__codelineno-8-26" name="__codelineno-8-26" href="#__codelineno-8-26"></a><span class="w">            </span><span class="no">jeelink2mqtt:</span>
+</span><span id="__span-8-27"><a id="__codelineno-8-27" name="__codelineno-8-27" href="#__codelineno-8-27"></a><span class="w">              </span><span class="no">- &#39;apps/jeelink2mqtt/**&#39;</span>
+</span><span id="__span-8-28"><a id="__codelineno-8-28" name="__codelineno-8-28" href="#__codelineno-8-28"></a><span class="w">            </span><span class="no">shared:</span>
+</span><span id="__span-8-29"><a id="__codelineno-8-29" name="__codelineno-8-29" href="#__codelineno-8-29"></a><span class="w">              </span><span class="no">- &#39;pyproject.toml&#39;</span>
+</span><span id="__span-8-30"><a id="__codelineno-8-30" name="__codelineno-8-30" href="#__codelineno-8-30"></a><span class="w">              </span><span class="no">- &#39;uv.lock&#39;</span>
+</span><span id="__span-8-31"><a id="__codelineno-8-31" name="__codelineno-8-31" href="#__codelineno-8-31"></a><span class="w">              </span><span class="no">- &#39;.github/**&#39;</span>
+</span><span id="__span-8-32"><a id="__codelineno-8-32" name="__codelineno-8-32" href="#__codelineno-8-32"></a><span class="w">              </span><span class="no">- &#39;taskfiles/**&#39;</span>
+</span><span id="__span-8-33"><a id="__codelineno-8-33" name="__codelineno-8-33" href="#__codelineno-8-33"></a><span class="w">              </span><span class="no">- &#39;.pre-commit-config.yaml&#39;</span>
+</span></code></pre></div>
+<h3 id="layer-2-per-app-ci-reusable-workflow">Layer 2: Per-App CI (Reusable Workflow)<a class="headerlink" href="#layer-2-per-app-ci-reusable-workflow" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-9-1"><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="c1"># .github/workflows/ci-app.yml</span>
+</span><span id="__span-9-2"><a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="nt">name</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CI (per-app)</span>
+</span><span id="__span-9-3"><a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="nt">on</span><span class="p">:</span>
+</span><span id="__span-9-4"><a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">workflow_call</span><span class="p">:</span>
+</span><span id="__span-9-5"><a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a><span class="w">    </span><span class="nt">inputs</span><span class="p">:</span>
+</span><span id="__span-9-6"><a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">      </span><span class="nt">app</span><span class="p">:</span>
+</span><span id="__span-9-7"><a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">        </span><span class="nt">required</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-9-8"><a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">        </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
+</span><span id="__span-9-9"><a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a>
+</span><span id="__span-9-10"><a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a><span class="nt">concurrency</span><span class="p">:</span>
+</span><span id="__span-9-11"><a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">group</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ci-${{ inputs.app }}-${{ github.ref }}</span>
+</span><span id="__span-9-12"><a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">cancel-in-progress</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-9-13"><a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a>
+</span><span id="__span-9-14"><a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="nt">jobs</span><span class="p">:</span>
+</span><span id="__span-9-15"><a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="nt">lint</span><span class="p">:</span>
+</span><span id="__span-9-16"><a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+</span><span id="__span-9-17"><a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-9-18"><a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v6</span>
+</span><span id="__span-9-19"><a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task ${{ inputs.app }}:lint</span>
+</span><span id="__span-9-20"><a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a>
+</span><span id="__span-9-21"><a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a><span class="w">  </span><span class="nt">test</span><span class="p">:</span>
+</span><span id="__span-9-22"><a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+</span><span id="__span-9-23"><a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-9-24"><a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v6</span>
+</span><span id="__span-9-25"><a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task ${{ inputs.app }}:test:unit</span>
+</span><span id="__span-9-26"><a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a>
+</span><span id="__span-9-27"><a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="w">  </span><span class="nt">typecheck</span><span class="p">:</span>
+</span><span id="__span-9-28"><a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a><span class="w">    </span><span class="nt">runs-on</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ubuntu-latest</span>
+</span><span id="__span-9-29"><a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-9-30"><a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">actions/checkout@v6</span>
+</span><span id="__span-9-31"><a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task ${{ inputs.app }}:typecheck</span>
+</span></code></pre></div>
+<h3 id="shared-changes-trigger-all-apps">Shared Changes Trigger All Apps<a class="headerlink" href="#shared-changes-trigger-all-apps" title="Permanent link">&para;</a></h3>
+<p>When shared infrastructure changes (root configs, CI workflows, Taskfile templates),
+<strong>all</strong> apps get their CI run:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-10-1"><a id="__codelineno-10-1" name="__codelineno-10-1" href="#__codelineno-10-1"></a><span class="nt">ci-all</span><span class="p">:</span>
+</span><span id="__span-10-2"><a id="__codelineno-10-2" name="__codelineno-10-2" href="#__codelineno-10-2"></a><span class="w">  </span><span class="nt">needs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">detect</span>
+</span><span id="__span-10-3"><a id="__codelineno-10-3" name="__codelineno-10-3" href="#__codelineno-10-3"></a><span class="w">  </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">needs.detect.outputs.shared == &#39;true&#39;</span>
+</span><span id="__span-10-4"><a id="__codelineno-10-4" name="__codelineno-10-4" href="#__codelineno-10-4"></a><span class="w">  </span><span class="nt">strategy</span><span class="p">:</span>
+</span><span id="__span-10-5"><a id="__codelineno-10-5" name="__codelineno-10-5" href="#__codelineno-10-5"></a><span class="w">    </span><span class="nt">matrix</span><span class="p">:</span>
+</span><span id="__span-10-6"><a id="__codelineno-10-6" name="__codelineno-10-6" href="#__codelineno-10-6"></a><span class="w">      </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">gas2mqtt</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">vito2mqtt</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">jeelink2mqtt</span><span class="p p-Indicator">]</span>
+</span><span id="__span-10-7"><a id="__codelineno-10-7" name="__codelineno-10-7" href="#__codelineno-10-7"></a><span class="w">  </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./.github/workflows/ci-app.yml</span>
+</span><span id="__span-10-8"><a id="__codelineno-10-8" name="__codelineno-10-8" href="#__codelineno-10-8"></a><span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-10-9"><a id="__codelineno-10-9" name="__codelineno-10-9" href="#__codelineno-10-9"></a><span class="w">    </span><span class="nt">app</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">${{ matrix.app }}</span>
+</span></code></pre></div>
+<h3 id="budget-impact-github-actions-free-tier">Budget Impact (GitHub Actions Free Tier)<a class="headerlink" href="#budget-impact-github-actions-free-tier" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Scenario</th>
+<th>Minutes per PR</th>
+<th>PRs/month (est.)</th>
+<th>Total minutes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>With path filtering</strong></td>
+<td>~10-15</td>
+<td>~30</td>
+<td>~300-450</td>
+</tr>
+<tr>
+<td><strong>Without path filtering</strong></td>
+<td>~100-150</td>
+<td>~30</td>
+<td>~3000-4500</td>
+</tr>
+<tr>
+<td><strong>Free tier budget</strong></td>
+<td></td>
+<td></td>
+<td><strong>2,000</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Path filtering keeps you well within the free tier. Without it, you'd exceed the budget
+immediately.</p>
+<h3 id="docker-build-optimization">Docker Build Optimization<a class="headerlink" href="#docker-build-optimization" title="Permanent link">&para;</a></h3>
+<p>Per-app Docker builds use scoped GHA cache:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/build-push-action@v6</span>
+</span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">    </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/${{ inputs.app }}</span>
+</span><span id="__span-11-4"><a id="__codelineno-11-4" name="__codelineno-11-4" href="#__codelineno-11-4"></a><span class="w">    </span><span class="nt">cache-from</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">type=gha,scope=${{ inputs.app }}</span>
+</span><span id="__span-11-5"><a id="__codelineno-11-5" name="__codelineno-11-5" href="#__codelineno-11-5"></a><span class="w">    </span><span class="nt">cache-to</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">type=gha,mode=max,scope=${{ inputs.app }}</span>
+</span></code></pre></div>
+<p><strong>Gotcha:</strong> GHA cache has a <strong>10 GB limit per repo</strong>. With 10 apps building Docker
+images, monitor cache usage. If limits are hit, switch to registry-based caching
+(<code>type=registry</code>).</p>
+<hr />
+<h2 id="9-taskfile">9. Taskfile<a class="headerlink" href="#9-taskfile" title="Permanent link">&para;</a></h2>
+<h3 id="architecture-root-orchestrator-reusable-template">Architecture: Root Orchestrator + Reusable Template<a class="headerlink" href="#architecture-root-orchestrator-reusable-template" title="Permanent link">&para;</a></h3>
+<p>The key insight: your three repos have ~90% identical Taskfiles. In the monorepo, this
+becomes <strong>one template included multiple times</strong>.</p>
+<h3 id="reusable-template">Reusable Template<a class="headerlink" href="#reusable-template" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-12-1"><a id="__codelineno-12-1" name="__codelineno-12-1" href="#__codelineno-12-1"></a><span class="c1"># taskfiles/PythonApp.yml</span>
+</span><span id="__span-12-2"><a id="__codelineno-12-2" name="__codelineno-12-2" href="#__codelineno-12-2"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;3&#39;</span>
+</span><span id="__span-12-3"><a id="__codelineno-12-3" name="__codelineno-12-3" href="#__codelineno-12-3"></a>
+</span><span id="__span-12-4"><a id="__codelineno-12-4" name="__codelineno-12-4" href="#__codelineno-12-4"></a><span class="nt">vars</span><span class="p">:</span>
+</span><span id="__span-12-5"><a id="__codelineno-12-5" name="__codelineno-12-5" href="#__codelineno-12-5"></a><span class="w">  </span><span class="nt">APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-6"><a id="__codelineno-12-6" name="__codelineno-12-6" href="#__codelineno-12-6"></a><span class="w">  </span><span class="nt">MODULE_NAME</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{.MODULE_NAME</span><span class="nv"> </span><span class="s">|</span><span class="nv"> </span><span class="s">default</span><span class="nv"> </span><span class="s">.APP_NAME}}&#39;</span>
+</span><span id="__span-12-7"><a id="__codelineno-12-7" name="__codelineno-12-7" href="#__codelineno-12-7"></a><span class="w">  </span><span class="nt">PKG</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">packages</span>
+</span><span id="__span-12-8"><a id="__codelineno-12-8" name="__codelineno-12-8" href="#__codelineno-12-8"></a>
+</span><span id="__span-12-9"><a id="__codelineno-12-9" name="__codelineno-12-9" href="#__codelineno-12-9"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-12-10"><a id="__codelineno-12-10" name="__codelineno-12-10" href="#__codelineno-12-10"></a><span class="w">  </span><span class="nt">test:unit</span><span class="p">:</span>
+</span><span id="__span-12-11"><a id="__codelineno-12-11" name="__codelineno-12-11" href="#__codelineno-12-11"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Run</span><span class="nv"> </span><span class="s">unit</span><span class="nv"> </span><span class="s">tests</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-12"><a id="__codelineno-12-12" name="__codelineno-12-12" href="#__codelineno-12-12"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-13"><a id="__codelineno-12-13" name="__codelineno-12-13" href="#__codelineno-12-13"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ -v</span>
+</span><span id="__span-12-14"><a id="__codelineno-12-14" name="__codelineno-12-14" href="#__codelineno-12-14"></a>
+</span><span id="__span-12-15"><a id="__codelineno-12-15" name="__codelineno-12-15" href="#__codelineno-12-15"></a><span class="w">  </span><span class="nt">test:cov</span><span class="p">:</span>
+</span><span id="__span-12-16"><a id="__codelineno-12-16" name="__codelineno-12-16" href="#__codelineno-12-16"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Run</span><span class="nv"> </span><span class="s">tests</span><span class="nv"> </span><span class="s">with</span><span class="nv"> </span><span class="s">coverage</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-17"><a id="__codelineno-12-17" name="__codelineno-12-17" href="#__codelineno-12-17"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-18"><a id="__codelineno-12-18" name="__codelineno-12-18" href="#__codelineno-12-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-report=term-missing</span>
+</span><span id="__span-12-19"><a id="__codelineno-12-19" name="__codelineno-12-19" href="#__codelineno-12-19"></a>
+</span><span id="__span-12-20"><a id="__codelineno-12-20" name="__codelineno-12-20" href="#__codelineno-12-20"></a><span class="w">  </span><span class="nt">lint</span><span class="p">:</span>
+</span><span id="__span-12-21"><a id="__codelineno-12-21" name="__codelineno-12-21" href="#__codelineno-12-21"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Lint</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-22"><a id="__codelineno-12-22" name="__codelineno-12-22" href="#__codelineno-12-22"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-23"><a id="__codelineno-12-23" name="__codelineno-12-23" href="#__codelineno-12-23"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/</span>
+</span><span id="__span-12-24"><a id="__codelineno-12-24" name="__codelineno-12-24" href="#__codelineno-12-24"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/</span>
+</span><span id="__span-12-25"><a id="__codelineno-12-25" name="__codelineno-12-25" href="#__codelineno-12-25"></a>
+</span><span id="__span-12-26"><a id="__codelineno-12-26" name="__codelineno-12-26" href="#__codelineno-12-26"></a><span class="w">  </span><span class="nt">lint:fix</span><span class="p">:</span>
+</span><span id="__span-12-27"><a id="__codelineno-12-27" name="__codelineno-12-27" href="#__codelineno-12-27"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Fix</span><span class="nv"> </span><span class="s">lint</span><span class="nv"> </span><span class="s">issues</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-28"><a id="__codelineno-12-28" name="__codelineno-12-28" href="#__codelineno-12-28"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-29"><a id="__codelineno-12-29" name="__codelineno-12-29" href="#__codelineno-12-29"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/</span>
+</span><span id="__span-12-30"><a id="__codelineno-12-30" name="__codelineno-12-30" href="#__codelineno-12-30"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/</span>
+</span><span id="__span-12-31"><a id="__codelineno-12-31" name="__codelineno-12-31" href="#__codelineno-12-31"></a>
+</span><span id="__span-12-32"><a id="__codelineno-12-32" name="__codelineno-12-32" href="#__codelineno-12-32"></a><span class="w">  </span><span class="nt">typecheck</span><span class="p">:</span>
+</span><span id="__span-12-33"><a id="__codelineno-12-33" name="__codelineno-12-33" href="#__codelineno-12-33"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Type</span><span class="nv"> </span><span class="s">check</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-34"><a id="__codelineno-12-34" name="__codelineno-12-34" href="#__codelineno-12-34"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-35"><a id="__codelineno-12-35" name="__codelineno-12-35" href="#__codelineno-12-35"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run mypy {{.PKG}}/src/</span>
+</span><span id="__span-12-36"><a id="__codelineno-12-36" name="__codelineno-12-36" href="#__codelineno-12-36"></a>
+</span><span id="__span-12-37"><a id="__codelineno-12-37" name="__codelineno-12-37" href="#__codelineno-12-37"></a><span class="w">  </span><span class="nt">docs:serve</span><span class="p">:</span>
+</span><span id="__span-12-38"><a id="__codelineno-12-38" name="__codelineno-12-38" href="#__codelineno-12-38"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Preview</span><span class="nv"> </span><span class="s">docs</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-39"><a id="__codelineno-12-39" name="__codelineno-12-39" href="#__codelineno-12-39"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-40"><a id="__codelineno-12-40" name="__codelineno-12-40" href="#__codelineno-12-40"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run zensical serve</span>
+</span><span id="__span-12-41"><a id="__codelineno-12-41" name="__codelineno-12-41" href="#__codelineno-12-41"></a>
+</span><span id="__span-12-42"><a id="__codelineno-12-42" name="__codelineno-12-42" href="#__codelineno-12-42"></a><span class="w">  </span><span class="nt">docs:build</span><span class="p">:</span>
+</span><span id="__span-12-43"><a id="__codelineno-12-43" name="__codelineno-12-43" href="#__codelineno-12-43"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Build</span><span class="nv"> </span><span class="s">docs</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">{{.APP_NAME}}&#39;</span>
+</span><span id="__span-12-44"><a id="__codelineno-12-44" name="__codelineno-12-44" href="#__codelineno-12-44"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-12-45"><a id="__codelineno-12-45" name="__codelineno-12-45" href="#__codelineno-12-45"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run zensical build</span>
+</span></code></pre></div>
+<h3 id="root-taskfile">Root Taskfile<a class="headerlink" href="#root-taskfile" title="Permanent link">&para;</a></h3>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-13-1"><a id="__codelineno-13-1" name="__codelineno-13-1" href="#__codelineno-13-1"></a><span class="c1"># Taskfile.yml (root)</span>
+</span><span id="__span-13-2"><a id="__codelineno-13-2" name="__codelineno-13-2" href="#__codelineno-13-2"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;3&#39;</span>
+</span><span id="__span-13-3"><a id="__codelineno-13-3" name="__codelineno-13-3" href="#__codelineno-13-3"></a>
+</span><span id="__span-13-4"><a id="__codelineno-13-4" name="__codelineno-13-4" href="#__codelineno-13-4"></a><span class="nt">vars</span><span class="p">:</span>
+</span><span id="__span-13-5"><a id="__codelineno-13-5" name="__codelineno-13-5" href="#__codelineno-13-5"></a><span class="w">  </span><span class="nt">APPS</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">[</span><span class="nv">gas2mqtt</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">jeelink2mqtt</span><span class="p p-Indicator">,</span><span class="w"> </span><span class="nv">vito2mqtt</span><span class="p p-Indicator">]</span>
+</span><span id="__span-13-6"><a id="__codelineno-13-6" name="__codelineno-13-6" href="#__codelineno-13-6"></a>
+</span><span id="__span-13-7"><a id="__codelineno-13-7" name="__codelineno-13-7" href="#__codelineno-13-7"></a><span class="nt">includes</span><span class="p">:</span>
+</span><span id="__span-13-8"><a id="__codelineno-13-8" name="__codelineno-13-8" href="#__codelineno-13-8"></a><span class="w">  </span><span class="nt">gas2mqtt</span><span class="p">:</span>
+</span><span id="__span-13-9"><a id="__codelineno-13-9" name="__codelineno-13-9" href="#__codelineno-13-9"></a><span class="w">    </span><span class="nt">taskfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./taskfiles/PythonApp.yml</span>
+</span><span id="__span-13-10"><a id="__codelineno-13-10" name="__codelineno-13-10" href="#__codelineno-13-10"></a><span class="w">    </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./apps/gas2mqtt</span>
+</span><span id="__span-13-11"><a id="__codelineno-13-11" name="__codelineno-13-11" href="#__codelineno-13-11"></a><span class="w">    </span><span class="nt">vars</span><span class="p">:</span>
+</span><span id="__span-13-12"><a id="__codelineno-13-12" name="__codelineno-13-12" href="#__codelineno-13-12"></a><span class="w">      </span><span class="nt">APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gas2mqtt</span>
+</span><span id="__span-13-13"><a id="__codelineno-13-13" name="__codelineno-13-13" href="#__codelineno-13-13"></a><span class="w">  </span><span class="nt">jeelink2mqtt</span><span class="p">:</span>
+</span><span id="__span-13-14"><a id="__codelineno-13-14" name="__codelineno-13-14" href="#__codelineno-13-14"></a><span class="w">    </span><span class="nt">taskfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./taskfiles/PythonApp.yml</span>
+</span><span id="__span-13-15"><a id="__codelineno-13-15" name="__codelineno-13-15" href="#__codelineno-13-15"></a><span class="w">    </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./apps/jeelink2mqtt</span>
+</span><span id="__span-13-16"><a id="__codelineno-13-16" name="__codelineno-13-16" href="#__codelineno-13-16"></a><span class="w">    </span><span class="nt">vars</span><span class="p">:</span>
+</span><span id="__span-13-17"><a id="__codelineno-13-17" name="__codelineno-13-17" href="#__codelineno-13-17"></a><span class="w">      </span><span class="nt">APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">jeelink2mqtt</span>
+</span><span id="__span-13-18"><a id="__codelineno-13-18" name="__codelineno-13-18" href="#__codelineno-13-18"></a><span class="w">  </span><span class="nt">vito2mqtt</span><span class="p">:</span>
+</span><span id="__span-13-19"><a id="__codelineno-13-19" name="__codelineno-13-19" href="#__codelineno-13-19"></a><span class="w">    </span><span class="nt">taskfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./taskfiles/PythonApp.yml</span>
+</span><span id="__span-13-20"><a id="__codelineno-13-20" name="__codelineno-13-20" href="#__codelineno-13-20"></a><span class="w">    </span><span class="nt">dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./apps/vito2mqtt</span>
+</span><span id="__span-13-21"><a id="__codelineno-13-21" name="__codelineno-13-21" href="#__codelineno-13-21"></a><span class="w">    </span><span class="nt">vars</span><span class="p">:</span>
+</span><span id="__span-13-22"><a id="__codelineno-13-22" name="__codelineno-13-22" href="#__codelineno-13-22"></a><span class="w">      </span><span class="nt">APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vito2mqtt</span>
+</span><span id="__span-13-23"><a id="__codelineno-13-23" name="__codelineno-13-23" href="#__codelineno-13-23"></a>
+</span><span id="__span-13-24"><a id="__codelineno-13-24" name="__codelineno-13-24" href="#__codelineno-13-24"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-13-25"><a id="__codelineno-13-25" name="__codelineno-13-25" href="#__codelineno-13-25"></a><span class="w">  </span><span class="nt">test:all</span><span class="p">:</span>
+</span><span id="__span-13-26"><a id="__codelineno-13-26" name="__codelineno-13-26" href="#__codelineno-13-26"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Run</span><span class="nv"> </span><span class="s">tests</span><span class="nv"> </span><span class="s">for</span><span class="nv"> </span><span class="s">all</span><span class="nv"> </span><span class="s">apps&#39;</span>
+</span><span id="__span-13-27"><a id="__codelineno-13-27" name="__codelineno-13-27" href="#__codelineno-13-27"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-13-28"><a id="__codelineno-13-28" name="__codelineno-13-28" href="#__codelineno-13-28"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> var</span><span class="p">:</span><span class="w"> </span><span class="nv">APPS</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</span><span id="__span-13-29"><a id="__codelineno-13-29" name="__codelineno-13-29" href="#__codelineno-13-29"></a><span class="w">        </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{.ITEM}}:test:unit&#39;</span>
+</span><span id="__span-13-30"><a id="__codelineno-13-30" name="__codelineno-13-30" href="#__codelineno-13-30"></a>
+</span><span id="__span-13-31"><a id="__codelineno-13-31" name="__codelineno-13-31" href="#__codelineno-13-31"></a><span class="w">  </span><span class="nt">lint:all</span><span class="p">:</span>
+</span><span id="__span-13-32"><a id="__codelineno-13-32" name="__codelineno-13-32" href="#__codelineno-13-32"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Lint</span><span class="nv"> </span><span class="s">all</span><span class="nv"> </span><span class="s">apps&#39;</span>
+</span><span id="__span-13-33"><a id="__codelineno-13-33" name="__codelineno-13-33" href="#__codelineno-13-33"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-13-34"><a id="__codelineno-13-34" name="__codelineno-13-34" href="#__codelineno-13-34"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> var</span><span class="p">:</span><span class="w"> </span><span class="nv">APPS</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</span><span id="__span-13-35"><a id="__codelineno-13-35" name="__codelineno-13-35" href="#__codelineno-13-35"></a><span class="w">        </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{.ITEM}}:lint&#39;</span>
+</span><span id="__span-13-36"><a id="__codelineno-13-36" name="__codelineno-13-36" href="#__codelineno-13-36"></a>
+</span><span id="__span-13-37"><a id="__codelineno-13-37" name="__codelineno-13-37" href="#__codelineno-13-37"></a><span class="w">  </span><span class="nt">typecheck:all</span><span class="p">:</span>
+</span><span id="__span-13-38"><a id="__codelineno-13-38" name="__codelineno-13-38" href="#__codelineno-13-38"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Type</span><span class="nv"> </span><span class="s">check</span><span class="nv"> </span><span class="s">all</span><span class="nv"> </span><span class="s">apps&#39;</span>
+</span><span id="__span-13-39"><a id="__codelineno-13-39" name="__codelineno-13-39" href="#__codelineno-13-39"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-13-40"><a id="__codelineno-13-40" name="__codelineno-13-40" href="#__codelineno-13-40"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">for</span><span class="p">:</span><span class="w"> </span><span class="p p-Indicator">{</span><span class="nt"> var</span><span class="p">:</span><span class="w"> </span><span class="nv">APPS</span><span class="w"> </span><span class="p p-Indicator">}</span>
+</span><span id="__span-13-41"><a id="__codelineno-13-41" name="__codelineno-13-41" href="#__codelineno-13-41"></a><span class="w">        </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;{{.ITEM}}:typecheck&#39;</span>
+</span><span id="__span-13-42"><a id="__codelineno-13-42" name="__codelineno-13-42" href="#__codelineno-13-42"></a>
+</span><span id="__span-13-43"><a id="__codelineno-13-43" name="__codelineno-13-43" href="#__codelineno-13-43"></a><span class="w">  </span><span class="nt">pre-pr</span><span class="p">:</span>
+</span><span id="__span-13-44"><a id="__codelineno-13-44" name="__codelineno-13-44" href="#__codelineno-13-44"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Run</span><span class="nv"> </span><span class="s">all</span><span class="nv"> </span><span class="s">quality</span><span class="nv"> </span><span class="s">gates&#39;</span>
+</span><span id="__span-13-45"><a id="__codelineno-13-45" name="__codelineno-13-45" href="#__codelineno-13-45"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-13-46"><a id="__codelineno-13-46" name="__codelineno-13-46" href="#__codelineno-13-46"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">lint:all</span>
+</span><span id="__span-13-47"><a id="__codelineno-13-47" name="__codelineno-13-47" href="#__codelineno-13-47"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">typecheck:all</span>
+</span><span id="__span-13-48"><a id="__codelineno-13-48" name="__codelineno-13-48" href="#__codelineno-13-48"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">task</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">test:all</span>
+</span></code></pre></div>
+<h3 id="per-app-task-overrides">Per-App Task Overrides<a class="headerlink" href="#per-app-task-overrides" title="Permanent link">&para;</a></h3>
+<p>If an app needs tasks beyond the template (e.g., <code>complexity</code>, <code>similarity</code>), it can have
+its own <code>Taskfile.yml</code> in <code>apps/&lt;name&gt;/</code> that includes the template and adds extras:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-14-1"><a id="__codelineno-14-1" name="__codelineno-14-1" href="#__codelineno-14-1"></a><span class="c1"># apps/gas2mqtt/Taskfile.yml (optional override)</span>
+</span><span id="__span-14-2"><a id="__codelineno-14-2" name="__codelineno-14-2" href="#__codelineno-14-2"></a><span class="nt">version</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;3&#39;</span>
+</span><span id="__span-14-3"><a id="__codelineno-14-3" name="__codelineno-14-3" href="#__codelineno-14-3"></a><span class="nt">includes</span><span class="p">:</span>
+</span><span id="__span-14-4"><a id="__codelineno-14-4" name="__codelineno-14-4" href="#__codelineno-14-4"></a><span class="w">  </span><span class="nt">_base</span><span class="p">:</span>
+</span><span id="__span-14-5"><a id="__codelineno-14-5" name="__codelineno-14-5" href="#__codelineno-14-5"></a><span class="w">    </span><span class="nt">taskfile</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">../../taskfiles/PythonApp.yml</span>
+</span><span id="__span-14-6"><a id="__codelineno-14-6" name="__codelineno-14-6" href="#__codelineno-14-6"></a><span class="w">    </span><span class="nt">vars</span><span class="p">:</span>
+</span><span id="__span-14-7"><a id="__codelineno-14-7" name="__codelineno-14-7" href="#__codelineno-14-7"></a><span class="w">      </span><span class="nt">APP_NAME</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gas2mqtt</span>
+</span><span id="__span-14-8"><a id="__codelineno-14-8" name="__codelineno-14-8" href="#__codelineno-14-8"></a>
+</span><span id="__span-14-9"><a id="__codelineno-14-9" name="__codelineno-14-9" href="#__codelineno-14-9"></a><span class="nt">tasks</span><span class="p">:</span>
+</span><span id="__span-14-10"><a id="__codelineno-14-10" name="__codelineno-14-10" href="#__codelineno-14-10"></a><span class="w">  </span><span class="nt">complexity</span><span class="p">:</span>
+</span><span id="__span-14-11"><a id="__codelineno-14-11" name="__codelineno-14-11" href="#__codelineno-14-11"></a><span class="w">    </span><span class="nt">desc</span><span class="p">:</span><span class="w"> </span><span class="s">&#39;Run</span><span class="nv"> </span><span class="s">complexity</span><span class="nv"> </span><span class="s">analysis&#39;</span>
+</span><span id="__span-14-12"><a id="__codelineno-14-12" name="__codelineno-14-12" href="#__codelineno-14-12"></a><span class="w">    </span><span class="nt">cmds</span><span class="p">:</span>
+</span><span id="__span-14-13"><a id="__codelineno-14-13" name="__codelineno-14-13" href="#__codelineno-14-13"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">uv run radon cc packages/src/ -a -nc</span>
+</span></code></pre></div>
+<p>The root Taskfile then includes the app's own Taskfile instead of the template directly.</p>
+<h3 id="invocation-examples">Invocation Examples<a class="headerlink" href="#invocation-examples" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-15-1"><a id="__codelineno-15-1" name="__codelineno-15-1" href="#__codelineno-15-1"></a>task<span class="w"> </span>gas2mqtt:test:unit<span class="w">      </span><span class="c1"># One app&#39;s tests</span>
+</span><span id="__span-15-2"><a id="__codelineno-15-2" name="__codelineno-15-2" href="#__codelineno-15-2"></a>task<span class="w"> </span>gas2mqtt:lint<span class="w">            </span><span class="c1"># One app&#39;s lint</span>
+</span><span id="__span-15-3"><a id="__codelineno-15-3" name="__codelineno-15-3" href="#__codelineno-15-3"></a>task<span class="w"> </span>test:all<span class="w">                 </span><span class="c1"># All apps&#39; tests</span>
+</span><span id="__span-15-4"><a id="__codelineno-15-4" name="__codelineno-15-4" href="#__codelineno-15-4"></a>task<span class="w"> </span>pre-pr<span class="w">                   </span><span class="c1"># Full quality gate</span>
+</span><span id="__span-15-5"><a id="__codelineno-15-5" name="__codelineno-15-5" href="#__codelineno-15-5"></a>task<span class="w"> </span>vito2mqtt:docs:serve<span class="w">     </span><span class="c1"># Preview one app&#39;s docs</span>
+</span></code></pre></div>
+<hr />
+<h2 id="10-environment-tooling">10. Environment &amp; Tooling<a class="headerlink" href="#10-environment-tooling" title="Permanent link">&para;</a></h2>
+<h3 id="linter-formatter-configuration">Linter &amp; Formatter Configuration<a class="headerlink" href="#linter-formatter-configuration" title="Permanent link">&para;</a></h3>
+<p><strong>Shared (root <code>pyproject.toml</code>):</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-16-1"><a id="__codelineno-16-1" name="__codelineno-16-1" href="#__codelineno-16-1"></a><span class="k">[tool.ruff]</span>
+</span><span id="__span-16-2"><a id="__codelineno-16-2" name="__codelineno-16-2" href="#__codelineno-16-2"></a><span class="n">target-version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;py314&quot;</span>
+</span><span id="__span-16-3"><a id="__codelineno-16-3" name="__codelineno-16-3" href="#__codelineno-16-3"></a><span class="n">line-length</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mi">88</span>
+</span><span id="__span-16-4"><a id="__codelineno-16-4" name="__codelineno-16-4" href="#__codelineno-16-4"></a>
+</span><span id="__span-16-5"><a id="__codelineno-16-5" name="__codelineno-16-5" href="#__codelineno-16-5"></a><span class="k">[tool.ruff.lint]</span>
+</span><span id="__span-16-6"><a id="__codelineno-16-6" name="__codelineno-16-6" href="#__codelineno-16-6"></a><span class="n">select</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;E&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;W&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;F&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;B&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;I&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;C4&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;UP&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;SIM&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;ARG&quot;</span><span class="p">]</span>
+</span><span id="__span-16-7"><a id="__codelineno-16-7" name="__codelineno-16-7" href="#__codelineno-16-7"></a>
+</span><span id="__span-16-8"><a id="__codelineno-16-8" name="__codelineno-16-8" href="#__codelineno-16-8"></a><span class="k">[tool.ruff.lint.per-file-ignores]</span>
+</span><span id="__span-16-9"><a id="__codelineno-16-9" name="__codelineno-16-9" href="#__codelineno-16-9"></a><span class="s2">&quot;**/tests/**&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ARG&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;F841&quot;</span><span class="p">]</span>
+</span><span id="__span-16-10"><a id="__codelineno-16-10" name="__codelineno-16-10" href="#__codelineno-16-10"></a><span class="s2">&quot;**/adapters/protocol.py&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;ARG001&quot;</span><span class="p">]</span>
+</span><span id="__span-16-11"><a id="__codelineno-16-11" name="__codelineno-16-11" href="#__codelineno-16-11"></a><span class="s2">&quot;**/__init__.py&quot;</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;F401&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;E402&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<p><strong>Per-app (app <code>pyproject.toml</code>):</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-17-1"><a id="__codelineno-17-1" name="__codelineno-17-1" href="#__codelineno-17-1"></a><span class="k">[tool.ruff.lint.isort]</span>
+</span><span id="__span-17-2"><a id="__codelineno-17-2" name="__codelineno-17-2" href="#__codelineno-17-2"></a><span class="n">known-first-party</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;gas2mqtt&quot;</span><span class="p">]</span>
+</span></code></pre></div>
+<p>Ruff reads config from the closest <code>pyproject.toml</code>, so per-app overrides
+work naturally when running ruff from the app directory.</p>
+<h3 id="mypy-configuration">mypy Configuration<a class="headerlink" href="#mypy-configuration" title="Permanent link">&para;</a></h3>
+<p><strong>Shared (root):</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-18-1"><a id="__codelineno-18-1" name="__codelineno-18-1" href="#__codelineno-18-1"></a><span class="k">[tool.mypy]</span>
+</span><span id="__span-18-2"><a id="__codelineno-18-2" name="__codelineno-18-2" href="#__codelineno-18-2"></a><span class="n">python_version</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;3.14&quot;</span>
+</span><span id="__span-18-3"><a id="__codelineno-18-3" name="__codelineno-18-3" href="#__codelineno-18-3"></a><span class="n">strict</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-18-4"><a id="__codelineno-18-4" name="__codelineno-18-4" href="#__codelineno-18-4"></a><span class="n">warn_return_any</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-18-5"><a id="__codelineno-18-5" name="__codelineno-18-5" href="#__codelineno-18-5"></a><span class="n">warn_unused_ignores</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span><span id="__span-18-6"><a id="__codelineno-18-6" name="__codelineno-18-6" href="#__codelineno-18-6"></a><span class="n">disallow_untyped_defs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span></code></pre></div>
+<p><strong>Per-app overrides (app <code>pyproject.toml</code>):</strong></p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-19-1"><a id="__codelineno-19-1" name="__codelineno-19-1" href="#__codelineno-19-1"></a><span class="k">[[tool.mypy.overrides]]</span>
+</span><span id="__span-19-2"><a id="__codelineno-19-2" name="__codelineno-19-2" href="#__codelineno-19-2"></a><span class="n">module</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;gas2mqtt._version&quot;</span>
+</span><span id="__span-19-3"><a id="__codelineno-19-3" name="__codelineno-19-3" href="#__codelineno-19-3"></a><span class="n">ignore_missing_imports</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="kc">true</span>
+</span></code></pre></div>
+<p>When mypy runs per-app via Taskfile (which sets <code>dir</code> to the app directory), it picks up
+the app-level config.</p>
+<h3 id="pre-commit-hooks">Pre-commit Hooks<a class="headerlink" href="#pre-commit-hooks" title="Permanent link">&para;</a></h3>
+<p>One <code>.pre-commit-config.yaml</code> at the root. Hooks run on <strong>staged files only</strong> — natural
+per-change scoping, no performance concern at 10 apps.</p>
+<p><strong>Special cases:</strong></p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-20-1"><a id="__codelineno-20-1" name="__codelineno-20-1" href="#__codelineno-20-1"></a><span class="c1"># REUSE compliance (handles license annotations for all apps)</span>
+</span><span id="__span-20-2"><a id="__codelineno-20-2" name="__codelineno-20-2" href="#__codelineno-20-2"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/fsfe/reuse-tool</span>
+</span><span id="__span-20-3"><a id="__codelineno-20-3" name="__codelineno-20-3" href="#__codelineno-20-3"></a><span class="w">  </span><span class="nt">hooks</span><span class="p">:</span>
+</span><span id="__span-20-4"><a id="__codelineno-20-4" name="__codelineno-20-4" href="#__codelineno-20-4"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">reuse</span>
+</span><span id="__span-20-5"><a id="__codelineno-20-5" name="__codelineno-20-5" href="#__codelineno-20-5"></a>
+</span><span id="__span-20-6"><a id="__codelineno-20-6" name="__codelineno-20-6" href="#__codelineno-20-6"></a><span class="c1"># Ruff (runs on changed Python files, picks up closest pyproject.toml)</span>
+</span><span id="__span-20-7"><a id="__codelineno-20-7" name="__codelineno-20-7" href="#__codelineno-20-7"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">repo</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">https://github.com/astral-sh/ruff-pre-commit</span>
+</span><span id="__span-20-8"><a id="__codelineno-20-8" name="__codelineno-20-8" href="#__codelineno-20-8"></a><span class="w">  </span><span class="nt">hooks</span><span class="p">:</span>
+</span><span id="__span-20-9"><a id="__codelineno-20-9" name="__codelineno-20-9" href="#__codelineno-20-9"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ruff</span>
+</span><span id="__span-20-10"><a id="__codelineno-20-10" name="__codelineno-20-10" href="#__codelineno-20-10"></a><span class="w">    </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ruff-format</span>
+</span></code></pre></div>
+<p>mypy in pre-commit is trickier — it needs per-app context. Two options:</p>
+<ol>
+<li><strong>Per-app mypy hooks</strong> (verbose but explicit): one hook per app with <code>files:</code> filter</li>
+<li><strong>Skip mypy in pre-commit, run via Taskfile only</strong> (simpler): add mypy to <code>task
+   pre-pr</code> but not pre-commit. This is pragmatic given mypy's slowness.</li>
+</ol>
+<h3 id="editor-settings">Editor Settings<a class="headerlink" href="#editor-settings" title="Permanent link">&para;</a></h3>
+<p>One <code>.vscode/settings.json</code> (or <code>.editorconfig</code>) at the root. pyright/pylance config via
+the root <code>pyrightconfig.json</code> with <code>extraPaths</code> pointing to all apps:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-21-1"><a id="__codelineno-21-1" name="__codelineno-21-1" href="#__codelineno-21-1"></a><span class="p">{</span>
+</span><span id="__span-21-2"><a id="__codelineno-21-2" name="__codelineno-21-2" href="#__codelineno-21-2"></a><span class="w">  </span><span class="nt">&quot;extraPaths&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span><span class="s2">&quot;apps/gas2mqtt/packages/src&quot;</span><span class="p">,</span><span class="w"> </span><span class="s2">&quot;apps/vito2mqtt/packages/src&quot;</span><span class="p">],</span>
+</span><span id="__span-21-3"><a id="__codelineno-21-3" name="__codelineno-21-3" href="#__codelineno-21-3"></a><span class="w">  </span><span class="nt">&quot;venvPath&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;.&quot;</span><span class="p">,</span>
+</span><span id="__span-21-4"><a id="__codelineno-21-4" name="__codelineno-21-4" href="#__codelineno-21-4"></a><span class="w">  </span><span class="nt">&quot;venv&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;.venv&quot;</span><span class="p">,</span>
+</span><span id="__span-21-5"><a id="__codelineno-21-5" name="__codelineno-21-5" href="#__codelineno-21-5"></a><span class="w">  </span><span class="nt">&quot;pythonVersion&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;3.14&quot;</span>
+</span><span id="__span-21-6"><a id="__codelineno-21-6" name="__codelineno-21-6" href="#__codelineno-21-6"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="virtual-environments">Virtual Environments<a class="headerlink" href="#virtual-environments" title="Permanent link">&para;</a></h3>
+<p>uv workspaces use a <strong>single shared <code>.venv</code></strong> at the root. All app dependencies are
+installed together. This is simpler than per-app venvs and matches the shared lockfile
+model.</p>
+<h3 id="beads-issue-tracking">Beads Issue Tracking<a class="headerlink" href="#beads-issue-tracking" title="Permanent link">&para;</a></h3>
+<p><strong>Single <code>.beads/</code></strong> at the repo root with naming conventions for per-app scoping:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-22-1"><a id="__codelineno-22-1" name="__codelineno-22-1" href="#__codelineno-22-1"></a>bd<span class="w"> </span>create<span class="w"> </span><span class="s2">&quot;gas2mqtt: Add calibration mode&quot;</span><span class="w"> </span>--type<span class="w"> </span>task<span class="w"> </span>--priority<span class="w"> </span><span class="m">2</span>
+</span><span id="__span-22-2"><a id="__codelineno-22-2" name="__codelineno-22-2" href="#__codelineno-22-2"></a>bd<span class="w"> </span>create<span class="w"> </span><span class="s2">&quot;vito2mqtt: Fix optolink timeout&quot;</span><span class="w"> </span>--type<span class="w"> </span>task<span class="w"> </span>--priority<span class="w"> </span><span class="m">1</span>
+</span></code></pre></div>
+<p>Use title prefixes (<code>gas2mqtt:</code>, <code>vito2mqtt:</code>) and epics per-app for grouping. One
+<code>bd ready</code> gives visibility across all apps — valuable for a solo developer.</p>
+<hr />
+<h2 id="11-documentation">11. Documentation<a class="headerlink" href="#11-documentation" title="Permanent link">&para;</a></h2>
+<h3 id="goal">Goal<a class="headerlink" href="#goal" title="Permanent link">&para;</a></h3>
+<p><code>ff-fab.github.io/cosalette-apps/</code> with a root landing page and per-app subpath docs:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-23-1"><a id="__codelineno-23-1" name="__codelineno-23-1" href="#__codelineno-23-1"></a>ff-fab.github.io/cosalette-apps/           → Landing page (app directory, links)
+</span><span id="__span-23-2"><a id="__codelineno-23-2" name="__codelineno-23-2" href="#__codelineno-23-2"></a>ff-fab.github.io/cosalette-apps/gas2mqtt/   → gas2mqtt docs (full Zensical site)
+</span><span id="__span-23-3"><a id="__codelineno-23-3" name="__codelineno-23-3" href="#__codelineno-23-3"></a>ff-fab.github.io/cosalette-apps/vito2mqtt/  → vito2mqtt docs (full Zensical site)
+</span></code></pre></div>
+<h3 id="architecture">Architecture<a class="headerlink" href="#architecture" title="Permanent link">&para;</a></h3>
+<p>Each app keeps its own <code>zensical.toml</code> with updated <code>site_url</code>:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-24-1"><a id="__codelineno-24-1" name="__codelineno-24-1" href="#__codelineno-24-1"></a><span class="c1"># apps/gas2mqtt/zensical.toml</span>
+</span><span id="__span-24-2"><a id="__codelineno-24-2" name="__codelineno-24-2" href="#__codelineno-24-2"></a><span class="k">[project]</span>
+</span><span id="__span-24-3"><a id="__codelineno-24-3" name="__codelineno-24-3" href="#__codelineno-24-3"></a><span class="n">site_name</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;gas2mqtt&quot;</span>
+</span><span id="__span-24-4"><a id="__codelineno-24-4" name="__codelineno-24-4" href="#__codelineno-24-4"></a><span class="n">site_url</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;https://ff-fab.github.io/cosalette-apps/gas2mqtt/&quot;</span>
+</span></code></pre></div>
+<p>The root gets a minimal docs site (single-page or a few pages) linking to all apps.</p>
+<h3 id="deployment-workflow">Deployment Workflow<a class="headerlink" href="#deployment-workflow" title="Permanent link">&para;</a></h3>
+<p>GitHub Pages supports one source per repo. Use <code>peaceiris/actions-gh-pages</code> with
+<code>destination_dir</code> to deploy each app's docs to a subpath:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-25-1"><a id="__codelineno-25-1" name="__codelineno-25-1" href="#__codelineno-25-1"></a><span class="c1"># .github/workflows/docs.yml</span>
+</span><span id="__span-25-2"><a id="__codelineno-25-2" name="__codelineno-25-2" href="#__codelineno-25-2"></a><span class="nt">jobs</span><span class="p">:</span>
+</span><span id="__span-25-3"><a id="__codelineno-25-3" name="__codelineno-25-3" href="#__codelineno-25-3"></a><span class="w">  </span><span class="nt">detect</span><span class="p">:</span>
+</span><span id="__span-25-4"><a id="__codelineno-25-4" name="__codelineno-25-4" href="#__codelineno-25-4"></a><span class="w">    </span><span class="c1"># dorny/paths-filter for apps/&lt;name&gt;/docs/** changes</span>
+</span><span id="__span-25-5"><a id="__codelineno-25-5" name="__codelineno-25-5" href="#__codelineno-25-5"></a>
+</span><span id="__span-25-6"><a id="__codelineno-25-6" name="__codelineno-25-6" href="#__codelineno-25-6"></a><span class="w">  </span><span class="nt">deploy-root</span><span class="p">:</span>
+</span><span id="__span-25-7"><a id="__codelineno-25-7" name="__codelineno-25-7" href="#__codelineno-25-7"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-25-8"><a id="__codelineno-25-8" name="__codelineno-25-8" href="#__codelineno-25-8"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task docs:build</span><span class="w">  </span><span class="c1"># builds root site</span>
+</span><span id="__span-25-9"><a id="__codelineno-25-9" name="__codelineno-25-9" href="#__codelineno-25-9"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">peaceiris/actions-gh-pages@v4</span>
+</span><span id="__span-25-10"><a id="__codelineno-25-10" name="__codelineno-25-10" href="#__codelineno-25-10"></a><span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-25-11"><a id="__codelineno-25-11" name="__codelineno-25-11" href="#__codelineno-25-11"></a><span class="w">          </span><span class="nt">publish_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./site</span>
+</span><span id="__span-25-12"><a id="__codelineno-25-12" name="__codelineno-25-12" href="#__codelineno-25-12"></a><span class="w">          </span><span class="nt">keep_files</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span><span class="w">  </span><span class="c1"># Don&#39;t delete other apps&#39; docs</span>
+</span><span id="__span-25-13"><a id="__codelineno-25-13" name="__codelineno-25-13" href="#__codelineno-25-13"></a>
+</span><span id="__span-25-14"><a id="__codelineno-25-14" name="__codelineno-25-14" href="#__codelineno-25-14"></a><span class="w">  </span><span class="nt">deploy-gas2mqtt</span><span class="p">:</span>
+</span><span id="__span-25-15"><a id="__codelineno-25-15" name="__codelineno-25-15" href="#__codelineno-25-15"></a><span class="w">    </span><span class="nt">needs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">detect</span>
+</span><span id="__span-25-16"><a id="__codelineno-25-16" name="__codelineno-25-16" href="#__codelineno-25-16"></a><span class="w">    </span><span class="nt">if</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">needs.detect.outputs.gas2mqtt-docs == &#39;true&#39;</span>
+</span><span id="__span-25-17"><a id="__codelineno-25-17" name="__codelineno-25-17" href="#__codelineno-25-17"></a><span class="w">    </span><span class="nt">steps</span><span class="p">:</span>
+</span><span id="__span-25-18"><a id="__codelineno-25-18" name="__codelineno-25-18" href="#__codelineno-25-18"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">run</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">task gas2mqtt:docs:build</span>
+</span><span id="__span-25-19"><a id="__codelineno-25-19" name="__codelineno-25-19" href="#__codelineno-25-19"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">peaceiris/actions-gh-pages@v4</span>
+</span><span id="__span-25-20"><a id="__codelineno-25-20" name="__codelineno-25-20" href="#__codelineno-25-20"></a><span class="w">        </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-25-21"><a id="__codelineno-25-21" name="__codelineno-25-21" href="#__codelineno-25-21"></a><span class="w">          </span><span class="nt">publish_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">./apps/gas2mqtt/site</span>
+</span><span id="__span-25-22"><a id="__codelineno-25-22" name="__codelineno-25-22" href="#__codelineno-25-22"></a><span class="w">          </span><span class="nt">destination_dir</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">gas2mqtt</span>
+</span><span id="__span-25-23"><a id="__codelineno-25-23" name="__codelineno-25-23" href="#__codelineno-25-23"></a><span class="w">          </span><span class="nt">keep_files</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span></code></pre></div>
+<p>The <code>keep_files: true</code> flag is critical — it prevents each app's deploy from deleting
+other apps' files on the <code>gh-pages</code> branch.</p>
+<h3 id="consistency-benefits">Consistency Benefits<a class="headerlink" href="#consistency-benefits" title="Permanent link">&para;</a></h3>
+<p>Having all docs in one repo means coding agents can reference other apps' documentation
+structure when writing docs for a new app. The Zensical config and doc structure naturally
+converge when they're in the same codebase.</p>
+<hr />
+<h2 id="12-deployment">12. Deployment<a class="headerlink" href="#12-deployment" title="Permanent link">&para;</a></h2>
+<h3 id="docker-images-per-app">Docker Images Per App<a class="headerlink" href="#docker-images-per-app" title="Permanent link">&para;</a></h3>
+<p>Each app has its own Dockerfile in <code>apps/&lt;name&gt;/Dockerfile</code>. The Docker build context is
+the app directory:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-26-1"><a id="__codelineno-26-1" name="__codelineno-26-1" href="#__codelineno-26-1"></a>docker<span class="w"> </span>build<span class="w"> </span>-t<span class="w"> </span>gas2mqtt:latest<span class="w"> </span>apps/gas2mqtt/
+</span></code></pre></div>
+<h3 id="multi-architecture-builds">Multi-Architecture Builds<a class="headerlink" href="#multi-architecture-builds" title="Permanent link">&para;</a></h3>
+<p>Continue using <code>docker buildx</code> with QEMU for arm64 (Raspberry Pi). Per-app builds with
+registry push:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-27-1"><a id="__codelineno-27-1" name="__codelineno-27-1" href="#__codelineno-27-1"></a><span class="p p-Indicator">-</span><span class="w"> </span><span class="nt">uses</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">docker/build-push-action@v6</span>
+</span><span id="__span-27-2"><a id="__codelineno-27-2" name="__codelineno-27-2" href="#__codelineno-27-2"></a><span class="w">  </span><span class="nt">with</span><span class="p">:</span>
+</span><span id="__span-27-3"><a id="__codelineno-27-3" name="__codelineno-27-3" href="#__codelineno-27-3"></a><span class="w">    </span><span class="nt">context</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">apps/${{ inputs.app }}</span>
+</span><span id="__span-27-4"><a id="__codelineno-27-4" name="__codelineno-27-4" href="#__codelineno-27-4"></a><span class="w">    </span><span class="nt">platforms</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">linux/amd64,linux/arm64</span>
+</span><span id="__span-27-5"><a id="__codelineno-27-5" name="__codelineno-27-5" href="#__codelineno-27-5"></a><span class="w">    </span><span class="nt">push</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+</span><span id="__span-27-6"><a id="__codelineno-27-6" name="__codelineno-27-6" href="#__codelineno-27-6"></a><span class="w">    </span><span class="nt">tags</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ghcr.io/ff-fab/${{ inputs.app }}:${{ inputs.version }}</span>
+</span></code></pre></div>
+<h3 id="ansible-integration">Ansible Integration<a class="headerlink" href="#ansible-integration" title="Permanent link">&para;</a></h3>
+<p>Ansible playbooks reference per-app Docker images by name. The monorepo doesn't change
+deployment topology — each app still produces an independent Docker image tagged with its
+own version.</p>
+<h3 id="docker-compose-per-app">docker-compose Per App<a class="headerlink" href="#docker-compose-per-app" title="Permanent link">&para;</a></h3>
+<p>Each app keeps its own <code>docker-compose.yml</code> for local development. Ansible's Jinja2
+templates generate production compose files per host (1-5 apps per Pi).</p>
+<h3 id="what-doesnt-change">What Doesn't Change<a class="headerlink" href="#what-doesnt-change" title="Permanent link">&para;</a></h3>
+<p>The deployment model is <strong>unchanged</strong> by the monorepo migration:</p>
+<ul>
+<li>Same Docker images (just built from a different repo)</li>
+<li>Same docker-compose patterns</li>
+<li>Same Ansible playbook targets</li>
+<li>Same multi-Pi distribution</li>
+</ul>
+<p>The monorepo affects how images are <strong>built and released</strong>, not how they're <strong>deployed</strong>.</p>
+<hr />
+<h2 id="13-release-management">13. Release Management<a class="headerlink" href="#13-release-management" title="Permanent link">&para;</a></h2>
+<h3 id="release-please-manifest-mode">Release Please Manifest Mode<a class="headerlink" href="#release-please-manifest-mode" title="Permanent link">&para;</a></h3>
+<p>Release Please's manifest mode is designed exactly for monorepos with independent
+per-package versioning.</p>
+<p><strong><code>release-please-config.json</code>:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-28-1"><a id="__codelineno-28-1" name="__codelineno-28-1" href="#__codelineno-28-1"></a><span class="p">{</span>
+</span><span id="__span-28-2"><a id="__codelineno-28-2" name="__codelineno-28-2" href="#__codelineno-28-2"></a><span class="w">  </span><span class="nt">&quot;$schema&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json&quot;</span><span class="p">,</span>
+</span><span id="__span-28-3"><a id="__codelineno-28-3" name="__codelineno-28-3" href="#__codelineno-28-3"></a><span class="w">  </span><span class="nt">&quot;release-type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;simple&quot;</span><span class="p">,</span>
+</span><span id="__span-28-4"><a id="__codelineno-28-4" name="__codelineno-28-4" href="#__codelineno-28-4"></a><span class="w">  </span><span class="nt">&quot;bump-minor-pre-major&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-28-5"><a id="__codelineno-28-5" name="__codelineno-28-5" href="#__codelineno-28-5"></a><span class="w">  </span><span class="nt">&quot;bump-patch-for-minor-pre-major&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-28-6"><a id="__codelineno-28-6" name="__codelineno-28-6" href="#__codelineno-28-6"></a><span class="w">  </span><span class="nt">&quot;separate-pull-requests&quot;</span><span class="p">:</span><span class="w"> </span><span class="kc">true</span><span class="p">,</span>
+</span><span id="__span-28-7"><a id="__codelineno-28-7" name="__codelineno-28-7" href="#__codelineno-28-7"></a><span class="w">  </span><span class="nt">&quot;packages&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-28-8"><a id="__codelineno-28-8" name="__codelineno-28-8" href="#__codelineno-28-8"></a><span class="w">    </span><span class="nt">&quot;apps/gas2mqtt&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-28-9"><a id="__codelineno-28-9" name="__codelineno-28-9" href="#__codelineno-28-9"></a><span class="w">      </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gas2mqtt&quot;</span><span class="p">,</span>
+</span><span id="__span-28-10"><a id="__codelineno-28-10" name="__codelineno-28-10" href="#__codelineno-28-10"></a><span class="w">      </span><span class="nt">&quot;package-name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;gas2mqtt&quot;</span><span class="p">,</span>
+</span><span id="__span-28-11"><a id="__codelineno-28-11" name="__codelineno-28-11" href="#__codelineno-28-11"></a><span class="w">      </span><span class="nt">&quot;extra-files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-28-12"><a id="__codelineno-28-12" name="__codelineno-28-12" href="#__codelineno-28-12"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;generic&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pyproject.toml&quot;</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-28-13"><a id="__codelineno-28-13" name="__codelineno-28-13" href="#__codelineno-28-13"></a><span class="w">      </span><span class="p">]</span>
+</span><span id="__span-28-14"><a id="__codelineno-28-14" name="__codelineno-28-14" href="#__codelineno-28-14"></a><span class="w">    </span><span class="p">},</span>
+</span><span id="__span-28-15"><a id="__codelineno-28-15" name="__codelineno-28-15" href="#__codelineno-28-15"></a><span class="w">    </span><span class="nt">&quot;apps/vito2mqtt&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-28-16"><a id="__codelineno-28-16" name="__codelineno-28-16" href="#__codelineno-28-16"></a><span class="w">      </span><span class="nt">&quot;component&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vito2mqtt&quot;</span><span class="p">,</span>
+</span><span id="__span-28-17"><a id="__codelineno-28-17" name="__codelineno-28-17" href="#__codelineno-28-17"></a><span class="w">      </span><span class="nt">&quot;package-name&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;vito2mqtt&quot;</span><span class="p">,</span>
+</span><span id="__span-28-18"><a id="__codelineno-28-18" name="__codelineno-28-18" href="#__codelineno-28-18"></a><span class="w">      </span><span class="nt">&quot;extra-files&quot;</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-28-19"><a id="__codelineno-28-19" name="__codelineno-28-19" href="#__codelineno-28-19"></a><span class="w">        </span><span class="p">{</span><span class="w"> </span><span class="nt">&quot;type&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;generic&quot;</span><span class="p">,</span><span class="w"> </span><span class="nt">&quot;path&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;pyproject.toml&quot;</span><span class="w"> </span><span class="p">}</span>
+</span><span id="__span-28-20"><a id="__codelineno-28-20" name="__codelineno-28-20" href="#__codelineno-28-20"></a><span class="w">      </span><span class="p">]</span>
+</span><span id="__span-28-21"><a id="__codelineno-28-21" name="__codelineno-28-21" href="#__codelineno-28-21"></a><span class="w">    </span><span class="p">}</span>
+</span><span id="__span-28-22"><a id="__codelineno-28-22" name="__codelineno-28-22" href="#__codelineno-28-22"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-28-23"><a id="__codelineno-28-23" name="__codelineno-28-23" href="#__codelineno-28-23"></a><span class="p">}</span>
+</span></code></pre></div>
+<p><strong><code>.release-please-manifest.json</code>:</strong></p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-29-1"><a id="__codelineno-29-1" name="__codelineno-29-1" href="#__codelineno-29-1"></a><span class="p">{</span>
+</span><span id="__span-29-2"><a id="__codelineno-29-2" name="__codelineno-29-2" href="#__codelineno-29-2"></a><span class="w">  </span><span class="nt">&quot;apps/gas2mqtt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span><span class="p">,</span>
+</span><span id="__span-29-3"><a id="__codelineno-29-3" name="__codelineno-29-3" href="#__codelineno-29-3"></a><span class="w">  </span><span class="nt">&quot;apps/vito2mqtt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span><span class="p">,</span>
+</span><span id="__span-29-4"><a id="__codelineno-29-4" name="__codelineno-29-4" href="#__codelineno-29-4"></a><span class="w">  </span><span class="nt">&quot;apps/jeelink2mqtt&quot;</span><span class="p">:</span><span class="w"> </span><span class="s2">&quot;0.1.0&quot;</span>
+</span><span id="__span-29-5"><a id="__codelineno-29-5" name="__codelineno-29-5" href="#__codelineno-29-5"></a><span class="p">}</span>
+</span></code></pre></div>
+<h3 id="behavior">Behavior<a class="headerlink" href="#behavior" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Version tracking</strong></td>
+<td>Independent per-app in manifest JSON</td>
+</tr>
+<tr>
+<td><strong>Changelogs</strong></td>
+<td>Per-app: <code>apps/gas2mqtt/CHANGELOG.md</code></td>
+</tr>
+<tr>
+<td><strong>Git tags</strong></td>
+<td>Component-prefixed: <code>gas2mqtt-v0.2.0</code></td>
+</tr>
+<tr>
+<td><strong>Release PRs</strong></td>
+<td>Separate per-app (with <code>separate-pull-requests: true</code>)</td>
+</tr>
+<tr>
+<td><strong>Commit detection</strong></td>
+<td>Path-based: commits touching <code>apps/gas2mqtt/**</code> bump</td>
+</tr>
+<tr>
+<td><strong>Conventional scope</strong></td>
+<td><code>feat(gas2mqtt):</code> as supplementary signal</td>
+</tr>
+</tbody>
+</table>
+<h3 id="integration-with-docker-releases">Integration with Docker Releases<a class="headerlink" href="#integration-with-docker-releases" title="Permanent link">&para;</a></h3>
+<p>When Release Please creates a tag (e.g., <code>gas2mqtt-v0.2.0</code>), a workflow triggers the
+Docker build for that specific app:</p>
+<div class="language-yaml highlight"><pre><span></span><code><span id="__span-30-1"><a id="__codelineno-30-1" name="__codelineno-30-1" href="#__codelineno-30-1"></a><span class="nt">on</span><span class="p">:</span>
+</span><span id="__span-30-2"><a id="__codelineno-30-2" name="__codelineno-30-2" href="#__codelineno-30-2"></a><span class="w">  </span><span class="nt">push</span><span class="p">:</span>
+</span><span id="__span-30-3"><a id="__codelineno-30-3" name="__codelineno-30-3" href="#__codelineno-30-3"></a><span class="w">    </span><span class="nt">tags</span><span class="p">:</span>
+</span><span id="__span-30-4"><a id="__codelineno-30-4" name="__codelineno-30-4" href="#__codelineno-30-4"></a><span class="w">      </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="s">&#39;*-v*&#39;</span><span class="w">  </span><span class="c1"># Matches gas2mqtt-v0.2.0, vito2mqtt-v1.0.0, etc.</span>
+</span></code></pre></div>
+<h3 id="known-limitations">Known Limitations<a class="headerlink" href="#known-limitations" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Commit search depth:</strong> Default 500 commits. Set <code>"commit-search-depth": 1000</code> for
+  active repos.</li>
+<li><strong>No Python workspace plugin:</strong> Unlike npm/Cargo, Release Please can't auto-bump
+  cross-dependencies between Python packages (but you don't have cross-deps by design).</li>
+</ul>
+<hr />
+<h2 id="14-migration-strategy">14. Migration Strategy<a class="headerlink" href="#14-migration-strategy" title="Permanent link">&para;</a></h2>
+<h3 id="tool-git-filter-repo">Tool: <code>git filter-repo</code><a class="headerlink" href="#tool-git-filter-repo" title="Permanent link">&para;</a></h3>
+<p><code>git filter-repo</code> (recommended by the Git project since git 2.22+, 11.9k stars) rewrites
+history to move files into a subdirectory while preserving all commits, authorship, dates,
+and messages.</p>
+<h3 id="per-repo-migration-process">Per-Repo Migration Process<a class="headerlink" href="#per-repo-migration-process" title="Permanent link">&para;</a></h3>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-31-1"><a id="__codelineno-31-1" name="__codelineno-31-1" href="#__codelineno-31-1"></a><span class="c1"># 1. Fresh clone of the source repo (filter-repo requires a fresh clone)</span>
+</span><span id="__span-31-2"><a id="__codelineno-31-2" name="__codelineno-31-2" href="#__codelineno-31-2"></a>git<span class="w"> </span>clone<span class="w"> </span>https://github.com/ff-fab/gas2mqtt<span class="w"> </span>gas2mqtt-migration
+</span><span id="__span-31-3"><a id="__codelineno-31-3" name="__codelineno-31-3" href="#__codelineno-31-3"></a><span class="nb">cd</span><span class="w"> </span>gas2mqtt-migration
+</span><span id="__span-31-4"><a id="__codelineno-31-4" name="__codelineno-31-4" href="#__codelineno-31-4"></a>
+</span><span id="__span-31-5"><a id="__codelineno-31-5" name="__codelineno-31-5" href="#__codelineno-31-5"></a><span class="c1"># 2. Rewrite all paths to live under apps/gas2mqtt/</span>
+</span><span id="__span-31-6"><a id="__codelineno-31-6" name="__codelineno-31-6" href="#__codelineno-31-6"></a>git<span class="w"> </span>filter-repo<span class="w"> </span>--to-subdirectory-filter<span class="w"> </span>apps/gas2mqtt
+</span><span id="__span-31-7"><a id="__codelineno-31-7" name="__codelineno-31-7" href="#__codelineno-31-7"></a>
+</span><span id="__span-31-8"><a id="__codelineno-31-8" name="__codelineno-31-8" href="#__codelineno-31-8"></a><span class="c1"># 3. Back in the monorepo</span>
+</span><span id="__span-31-9"><a id="__codelineno-31-9" name="__codelineno-31-9" href="#__codelineno-31-9"></a><span class="nb">cd</span><span class="w"> </span>/path/to/cosalette-apps
+</span><span id="__span-31-10"><a id="__codelineno-31-10" name="__codelineno-31-10" href="#__codelineno-31-10"></a>git<span class="w"> </span>remote<span class="w"> </span>add<span class="w"> </span>gas2mqtt-import<span class="w"> </span>../gas2mqtt-migration
+</span><span id="__span-31-11"><a id="__codelineno-31-11" name="__codelineno-31-11" href="#__codelineno-31-11"></a>git<span class="w"> </span>fetch<span class="w"> </span>gas2mqtt-import<span class="w"> </span>--no-tags
+</span><span id="__span-31-12"><a id="__codelineno-31-12" name="__codelineno-31-12" href="#__codelineno-31-12"></a>git<span class="w"> </span>merge<span class="w"> </span>gas2mqtt-import/main<span class="w"> </span>--allow-unrelated-histories<span class="w"> </span><span class="se">\</span>
+</span><span id="__span-31-13"><a id="__codelineno-31-13" name="__codelineno-31-13" href="#__codelineno-31-13"></a><span class="w">    </span>-m<span class="w"> </span><span class="s2">&quot;feat: merge gas2mqtt history into monorepo&quot;</span>
+</span><span id="__span-31-14"><a id="__codelineno-31-14" name="__codelineno-31-14" href="#__codelineno-31-14"></a>git<span class="w"> </span>remote<span class="w"> </span>remove<span class="w"> </span>gas2mqtt-import
+</span><span id="__span-31-15"><a id="__codelineno-31-15" name="__codelineno-31-15" href="#__codelineno-31-15"></a>
+</span><span id="__span-31-16"><a id="__codelineno-31-16" name="__codelineno-31-16" href="#__codelineno-31-16"></a><span class="c1"># 4. Post-merge: adapt configs for monorepo layout</span>
+</span><span id="__span-31-17"><a id="__codelineno-31-17" name="__codelineno-31-17" href="#__codelineno-31-17"></a><span class="c1">#    - Update pyproject.toml for uv workspace membership</span>
+</span><span id="__span-31-18"><a id="__codelineno-31-18" name="__codelineno-31-18" href="#__codelineno-31-18"></a><span class="c1">#    - Update zensical.toml site_url</span>
+</span><span id="__span-31-19"><a id="__codelineno-31-19" name="__codelineno-31-19" href="#__codelineno-31-19"></a><span class="c1">#    - Remove standalone CI workflows (replaced by mono CI)</span>
+</span><span id="__span-31-20"><a id="__codelineno-31-20" name="__codelineno-31-20" href="#__codelineno-31-20"></a><span class="c1">#    - Remove standalone Taskfile (replaced by template include)</span>
+</span></code></pre></div>
+<h3 id="history-preservation-results">History Preservation Results<a class="headerlink" href="#history-preservation-results" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>git blame</code></td>
+<td>Works perfectly — each line shows original author/date</td>
+</tr>
+<tr>
+<td><code>git log --follow</code></td>
+<td>Works within the app's history; stops at the merge commit</td>
+</tr>
+<tr>
+<td><code>git log -- apps/gas2mqtt/</code></td>
+<td>Shows full commit history for that app</td>
+</tr>
+<tr>
+<td>Commit SHAs</td>
+<td>All change (filter-repo rewrites them)</td>
+</tr>
+<tr>
+<td>Commit messages</td>
+<td>Preserved exactly</td>
+</tr>
+<tr>
+<td>PR/issue references</td>
+<td>Old <code>#123</code> references point to the source repo, not here</td>
+</tr>
+</tbody>
+</table>
+<h3 id="incremental-migration-sequence">Incremental Migration Sequence<a class="headerlink" href="#incremental-migration-sequence" title="Permanent link">&para;</a></h3>
+<p>Recommended order (simplest → most complex):</p>
+<ol>
+<li><strong>gas2mqtt</strong> — simplest app, MIT, fewest ADRs. Proof-of-concept migration.</li>
+<li><strong>jeelink2mqtt</strong> — MIT, medium complexity. Validates the pattern.</li>
+<li><strong>vito2mqtt</strong> — GPL, most complex, most ADRs. Tests license handling.</li>
+<li><strong>Remaining planned apps</strong> — created directly in the monorepo (no migration needed).</li>
+</ol>
+<h3 id="post-migration-cleanup">Post-Migration Cleanup<a class="headerlink" href="#post-migration-cleanup" title="Permanent link">&para;</a></h3>
+<p>For each migrated repo:</p>
+<ol>
+<li><strong>Archive the source repo</strong> on GitHub (read-only, preserves PRs/issues)</li>
+<li><strong>Update the source repo's README</strong> with a pointer to the monorepo</li>
+<li><strong>Remove the <code>docs/tmp/</code> copies</strong> from the monorepo (they were only for analysis)</li>
+<li><strong>Consolidate configs</strong>: remove per-app CI workflows, Renovate configs, etc. that are
+   now handled at the monorepo level</li>
+</ol>
+<h3 id="rollback-plan">Rollback Plan<a class="headerlink" href="#rollback-plan" title="Permanent link">&para;</a></h3>
+<p>If the migration doesn't work out for a specific app:</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-32-1"><a id="__codelineno-32-1" name="__codelineno-32-1" href="#__codelineno-32-1"></a><span class="c1"># Extract an app back out with full history</span>
+</span><span id="__span-32-2"><a id="__codelineno-32-2" name="__codelineno-32-2" href="#__codelineno-32-2"></a><span class="nb">cd</span><span class="w"> </span>cosalette-apps
+</span><span id="__span-32-3"><a id="__codelineno-32-3" name="__codelineno-32-3" href="#__codelineno-32-3"></a>git<span class="w"> </span>filter-repo<span class="w"> </span>--subdirectory-filter<span class="w"> </span>apps/gas2mqtt<span class="w"> </span>--force
+</span><span id="__span-32-4"><a id="__codelineno-32-4" name="__codelineno-32-4" href="#__codelineno-32-4"></a><span class="c1"># This creates a repo with only gas2mqtt&#39;s files at the root</span>
+</span></code></pre></div>
+<p>This is non-destructive to the monorepo (run it on a fresh clone).</p>
+<hr />
+<h1 id="part-iii-synthesis">Part III — Synthesis<a class="headerlink" href="#part-iii-synthesis" title="Permanent link">&para;</a></h1>
+<h2 id="15-decision-matrix">15. Decision Matrix<a class="headerlink" href="#15-decision-matrix" title="Permanent link">&para;</a></h2>
+<p>Scoring each approach against your stated priorities (1 = poor, 5 = excellent):</p>
+<table>
+<thead>
+<tr>
+<th>Priority</th>
+<th>Full Monorepo (uv + Taskfile)</th>
+<th>Polyrepo (enhanced template)</th>
+<th>Hybrid (MIT mono + GPL poly)</th>
+<th>Monorepo (Bazel)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Atomic cross-app changes</td>
+<td><strong>5</strong></td>
+<td>1</td>
+<td>4</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Template friction eliminated</td>
+<td><strong>5</strong></td>
+<td>2</td>
+<td>4</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Agent context unity</td>
+<td><strong>5</strong></td>
+<td>1</td>
+<td>4</td>
+<td>5</td>
+</tr>
+<tr>
+<td>CI cost (free tier)</td>
+<td><strong>4</strong> (path filtering)</td>
+<td>5 (per-repo)</td>
+<td>4</td>
+<td>3 (complex setup)</td>
+</tr>
+<tr>
+<td>Learning value</td>
+<td>3 (uv workspaces, Taskfile)</td>
+<td>1</td>
+<td>3</td>
+<td><strong>5</strong> (Bazel)</td>
+</tr>
+<tr>
+<td>Setup effort</td>
+<td><strong>4</strong> (low)</td>
+<td>5 (none)</td>
+<td>3</td>
+<td>1 (very high)</td>
+</tr>
+<tr>
+<td>Maintainability</td>
+<td><strong>5</strong></td>
+<td>2</td>
+<td>3</td>
+<td>2</td>
+</tr>
+<tr>
+<td>Licensing clarity</td>
+<td>4 (REUSE handles it)</td>
+<td>5 (per-repo)</td>
+<td><strong>5</strong></td>
+<td>4</td>
+</tr>
+<tr>
+<td>Rust/pyO3 readiness</td>
+<td><strong>4</strong> (maturin)</td>
+<td>4</td>
+<td>4</td>
+<td>3 (manual wiring)</td>
+</tr>
+<tr>
+<td><strong>Total</strong></td>
+<td><strong>39</strong></td>
+<td>22</td>
+<td>34</td>
+<td>33</td>
+</tr>
+</tbody>
+</table>
+<h2 id="16-recommended-approach">16. Recommended Approach<a class="headerlink" href="#16-recommended-approach" title="Permanent link">&para;</a></h2>
+<h3 id="primary-full-monorepo-with-uv-workspaces-taskfile">Primary: Full Monorepo with uv Workspaces + Taskfile<a class="headerlink" href="#primary-full-monorepo-with-uv-workspaces-taskfile" title="Permanent link">&para;</a></h3>
+<p>Based on the analysis, the recommended approach is:</p>
+<p><strong>Build system:</strong> uv workspaces + Taskfile namespacing (not Bazel or Pants)</p>
+<ul>
+<li>Builds on your existing stack — no new paradigm</li>
+<li>pyproject.toml stays the single source of truth</li>
+<li>Shared lockfile ensures consistent dependencies</li>
+<li>Taskfile template eliminates per-app boilerplate</li>
+</ul>
+<p><strong>Licensing:</strong> REUSE specification with per-directory LICENSE files</p>
+<ul>
+<li>MIT root + per-app LICENSE files</li>
+<li>REUSE.toml for machine-readable compliance</li>
+<li><code>reuse lint</code> as CI check</li>
+</ul>
+<p><strong>CI/CD:</strong> Path-filtered reusable workflows on GitHub Actions</p>
+<ul>
+<li><code>dorny/paths-filter</code> for change detection</li>
+<li>One reusable workflow template called per-app</li>
+<li>Shared changes trigger all apps</li>
+<li>Well within free-tier budget</li>
+</ul>
+<p><strong>Documentation:</strong> Per-app Zensical sites on subpaths</p>
+<ul>
+<li><code>ff-fab.github.io/cosalette-apps/&lt;app&gt;/</code></li>
+<li>Root landing page</li>
+<li>Per-app <code>zensical.toml</code> with independent nav structure</li>
+</ul>
+<p><strong>Release management:</strong> Release Please manifest mode</p>
+<ul>
+<li>Independent per-app versioning and changelogs</li>
+<li>Separate release PRs per app</li>
+<li>Component-prefixed tags (<code>gas2mqtt-v0.2.0</code>)</li>
+</ul>
+<p><strong>Migration:</strong> Incremental via <code>git filter-repo</code></p>
+<ul>
+<li>One app at a time, starting with gas2mqtt</li>
+<li>Full <code>git blame</code> preservation</li>
+<li>Archive source repos after migration</li>
+</ul>
+<h3 id="phased-adoption-roadmap">Phased Adoption Roadmap<a class="headerlink" href="#phased-adoption-roadmap" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>What</th>
+<th>Validates</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Set up monorepo skeleton (workspace, Taskfile, CI)</td>
+<td>uv workspaces, Taskfile includes</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Migrate gas2mqtt (simplest, MIT)</td>
+<td>filter-repo, per-app CI, docs</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Migrate jeelink2mqtt</td>
+<td>Multi-app coexistence</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Migrate vito2mqtt (GPL)</td>
+<td>REUSE licensing, GPL compliance</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Create a new app directly in monorepo</td>
+<td>New-app workflow</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Clean up (archive old repos, remove docs/tmp)</td>
+<td>Complete migration</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="17-open-questions-risks">17. Open Questions &amp; Risks<a class="headerlink" href="#17-open-questions-risks" title="Permanent link">&para;</a></h2>
+<h3 id="remaining-open-questions-resolved-during-implementation">Remaining Open Questions (Resolved During Implementation)<a class="headerlink" href="#remaining-open-questions-resolved-during-implementation" title="Permanent link">&para;</a></h3>
+<ol>
+<li>
+<p><strong>Zensical multi-site capability</strong>: Does Zensical support deploying to subpaths
+   cleanly? Specifically, do relative links and asset paths work when the site lives at
+   <code>/cosalette-apps/gas2mqtt/</code> instead of <code>/gas2mqtt/</code>? This needs hands-on testing in
+   Phase 2.</p>
+</li>
+<li>
+<p><strong>Beads monorepo patterns</strong>: The current beads tooling was designed for single repos.
+   Title-prefix conventions work but are manual. If beads adds label/tag support, that
+   would be a better fit. Worth checking <code>bd prime</code> for any monorepo-aware features.</p>
+</li>
+<li>
+<p><strong>Devcontainer</strong>: The existing repos use devcontainer-based CI. Does the monorepo
+   devcontainer need different configuration (multiple Python packages, workspace-aware
+   tooling)?</p>
+</li>
+<li>
+<p><strong>Renovate</strong>: A single <code>renovate.json</code> at the root may need per-app package rules.
+   Currently all repos share identical Renovate config, so this is likely straightforward.</p>
+</li>
+</ol>
+<h3 id="risks">Risks<a class="headerlink" href="#risks" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Risk</th>
+<th>Likelihood</th>
+<th>Impact</th>
+<th>Mitigation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GHA 10 GB cache limit</td>
+<td>Medium</td>
+<td>Low</td>
+<td>Switch to registry caching</td>
+</tr>
+<tr>
+<td>Accidental cross-app imports</td>
+<td>Low</td>
+<td>Low</td>
+<td>Ruff isort + mypy strict mode</td>
+</tr>
+<tr>
+<td>Zensical subpath deploy issues</td>
+<td>Medium</td>
+<td>Medium</td>
+<td>Test in Phase 2 before full commit</td>
+</tr>
+<tr>
+<td>Beads friction with prefix conventions</td>
+<td>Low</td>
+<td>Low</td>
+<td>Epics per app provide grouping</td>
+</tr>
+<tr>
+<td>uv workspace breaking changes</td>
+<td>Low</td>
+<td>Medium</td>
+<td>Pin uv version, test before upgrade</td>
+</tr>
+<tr>
+<td>CI matrix complexity grows</td>
+<td>Low</td>
+<td>Low</td>
+<td>Convention: add new app to filter</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-not-to-do">What Not to Do<a class="headerlink" href="#what-not-to-do" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Don't add Bazel to the production build path</strong> until scale justifies it</li>
+<li><strong>Don't create shared code between apps</strong> — that belongs in cosalette</li>
+<li><strong>Don't merge all release PRs together</strong> — keep them per-app for clear blast radius</li>
+<li><strong>Don't consolidate Dockerfiles into a template</strong> — each app's hardware needs are
+  genuinely different</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+  <script>var tabs=__md_get("__tabs");if(Array.isArray(tabs))e:for(var set of document.querySelectorAll(".tabbed-set")){var labels=set.querySelector(".tabbed-labels");for(var tab of tabs)for(var label of labels.getElementsByTagName("label"))if(label.innerText.trim()===tab){var input=document.getElementById(label.htmlFor);input.checked=!0;continue e}}</script>
+
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" class="lucide lucide-circle-arrow-up" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="m16 12-4-4-4 4M12 16V8"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://zensical.org/" target="_blank" rel="noopener">
+      Zensical
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/ff-fab/cosalette-apps" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path fill="currentColor" d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      
+      <script id="__config" type="application/json">{"annotate":null,"base":"../..","features":["navigation.tabs","navigation.tabs.sticky","navigation.sections","navigation.expand","navigation.indexes","navigation.top","search.suggest","search.highlight","content.code.copy","content.code.annotate","content.tabs.link","content.action.edit"],"search":"../../assets/javascripts/workers/search.e2d2d235.min.js","tags":null,"translations":{"clipboard.copied":"Copied to clipboard","clipboard.copy":"Copy to clipboard","search.result.more.one":"1 more on this page","search.result.more.other":"# more on this page","search.result.none":"No matching documents","search.result.one":"1 matching document","search.result.other":"# matching documents","search.result.placeholder":"Type to start searching","search.result.term.missing":"Missing","select.version":"Select version"},"version":null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.5fd3284f.min.js"></script>
+      
+    
+  </body>
+</html>
