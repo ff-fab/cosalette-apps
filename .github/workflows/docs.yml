@@ -18,6 +18,7 @@ env:
   DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 permissions:
+  contents: write
   pages: write
   id-token: write
 
