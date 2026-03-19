@@ -73,3 +73,22 @@ jobs:
     uses: ./.github/workflows/ci-app.yml
     with:
       app: ${{ matrix.app }}
+
+  # Merge gate — the single required status check for branch protection.
+  # Always runs; passes when all upstream jobs succeed or are skipped.
+  ci-gate:
+    needs: [shared, app-ci]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check upstream results
+        run: |
+          if [[ "${{ needs.shared.result }}" == "failure" || "${{ needs.shared.result }}" == "cancelled" ]]; then
+            echo "shared job failed or was cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.app-ci.result }}" == "failure" || "${{ needs.app-ci.result }}" == "cancelled" ]]; then
+            echo "app-ci job failed or was cancelled"
+            exit 1
+          fi
+          echo "All checks passed or were skipped"
