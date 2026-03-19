@@ -45,14 +45,21 @@ tasks:
   check:all:
     desc: Run all checks for all apps
     cmds:
+      - task: reuse:lint
       - task: lint:all
       - task: typecheck:all
       - task: test:all
+
+  reuse:lint:
+    desc: Check REUSE compliance
+    cmds:
+      - uv run reuse lint
 
   pre-pr:
     desc: Run all pre-PR quality gates
     cmds:
       - pre-commit run --all-files
+      - task: reuse:lint
       - task: lint:all
       - task: typecheck:all
       - task: test:all

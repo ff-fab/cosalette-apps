@@ -10,7 +10,7 @@ ticks, temperature, and optional raw debug data to MQTT.
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework.
 
-> **📖 [Full Documentation](https://ff-fab.github.io/gas2mqtt/)**
+> **📖 [Full Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)**
 
 ## Quick Start
 
@@ -58,8 +58,9 @@ curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas
 docker compose up -d
 ```
 
-See the [Getting Started guide](https://ff-fab.github.io/gas2mqtt/getting-started/) for
-wiring instructions, first-run verification, and manual install options.
+See the
+[Getting Started guide](https://ff-fab.github.io/cosalette-apps/gas2mqtt/getting-started/)
+for wiring instructions, first-run verification, and manual install options.
 
 ## Features
 
@@ -81,16 +82,18 @@ wiring instructions, first-run verification, and manual install options.
 All settings are loaded from environment variables (`GAS2MQTT_` prefix), `.env` files,
 or CLI flags. See [.env.example](.env.example) for a ready-to-copy template.
 
-See the [Configuration reference](https://ff-fab.github.io/gas2mqtt/configuration/) for
-the full settings table with defaults and descriptions.
+See the
+[Configuration reference](https://ff-fab.github.io/cosalette-apps/gas2mqtt/configuration/)
+for the full settings table with defaults and descriptions.
 
 ## MQTT Topics
 
 gas2mqtt publishes to 9 MQTT topics covering gas counter state, temperature, optional
 debug output, health/heartbeat, and error reporting. One topic accepts inbound commands.
 
-See the [MQTT Topics reference](https://ff-fab.github.io/gas2mqtt/mqtt-topics/) for the
-complete topic table with payload schemas.
+See the
+[MQTT Topics reference](https://ff-fab.github.io/cosalette-apps/gas2mqtt/mqtt-topics/)
+for the complete topic table with payload schemas.
 
 ## Architecture
 
@@ -98,8 +101,9 @@ The codebase follows a **ports-and-adapters** (hexagonal) architecture. Domain l
 zero I/O dependencies. The cosalette framework handles MQTT connectivity, health
 reporting, error isolation, and graceful shutdown.
 
-See the [Architecture overview](https://ff-fab.github.io/gas2mqtt/architecture/) for
-diagrams and detailed layer descriptions.
+See the
+[Architecture overview](https://ff-fab.github.io/cosalette-apps/gas2mqtt/architecture/)
+for diagrams and detailed layer descriptions.
 
 ## Development
 
