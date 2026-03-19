@@ -1,0 +1,132 @@
+#!/bin/bash
+# Wait for all CI checks on a PR to complete, then report results.
+# Called by: task ci:wait -- <pr-number>
+#
+# Polls `gh pr checks` every INTERVAL seconds until no checks are
+# IN_PROGRESS / PENDING / QUEUED. Then prints a summary table with
+# pass/fail status and links to failed runs for easy debugging.
+#
+# Exit codes:
+#   0 — all checks passed (or skipped)
+#   1 — one or more checks failed
+#   2 — usage error (missing PR number or gh not available)
+
+set -euo pipefail
+
+INTERVAL="${CI_WAIT_INTERVAL:-5}"
+TIMEOUT="${CI_WAIT_TIMEOUT:-1800}"  # 30 minutes default
+
+# ── Prerequisite checks ─────────────────────────────────────────────
+
+if ! command -v gh &>/dev/null; then
+    echo "Error: gh CLI not found on PATH" >&2
+    exit 2
+fi
+
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq not found on PATH" >&2
+    exit 2
+fi
+
+# ── Argument handling ────────────────────────────────────────────────
+
+PR="${1:-}"
+if [ -z "$PR" ]; then
+    # Auto-detect: use the PR associated with the current branch
+    PR=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
+    if [ -z "$PR" ]; then
+        echo "Usage: ci-wait.sh <pr-number>" >&2
+        echo "   or: run from a branch with an open PR (auto-detect)" >&2
+        exit 2
+    fi
+    echo "Auto-detected PR #${PR}"
+fi
+
+# ── Poll loop ────────────────────────────────────────────────────────
+
+MAX_API_FAILURES="${CI_WAIT_MAX_API_FAILURES:-5}"
+
+echo "Waiting for CI on PR #${PR} (polling every ${INTERVAL}s, timeout ${TIMEOUT}s)..."
+echo ""
+
+START=$(date +%s)
+api_failures=0
+
+while true; do
+    ELAPSED=$(( $(date +%s) - START ))
+    if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+        echo "Timed out after ${ELAPSED}s waiting for CI checks." >&2
+        exit 1
+    fi
+
+    checks=$(gh pr checks "$PR" --json name,state,link 2>&1) || true
+
+    # Guard against transient API errors (empty or non-JSON response).
+    # Bail out after MAX_API_FAILURES consecutive failures — a persistent
+    # non-JSON response usually means the gh auth token has expired.
+    if [ -z "$checks" ] || ! echo "$checks" | jq empty 2>/dev/null; then
+        api_failures=$((api_failures + 1))
+        if [ "$api_failures" -ge "$MAX_API_FAILURES" ]; then
+            echo "" >&2
+            echo "Error: ${api_failures} consecutive API failures." >&2
+            echo "The gh auth token may have expired. Try: gh auth status" >&2
+            exit 2
+        fi
+        echo "$(date +%H:%M:%S) — API returned non-JSON, retrying (${api_failures}/${MAX_API_FAILURES})..."
+        sleep "$INTERVAL"
+        continue
+    fi
+
+    # Reset counter on any successful API response
+    api_failures=0
+
+    pending=$(echo "$checks" | jq '[.[] | select(.state == "IN_PROGRESS" or .state == "PENDING" or .state == "QUEUED")] | length')
+
+    if [ "$pending" -eq 0 ]; then
+        break
+    fi
+
+    echo "$(date +%H:%M:%S) — ${pending} check(s) still running..."
+    sleep "$INTERVAL"
+done
+
+# ── Results ──────────────────────────────────────────────────────────
+
+echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo "  CI Results for PR #${PR}"
+echo "════════════════════════════════════════════════════════════════"
+
+parsed=$(echo "$checks" | jq -r '.[] | [.name, .state, .link] | @tsv')
+
+failed=0
+while IFS=$'\t' read -r name state link; do
+    case "$state" in
+        SUCCESS)  icon="✅" ;;
+        SKIPPED)  icon="⬜" ;;
+        FAILURE)  icon="❌"; failed=$((failed + 1)) ;;
+        *)        icon="⚠️ "; failed=$((failed + 1)) ;;
+    esac
+    printf "  %s  %-40s %s\n" "$icon" "$name" "$state"
+done <<< "$parsed"
+
+echo "════════════════════════════════════════════════════════════════"
+
+if [ "$failed" -gt 0 ]; then
+    echo ""
+    echo "Failed checks (${failed}):"
+    echo ""
+    while IFS=$'\t' read -r name state link; do
+        if [ "$state" != "SUCCESS" ] && [ "$state" != "SKIPPED" ]; then
+            echo "  ❌ ${name}"
+            echo "     ${link}"
+            echo ""
+        fi
+    done <<< "$parsed"
+    echo "Tip: open the link(s) above to see full logs."
+    exit 1
+fi
+
+echo ""
+echo "All checks passed ✓"
+exit 0
