@@ -31,6 +31,8 @@ jobs:
               - 'apps/gas2mqtt/**'
             jeelink2mqtt:
               - 'apps/jeelink2mqtt/**'
+            vito2mqtt:
+              - 'apps/vito2mqtt/**'
       - name: Build app list (exclude non-app filters)
         id: apps
         run: |
