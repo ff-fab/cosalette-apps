@@ -33,6 +33,6 @@ This is a **uv workspace monorepo**. Apps live under `apps/<name>/`.
   app when app-specific.
 - **Use `task <name>`** for all operations (run `task --list`). Fall back to `uv run`
   only when no task exists. Never invoke `python` directly.
-- **ADRs** live in `docs/adr/`. Follow existing decisions; create new ADRs for major
-  changes.
+- **ADRs** live in `docs/adr/` (monorepo-wide) and `apps/<name>/docs/adr/`
+  (app-specific). Follow existing decisions; create new ADRs at the appropriate scope.
 - **Beads (`bd`)** for issue tracking. Run `bd prime` for full context.

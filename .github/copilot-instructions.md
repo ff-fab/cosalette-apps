@@ -48,6 +48,10 @@ would improve accuracy.
 
 ## Architecture Decision Records
 
-All major decisions are documented in `docs/adr/`. **Follow these decisions.**
+ADRs are split by scope:
 
-Create new ADRs for any major changes or decisions.
+- **Monorepo-wide** decisions: `docs/adr/` (e.g. monorepo structure, shared tooling)
+- **App-specific** decisions: `apps/<name>/docs/adr/` (e.g. framework choice, domain design)
+
+**Follow existing decisions.** Create new ADRs for any major changes, placing them at
+the appropriate scope level.

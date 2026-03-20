@@ -1,20 +1,21 @@
 ---
 description: 'Python testing - pytest patterns'
-applyTo: 'packages/tests/**/*.py'
+applyTo: 'apps/*/packages/tests/**/*.py'
 ---
 
 # Testing Instructions
 
-> **New Test Files:** Use
-> [Test File Template](../../docs/testing/test-file-template.md) — copy-paste
-> starting point with all conventions pre-applied.
+> **New Test Files:** Each app has a test file template in its docs:
+> `apps/<name>/docs/testing/test-file-template.md` — copy-paste starting point
+> with all conventions pre-applied. A root template is also available at
+> `docs/testing/test-file-template.md`.
 
 ## Test Strategy
 
-| Layer       | Tool                           | Location             |
-| ----------- | ------------------------------ | -------------------- |
-| Unit        | pytest + pytest-asyncio        | `tests/unit/`        |
-| Integration | pytest + httpx/ASGI client     | `tests/integration/` |
+| Layer       | Tool                           | Location                              |
+| ----------- | ------------------------------ | ------------------------------------- |
+| Unit        | pytest + pytest-asyncio        | `apps/<name>/packages/tests/unit/`        |
+| Integration | pytest + httpx/ASGI client     | `apps/<name>/packages/tests/integration/` |
 
 ## Test Technique Documentation
 
@@ -143,18 +144,19 @@ def test_parse_value(input, expected):
 
 ## Test Organization
 
+Each app follows the same test layout under `apps/<name>/packages/tests/`:
+
 ```
-tests/
-├── conftest.py              # Shared fixtures (signal_factory)
+packages/tests/
+├── conftest.py              # Shared fixtures
 ├── fixtures/                # Test data modules (import, don't conftest)
-│   ├── openhab_responses.py
-│   └── signals.py
+│   └── ...                  # App-specific test doubles and utilities
 ├── unit/
-│   ├── conftest.py          # Unit-specific (mock_adapter)
-│   └── adapters/            # Mirror source structure
-│       └── test_manager.py
+│   ├── conftest.py          # Unit-specific fixtures
+│   └── test_<module>.py     # Mirror source structure
 └── integration/
-    └── conftest.py          # Integration-specific (server startup)
+    ├── conftest.py          # Integration-specific fixtures
+    └── test_<feature>.py
 ```
 
 - **Mirror source structure:** `test_manager.py` tests `manager.py`
