@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from cosalette import App
 
-from vito2mqtt._version import __version__
+from vito2mqtt import __version__
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.ports import OptolinkPort
 

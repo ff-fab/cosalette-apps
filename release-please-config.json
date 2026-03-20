@@ -13,6 +13,10 @@
     "apps/jeelink2mqtt": {
       "component": "jeelink2mqtt",
       "release-type": "python"
+    },
+    "apps/vito2mqtt": {
+      "component": "vito2mqtt",
+      "release-type": "python"
     }
   }
 }
