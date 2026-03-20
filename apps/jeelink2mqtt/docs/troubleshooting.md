@@ -219,4 +219,4 @@ seeing and follow the fix.
 1. Run with debug logging: `jeelink2mqtt --log-level DEBUG`
 2. Check the raw channel: `mosquitto_sub -h localhost -t 'jeelink2mqtt/raw/state' -v`
 3. Check mapping state: `mosquitto_sub -h localhost -t 'jeelink2mqtt/mapping/state' -v`
-4. [Open an issue](https://github.com/ff-fab/jeelink2mqtt/issues) with the debug log output.
+4. [Open an issue](https://github.com/ff-fab/cosalette-apps/issues) with the debug log output.

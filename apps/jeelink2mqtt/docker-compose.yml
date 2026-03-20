@@ -1,6 +1,8 @@
 services:
   jeelink2mqtt:
-    build: .
+    build:
+      context: ../..
+      dockerfile: apps/jeelink2mqtt/Dockerfile
     restart: unless-stopped
     devices:
       - '/dev/ttyUSB0:/dev/ttyUSB0'
