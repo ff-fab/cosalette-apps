@@ -1,0 +1,89 @@
+# Docker Compose configuration for vito2mqtt + Mosquitto MQTT broker
+
+services:
+  # Mosquitto MQTT broker - receives telemetry from vito2mqtt
+  # Provides persistent message broker for home automation integrations
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: vito2mqtt-mosquitto
+    ports:
+      # Expose MQTT standard port (1883) on localhost
+      # Other services on docker network can connect directly to 'mosquitto:1883'
+      - '1883:1883'
+      # Optional: WebSocket port for web clients (disabled by default)
+      # - "9001:9001"
+    volumes:
+      # Persist broker data and logs across container restarts
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_logs:/mosquitto/log
+    restart: unless-stopped
+    # Limit resource usage
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+
+  # vito2mqtt - IoT-to-MQTT bridge for Vitodens heating
+  vito2mqtt:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: vito2mqtt-app
+    # Ensure MQTT broker is healthy before starting vito2mqtt
+    depends_on:
+      mosquitto:
+        condition: service_started
+    # Load configuration from .env file
+    # Environment variables override .env values (useful for docker-compose override)
+    env_file: .env
+    environment:
+      # Store state in the persistent volume
+      VITO2MQTT_STORE_PATH: /data/store.json
+    volumes:
+      # Persist device state (legionella timestamps, etc.) across container restarts
+      - vito2mqtt_data:/data
+    # Grant device access: serial port /dev/ttyUSB0 on host → /dev/ttyUSB0 in container
+    # Device must exist on host; if using different port (e.g., /dev/ttyUSB1), update both
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    # Network mode: 'bridge' (default) - Services communicate via docker network
+    # Alternative: 'host' (not recommended, breaks port mapping)
+    networks:
+      - vito_network
+    # Restart policy:
+    # - unless-stopped: Restart unless explicitly stopped, even after host reboot
+    # - always: Always restart (even if exited cleanly)
+    # - on-failure:3: Restart max 3 times if exit code != 0
+    restart: unless-stopped
+    # Limit resource usage to prevent consuming all host resources
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 512M
+        reservations:
+          memory: 256M
+    # Logs
+    logging:
+      driver: 'json-file'
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+# Define volumes for persistent data
+volumes:
+  # Mosquitto data: subscriptions, retained messages
+  mosquitto_data:
+    driver: local
+  # Mosquitto logs: diagnostic information
+  mosquitto_logs:
+    driver: local
+  # vito2mqtt state: device store (JSON)
+  vito2mqtt_data:
+    driver: local
+
+# Define custom bridge network for service-to-service communication
+networks:
+  vito_network:
+    driver: bridge

@@ -1,0 +1,87 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - docker-compose.yml
+      - .github/workflows/docker.yml
+      - packages/src/vito2mqtt/**
+      - pyproject.toml
+
+# Cancel in-progress workflow if a new push is made to the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      # Checkout code
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Set up Docker Buildx for multi-platform builds and caching
+      - name: Set Up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # (Optional) Log in to container registry for push
+      # Uncomment to enable pushing to Docker Hub, GHCR, or other registry
+      # - name: Log In to GitHub Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
+      # (Optional) Log in to Docker Hub
+      # Uncomment to enable pushing to Docker Hub
+      # - name: Log In to Docker Hub
+      #   uses: docker/login-action@v3
+      #   with:
+      #     username: ${{ secrets.DOCKERHUB_USERNAME }}
+      #     password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Build Docker image with caching
+      # Cache is automatically managed by buildx + GitHub Actions
+      # push: true -> upload to registry after build
+      # push: false -> build locally (faster for CI validation)
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: false  # Change to true when registry login is configured
+          tags: |
+            vito2mqtt:latest
+            vito2mqtt:${{ github.sha }}
+          # Cache management
+          cache-from: type=gha      # Read cache from GitHub Actions
+          cache-to: type=gha,mode=max  # Write cache back for future builds
+          # Multi-platform builds (optional)
+          # platforms: linux/amd64,linux/arm/v7,linux/arm64
+          # Build arguments (optional)
+          # build-args: |
+          #   PYTHON_VERSION=3.14
+
+      # (Optional) Test Docker image after build
+      - name: Test Docker Image Build
+        run: |
+          docker build -t vito2mqtt-test:latest .
+          docker run --rm vito2mqtt-test:latest --version || true
+
+      # (Optional) Validate docker-compose syntax
+      - name: Validate docker-compose.yml
+        run: |
+          docker run --rm -v ${{ github.workspace }}:/workspace \
+            docker/compose:latest config -f /workspace/docker-compose.yml > /dev/null

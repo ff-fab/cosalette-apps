@@ -1,0 +1,56 @@
+# Git and version control
+.git
+.gitignore
+.gitattributes
+
+# Python caches and environments
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv
+venv/
+ENV/
+env/
+
+# IDE and editor files
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# Project-specific
+.beads
+.pre-commit-config.yaml
+.prettierignore
+
+# Documentation and planning (docs/ not root README.md)
+docs/
+TODO/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# CI/CD
+.github/
+
+# Build artifacts
+site/
+coverage.xml
+coverage.json
+results-unit.xml
+
+# Environment files (keep .env.example for reference, exclude runtime .env)
+.env
+.env.local
+.env.*.local

@@ -1,0 +1,131 @@
+#!/bin/bash
+# Copyright (C) 2026 Fabian Koerner <mail@fabiankoerner.com>
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# Wait for all CI checks on a PR to complete, then report results.
+# Called by: task ci:wait -- <pr-number>
+#
+# Polls `gh pr checks` every INTERVAL seconds until no checks are
+# IN_PROGRESS / PENDING / QUEUED. Then prints a summary table with
+# pass/fail status and links to failed runs for easy debugging.
+#
+# Exit codes:
+#   0 — all checks passed (or skipped)
+#   1 — one or more checks failed
+#   2 — usage error (missing PR number or gh not available)
+
+set -euo pipefail
+
+INTERVAL="${CI_WAIT_INTERVAL:-5}"
+TIMEOUT="${CI_WAIT_TIMEOUT:-1800}"  # 30 minutes default
+
+# ── Prerequisite checks ─────────────────────────────────────────────
+
+if ! command -v gh &>/dev/null; then
+    echo "Error: gh CLI not found on PATH" >&2
+    exit 2
+fi
+
+if ! command -v jq &>/dev/null; then
+    echo "Error: jq not found on PATH" >&2
+    exit 2
+fi
+
+# ── Argument handling ────────────────────────────────────────────────
+
+PR="${1:-}"
+if [ -z "$PR" ]; then
+    # Auto-detect: use the PR associated with the current branch
+    PR=$(gh pr view --json number --jq '.number' 2>/dev/null || true)
+    if [ -z "$PR" ]; then
+        echo "Usage: ci-wait.sh <pr-number>" >&2
+        echo "   or: run from a branch with an open PR (auto-detect)" >&2
+        exit 2
+    fi
+    echo "Auto-detected PR #${PR}"
+fi
+
+# ── Poll loop ────────────────────────────────────────────────────────
+
+echo "Waiting for CI on PR #${PR} (polling every ${INTERVAL}s, timeout ${TIMEOUT}s)..."
+echo ""
+
+START=$(date +%s)
+
+while true; do
+    ELAPSED=$(( $(date +%s) - START ))
+    if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
+        echo "Timed out after ${ELAPSED}s waiting for CI checks." >&2
+        exit 1
+    fi
+
+    checks=$(gh pr checks "$PR" --json name,state,link 2>&1 | cat)
+
+    # Guard against transient API errors (empty or non-JSON response)
+    if ! echo "$checks" | jq empty 2>/dev/null; then
+        echo "$(date +%H:%M:%S) — API returned non-JSON, retrying..."
+        sleep "$INTERVAL"
+        continue
+    fi
+
+    pending=$(echo "$checks" | jq '[.[] | select(.state == "IN_PROGRESS" or .state == "PENDING" or .state == "QUEUED")] | length')
+
+    if [ "$pending" -eq 0 ]; then
+        break
+    fi
+
+    echo "$(date +%H:%M:%S) — ${pending} check(s) still running..."
+    sleep "$INTERVAL"
+done
+
+# ── Results ──────────────────────────────────────────────────────────
+
+echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo "  CI Results for PR #${PR}"
+echo "════════════════════════════════════════════════════════════════"
+
+parsed=$(echo "$checks" | jq -r '.[] | [.name, .state, .link] | @tsv')
+
+failed=0
+while IFS=$'\t' read -r name state link; do
+    case "$state" in
+        SUCCESS)  icon="✅" ;;
+        SKIPPED)  icon="⬜" ;;
+        FAILURE)  icon="❌"; failed=$((failed + 1)) ;;
+        *)        icon="⚠️ "; failed=$((failed + 1)) ;;
+    esac
+    printf "  %s  %-40s %s\n" "$icon" "$name" "$state"
+done <<< "$parsed"
+
+echo "════════════════════════════════════════════════════════════════"
+
+if [ "$failed" -gt 0 ]; then
+    echo ""
+    echo "Failed checks (${failed}):"
+    echo ""
+    while IFS=$'\t' read -r name state link; do
+        if [ "$state" != "SUCCESS" ] && [ "$state" != "SKIPPED" ]; then
+            echo "  ❌ ${name}"
+            echo "     ${link}"
+            echo ""
+        fi
+    done <<< "$parsed"
+    echo "Tip: open the link(s) above to see full logs."
+    exit 1
+fi
+
+echo ""
+echo "All checks passed ✓"
+exit 0
