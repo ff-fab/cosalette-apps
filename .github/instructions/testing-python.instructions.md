@@ -150,8 +150,7 @@ Each app follows the same test layout under `apps/<name>/packages/tests/`:
 packages/tests/
 ├── conftest.py              # Shared fixtures
 ├── fixtures/                # Test data modules (import, don't conftest)
-│   ├── doubles.py
-│   └── async_utils.py
+│   └── ...                  # App-specific test doubles and utilities
 ├── unit/
 │   ├── conftest.py          # Unit-specific fixtures
 │   └── test_<module>.py     # Mirror source structure
