@@ -1,0 +1,95 @@
+[project]
+name = "vito2mqtt"
+version = "0.1.0"
+description = "A smart home app to control a Vitodens gas heating."
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "GPL-3.0-or-later" }
+authors = [
+    { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
+]
+
+dependencies = [
+    "cosalette>=0.1.8",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "pyserial>=3.5",
+    "pyserial-asyncio>=0.6",
+]
+
+[project.scripts]
+vito2mqtt = "vito2mqtt.main:cli"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["packages/src/vito2mqtt"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (require mock servers)",
+    "slow: Tests that take > 1 second",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["packages/src/vito2mqtt"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "def __repr__",
+    'if __name__ == "__main__":',
+    "^\\s*\\.\\.\\.$",  # Protocol ellipsis stubs
+]
+fail_under = 80
+show_missing = true
+skip_covered = false
+
+[tool.coverage.json]
+output = "coverage.json"
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+# mypy needs a base section to apply overrides from this file
+[tool.mypy]
+python_version = "3.14"
+strict = true
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["vito2mqtt._version", "serial_asyncio", "serial_asyncio.*"]
+ignore_missing_imports = true
+
+# App-specific isort config — root ruff config handles everything else
+[tool.ruff.lint.isort]
+known-first-party = ["vito2mqtt"]
