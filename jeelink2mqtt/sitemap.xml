@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/getting-started/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/setup/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/user-guide/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/operations/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/troubleshooting/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/reference/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/adr/ADR-001-application-framework/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/adr/ADR-002-sensor-id-management-strategy/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/adr/ADR-003-hardware-abstraction/</loc>
+      </url>
+      <url>
+        <loc>https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/adr/ADR-004-sensor-registry-and-persistence/</loc>
+      </url>
+</urlset>
