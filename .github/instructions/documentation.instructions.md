@@ -12,13 +12,30 @@ applyTo: '**/*.md'
 | Site Generator | Zensical (`zensical.toml`)                                     |
 | Theme          | Zensical (modern theme)                                        |
 | Structure      | User Journey (guided flow through tasks along lifecycle)       |
-| CLI            | `task docs:serve`, `task docs:build`                           |
+
+### Documentation Sites
+
+This monorepo has **multiple independent documentation sites**:
+
+| Site           | Config                                | Serve command                    | Build command                    |
+| -------------- | ------------------------------------- | -------------------------------- | -------------------------------- |
+| Root (monorepo)| `zensical.toml`                       | `task docs:serve`                | `task docs:build`                |
+| Per-app        | `apps/<name>/zensical.toml`           | `task <name>:docs:serve`         | `task <name>:docs:build`         |
 
 ## ADR Format
 
-Architecture Decision Records follow this structure:
+Architecture Decision Records follow this structure. ADRs live in two places:
 
-Document decisions in `docs/adr/ADR-NNN-title.md` using this format:
+| Scope              | Location                          | Examples                            |
+| ------------------ | --------------------------------- | ----------------------------------- |
+| Monorepo-wide      | `docs/adr/ADR-NNN-title.md`      | Monorepo structure, shared tooling  |
+| App-specific       | `apps/<name>/docs/adr/ADR-NNN-title.md` | Framework choice, domain design     |
+
+When creating an ADR, choose the right scope:
+- Decisions affecting the monorepo or multiple apps → root `docs/adr/`
+- Decisions scoped to a single app's architecture → `apps/<name>/docs/adr/`
+
+ADR template:
 
 ```markdown
 # ADR-<number>: <title>
@@ -66,9 +83,11 @@ _<Date>_
 
 ## File Locations
 
-| Content       | Location    |
-| ------------- | ----------- |
-| Documentation | `docs/`     |
-| ADRs          | `docs/adr/` |
+| Content              | Location                              |
+| -------------------- | ------------------------------------- |
+| Root documentation   | `docs/`                               |
+| Root ADRs            | `docs/adr/`                           |
+| App documentation    | `apps/<name>/docs/`                   |
+| App ADRs             | `apps/<name>/docs/adr/`               |
 
-(ADRs are to be included in the main documentation site)
+ADRs are included in their respective documentation site (root or per-app).
