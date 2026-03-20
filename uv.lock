@@ -352,7 +352,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/e7/d6/2bb09fab21521424d
 
 [[package]]
 name = "gas2mqtt"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
     { name = "cosalette" },

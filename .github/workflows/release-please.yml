@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  packages: write
 
 jobs:
   release:
@@ -20,18 +21,36 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # Docker builds triggered per released app
-  # (uncomment after first migration)
-  # docker:
-  #   needs: release
-  #   if: needs.release.outputs.releases_created == 'true'
-  #   strategy:
-  #     matrix:
-  #       include:
-  #         # Dynamically populated from release outputs
-  #         - app: gas2mqtt
-  #           version: ${{ needs.release.outputs['apps/gas2mqtt--tag_name'] }}
-  #   uses: ./.github/workflows/docker-app.yml
-  #   with:
-  #     app: ${{ matrix.app }}
-  #     version: ${{ matrix.version }}
+  # Build Docker images for each released app
+  docker-matrix:
+    needs: release
+    if: needs.release.outputs.releases_created == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        env:
+          RELEASE_OUTPUTS: ${{ toJSON(needs.release.outputs) }}
+        run: |
+          matrix=$(echo "$RELEASE_OUTPUTS" | jq -c '. as $out | {
+            include: [
+              (.paths_released | fromjson)[] |
+              . as $path |
+              {
+                app: ($path | split("/") | last),
+                version: $out[$path + "--version"]
+              }
+            ]
+          }' || echo '')
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  docker:
+    needs: docker-matrix
+    if: needs.docker-matrix.outputs.matrix != ''
+    strategy:
+      matrix: ${{ fromJSON(needs.docker-matrix.outputs.matrix) }}
+    uses: ./.github/workflows/docker-app.yml
+    with:
+      app: ${{ matrix.app }}
+      version: ${{ matrix.version }}
