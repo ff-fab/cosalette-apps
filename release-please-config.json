@@ -9,6 +9,10 @@
     "apps/gas2mqtt": {
       "component": "gas2mqtt",
       "release-type": "python"
+    },
+    "apps/jeelink2mqtt": {
+      "component": "jeelink2mqtt",
+      "release-type": "python"
     }
   }
 }

@@ -1,7 +1,7 @@
 [project]
-name = "gas2mqtt"
+name = "jeelink2mqtt"
 version = "0.1.0"
-description = "An app to read a domestic gas meter using a digital magnetometer."
+description = "A smart home app to read in values of Jeelink temperature and humidity sensors."
 readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "MIT" }
@@ -10,21 +10,21 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.5",
-    "pydantic>=2.10.0",
-    "pydantic-settings>=2.6.0",
-    "smbus2>=0.6.0",
+    "cosalette>=0.1.7",
+    "pydantic>=2.12.5",
+    "pydantic-settings>=2.12.0",
+    "pylacrosse>=0.3.7",
 ]
 
 [project.scripts]
-gas2mqtt = "gas2mqtt.main:app.run"
+jeelink2mqtt = "jeelink2mqtt.main:main"
 
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["packages/src/gas2mqtt"]
+packages = ["packages/src/jeelink2mqtt"]
 
 [tool.pytest.ini_options]
 testpaths = ["packages/tests"]
@@ -47,12 +47,13 @@ filterwarnings = [
 ]
 
 [tool.coverage.run]
-source = ["packages/src/gas2mqtt"]
+source = ["packages/src/jeelink2mqtt"]
 branch = true
 omit = [
     "*/__pycache__/*",
     "*/tests/*",
-    "*/main.py",  # Composition root — covered by integration tests
+    "*/main.py",  # Entry point — covered by integration tests
+    "*/app.py",   # Composition root — covered by integration tests
 ]
 
 [tool.coverage.report]
@@ -78,6 +79,11 @@ directory = "htmlcov"
 [tool.coverage.xml]
 output = "coverage.xml"
 
+# App-specific mypy overrides — root mypy config handles common settings
+[[tool.mypy.overrides]]
+module = ["pylacrosse", "pylacrosse.*"]
+ignore_missing_imports = true
+
 # App-specific isort config — root ruff config handles everything else
 [tool.ruff.lint.isort]
-known-first-party = ["gas2mqtt"]
+known-first-party = ["jeelink2mqtt"]
