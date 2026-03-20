@@ -1,22 +1,19 @@
-FROM python:3.14-alpine AS builder
-
-COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
-
-WORKDIR /app
-COPY pyproject.toml uv.lock README.md ./
-
-# Phase 1: install dependencies only (cached unless pyproject.toml/uv.lock change)
-RUN uv sync --frozen --no-dev --extra hardware --no-install-project --no-editable --no-cache
-
-# Phase 2: copy source and install the project itself
-COPY packages/src/ packages/src/
-RUN uv sync --frozen --no-dev --extra hardware --no-editable --no-cache
-
 FROM python:3.14-alpine
 
+# Install uv for fast dependency resolution
+COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
+
 WORKDIR /app
-COPY --from=builder /app/.venv /app/.venv
-ENV PATH="/app/.venv/bin:$PATH"
+
+# Copy monorepo root lockfile and workspace config for reproducible builds.
+# Build context must be the repository root (docker build -f apps/jeelink2mqtt/Dockerfile .)
+COPY pyproject.toml uv.lock ./
+COPY apps/jeelink2mqtt/pyproject.toml apps/jeelink2mqtt/
+COPY apps/jeelink2mqtt/README.md apps/jeelink2mqtt/
+COPY apps/jeelink2mqtt/packages/src/ apps/jeelink2mqtt/packages/src/
+
+# Install the application using locked dependencies (no cache to keep image small)
+RUN uv pip install --system --no-cache ./apps/jeelink2mqtt
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser && addgroup appuser dialout \

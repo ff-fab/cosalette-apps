@@ -29,6 +29,8 @@ jobs:
             # Per-app filters added as apps are migrated:
             gas2mqtt:
               - 'apps/gas2mqtt/**'
+            jeelink2mqtt:
+              - 'apps/jeelink2mqtt/**'
       - name: Build app list (exclude non-app filters)
         id: apps
         run: |
