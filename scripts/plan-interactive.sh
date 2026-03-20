@@ -35,66 +35,54 @@ fi
 
 BAR_WIDTH=20
 
-# --- Temp file for orphaned task IDs (shared across functions) ------------- #
+# --- Temp files (shared across functions) --------------------------------- #
 ORPHAN_CACHE=$(mktemp)
-trap 'rm -f "$ORPHAN_CACHE"' EXIT
+ALL_TASKS_CACHE=$(mktemp)
+CHILD_STATS_CACHE=$(mktemp)
+trap 'rm -f "$ORPHAN_CACHE" "$ALL_TASKS_CACHE" "$CHILD_STATS_CACHE"' EXIT
 
 # =========================================================================== #
-# Helper: detect orphaned tasks (non-epic, not parented to any epic)          #
+# Helper: fetch all tasks once into cache                                      #
+# =========================================================================== #
+fetch_all_tasks() {
+    if [ ! -s "$ALL_TASKS_CACHE" ]; then
+        printf '\033[2mLoading tasks…\033[0m' >&2
+        bd list --all --json --limit 0 2>/dev/null > "$ALL_TASKS_CACHE"
+        printf '\r\033[K' >&2
+    fi
+}
+
+# =========================================================================== #
+# Helper: detect orphaned tasks (non-epic, no parent field)                    #
 # =========================================================================== #
 detect_orphaned_tasks() {
-    local ALL_TASK_IDS PARENTED_IDS EPIC_IDS
-
-    # All non-epic task IDs
-    ALL_TASK_IDS=$(bd list --all --json --limit 0 2>/dev/null \
-        | jq -r '.[] | select(.issue_type != "epic") | .id' | sort)
-
-    if [ -z "$ALL_TASK_IDS" ]; then
-        return
-    fi
-
-    # Collect all epic IDs
-    EPIC_IDS=$(bd list --type epic --all --json 2>/dev/null | jq -r '.[].id')
-
-    # Union of all parented task IDs across all epics
-    PARENTED_IDS=""
-    for eid in $EPIC_IDS; do
-        local children
-        children=$(bd list --parent "$eid" --all --json --limit 0 2>/dev/null \
-            | jq -r '.[].id')
-        if [ -n "$children" ]; then
-            if [ -n "$PARENTED_IDS" ]; then
-                PARENTED_IDS="${PARENTED_IDS}"$'\n'"${children}"
-            else
-                PARENTED_IDS="$children"
-            fi
-        fi
-    done
-    PARENTED_IDS=$(echo "$PARENTED_IDS" | sort -u)
-
-    # Orphaned = ALL_TASK_IDS − PARENTED_IDS
-    if [ -n "$PARENTED_IDS" ]; then
-        comm -23 <(echo "$ALL_TASK_IDS") <(echo "$PARENTED_IDS")
-    else
-        echo "$ALL_TASK_IDS"
-    fi
+    fetch_all_tasks
+    jq -r '.[] | select(.issue_type != "epic") | select(.parent == null or .parent == "") | .id' \
+        "$ALL_TASKS_CACHE"
 }
 
 # =========================================================================== #
 # Helper: build epic fzf lines                                                #
 # =========================================================================== #
 build_epic_lines() {
-    local EPIC_STATUS ALL_EPICS MAX_TITLE
+    local ALL_EPICS CHILD_STATS MAX_TITLE
 
-    EPIC_STATUS=$(bd epic status --json 2>/dev/null)
+    fetch_all_tasks
 
-    ALL_EPICS=$(bd list --type epic --all --json 2>/dev/null \
-        | jq -r 'sort_by(.title) | .[] | [.id, .status, .title] | @tsv')
+    ALL_EPICS=$(jq -r '[.[] | select(.issue_type == "epic")] | sort_by(.title) | .[] | [.id, .status, .title] | @tsv' \
+        "$ALL_TASKS_CACHE")
 
     if [ -z "$ALL_EPICS" ]; then
         echo "No epics found." >&2
         return 1
     fi
+
+    # Pre-compute child counts per epic in one jq pass
+    jq '
+        [.[] | select(.issue_type != "epic" and .parent != null and .parent != "")]
+        | group_by(.parent)
+        | map({key: .[0].parent, value: {total: length, closed: ([.[] | select(.status == "closed")] | length)}})
+        | from_entries' "$ALL_TASKS_CACHE" > "$CHILD_STATS_CACHE"
 
     # Calculate max title width for aligned columns
     MAX_TITLE=0
@@ -107,15 +95,8 @@ build_epic_lines() {
     while IFS=$'\t' read -r id status title; do
         local total closed filled empty pct bar_fill bar_empty bullet bar line
 
-        if [ "$status" = "closed" ]; then
-            total=$(bd list --parent "$id" --all --json --limit 0 2>/dev/null | jq 'length')
-            closed=$total
-        else
-            total=$(echo "$EPIC_STATUS" | jq -r --arg id "$id" \
-                '.[] | select(.epic.id == $id) | .total_children // 0')
-            closed=$(echo "$EPIC_STATUS" | jq -r --arg id "$id" \
-                '.[] | select(.epic.id == $id) | .closed_children // 0')
-        fi
+        total=$(jq -r --arg id "$id" '.[$id].total // 0' "$CHILD_STATS_CACHE")
+        closed=$(jq -r --arg id "$id" '.[$id].closed // 0' "$CHILD_STATS_CACHE")
 
         # Normalize empty/null to 0
         total=${total:-0}; [ "$total" = "null" ] && total=0
@@ -192,23 +173,24 @@ build_task_lines() {
             echo "No orphaned tasks." >&2
             return 1
         fi
-        # Bulk-fetch all task details in one bd call, filter to orphan IDs (avoids N+1)
+        fetch_all_tasks
         local orphan_ids_json
         orphan_ids_json=$(jq -R -s 'split("\n") | map(select(. != ""))' "$ORPHAN_CACHE")
-        TASKS=$(bd list --all --json --limit 0 2>/dev/null \
-            | jq -r --argjson ids "$orphan_ids_json" '
+        TASKS=$(jq -r --argjson ids "$orphan_ids_json" '
                     ($ids | map({(.): true}) | add) as $idset
                     | [.[]
-                                                | select(.issue_type != "epic")
-                                                | select(.id as $i | $idset[$i])
-                        ]
+                        | select(.issue_type != "epic")
+                        | select(.id as $i | $idset[$i])
+                    ]
                     | sort_by(.priority, .title)
                     | .[]
                     | [.id, .status, (.priority // 2 | tostring), .title]
-                    | @tsv')
+                    | @tsv' "$ALL_TASKS_CACHE")
     else
-        TASKS=$(bd list --parent "$EPIC_ID" --all --json --limit 0 2>/dev/null \
-            | jq -r 'sort_by(.priority, .title) | .[] | [.id, .status, .priority, .title] | @tsv')
+        fetch_all_tasks
+        TASKS=$(jq -r --arg id "$EPIC_ID" \
+            '[.[] | select(.parent == $id)] | sort_by(.priority, .title) | .[] | [.id, .status, .priority, .title] | @tsv' \
+            "$ALL_TASKS_CACHE")
     fi
 
     if [ -z "$TASKS" ]; then
@@ -270,7 +252,7 @@ while true; do
                         --no-sort \
                         --cycle \
                         --header '→/Enter: drill in │ ←/Esc: quit │ ?: toggle preview' \
-                        --preview "bash \"$SCRIPT_DIR/plan-preview.sh\" {1} \"$ORPHAN_CACHE\"" \
+                        --preview "bash \"$SCRIPT_DIR/plan-preview.sh\" {1} \"$ORPHAN_CACHE\" \"$ALL_TASKS_CACHE\"" \
                         --preview-window 'right,60%,border-left,wrap,<120(down,50%,border-top,wrap),<80(hidden)' \
                         --bind '?:toggle-preview,right:accept,left:abort' \
                 || true)
@@ -280,8 +262,8 @@ while true; do
                 if [ "$SELECTED_EPIC_ID" = "_orphan" ]; then
                     SELECTED_EPIC_TITLE="Orphaned tasks"
                 else
-                    SELECTED_EPIC_TITLE=$(bd show "$SELECTED_EPIC_ID" --json 2>/dev/null \
-                        | jq -r '.[0].title')
+                    SELECTED_EPIC_TITLE=$(jq -r --arg id "$SELECTED_EPIC_ID" \
+                        '.[] | select(.id == $id) | .title' "$ALL_TASKS_CACHE")
                 fi
                 STATE="TASKS"
             else
@@ -299,7 +281,7 @@ while true; do
                         --no-sort \
                         --cycle \
                         --header "◂ ${SELECTED_EPIC_TITLE} │ ←/Esc: back │ →/Enter: details │ ?: toggle preview" \
-                        --preview "bash \"$SCRIPT_DIR/plan-task-preview.sh\" {1} \"$SELECTED_EPIC_ID\"" \
+                        --preview "bash \"$SCRIPT_DIR/plan-task-preview.sh\" {1} \"$SELECTED_EPIC_ID\" \"$ALL_TASKS_CACHE\"" \
                         --preview-window 'right,60%,border-left,wrap,<120(down,50%,border-top,wrap),<80(hidden)' \
                         --bind '?:toggle-preview,right:accept,left:abort' \
                 || true)

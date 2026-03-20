@@ -1,0 +1,9 @@
+.git/
+.github/
+.claude/
+docs/
+scripts/
+taskfiles/
+**/__pycache__/
+*.md
+!apps/*/README.md
