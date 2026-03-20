@@ -6,7 +6,7 @@ Deployment, monitoring, persistence, and logging configuration.
 
 ## Docker Deployment
 
-The repository includes production-ready Docker files at the repo root:
+The Docker files live in `apps/jeelink2mqtt/`:
 
 - **Dockerfile** — multi-stage build using `uv` for fast dependency resolution
 - **docker-compose.yml** — full stack with Mosquitto MQTT broker
@@ -14,13 +14,13 @@ The repository includes production-ready Docker files at the repo root:
 ### Build and Run
 
 ```bash
-docker compose up -d
+docker compose -f apps/jeelink2mqtt/docker-compose.yml up -d
 ```
 
 To run in dry-run mode (no hardware or MQTT required):
 
 ```bash
-docker compose run --rm jeelink2mqtt --dry-run
+docker compose -f apps/jeelink2mqtt/docker-compose.yml run --rm jeelink2mqtt --dry-run
 ```
 
 ### Configuration
