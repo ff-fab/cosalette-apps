@@ -1,0 +1,190 @@
+# Documentation site configuration (native Zensical format)
+#
+# Zensical is a documentation framework by the creators of Material for MkDocs.
+# This file replaces mkdocs.yml with native TOML configuration.
+#
+# Usage (via Taskfile — single source of truth for tool commands):
+#   task docs:serve       # Local preview with hot reload
+#   task docs:build       # Build static site to site/
+#
+
+# Structure follows a user-journey (lifecycle) model:
+#   Get Started     — onboarding-oriented (first success quickly)
+#   Install/Setup   — environment-oriented (prereqs, installation, config)
+#   Use             — outcome-oriented (common end-to-end flows)
+#   (Optional) Operate — operations-oriented (deploy, monitor, upgrade, security)
+#   (Optional) Troubleshoot — recovery-oriented (diagnosis, known issues, fixes)
+#   Reference       — lookup-oriented (API/CLI/config, schemas)
+
+
+# ---------------------------------------------------------------------------
+# Project
+# ---------------------------------------------------------------------------
+
+[project]
+site_name = "vito2mqtt"
+site_description = "A smart home app to control a Vitodens gas heating."
+
+# Canonical URL for the deployed site. Used for sitemap and social cards.
+# Note: zensical.toml does not support environment variable substitution.
+# The CI workflow hardcodes the same URL, so this is the single source of truth.
+site_url = "https://ff-fab.github.io/vito2mqtt/"
+
+repo_url = "https://github.com/ff-fab/vito2mqtt"
+repo_name = "ff-fab/vito2mqtt"
+edit_uri = "edit/main/docs/"
+
+# ---------------------------------------------------------------------------
+# Navigation
+# ---------------------------------------------------------------------------
+
+nav = [
+    { "Home" = "index.md" },
+    { "Getting Started" = "getting-started/index.md" },
+    { "Guides" = [
+        { "index" = "guides/index.md" },
+    ]},
+    { "Reference" = [
+        { "Configuration" = "reference/configuration.md" },
+        { "MQTT Signals" = "reference/signals.md" },
+    ]},
+    { "Architecture" = [
+        { "index" = "adr/index.md" },
+        { "ADR-001: Framework Choice" = "adr/ADR-001-framework-choice.md" },
+        { "ADR-002: MQTT Topic Layout" = "adr/ADR-002-mqtt-topic-layout.md" },
+        { "ADR-003: Hardware Abstraction" = "adr/ADR-003-hardware-abstraction.md" },
+        { "ADR-004: Optolink Protocol" = "adr/ADR-004-optolink-protocol-design.md" },
+        { "ADR-005: Configuration" = "adr/ADR-005-configuration-settings.md" },
+        { "ADR-006: Signal Language" = "adr/ADR-006-configurable-signal-language.md" },
+        { "ADR-007: Coalescing Groups" = "adr/ADR-007-telemetry-coalescing-groups.md" },
+    ]},
+]
+
+# Note: exclude_docs is not yet supported in zensical.toml (see Zensical docs).
+# The TODO/, demos/, and testing/ directories may appear as unlisted pages.
+
+# ---------------------------------------------------------------------------
+# Theme
+# ---------------------------------------------------------------------------
+
+[project.theme]
+# Zensical's modern design (the default). Use variant = "classic" to restore
+# the Material for MkDocs appearance.
+features = [
+    "navigation.tabs",
+    "navigation.tabs.sticky",
+    "navigation.sections",
+    "navigation.expand",
+    "navigation.indexes",
+    "navigation.top",
+    "search.suggest",
+    "search.highlight",
+    "content.code.copy",
+    "content.code.annotate",
+    "content.tabs.link",
+    "content.action.edit",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+# --- Color palette toggle (dark / light) ---
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "teal"
+accent = "cyan"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "teal"
+accent = "cyan"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+# ---------------------------------------------------------------------------
+# Plugins
+# ---------------------------------------------------------------------------
+
+[project.plugins.autorefs]
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["packages/src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+show_source = true
+show_root_heading = true
+show_symbol_type_heading = true
+members_order = "source"
+show_signature_annotations = true
+separate_signature = true
+signature_crossrefs = true
+merge_init_into_class = true
+docstring_style = "google"
+
+# ---------------------------------------------------------------------------
+# Markdown extensions
+# ---------------------------------------------------------------------------
+
+# Admonitions (note, warning, tip, etc.)
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+
+# HTML / attribute extensions (required for grid cards, icon sizing)
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+
+# Code blocks
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions.pymdownx.inlinehilite]
+
+[project.markdown_extensions.pymdownx.superfences]
+
+[[project.markdown_extensions.pymdownx.superfences.custom_fences]]
+name = "mermaid"
+class = "mermaid"
+format = "pymdownx.superfences.fence_code_format"
+
+# Content tabs (e.g., showing Python / TypeScript side by side)
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+
+# Typography and formatting
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.keys]
+
+# Lists and task lists
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+
+# Table of contents
+[project.markdown_extensions.toc]
+permalink = true
+toc_depth = 3
+
+# Tables
+[project.markdown_extensions.tables]
+
+# Footnotes
+[project.markdown_extensions.footnotes]
+
+# Emoji (used sparingly for status indicators)
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
+
+# ---------------------------------------------------------------------------
+# Extra
+# ---------------------------------------------------------------------------
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/ff-fab/vito2mqtt"
