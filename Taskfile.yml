@@ -76,6 +76,11 @@ tasks:
       - task: typecheck:all
       - task: test:all
 
+  app:new:
+    desc: 'Scaffold a new app (e.g.: task app:new -- myapp "My app description")'
+    cmds:
+      - bash scripts/scaffold-app.sh {{.CLI_ARGS}}
+
   # ── Planning tasks (beads) ─────────────────────────────────
 
   plan:
