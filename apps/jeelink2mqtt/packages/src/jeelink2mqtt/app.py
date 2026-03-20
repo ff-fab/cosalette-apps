@@ -29,7 +29,7 @@ from pathlib import Path
 import cosalette
 from cosalette.stores import JsonFileStore
 
-from jeelink2mqtt._version import __version__
+from jeelink2mqtt import __version__
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.models import SensorConfig

@@ -1,3 +1,4 @@
 {
-  "apps/gas2mqtt": "0.1.0"
+  "apps/gas2mqtt": "0.1.0",
+  "apps/jeelink2mqtt": "0.1.0"
 }

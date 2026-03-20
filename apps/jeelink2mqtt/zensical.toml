@@ -28,11 +28,11 @@ site_description = "A smart home app to read in values of Jeelink temperature an
 # Canonical URL for the deployed site. Used for sitemap and social cards.
 # Note: zensical.toml does not support environment variable substitution.
 # The CI workflow hardcodes the same URL, so this is the single source of truth.
-site_url = "https://ff-fab.github.io/jeelink2mqtt/"
+site_url = "https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/"
 
-repo_url = "https://github.com/ff-fab/jeelink2mqtt"
-repo_name = "ff-fab/jeelink2mqtt"
-edit_uri = "edit/main/docs/"
+repo_url = "https://github.com/ff-fab/cosalette-apps"
+repo_name = "ff-fab/cosalette-apps"
+edit_uri = "edit/main/apps/jeelink2mqtt/docs/"
 
 # ---------------------------------------------------------------------------
 # Navigation
@@ -181,4 +181,4 @@ emoji_generator = "zensical.extensions.emoji.to_svg"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/ff-fab/jeelink2mqtt"
+link = "https://github.com/ff-fab/cosalette-apps"
