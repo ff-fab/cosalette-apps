@@ -14,24 +14,17 @@ jobs:
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
       paths_released: ${{ steps.release.outputs.paths_released }}
+      docker_matrix: ${{ steps.docker-matrix.outputs.matrix }}
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
-
-  # Build Docker images for each released app
-  docker-matrix:
-    needs: release
-    if: needs.release.outputs.releases_created == 'true'
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.set-matrix.outputs.matrix }}
-    steps:
-      - id: set-matrix
+      - id: docker-matrix
+        if: steps.release.outputs.releases_created == 'true'
         env:
-          RELEASE_OUTPUTS: ${{ toJSON(needs.release.outputs) }}
+          RELEASE_OUTPUTS: ${{ toJSON(steps.release.outputs) }}
         run: |
           matrix=$(echo "$RELEASE_OUTPUTS" | jq -c '. as $out | {
             include: [
@@ -45,11 +38,12 @@ jobs:
           }' || echo '')
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
+  # Build Docker images for each released app
   docker:
-    needs: docker-matrix
-    if: needs.docker-matrix.outputs.matrix != ''
+    needs: release
+    if: needs.release.outputs.docker_matrix != ''
     strategy:
-      matrix: ${{ fromJSON(needs.docker-matrix.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.release.outputs.docker_matrix) }}
     uses: ./.github/workflows/docker-app.yml
     with:
       app: ${{ matrix.app }}

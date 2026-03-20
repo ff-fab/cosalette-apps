@@ -22,7 +22,7 @@ automatically with new apps.
 
 - None (CI workflow changes — validated by GitHub Actions on push)
 
-**Review Status:** APPROVED
+**Review:** See [PR #13](https://github.com/ff-fab/cosalette-apps/pull/13) for review history and current status.
 
 **Git Commit Message:**
 
