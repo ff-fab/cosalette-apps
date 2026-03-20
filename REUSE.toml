@@ -33,6 +33,7 @@ path = [
     ".pre-commit-config.yaml",
     ".editorconfig",
     ".gitignore",
+    ".dockerignore",
     ".gitattributes",
     ".prettierignore",
     ".prettierrc.json",
