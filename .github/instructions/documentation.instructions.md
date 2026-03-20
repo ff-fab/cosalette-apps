@@ -20,7 +20,7 @@ This monorepo has **multiple independent documentation sites**:
 | Site           | Config                                | Serve command                    | Build command                    |
 | -------------- | ------------------------------------- | -------------------------------- | -------------------------------- |
 | Root (monorepo)| `zensical.toml`                       | `task docs:serve`                | `task docs:build`                |
-| Per-app        | `apps/<name>/zensical.toml`           | `task <name>:docs:serve`         | `task <name>:docs:build`         |
+| Per-app        | `apps/<name>/zensical.toml`           | `task <app>:docs:serve`          | `task <app>:docs:build`          |
 
 ## ADR Format
 
