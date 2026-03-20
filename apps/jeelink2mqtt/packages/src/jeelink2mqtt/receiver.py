@@ -43,7 +43,7 @@ def register_receiver(app: cosalette.App) -> None:
     """Register the receiver as the root device on *app*."""
 
     @app.device()  # Root → topics at jeelink2mqtt/{channel}
-    async def receiver(
+    async def receiver(  # pragma: no cover — composition root, tested via integration
         ctx: cosalette.DeviceContext,
         jeelink: JeeLinkPort,
         store: DeviceStore,
