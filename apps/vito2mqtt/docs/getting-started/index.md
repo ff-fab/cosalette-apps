@@ -131,8 +131,8 @@ You should see JSON payloads for each signal group:
 ```json title="vito2mqtt/vitodens200w/diagnosis/state"
 {
   "error_status": 0,
-  "error_history_1": ["Flame failure", "2026-01-15T14:30:00"],
-  "error_history_2": ["Flow sensor fault", "2025-12-03T08:15:00"]
+  "error_history_1": { "error": "Flame failure", "timestamp": "2026-01-15T14:30:00" },
+  "error_history_2": { "error": "Flow sensor fault", "timestamp": "2025-12-03T08:15:00" }
 }
 ```
 

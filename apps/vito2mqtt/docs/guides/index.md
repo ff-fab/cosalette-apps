@@ -192,15 +192,16 @@ mosquitto_pub -h localhost \
   -t 'vito2mqtt/vitodens200w/heating_radiator/set' \
   -m '{
     "timer_m1_monday": [
-      ["06:00", "08:30"],
-      ["17:00", "22:00"],
-      ["00:00", "00:00"],
-      ["00:00", "00:00"]
+      [[6, 0], [8, 30]],
+      [[17, 0], [22, 0]],
+      [[null, null], [null, null]],
+      [[null, null], [null, null]]
     ]
   }'
 ```
 
-Unused slots must be `["00:00", "00:00"]`. Each day has exactly 4 slots.
+Unused slots must be `[null, null]`. Each day has exactly 4 pairs of 2 time slots,
+where each slot is `[hours, minutes]` with `int` or `null` elements.
 
 ### Checking error history
 
@@ -211,14 +212,14 @@ mosquitto_sub -h localhost \
   -t 'vito2mqtt/vitodens200w/diagnosis/state' -v
 ```
 
-Error history entries (ES type) are returned as `[label, datetime]` pairs, where
-`label` is a human-readable error description:
+Error history entries (ES type) are returned as objects with `error` and `timestamp`
+fields, where `error` is a human-readable description:
 
 ```json
 {
   "error_status": 0,
-  "error_history_1": ["Flame loss during operation", "2026-01-15T14:30:00"],
-  "error_history_2": ["Flow sensor fault", "2025-12-03T08:15:00"]
+  "error_history_1": { "error": "Flame loss during operation", "timestamp": "2026-01-15T14:30:00" },
+  "error_history_2": { "error": "Flow sensor fault", "timestamp": "2025-12-03T08:15:00" }
 }
 ```
 
