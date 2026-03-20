@@ -108,7 +108,7 @@ def register_commands(app: cosalette.App) -> None:
 def _handle_assign(
     state: SharedState,
     data: dict[str, Any],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Manually assign an ephemeral sensor ID to a logical name."""
     sensor_name = data.get("sensor_name")
     sensor_id = data.get("sensor_id")
@@ -136,7 +136,7 @@ def _handle_assign(
 def _handle_reset(
     state: SharedState,
     data: dict[str, Any],
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Remove the mapping for a named sensor."""
     sensor_name = data.get("sensor_name")
     if not sensor_name:
@@ -159,7 +159,7 @@ def _handle_reset(
 def _handle_reset_all(
     state: SharedState,
     data: dict[str, Any],  # noqa: ARG001
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Clear all sensor mappings."""
     events = state.registry.reset_all()
     return {
@@ -172,7 +172,7 @@ def _handle_reset_all(
 def _handle_list_unknown(
     state: SharedState,
     data: dict[str, Any],  # noqa: ARG001
-) -> dict[str, object]:
+) -> dict[str, Any]:
     """Return recently-seen sensor IDs that are not yet mapped."""
     unmapped = state.registry.get_unmapped_ids()
     return {
