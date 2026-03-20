@@ -33,9 +33,15 @@ done
 # ── Validation ───────────────────────────────────────────────
 [[ -f pyproject.toml ]] || die "run from repo root (pyproject.toml not found)"
 [[ "$NAME" =~ ^[a-z][a-z0-9-]*$ ]] || die "name must be lowercase alphanumeric + hyphens"
-[[ "$DESC" =~ [\"\\] ]] && die "description must not contain quotes or backslashes"
+[[ "$DESC" =~ [\"\\\`] ]] && die "description must not contain quotes, backslashes, or backticks"
+[[ "$DESC" == *'$('* ]] && die "description must not contain command substitutions"
 [[ "$LICENSE" == "MIT" || "$LICENSE" == "GPL-3.0-or-later" ]] || die "license must be MIT or GPL-3.0-or-later"
 [[ -d "apps/$NAME" ]] && die "apps/$NAME already exists"
+
+# Prerequisites
+for cmd in jq sed grep; do
+  command -v "$cmd" >/dev/null 2>&1 || die "$cmd is required but not found"
+done
 
 APP="apps/$NAME"
 PKG_NAME="${NAME//-/_}"   # Python package name (hyphens → underscores)
@@ -77,13 +83,20 @@ touch "$APP/packages/tests/unit/__init__.py"
 touch "$APP/packages/tests/unit/conftest.py"
 touch "$APP/packages/tests/integration/__init__.py"
 
-cat > "$APP/packages/tests/unit/test_placeholder.py" <<'EOF'
-"""Placeholder test to validate CI pipeline."""
+cat > "$APP/packages/tests/unit/test_placeholder.py" <<EOF
+"""Placeholder test to validate CI pipeline.
+
+This test imports the application package so coverage is non-zero.
+Replace it with real tests as the project evolves.
+"""
+
+import importlib
 
 
-def test_placeholder() -> None:
-    """Remove this test once real tests exist."""
-    assert True
+def test_package_imports() -> None:
+    """Ensure the scaffolded package can be imported."""
+    mod = importlib.import_module("$PKG_NAME")
+    assert mod is not None
 EOF
 
 # ── pyproject.toml ───────────────────────────────────────────
@@ -289,7 +302,8 @@ sed -i "${LAST_APP_INCLUDE}a\\
     taskfile: ./taskfiles/PythonApp.yml\\
     dir: ./apps/${NAME}\\
     vars:\\
-      APP_NAME: ${NAME}" Taskfile.yml
+      APP_NAME: ${NAME}\\
+      MODULE_NAME: ${PKG_NAME}" Taskfile.yml
 
 # 3. release-please-config.json — add package entry
 TMP=$(mktemp)
@@ -350,6 +364,16 @@ else
     fi
   fi
 fi
+
+# ── Verify critical edits ────────────────────────────────────
+echo "Verifying integration edits…"
+grep -q "$NAME" Taskfile.yml || die "Taskfile.yml edit failed — $NAME not found"
+jq -e --arg p "apps/$NAME" '.packages[$p]' release-please-config.json >/dev/null || die "release-please-config.json edit failed"
+jq -e --arg p "apps/$NAME" '.[$p]' .release-please-manifest.json >/dev/null || die ".release-please-manifest.json edit failed"
+grep -q "$NAME" .github/workflows/ci.yml || die "ci.yml edit failed — $NAME not found"
+grep -q "$NAME" codecov.yml || die "codecov.yml edit failed — $NAME not found"
+grep -q "apps/${NAME}/packages/src" pyproject.toml || die "pyright extraPaths edit failed"
+grep -q "$NAME" REUSE.toml || die "REUSE.toml edit failed — $NAME not found"
 
 echo "✓ Scaffolded apps/$NAME"
 echo "  Next: run 'uv sync' then 'task ${NAME}:test:unit' to verify"
