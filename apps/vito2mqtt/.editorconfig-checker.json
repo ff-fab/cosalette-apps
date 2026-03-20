@@ -1,8 +1,0 @@
-{
-  "Verbose": false,
-  "Disable": {
-    "IndentSize": true,
-    "MaxLineLength": true
-  },
-  "Exclude": ["^\\.git/", "^old/"]
-}

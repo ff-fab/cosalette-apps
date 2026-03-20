@@ -50,7 +50,7 @@ pythonVersion = "3.14"
 venvPath = "."
 venv = ".venv"
 # Updated dynamically as apps are added:
-extraPaths = ["apps/gas2mqtt/packages/src", "apps/jeelink2mqtt/packages/src"]
+extraPaths = ["apps/gas2mqtt/packages/src", "apps/jeelink2mqtt/packages/src", "apps/vito2mqtt/packages/src"]
 
 [dependency-groups]
 docs = [
@@ -72,6 +72,7 @@ dev = [
     "radon>=6.0.1",
     "xenon>=0.9.3",
     "types-PyYAML>=6.0.0",
+    "types-pyserial>=3.5.0",
     "pre-commit>=4.5.0",
     "setuptools-scm[toml]>=8.0.0",
     "reuse>=5.0.2",

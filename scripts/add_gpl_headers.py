@@ -1,39 +1,22 @@
 #!/usr/bin/env python3
-# Copyright (C) 2026 Fabian Koerner <mail@fabiankoerner.com>
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-#
-# You should have received a copy of the GNU General Public License
-# along with this program.  If not, see <https://www.gnu.org/licenses/>.
+# SPDX-FileCopyrightText: 2026 Fabian Koerner <mail@fabiankoerner.com>
+# SPDX-License-Identifier: MIT
 
-"""Add GPLv3 copyright headers to source files.
+"""Add GPLv3 copyright headers to source files in GPL-licensed paths.
+
+Reads REUSE.toml to discover which paths are GPL-3.0-or-later, then ensures
+all .py and .sh files under those paths have the required copyright header.
+Scales automatically to any new GPL-licensed app added to the monorepo.
 
 Usage:
-    # Add header to specific files:
-    uv run scripts/add_gpl_headers.py packages/src/vito2mqtt/new_module.py
-
-    # Add header to multiple files:
-    uv run scripts/add_gpl_headers.py file1.py file2.sh file3.py
-
-    # Check all tracked .py and .sh files for missing headers:
+    # Check all GPL-path files for missing headers:
     uv run scripts/add_gpl_headers.py --check
 
-    # Add headers to all tracked files missing them:
+    # Add headers to all GPL-path files missing them:
     uv run scripts/add_gpl_headers.py --all
 
-The script automatically detects whether a file starts with a shebang line
-(``#!``) and places the header after it. Otherwise the header is prepended
-at the top of the file.
-
-Files under ``docs/planning/legacy/`` are always skipped (third-party code).
+    # Add header to specific files (only if under a GPL path):
+    uv run scripts/add_gpl_headers.py file1.py file2.py
 """
 
 from __future__ import annotations
@@ -41,9 +24,15 @@ from __future__ import annotations
 import subprocess
 import sys
 from datetime import UTC, datetime
+from fnmatch import fnmatch
 from pathlib import Path
 
-WORKSPACE = Path(__file__).resolve().parent.parent
+try:
+    import tomllib
+except ImportError:
+    import tomli as tomllib  # type: ignore[no-redef]
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 _HEADER_TEMPLATE = """\
 # Copyright (C) {year} {name} <{email}>
@@ -61,17 +50,49 @@ _HEADER_TEMPLATE = """\
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>."""
 
-# Marker to detect whether *any* GPLv3 header is already present.
-# Matches regardless of who authored the notice or when.
 COPYRIGHT_MARKER = (
     "# This program is free software: you can redistribute it and/or modify"
 )
 
-# Skip these paths (relative to workspace root)
+HEADER_EXTENSIONS = frozenset({".py", ".sh"})
+
+SKIP_SUFFIXES = ("_version.py",)
+
 SKIP_PREFIXES = ("docs/planning/legacy/",)
 
-# File extensions that receive comment-style GPL headers
-HEADER_EXTENSIONS = frozenset({".py", ".sh"})
+
+def _load_gpl_globs() -> list[str]:
+    """Read REUSE.toml and return glob patterns annotated as GPL-3.0-or-later."""
+    reuse_toml = REPO_ROOT / "REUSE.toml"
+    if not reuse_toml.exists():
+        print("Error: REUSE.toml not found at repo root.", file=sys.stderr)
+        sys.exit(1)
+
+    data = tomllib.loads(reuse_toml.read_text(encoding="utf-8"))
+    gpl_globs: list[str] = []
+
+    for annotation in data.get("annotations", []):
+        license_id = annotation.get("SPDX-License-Identifier", "")
+        if "GPL-3.0" not in license_id:
+            continue
+        paths = annotation.get("path", [])
+        if isinstance(paths, str):
+            paths = [paths]
+        gpl_globs.extend(paths)
+
+    return gpl_globs
+
+
+def _is_gpl_path(rel_path: str, gpl_globs: list[str]) -> bool:
+    """Return True if rel_path matches any GPL glob pattern from REUSE.toml."""
+    return any(fnmatch(rel_path, g) for g in gpl_globs)
+
+
+def _should_skip(rel_path: str) -> bool:
+    """Return True if the file should be skipped."""
+    if any(rel_path.startswith(p) for p in SKIP_PREFIXES):
+        return True
+    return any(rel_path.endswith(s) for s in SKIP_SUFFIXES)
 
 
 def _git_config(key: str) -> str:
@@ -80,7 +101,7 @@ def _git_config(key: str) -> str:
         ["git", "config", key],
         capture_output=True,
         text=True,
-        cwd=WORKSPACE,
+        cwd=REPO_ROOT,
     )
     value = result.stdout.strip()
     if not value:
@@ -100,11 +121,6 @@ def _build_header() -> str:
 def _has_header(content: str) -> bool:
     """Return True if the file already contains the copyright notice."""
     return COPYRIGHT_MARKER in content
-
-
-def _should_skip(rel_path: str) -> bool:
-    """Return True if the file should be skipped."""
-    return any(rel_path.startswith(prefix) for prefix in SKIP_PREFIXES)
 
 
 def add_header(filepath: Path, header: str) -> bool:
@@ -132,32 +148,37 @@ def add_header(filepath: Path, header: str) -> bool:
     return True
 
 
-def _get_tracked_source_files() -> list[str]:
-    """Return git-tracked .py and .sh files relative to workspace root."""
+def _get_gpl_source_files(gpl_globs: list[str]) -> list[str]:
+    """Return git-tracked .py/.sh files under GPL-annotated paths."""
     result = subprocess.run(
         ["git", "ls-files"],
         capture_output=True,
         text=True,
         check=True,
-        cwd=WORKSPACE,
+        cwd=REPO_ROOT,
     )
     return [
         f
         for f in result.stdout.strip().split("\n")
         if f
         and Path(f).suffix in HEADER_EXTENSIONS
-        and not f.endswith("_version.py")  # auto-generated
+        and _is_gpl_path(f, gpl_globs)
         and not _should_skip(f)
     ]
 
 
 def cmd_check() -> int:
-    """Check all tracked source files for missing headers. Return exit code."""
-    files = _get_tracked_source_files()
+    """Check all GPL-path source files for missing headers. Return exit code."""
+    gpl_globs = _load_gpl_globs()
+    if not gpl_globs:
+        print("No GPL-annotated paths found in REUSE.toml.")
+        return 0
+
+    files = _get_gpl_source_files(gpl_globs)
     missing: list[str] = []
 
     for rel in files:
-        filepath = WORKSPACE / rel
+        filepath = REPO_ROOT / rel
         if not filepath.exists():
             continue
         content = filepath.read_text(encoding="utf-8")
@@ -170,19 +191,24 @@ def cmd_check() -> int:
             print(f"  {f}")
         return 1
 
-    print(f"All {len(files)} tracked source files have GPLv3 headers.")
+    print(f"All {len(files)} GPL-path source files have GPLv3 headers.")
     return 0
 
 
 def cmd_all() -> None:
-    """Add headers to all tracked source files missing them."""
+    """Add headers to all GPL-path source files missing them."""
+    gpl_globs = _load_gpl_globs()
+    if not gpl_globs:
+        print("No GPL-annotated paths found in REUSE.toml.")
+        return
+
     header = _build_header()
-    files = _get_tracked_source_files()
+    files = _get_gpl_source_files(gpl_globs)
     added = 0
     skipped = 0
 
     for rel in files:
-        filepath = WORKSPACE / rel
+        filepath = REPO_ROOT / rel
         if not filepath.exists():
             continue
         if add_header(filepath, header):
@@ -195,26 +221,31 @@ def cmd_all() -> None:
 
 
 def cmd_files(paths: list[str]) -> int:
-    """Add headers to specific files. Return 1 if any were modified."""
+    """Add headers to specific files if under a GPL path.
+
+    Returns 1 if any file was modified, 0 otherwise.
+    """
+    gpl_globs = _load_gpl_globs()
     header = _build_header()
     modified = 0
+
     for path_str in paths:
         filepath = Path(path_str).resolve()
         try:
-            rel = filepath.relative_to(WORKSPACE)
+            rel = str(filepath.relative_to(REPO_ROOT))
         except ValueError:
-            rel = filepath
-
-        if _should_skip(str(rel)):
-            continue
-
-        if not filepath.exists():
             continue
 
         if filepath.suffix not in HEADER_EXTENSIONS:
             continue
 
-        if filepath.name == "_version.py":
+        if _should_skip(rel):
+            continue
+
+        if not _is_gpl_path(rel, gpl_globs):
+            continue
+
+        if not filepath.exists():
             continue
 
         if add_header(filepath, header):

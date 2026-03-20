@@ -27,7 +27,7 @@ import asyncio
 import pytest
 from cosalette import App, MemoryStore, MockMqttClient
 
-from vito2mqtt._version import __version__
+from vito2mqtt import __version__
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices.commands import register_commands

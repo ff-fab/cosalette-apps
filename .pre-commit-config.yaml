@@ -38,7 +38,7 @@ repos:
     hooks:
       - id: codespell
         name: Codespell (spell check)
-        args: ['--ignore-words-list', 'hass']
+        args: ['--ignore-words-list', 'hass,oder,modul']
         exclude: |
           (?x)^(
             old/.*|
@@ -82,6 +82,17 @@ repos:
   # Use: task <app>:typecheck
   # Global pre-commit mypy is disabled because workspace apps have
   # different dependencies that can't be satisfied in a single hook.
+
+  # GPL headers: Ensure GPL-licensed files have copyright headers
+  # Reads REUSE.toml to discover GPL paths — scales to any future GPL app.
+  - repo: local
+    hooks:
+      - id: gpl-headers
+        name: GPL headers (REUSE-driven)
+        entry: uv run scripts/add_gpl_headers.py --check
+        language: system
+        always_run: true
+        pass_filenames: false
 
   # REUSE: Verify license annotations cover all files
   - repo: https://github.com/fsfe/reuse-tool

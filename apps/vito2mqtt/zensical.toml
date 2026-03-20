@@ -28,11 +28,11 @@ site_description = "A smart home app to control a Vitodens gas heating."
 # Canonical URL for the deployed site. Used for sitemap and social cards.
 # Note: zensical.toml does not support environment variable substitution.
 # The CI workflow hardcodes the same URL, so this is the single source of truth.
-site_url = "https://ff-fab.github.io/vito2mqtt/"
+site_url = "https://ff-fab.github.io/cosalette-apps/vito2mqtt/"
 
-repo_url = "https://github.com/ff-fab/vito2mqtt"
-repo_name = "ff-fab/vito2mqtt"
-edit_uri = "edit/main/docs/"
+repo_url = "https://github.com/ff-fab/cosalette-apps"
+repo_name = "ff-fab/cosalette-apps"
+edit_uri = "edit/main/apps/vito2mqtt/docs/"
 
 # ---------------------------------------------------------------------------
 # Navigation
@@ -187,4 +187,4 @@ emoji_generator = "zensical.extensions.emoji.to_svg"
 
 [[project.extra.social]]
 icon = "fontawesome/brands/github"
-link = "https://github.com/ff-fab/vito2mqtt"
+link = "https://github.com/ff-fab/cosalette-apps"

@@ -493,7 +493,7 @@ class TestContextManager:
 
         with pytest.raises(DeviceError, match="initialization failed"):
             async with session:
-                pass  # Should never reach here  # noqa: WPS428
+                pass  # Should never reach here
 
         assert fake.closed
 
@@ -514,7 +514,7 @@ class TestContextManager:
 
         with pytest.raises(OSError, match="serial port disconnected"):
             async with P300Session(fake):
-                pass  # noqa: WPS428
+                pass
 
         assert fake.closed
 
