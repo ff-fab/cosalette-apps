@@ -32,7 +32,8 @@ Run `task --list` to see all available tasks. Key tasks for development:
 | Lint all apps                 | `task lint:all`                                      |
 | Pre-PR quality gate           | `task pre-pr`                                        |
 | Wait for CI on a PR           | `task ci:wait -- <pr-number>`                        |
-| Preview docs                  | `task docs:serve`                                    |
+| Preview root docs             | `task docs:serve`                                    |
+| Preview app docs              | `task <app>:docs:serve`                              |
 | Sync dependencies             | `task sync`                                          |
 
 ## When no task exists

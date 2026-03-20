@@ -176,5 +176,6 @@ until `git push` succeeds.
 
 ## Test Notes
 
-- Shared fixtures (in `tests/fixtures/`) should be used to avoid duplication
+- Shared fixtures (in `packages/tests/fixtures/` within each app) should be used to
+  avoid duplication
 - Always ensure tests, fixtures, documentation, and features stay in sync
