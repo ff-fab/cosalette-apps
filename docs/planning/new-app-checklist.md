@@ -21,7 +21,7 @@ apps/<name>/
 ├── packages/
 │   ├── src/
 │   │   └── <name>/
-│   │       ├── __init__.py      # Version: __version__ = "0.1.0"
+│   │       ├── __init__.py      # Package marker (scaffolder adds module docstring)
 │   │       ├── py.typed         # PEP 561 marker (empty file)
 │   │       └── main.py          # Entry point stub
 │   └── tests/
@@ -37,7 +37,7 @@ apps/<name>/
 │   ├── testing/
 │   └── index.md
 ├── README.md
-├── LICENSE                      # Full license text (MIT or GPL-3.0)
+├── LICENSE                      # Full license text (MIT or GPL-3.0-or-later)
 ├── CHANGELOG.md                 # Empty, managed by release-please
 ├── pyproject.toml               # See step 2
 ├── Dockerfile                   # See step 9
@@ -51,7 +51,8 @@ Create `apps/<name>/pyproject.toml` with:
 
 - `[project]` — name, version `"0.1.0"`, description, `requires-python = ">=3.14"`,
   license, authors, dependencies (at minimum `cosalette`)
-- `[project.scripts]` — entry point: `<name> = "<name>.main:main"`
+- `[project.scripts]` — entry point: `<name> = "<pkg_name>.main:main"` (hyphens
+  become underscores in `<pkg_name>`, e.g., `air-quality2mqtt` → `air_quality2mqtt`)
 - `[build-system]` — hatchling
 - `[tool.hatch.build.targets.wheel]` — `packages = ["packages/src/<name>"]`
 - `[tool.pytest.ini_options]` — testpaths, asyncio_mode, markers
