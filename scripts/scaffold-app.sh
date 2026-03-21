@@ -281,7 +281,7 @@ cat > "$APP/zensical.toml" <<EOF
 site_name = "$NAME"
 site_description = "$DESC"
 extra_css = ["stylesheets/extra.css"]
-extra_javascript = ["javascripts/version-fetch.js"]
+extra_javascript = ["javascripts/version-fetch.js", "javascripts/header-breadcrumb.js"]
 EOF
 
 # ── docs/index.md ────────────────────────────────────────────

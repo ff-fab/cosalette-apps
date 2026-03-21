@@ -175,6 +175,7 @@ site/
 # Shared doc assets copied into app docs dirs at build time (source of truth: docs/shared/)
 apps/*/docs/stylesheets/extra.css
 apps/*/docs/javascripts/version-fetch.js
+apps/*/docs/javascripts/header-breadcrumb.js
 
 # mypy
 .mypy_cache/
