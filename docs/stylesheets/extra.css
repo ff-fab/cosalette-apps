@@ -27,16 +27,17 @@
 
 /* Match app-title font to the top-bar site title. */
 .grid.cards li > p:first-child {
+  display: flex;
+  align-items: baseline;
   font-size: 0.9rem;
   letter-spacing: -0.025em;
 }
 
 /* License label — match the Ctrl+K shortcut badge in the search field. */
 .card-license {
-  float: right;
+  margin-left: auto;
   font-size: 0.6rem;
   font-weight: normal;
-  vertical-align: middle;
   opacity: 0.7;
 }
 
