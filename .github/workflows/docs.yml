@@ -24,11 +24,15 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: gh-pages-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      root: ${{ steps.filter.outputs.root }}
+      root: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.root == 'true' }}
       apps: ${{ steps.apps.outputs.apps }}
     steps:
       - uses: actions/checkout@v6
@@ -53,15 +57,21 @@ jobs:
 
       - uses: dorny/paths-filter@v3
         id: filter
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: /tmp/path-filters.yml
 
       # Build the list of apps whose docs changed (exclude 'root')
+      # On workflow_dispatch, build all docs (path detection is unreliable)
       - name: Build changed-app list
         id: apps
         run: |
-          apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
-          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "apps=${{ steps.discover.outputs.apps }}" >> "$GITHUB_OUTPUT"
+          else
+            apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
+            echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          fi
 
   build-root:
     needs: detect
@@ -88,15 +98,12 @@ jobs:
           runCmd: task docs:build
 
   deploy-root:
-    needs: build-root
-    if: github.event_name == 'push'
+    needs: [build-root, app-docs]
+    if: always() && github.event_name != 'pull_request' && needs.build-root.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: read
-    concurrency:
-      group: gh-pages-deploy
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
       - name: Prepare runner for devcontainer
@@ -126,8 +133,9 @@ jobs:
     strategy:
       matrix:
         app: ${{ fromJson(needs.detect.outputs.apps) }}
+      max-parallel: 1
       fail-fast: false
     uses: ./.github/workflows/docs-app.yml
     with:
       app: ${{ matrix.app }}
-      deploy: ${{ github.event_name == 'push' }}
+      deploy: ${{ github.event_name != 'pull_request' }}
