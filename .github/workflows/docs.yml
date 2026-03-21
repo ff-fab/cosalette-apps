@@ -29,6 +29,7 @@ jobs:
       root: ${{ steps.filter.outputs.root }}
       gas2mqtt: ${{ steps.filter.outputs.gas2mqtt }}
       jeelink2mqtt: ${{ steps.filter.outputs.jeelink2mqtt }}
+      vito2mqtt: ${{ steps.filter.outputs.vito2mqtt }}
     steps:
       - uses: actions/checkout@v6
       - uses: dorny/paths-filter@v3
@@ -44,6 +45,9 @@ jobs:
             jeelink2mqtt:
               - 'apps/jeelink2mqtt/docs/**'
               - 'apps/jeelink2mqtt/zensical.toml'
+            vito2mqtt:
+              - 'apps/vito2mqtt/docs/**'
+              - 'apps/vito2mqtt/zensical.toml'
 
   build-root:
     needs: detect
@@ -204,4 +208,58 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./apps/jeelink2mqtt/site
           destination_dir: jeelink2mqtt
+          keep_files: true
+
+  build-vito2mqtt:
+    needs: detect
+    if: needs.detect.outputs.vito2mqtt == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build vito2mqtt docs inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task vito2mqtt:docs:build
+
+  deploy-vito2mqtt:
+    needs: build-vito2mqtt
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare runner for devcontainer
+        run: mkdir -p ~/.ssh
+      - name: Log in to GHCR (for devcontainer cache)
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build vito2mqtt docs inside devcontainer
+        uses: devcontainers/ci@v0.3
+        with:
+          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
+          push: never
+          runCmd: task vito2mqtt:docs:build
+      - uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./apps/vito2mqtt/site
+          destination_dir: vito2mqtt
           keep_files: true
