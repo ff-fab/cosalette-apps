@@ -94,9 +94,8 @@
         for (var i = 0; i < releases.length; i++) {
           var tag = releases[i].tag_name || "";
           if (tag.indexOf(prefix) === 0) {
-            var version = tag.slice(app.length + 1); // strip "<app>-"
-            applyAndGuard(el, version);
-            storageSet(cacheKey, version);
+            applyAndGuard(el, tag);
+            storageSet(cacheKey, tag);
             return;
           }
         }
