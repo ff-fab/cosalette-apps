@@ -25,14 +25,20 @@
   inset: 0;
 }
 
+/* Match app-title font to the top-bar site title. */
+.grid.cards li > p:first-child {
+  font-size: 0.9rem;
+  letter-spacing: -0.025em;
+}
+
 /* Themed card backgrounds — light mode */
 [data-md-color-scheme="default"] .grid.cards li {
   background: #f5f5f5;
 }
 
-/* Themed card backgrounds — dark mode */
+/* Themed card backgrounds — dark mode: match the search field (unhovered). */
 [data-md-color-scheme="slate"] .grid.cards li {
-  background: #2a2a2a;
+  background: var(--md-default-fg-color--lightest);
 }
 
 /* Hide the auto-fetched latest release tag next to the repo name.
