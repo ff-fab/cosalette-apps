@@ -1,3 +1,9 @@
+---
+hide:
+  - navigation
+  - toc
+---
+
 # cosalette-apps
 
 A monorepo collection of IoT-to-MQTT bridge applications for smart home automation, all
