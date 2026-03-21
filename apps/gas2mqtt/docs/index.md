@@ -39,7 +39,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 - :material-rocket-launch:{ .lg .middle } **Getting Started**
 
-  ***
+  ---
 
   Install gas2mqtt, connect the sensor, and see your first MQTT messages.
 
@@ -47,7 +47,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 - :material-cog:{ .lg .middle } **Configuration**
 
-  ***
+  ---
 
   All settings — environment variables, `.env` files, and CLI flags.
 
@@ -55,7 +55,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 - :material-access-point:{ .lg .middle } **MQTT Topics**
 
-  ***
+  ---
 
   Topic reference with payload schemas, directions, and retain flags.
 
@@ -63,7 +63,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 - :material-sitemap:{ .lg .middle } **Architecture**
 
-  ***
+  ---
 
   Hexagonal architecture, domain logic, and cosalette framework integration.
 
@@ -71,7 +71,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 - :material-code-tags:{ .lg .middle } **API Reference**
 
-  ***
+  ---
 
   Auto-generated reference for settings, ports, domain logic, devices, and adapters.
 
