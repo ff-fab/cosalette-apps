@@ -1,0 +1,1 @@
+../../../../docs/shared/javascripts/version-fetch.js

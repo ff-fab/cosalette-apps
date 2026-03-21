@@ -56,7 +56,13 @@ mkdir -p \
   "$APP/packages/tests/fixtures" \
   "$APP/packages/tests/scripts" \
   "$APP/docs/adr" \
-  "$APP/docs/testing"
+  "$APP/docs/testing" \
+  "$APP/docs/stylesheets" \
+  "$APP/docs/javascripts"
+
+# ── Shared doc assets (symlinks to docs/shared/) ────────────
+ln -s "../../../../docs/shared/stylesheets/extra.css" "$APP/docs/stylesheets/extra.css"
+ln -s "../../../../docs/shared/javascripts/version-fetch.js" "$APP/docs/javascripts/version-fetch.js"
 
 # ── Source files ─────────────────────────────────────────────
 cat > "$APP/packages/src/$PKG_NAME/__init__.py" <<EOF
@@ -280,6 +286,8 @@ cat > "$APP/zensical.toml" <<EOF
 [project]
 site_name = "$NAME"
 site_description = "$DESC"
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/version-fetch.js"]
 EOF
 
 # ── docs/index.md ────────────────────────────────────────────
