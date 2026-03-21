@@ -9,6 +9,10 @@ env:
 
 jobs:
   detect:
+    # Skip full CI for release-please PRs — they only change changelogs and
+    # version numbers, which were already tested on main. When detect is
+    # skipped, shared and app-ci are skipped too, and ci-gate auto-passes.
+    if: github.event_name == 'push' || !startsWith(github.head_ref, 'release-please--')
     runs-on: ubuntu-latest
     outputs:
       apps: ${{ steps.apps.outputs.apps }}
