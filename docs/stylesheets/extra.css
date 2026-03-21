@@ -12,6 +12,45 @@
   margin-right: auto;
 }
 
+/* ── Clickable grid cards ───────────────────────────────────────────── */
+
+/* Stretch the app-name link over the entire card via a pseudo-element. */
+.grid.cards > ul > li {
+  position: relative;
+}
+
+.grid.cards > ul > li > p:first-child a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+
+/* Match app-title font to the top-bar site title. */
+.grid.cards > ul > li > p:first-child {
+  display: flex;
+  align-items: baseline;
+  font-size: 0.9rem;
+  letter-spacing: -0.025em;
+}
+
+/* License label — match the Ctrl+K shortcut badge in the search field. */
+.card-license {
+  margin-left: auto;
+  font-size: 0.6rem;
+  font-weight: normal;
+  opacity: 0.7;
+}
+
+/* Themed card backgrounds — light mode */
+[data-md-color-scheme="default"] .grid.cards > ul > li {
+  background: #f5f5f5;
+}
+
+/* Themed card backgrounds — dark mode: match the search field (unhovered). */
+[data-md-color-scheme="slate"] .grid.cards > ul > li {
+  background: var(--md-default-fg-color--lightest);
+}
+
 /* Hide the auto-fetched latest release tag next to the repo name.
  * The monorepo itself has no releases — only individual apps do,
  * so the label shows misleading app-specific versions.
