@@ -13,20 +13,20 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 <div class="grid cards" markdown>
 
--   **[gas2mqtt](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)** · MIT
+-   **[gas2mqtt](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)** <span class="card-license">MIT</span>
 
     ---
 
     Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes
     counter ticks, temperature, and debug data to MQTT.
 
--   **[jeelink2mqtt](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)** · MIT
+-   **[jeelink2mqtt](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)** <span class="card-license">MIT</span>
 
     ---
 
     Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.
 
--   **[vito2mqtt](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)** · GPL-3.0-or-later
+-   **[vito2mqtt](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)** <span class="card-license">GPL-3.0-or-later</span>
 
     ---
 
