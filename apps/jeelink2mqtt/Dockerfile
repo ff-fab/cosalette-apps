@@ -15,7 +15,7 @@ COPY apps/jeelink2mqtt/packages/src/ apps/jeelink2mqtt/packages/src/
 # Install the application using locked dependencies (no cache to keep image small)
 RUN uv pip install --system --no-cache ./apps/jeelink2mqtt
 
-# Prepare persistence directory and non-root user
+# Run as non-root (dialout group for serial device access)
 RUN adduser -D appuser && addgroup appuser dialout \
     && mkdir -p /app/data && chown appuser:appuser /app/data
 USER appuser

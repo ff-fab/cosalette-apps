@@ -15,10 +15,11 @@ COPY apps/gas2mqtt/packages/src/ apps/gas2mqtt/packages/src/
 # Install the application using locked dependencies (no cache to keep image small)
 RUN uv pip install --system --no-cache ./apps/gas2mqtt
 
-# Run as non-root
-RUN adduser -D appuser
-RUN mkdir -p /app/data && chown appuser:appuser /app/data
+# Run as non-root with persistent data directory
+RUN adduser -D appuser \
+    && mkdir -p /app/data && chown appuser:appuser /app/data
 USER appuser
 
-# Entry point — reads config from environment / .env
-CMD ["gas2mqtt"]
+VOLUME /app/data
+
+ENTRYPOINT ["gas2mqtt"]

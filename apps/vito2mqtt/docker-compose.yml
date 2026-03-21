@@ -1,33 +1,9 @@
-# Docker Compose configuration for vito2mqtt + Mosquitto MQTT broker
-
 services:
-  # Mosquitto MQTT broker - receives telemetry from vito2mqtt
-  # Provides persistent message broker for home automation integrations
-  mosquitto:
-    image: eclipse-mosquitto:2.0
-    container_name: vito2mqtt-mosquitto
-    ports:
-      # Expose MQTT standard port (1883) on localhost
-      # Other services on docker network can connect directly to 'mosquitto:1883'
-      - '1883:1883'
-      # Optional: WebSocket port for web clients (disabled by default)
-      # - "9001:9001"
-    volumes:
-      # Persist broker data and logs across container restarts
-      - mosquitto_data:/mosquitto/data
-      - mosquitto_logs:/mosquitto/log
-    restart: unless-stopped
-    # Limit resource usage
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-
   vito2mqtt:
     build:
       context: ../..
       dockerfile: apps/vito2mqtt/Dockerfile
+    image: ghcr.io/ff-fab/vito2mqtt:latest
     restart: unless-stopped
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
@@ -36,13 +12,23 @@ services:
     env_file: .env
     environment:
       VITO2MQTT_MQTT__HOST: mosquitto
-      VITO2MQTT_STORE_PATH: /data/store.json
+      VITO2MQTT_STORE_PATH: /app/data/store.json
     volumes:
-      - vito2mqtt-data:/data
+      - vito2mqtt-data:/app/data
     depends_on:
       - mosquitto
 
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '1883:1883'
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
 volumes:
-  mosquitto_data:
-  mosquitto_logs:
   vito2mqtt-data:
+  mosquitto-data:
+  mosquitto-log:

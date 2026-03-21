@@ -3,21 +3,16 @@ services:
     build:
       context: ../..
       dockerfile: apps/jeelink2mqtt/Dockerfile
+    image: ghcr.io/ff-fab/jeelink2mqtt:latest
     restart: unless-stopped
     devices:
-      - '/dev/ttyUSB0:/dev/ttyUSB0'
-    volumes:
-      - jeelink-data:/app/data
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    env_file: .env
     environment:
       JEELINK2MQTT_SERIAL_PORT: /dev/ttyUSB0
       JEELINK2MQTT_MQTT__HOST: mosquitto
-      JEELINK2MQTT_SENSORS: >-
-        [
-          {"name": "office", "temp_offset": -0.5},
-          {"name": "outdoor", "staleness_timeout": 900}
-        ]
-      JEELINK2MQTT_STALENESS_TIMEOUT_SECONDS: '600'
-      JEELINK2MQTT_MEDIAN_FILTER_WINDOW: '7'
+    volumes:
+      - jeelink2mqtt-data:/app/data
     depends_on:
       - mosquitto
 
@@ -25,12 +20,13 @@ services:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - '127.0.0.1:1883:1883'
+      - '1883:1883'
     volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto-data:/mosquitto/data
-      - mosquitto-config:/mosquitto/config
+      - mosquitto-log:/mosquitto/log
 
 volumes:
-  jeelink-data:
+  jeelink2mqtt-data:
   mosquitto-data:
-  mosquitto-config:
+  mosquitto-log:
