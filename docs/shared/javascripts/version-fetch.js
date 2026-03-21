@@ -21,7 +21,7 @@
   function getAppName() {
     var title = document.title || "";
     var sep = title.lastIndexOf(" - ");
-    return sep > 0 ? title.slice(sep + 3).trim() : null;
+    return sep > 0 ? title.slice(sep + 3).trim() : title.trim() || null;
   }
 
   function storageGet(key) {
