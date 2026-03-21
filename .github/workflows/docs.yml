@@ -32,7 +32,7 @@ jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      root: ${{ steps.filter.outputs.root }}
+      root: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.root == 'true' }}
       apps: ${{ steps.apps.outputs.apps }}
     steps:
       - uses: actions/checkout@v6
@@ -57,15 +57,21 @@ jobs:
 
       - uses: dorny/paths-filter@v3
         id: filter
+        if: github.event_name != 'workflow_dispatch'
         with:
           filters: /tmp/path-filters.yml
 
       # Build the list of apps whose docs changed (exclude 'root')
+      # On workflow_dispatch, build all docs (path detection is unreliable)
       - name: Build changed-app list
         id: apps
         run: |
-          apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
-          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "apps=${{ steps.discover.outputs.apps }}" >> "$GITHUB_OUTPUT"
+          else
+            apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
+            echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          fi
 
   build-root:
     needs: detect
@@ -93,7 +99,7 @@ jobs:
 
   deploy-root:
     needs: build-root
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -131,4 +137,4 @@ jobs:
     uses: ./.github/workflows/docs-app.yml
     with:
       app: ${{ matrix.app }}
-      deploy: ${{ github.event_name == 'push' }}
+      deploy: ${{ github.event_name != 'pull_request' }}
