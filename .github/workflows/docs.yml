@@ -27,27 +27,39 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       root: ${{ steps.filter.outputs.root }}
-      gas2mqtt: ${{ steps.filter.outputs.gas2mqtt }}
-      jeelink2mqtt: ${{ steps.filter.outputs.jeelink2mqtt }}
-      vito2mqtt: ${{ steps.filter.outputs.vito2mqtt }}
+      apps: ${{ steps.apps.outputs.apps }}
     steps:
       - uses: actions/checkout@v6
+
+      # Discover all apps that have a zensical.toml (i.e. have docs)
+      - name: Discover doc-enabled apps
+        id: discover
+        run: |
+          apps=$(ls -d apps/*/zensical.toml 2>/dev/null | xargs -I{} dirname {} | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+
+      # Build dorny/paths-filter config dynamically from discovered apps
+      - name: Build path filters
+        id: build-filters
+        run: |
+          filters="root:"$'\n'"  - 'docs/**'"$'\n'"  - 'zensical.toml'"
+          for app in $(echo '${{ steps.discover.outputs.apps }}' | jq -r '.[]'); do
+            filters="$filters"$'\n'"${app}:"$'\n'"  - 'apps/${app}/docs/**'"$'\n'"  - 'apps/${app}/zensical.toml'"
+          done
+          # Write to file to avoid quoting issues
+          echo "$filters" > /tmp/path-filters.yml
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          filters: |
-            root:
-              - 'docs/**'
-              - 'zensical.toml'
-            gas2mqtt:
-              - 'apps/gas2mqtt/docs/**'
-              - 'apps/gas2mqtt/zensical.toml'
-            jeelink2mqtt:
-              - 'apps/jeelink2mqtt/docs/**'
-              - 'apps/jeelink2mqtt/zensical.toml'
-            vito2mqtt:
-              - 'apps/vito2mqtt/docs/**'
-              - 'apps/vito2mqtt/zensical.toml'
+          filters: /tmp/path-filters.yml
+
+      # Build the list of apps whose docs changed (exclude 'root')
+      - name: Build changed-app list
+        id: apps
+        run: |
+          apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
   build-root:
     needs: detect
@@ -80,6 +92,9 @@ jobs:
     permissions:
       contents: write
       packages: read
+    concurrency:
+      group: gh-pages-deploy
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
       - name: Prepare runner for devcontainer
@@ -102,164 +117,15 @@ jobs:
           publish_dir: ./site
           keep_files: true
 
-  build-gas2mqtt:
+  # Per-app docs dispatched via matrix
+  app-docs:
     needs: detect
-    if: needs.detect.outputs.gas2mqtt == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build gas2mqtt docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task gas2mqtt:docs:build
-
-  deploy-gas2mqtt:
-    needs: build-gas2mqtt
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build gas2mqtt docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task gas2mqtt:docs:build
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./apps/gas2mqtt/site
-          destination_dir: gas2mqtt
-          keep_files: true
-
-  build-jeelink2mqtt:
-    needs: detect
-    if: needs.detect.outputs.jeelink2mqtt == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build jeelink2mqtt docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task jeelink2mqtt:docs:build
-
-  deploy-jeelink2mqtt:
-    needs: build-jeelink2mqtt
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build jeelink2mqtt docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task jeelink2mqtt:docs:build
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./apps/jeelink2mqtt/site
-          destination_dir: jeelink2mqtt
-          keep_files: true
-
-  build-vito2mqtt:
-    needs: detect
-    if: needs.detect.outputs.vito2mqtt == 'true'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build vito2mqtt docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task vito2mqtt:docs:build
-
-  deploy-vito2mqtt:
-    needs: build-vito2mqtt
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build vito2mqtt docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task vito2mqtt:docs:build
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./apps/vito2mqtt/site
-          destination_dir: vito2mqtt
-          keep_files: true
+    if: needs.detect.outputs.apps != '[]'
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.detect.outputs.apps) }}
+      fail-fast: false
+    uses: ./.github/workflows/docs-app.yml
+    with:
+      app: ${{ matrix.app }}
+      deploy: ${{ github.event_name == 'push' }}
