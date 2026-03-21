@@ -15,24 +15,29 @@ jobs:
       shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v6
+
+      # Discover all apps from apps/*/pyproject.toml
+      - name: Discover apps
+        id: discover
+        run: |
+          apps=$(ls -d apps/*/pyproject.toml 2>/dev/null | xargs -I{} dirname {} | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+
+      # Build dorny/paths-filter config dynamically from discovered apps
+      - name: Build path filters
+        id: build-filters
+        run: |
+          filters="shared:"$'\n'"  - 'pyproject.toml'"$'\n'"  - 'uv.lock'"$'\n'"  - '.github/**'"$'\n'"  - 'taskfiles/**'"$'\n'"  - '.pre-commit-config.yaml'"$'\n'"  - 'REUSE.toml'"
+          for app in $(echo '${{ steps.discover.outputs.apps }}' | jq -r '.[]'); do
+            filters="$filters"$'\n'"${app}:"$'\n'"  - 'apps/${app}/**'"
+          done
+          echo "$filters" > /tmp/path-filters.yml
+
       - uses: dorny/paths-filter@v3
         id: filter
         with:
-          filters: |
-            shared:
-              - 'pyproject.toml'
-              - 'uv.lock'
-              - '.github/**'
-              - 'taskfiles/**'
-              - '.pre-commit-config.yaml'
-              - 'REUSE.toml'
-            # Per-app filters added as apps are migrated:
-            gas2mqtt:
-              - 'apps/gas2mqtt/**'
-            jeelink2mqtt:
-              - 'apps/jeelink2mqtt/**'
-            vito2mqtt:
-              - 'apps/vito2mqtt/**'
+          filters: /tmp/path-filters.yml
+
       - name: Build app list (exclude non-app filters)
         id: apps
         run: |
