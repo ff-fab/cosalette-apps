@@ -143,7 +143,7 @@ jobs:
         id: cache
         uses: actions/cache/restore@v4
         with:
-          path: site
+          path: merged
           key: pages-site-will-never-match
           restore-keys: pages-site-
 
@@ -154,12 +154,7 @@ jobs:
           exit 1
 
       - name: Prepare merged site directory
-        run: |
-          mkdir -p merged
-          # Start from cached site if available
-          if [ -d site ] && [ "$(ls -A site 2>/dev/null)" ]; then
-            cp -r site/. merged/
-          fi
+        run: mkdir -p merged
 
       - name: Download freshly-built artifacts
         uses: actions/download-artifact@v4
@@ -173,10 +168,16 @@ jobs:
             [ -d "$art_dir" ] || continue
             name=$(basename "$art_dir" | sed 's/^docs-//')
             if [ "$name" = "root" ]; then
-              # Root site — copy to top level, preserving app subdirs
-              rsync -a --exclude='.*' "$art_dir" merged/
+              # Root site — delete stale root files while preserving app subdirs
+              excludes=""
+              for app_subdir in merged/*/; do
+                [ -d "$app_subdir" ] || continue
+                excludes="$excludes --exclude=$(basename "$app_subdir")"
+              done
+              rsync -a --delete --exclude='.*' $excludes "$art_dir" merged/
             else
-              # App site — copy into its subpath
+              # App site — replace subpath entirely to remove stale pages
+              rm -rf "merged/$name"
               mkdir -p "merged/$name"
               rsync -a --exclude='.*' "$art_dir" "merged/$name/"
             fi
