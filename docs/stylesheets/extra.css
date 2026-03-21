@@ -14,13 +14,15 @@
 
 /* ── Clickable grid cards ───────────────────────────────────────────── */
 
-/* Make the anchor fill the entire card so the whole tile is clickable. */
-.grid.cards li .card-link {
-  display: block;
-  text-decoration: none;
-  color: inherit;
-  padding: 0.6rem;
-  margin: -0.6rem;
+/* Stretch the app-name link over the entire card via a pseudo-element. */
+.grid.cards li {
+  position: relative;
+}
+
+.grid.cards li > p:first-child a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 
 /* Themed card backgrounds — light mode */
