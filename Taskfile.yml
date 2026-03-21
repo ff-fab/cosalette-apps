@@ -149,14 +149,23 @@ tasks:
 
   # ── Documentation ──────────────────────────────────────────
 
+  docs:copy-shared:
+    desc: Copy shared doc assets into root docs dir
+    internal: true
+    cmds:
+      - mkdir -p docs/javascripts
+      - cp docs/shared/javascripts/palette-sync.js docs/javascripts/palette-sync.js
+
   docs:serve:
     desc: Preview root documentation site
     cmds:
+      - task: docs:copy-shared
       - uv run --group docs zensical serve --dev-addr 0.0.0.0:8001
 
   docs:build:
     desc: Build root documentation site
     cmds:
+      - task: docs:copy-shared
       - uv run --group docs zensical build --clean
 
   # ── Dependencies ───────────────────────────────────────────
