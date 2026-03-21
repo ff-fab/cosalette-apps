@@ -45,5 +45,3 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
   for vito2mqtt)
 - **CI:** Per-app change detection with reusable workflows
 - **Releases:** Release Please manifest mode (per-app versioning)
-
-See [ADR-001](adr/ADR-001-monorepo-structure.md) for the full decision record.
