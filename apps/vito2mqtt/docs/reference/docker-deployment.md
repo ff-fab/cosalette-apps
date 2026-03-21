@@ -217,7 +217,7 @@ container restarts and image upgrades.
 
 ```bash
 # View the current store contents
-docker exec vito2mqtt-app cat /app/data/store.json
+docker compose exec vito2mqtt cat /app/data/store.json
 
 # Reset state (removes all stored data)
 docker compose down
