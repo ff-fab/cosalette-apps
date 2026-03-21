@@ -7,7 +7,7 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 <div class="grid cards" markdown>
 
--   **[gas2mqtt](../apps/gas2mqtt/docs/index.md)**{ target="_self" } · MIT
+-   **[gas2mqtt](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)** · MIT
 
     ---
 
@@ -16,7 +16,7 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
     [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)
 
--   **[jeelink2mqtt](../apps/jeelink2mqtt/docs/index.md)**{ target="_self" } · MIT
+-   **[jeelink2mqtt](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)** · MIT
 
     ---
 
@@ -24,7 +24,7 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
     [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)
 
--   **[vito2mqtt](../apps/vito2mqtt/docs/index.md)**{ target="_self" } · GPL-3.0
+-   **[vito2mqtt](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)** · GPL-3.0-or-later
 
     ---
 
@@ -41,8 +41,8 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
   decorator-based device registration, hexagonal architecture
 - **Build system:** [uv](https://docs.astral.sh/uv/) workspaces +
   [Taskfile](https://taskfile.dev/)
-- **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default, GPL-3.0 for
-  vito2mqtt)
+- **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default, GPL-3.0-or-later
+  for vito2mqtt)
 - **CI:** Per-app change detection with reusable workflows
 - **Releases:** Release Please manifest mode (per-app versioning)
 

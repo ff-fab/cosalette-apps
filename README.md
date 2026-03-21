@@ -27,11 +27,11 @@ pydantic-settings integration.
 
 ## Apps
 
-| App                                | Description                                                                                                                         | License                                                                          | Docs                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [gas2mqtt](apps/gas2mqtt/)         | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)           | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)     |
-| [jeelink2mqtt](apps/jeelink2mqtt/) | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                               | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)       | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/) |
-| [vito2mqtt](apps/vito2mqtt/)       | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.  | [![GPL-3.0](https://img.shields.io/badge/GPL--3.0-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)    |
+| App                                | Description                                                                                                                         | License                                                                                              | Docs                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [gas2mqtt](apps/gas2mqtt/)         | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)                               | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)     |
+| [jeelink2mqtt](apps/jeelink2mqtt/) | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                               | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)                           | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/) |
+| [vito2mqtt](apps/vito2mqtt/)       | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.  | [![GPL-3.0-or-later](https://img.shields.io/badge/GPL--3.0--or--later-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)    |
 
 ## Architecture
 
@@ -39,8 +39,8 @@ pydantic-settings integration.
   lifecycle, decorator-based device registration, hexagonal architecture
 - **Build system:** [uv](https://docs.astral.sh/uv/) workspaces +
   [Taskfile](https://taskfile.dev/)
-- **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default, GPL-3.0 for
-  vito2mqtt)
+- **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default,
+  GPL-3.0-or-later for vito2mqtt)
 - **CI:** Per-app change detection with reusable workflows
 - **Releases:** Release Please manifest mode (per-app versioning)
 - **Docs:** [Zensical](https://zensical.squidfunk.com/) with per-app sub-sites
@@ -57,8 +57,8 @@ structure, and code quality standards.
 
 This repository uses mixed licensing:
 
-- **gas2mqtt** and **jeelink2mqtt** are licensed under the
-  [MIT License](apps/gas2mqtt/LICENSE).
+- **gas2mqtt** is licensed under the [MIT License](apps/gas2mqtt/LICENSE).
+- **jeelink2mqtt** is licensed under the [MIT License](apps/jeelink2mqtt/LICENSE).
 - **vito2mqtt** is licensed under [GPL-3.0-or-later](apps/vito2mqtt/LICENSE).
 - Monorepo infrastructure and shared files are licensed under the
   [MIT License](LICENSE).
