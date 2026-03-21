@@ -316,11 +316,7 @@ TMP=$(mktemp)
 jq --arg path "apps/$NAME" '.[$path] = "0.1.0"' \
   .release-please-manifest.json > "$TMP" && mv "$TMP" .release-please-manifest.json
 
-# 5. .github/workflows/ci.yml — add path filter
-LAST_APP_FILTER=$(grep -n "\- 'apps/" .github/workflows/ci.yml | tail -1 | cut -d: -f1)
-sed -i "${LAST_APP_FILTER}a\\
-            ${NAME}:\\
-              - 'apps/${NAME}/**'" .github/workflows/ci.yml
+# 5. CI and docs workflows use dynamic app discovery — no edits needed.
 
 # 6. codecov.yml — add flag entry under flags section
 LAST_FLAG=$(grep -n "carryforward: true" codecov.yml | tail -1 | cut -d: -f1)
@@ -370,7 +366,6 @@ echo "Verifying integration edits…"
 grep -q "$NAME" Taskfile.yml || die "Taskfile.yml edit failed — $NAME not found"
 jq -e --arg p "apps/$NAME" '.packages[$p]' release-please-config.json >/dev/null || die "release-please-config.json edit failed"
 jq -e --arg p "apps/$NAME" '.[$p]' .release-please-manifest.json >/dev/null || die ".release-please-manifest.json edit failed"
-grep -q "$NAME" .github/workflows/ci.yml || die "ci.yml edit failed — $NAME not found"
 grep -q "$NAME" codecov.yml || die "codecov.yml edit failed — $NAME not found"
 grep -q "apps/${NAME}/packages/src" pyproject.toml || die "pyright extraPaths edit failed"
 grep -q "$NAME" REUSE.toml || die "REUSE.toml edit failed — $NAME not found"
