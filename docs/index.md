@@ -13,31 +13,37 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 <div class="grid cards" markdown>
 
--   **[gas2mqtt](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)** · MIT
+-   <a href="https://ff-fab.github.io/cosalette-apps/gas2mqtt/" class="card-link">
+
+    **gas2mqtt** · MIT
 
     ---
 
     Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes
     counter ticks, temperature, and debug data to MQTT.
 
-    [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)
+    </a>
 
--   **[jeelink2mqtt](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)** · MIT
+-   <a href="https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/" class="card-link">
+
+    **jeelink2mqtt** · MIT
 
     ---
 
     Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.
 
-    [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)
+    </a>
 
--   **[vito2mqtt](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)** · GPL-3.0-or-later
+-   <a href="https://ff-fab.github.io/cosalette-apps/vito2mqtt/" class="card-link">
+
+    **vito2mqtt** · GPL-3.0-or-later
 
     ---
 
     Controls a Viessmann Vitodens gas boiler over the Optolink serial interface,
     publishing telemetry and accepting commands via MQTT.
 
-    [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)
+    </a>
 
 </div>
 
