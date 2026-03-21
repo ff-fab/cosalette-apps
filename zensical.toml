@@ -34,6 +34,7 @@ repo_url = "https://github.com/ff-fab/cosalette-apps"
 repo_name = "ff-fab/cosalette-apps"
 edit_uri = "edit/main/docs/"
 extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/palette-sync.js"]
 
 # ---------------------------------------------------------------------------
 # Navigation
