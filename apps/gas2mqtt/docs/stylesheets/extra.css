@@ -1,0 +1,6 @@
+/* Hide the monorepo release tag — misleading for individual apps.
+ * See docs/stylesheets/extra.css in root for the matching rule.
+ */
+.md-source__fact--version {
+  display: none;
+}
