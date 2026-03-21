@@ -1,6 +1,6 @@
 [project]
 name = "jeelink2mqtt"
-version = "0.1.0"
+version = "0.1.1"
 description = "A smart home app to read in values of Jeelink temperature and humidity sensors."
 readme = "README.md"
 requires-python = ">=3.14"
