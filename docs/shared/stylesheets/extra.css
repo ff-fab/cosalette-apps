@@ -31,52 +31,6 @@
   cursor: pointer;
 }
 
-/* ── Grid cards ────────────────────────────────────────────────────── */
-
-/* Constrain content width so exactly 3 grid cards fit side by side. */
-.md-main__inner {
-  max-width: 1220px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-/* Stretch the app-name link over the entire card via a pseudo-element. */
-.grid.cards > ul > li {
-  position: relative;
-}
-
-.grid.cards > ul > li > p:first-child a::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-}
-
-/* Match app-title font to the top-bar site title. */
-.grid.cards > ul > li > p:first-child {
-  display: flex;
-  align-items: baseline;
-  font-size: 0.9rem;
-  letter-spacing: -0.025em;
-}
-
-/* License label — match the Ctrl+K shortcut badge in the search field. */
-.card-license {
-  margin-left: auto;
-  font-size: 0.6rem;
-  font-weight: normal;
-  opacity: 0.7;
-}
-
-/* Themed card backgrounds — light mode */
-[data-md-color-scheme="default"] .grid.cards > ul > li {
-  background: #f5f5f5;
-}
-
-/* Themed card backgrounds — dark mode: match the search field (unhovered). */
-[data-md-color-scheme="slate"] .grid.cards > ul > li {
-  background: var(--md-default-fg-color--lightest);
-}
-
 /* Move star count onto the repository-name line (above the facts row). */
 .md-source__repository.md-source__repository--active {
   overflow: visible;
