@@ -24,6 +24,10 @@ permissions:
   pages: write
   id-token: write
 
+concurrency:
+  group: gh-pages-deploy
+  cancel-in-progress: false
+
 jobs:
   detect:
     runs-on: ubuntu-latest
@@ -94,9 +98,6 @@ jobs:
     permissions:
       contents: write
       packages: read
-    concurrency:
-      group: gh-pages-deploy
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v6
       - name: Prepare runner for devcontainer
