@@ -33,6 +33,7 @@ site_url = "https://ff-fab.github.io/cosalette-apps/"
 repo_url = "https://github.com/ff-fab/cosalette-apps"
 repo_name = "ff-fab/cosalette-apps"
 edit_uri = "edit/main/docs/"
+extra_css = ["stylesheets/extra.css"]
 
 # ---------------------------------------------------------------------------
 # Navigation
@@ -53,12 +54,6 @@ nav = [
 # Zensical's modern design (the default). Use variant = "classic" to restore
 # the Material for MkDocs appearance.
 features = [
-    "navigation.tabs",
-    "navigation.tabs.sticky",
-    "navigation.sections",
-    "navigation.expand",
-    "navigation.indexes",
-    "navigation.top",
     "search.suggest",
     "search.highlight",
     "content.code.copy",

@@ -1,0 +1,21 @@
+/* SPDX-FileCopyrightText: 2026 ff-fab
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Constrain content width so exactly 3 grid cards fit side by side.
+ * Material for MkDocs grid cards are ~370px each with gaps (~25px),
+ * so 3 * 370 + 2 * 25 = 1160px plus some padding ≈ 1220px.
+ */
+.md-main__inner {
+  max-width: 1220px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Hide the auto-fetched latest release tag next to the repo name.
+ * The monorepo itself has no releases — only individual apps do,
+ * so the label shows misleading app-specific versions.
+ */
+.md-source__facts {
+  display: none;
+}
