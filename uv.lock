@@ -464,7 +464,7 @@ wheels = [
 
 [[package]]
 name = "jeelink2mqtt"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/jeelink2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -1363,7 +1363,7 @@ wheels = [
 
 [[package]]
 name = "vito2mqtt"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
     { name = "cosalette" },
