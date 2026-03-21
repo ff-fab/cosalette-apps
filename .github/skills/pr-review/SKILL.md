@@ -26,11 +26,11 @@ If `$ARGUMENTS` is empty, list every open PR and filter:
 
 ```bash
 gh pr list --state open --json number,title,author,headRefName \
-  --jq '.[] | select((.author.login == "release-please" | not) and (.headRefName | startswith("release-please") | not))'
+  --jq '.[] | select((.headRefName | startswith("release-please") | not) and (.title | startswith("chore(main): release") | not))'
 ```
 
-This excludes PRs authored by `release-please` AND PRs from branches starting with
-`release-please` (covers both bot-authored PRs and release branches).
+This excludes release-please PRs by filtering out branches starting with
+`release-please` and titles starting with `chore(main): release`.
 
 If the list is empty, say "No open PRs to review (excluding release-please)" and stop.
 
