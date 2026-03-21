@@ -19,21 +19,21 @@ env:
   DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 permissions:
-  contents: write
+  contents: read
   packages: read
   pages: write
   id-token: write
 
 concurrency:
-  group: gh-pages-deploy-${{ github.ref }}
+  group: pages-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   detect:
     runs-on: ubuntu-latest
     outputs:
-      root: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.root == 'true' }}
-      apps: ${{ steps.apps.outputs.apps }}
+      root: ${{ steps.result.outputs.root }}
+      apps: ${{ steps.result.outputs.apps }}
     steps:
       - uses: actions/checkout@v6
 
@@ -61,14 +61,16 @@ jobs:
         with:
           filters: /tmp/path-filters.yml
 
-      # Build the list of apps whose docs changed (exclude 'root')
-      # On workflow_dispatch, build all docs (path detection is unreliable)
-      - name: Build changed-app list
-        id: apps
+      # On workflow_dispatch: build everything (full rebuild / cache seed)
+      # On push/pull_request: build only what changed
+      - name: Resolve build targets
+        id: result
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "root=true" >> "$GITHUB_OUTPUT"
             echo 'apps=${{ steps.discover.outputs.apps }}' >> "$GITHUB_OUTPUT"
           else
+            echo "root=${{ steps.filter.outputs.root }}" >> "$GITHUB_OUTPUT"
             apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
             echo "apps=$apps" >> "$GITHUB_OUTPUT"
           fi
@@ -96,46 +98,101 @@ jobs:
           cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
           push: never
           runCmd: task docs:build
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-root
+          path: site
+          retention-days: 1
 
-  deploy-root:
-    needs: [build-root, app-docs]
-    if: always() && github.event_name != 'pull_request' && needs.build-root.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      packages: read
-    steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build root docs inside devcontainer
-        uses: devcontainers/ci@v0.3
-        with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task docs:build
-      - uses: peaceiris/actions-gh-pages@v4
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./site
-          keep_files: true
-
-  # Per-app docs dispatched via matrix
+  # Per-app docs dispatched via matrix — builds run fully parallel
   app-docs:
     needs: detect
     if: needs.detect.outputs.apps != '[]'
     strategy:
       matrix:
         app: ${{ fromJson(needs.detect.outputs.apps) }}
-      max-parallel: 1
       fail-fast: false
     uses: ./.github/workflows/docs-app.yml
     with:
       app: ${{ matrix.app }}
-      deploy: ${{ github.event_name != 'pull_request' }}
+
+  # Merge artifacts with cached site and deploy to GitHub Pages
+  deploy:
+    needs: [detect, build-root, app-docs]
+    if: >-
+      always() &&
+      github.event_name != 'pull_request' &&
+      needs.detect.result == 'success' &&
+      needs.build-root.result != 'failure' &&
+      needs.build-root.result != 'cancelled' &&
+      needs.app-docs.result != 'failure' &&
+      needs.app-docs.result != 'cancelled'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      # Restore the previously-deployed site as a base layer.
+      # On workflow_dispatch every app is rebuilt so the cache is optional.
+      # On push the cache is required — without it we cannot produce a full site.
+      - name: Restore site cache
+        id: cache
+        uses: actions/cache/restore@v4
+        with:
+          path: site
+          key: pages-site-will-never-match
+          restore-keys: pages-site-
+
+      - name: Require cache on incremental deploy
+        if: steps.cache.outputs.cache-matched-key == '' && github.event_name != 'workflow_dispatch'
+        run: |
+          echo "::error::Site cache not found. Trigger a workflow_dispatch run to do a full rebuild and seed the cache."
+          exit 1
+
+      - name: Prepare merged site directory
+        run: |
+          mkdir -p merged
+          # Start from cached site if available
+          if [ -d site ] && [ "$(ls -A site 2>/dev/null)" ]; then
+            cp -r site/. merged/
+          fi
+
+      - name: Download freshly-built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: docs-*
+          path: artifacts
+
+      - name: Overlay new artifacts onto site
+        run: |
+          for art_dir in artifacts/docs-*/; do
+            [ -d "$art_dir" ] || continue
+            name=$(basename "$art_dir" | sed 's/^docs-//')
+            if [ "$name" = "root" ]; then
+              # Root site — copy to top level, preserving app subdirs
+              rsync -a --exclude='.*' "$art_dir" merged/
+            else
+              # App site — copy into its subpath
+              mkdir -p "merged/$name"
+              rsync -a --exclude='.*' "$art_dir" "merged/$name/"
+            fi
+          done
+
+      - name: Save site cache
+        uses: actions/cache/save@v4
+        with:
+          path: merged
+          key: pages-site-${{ github.run_id }}
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: merged
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
