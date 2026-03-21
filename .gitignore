@@ -172,6 +172,10 @@ venv.bak/
 # zensical documentation
 site/
 
+# Shared doc assets copied into app docs dirs at build time (source of truth: docs/shared/)
+apps/*/docs/stylesheets/extra.css
+apps/*/docs/javascripts/version-fetch.js
+
 # mypy
 .mypy_cache/
 .dmypy.json
