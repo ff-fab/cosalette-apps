@@ -28,6 +28,14 @@
     var saved = localStorage.getItem(STORAGE_KEY);
     if (saved) {
       document.body.setAttribute("data-md-color-scheme", saved);
+      // Sync the theme's own path-scoped palette so the toggle icon matches.
+      var scopedKey = new URL(document.baseURI).pathname + ".__palette";
+      var palette = JSON.parse(localStorage.getItem(scopedKey) || "null");
+      if (palette && palette.color && palette.color.scheme !== saved) {
+        palette.color.scheme = saved;
+        palette.index = saved === "slate" ? 0 : 1;
+        localStorage.setItem(scopedKey, JSON.stringify(palette));
+      }
     }
   } catch (e) {
     /* localStorage unavailable — degrade gracefully */
