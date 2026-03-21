@@ -67,7 +67,7 @@ jobs:
         id: apps
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "apps=${{ steps.discover.outputs.apps }}" >> "$GITHUB_OUTPUT"
+            echo 'apps=${{ steps.discover.outputs.apps }}' >> "$GITHUB_OUTPUT"
           else
             apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
             echo "apps=$apps" >> "$GITHUB_OUTPUT"
