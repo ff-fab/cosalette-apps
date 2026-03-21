@@ -17,10 +17,11 @@
   var API = "https://api.github.com/repos/" + REPO + "/releases";
   var CACHE_PREFIX = "cosalette-version:";
 
-  /** Derive the app name from the site_name meta tag. */
+  /** Derive the app name from the page title ("Page - site_name"). */
   function getAppName() {
-    var meta = document.querySelector("meta[property='og:site_name']");
-    return meta ? meta.content.trim() : null;
+    var title = document.title || "";
+    var sep = title.lastIndexOf(" - ");
+    return sep > 0 ? title.slice(sep + 3).trim() : null;
   }
 
   function storageGet(key) {
@@ -70,6 +71,9 @@
 
     var el = document.querySelector(".md-source__fact--version");
     if (!el) return;
+
+    // Hide immediately to prevent flash of wrong (repo-wide) version.
+    el.style.display = "none";
 
     var cacheKey = CACHE_PREFIX + app;
     var cached = storageGet(cacheKey);
