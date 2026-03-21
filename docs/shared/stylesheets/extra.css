@@ -8,3 +8,20 @@
 .md-source__fact--version {
   display: none;
 }
+
+/* Hide fork count to free space for the per-app version tag. */
+.md-source__fact--forks {
+  display: none;
+}
+
+/* Move star count onto the repository-name line (above the facts row). */
+.md-source__repository {
+  position: relative;
+}
+
+.md-source__fact--stars {
+  position: absolute;
+  top: 0.1rem;
+  right: 0;
+  margin: 0;
+}
