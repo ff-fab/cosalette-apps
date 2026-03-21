@@ -1,17 +1,48 @@
 # cosalette-apps
 
-A monorepo collection for various cosalette-based smart home apps.
+A monorepo collection of IoT-to-MQTT bridge applications for smart home automation, all
+built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 ## Apps
 
-Apps will be listed here as they are migrated:
+<div class="grid cards" markdown>
 
-<!-- Add links as apps are migrated in Phases 2-4 -->
+-   **[gas2mqtt](../apps/gas2mqtt/docs/index.md)**{ target="_self" } · MIT
+
+    ---
+
+    Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes
+    counter ticks, temperature, and debug data to MQTT.
+
+    [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)
+
+-   **[jeelink2mqtt](../apps/jeelink2mqtt/docs/index.md)**{ target="_self" } · MIT
+
+    ---
+
+    Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.
+
+    [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)
+
+-   **[vito2mqtt](../apps/vito2mqtt/docs/index.md)**{ target="_self" } · GPL-3.0
+
+    ---
+
+    Controls a Viessmann Vitodens gas boiler over the Optolink serial interface,
+    publishing telemetry and accepting commands via MQTT.
+
+    [:octicons-arrow-right-24: Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)
+
+</div>
 
 ## Architecture
 
-- **Build system:** uv workspaces + Taskfile
-- **Licensing:** REUSE-compliant (MIT default, GPL-3.0 for vito2mqtt)
+- **Framework:** [cosalette](https://github.com/ff-fab/cosalette) — async MQTT lifecycle,
+  decorator-based device registration, hexagonal architecture
+- **Build system:** [uv](https://docs.astral.sh/uv/) workspaces +
+  [Taskfile](https://taskfile.dev/)
+- **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default, GPL-3.0 for
+  vito2mqtt)
 - **CI:** Per-app change detection with reusable workflows
 - **Releases:** Release Please manifest mode (per-app versioning)
 
