@@ -34,6 +34,7 @@ jobs:
     outputs:
       root: ${{ steps.result.outputs.root }}
       apps: ${{ steps.result.outputs.apps }}
+      all_apps: ${{ steps.discover.outputs.apps }}
     steps:
       - uses: actions/checkout@v6
 
@@ -164,15 +165,17 @@ jobs:
 
       - name: Overlay new artifacts onto site
         run: |
+          all_apps='${{ needs.detect.outputs.all_apps }}'
           for art_dir in artifacts/docs-*/; do
             [ -d "$art_dir" ] || continue
             name=$(basename "$art_dir" | sed 's/^docs-//')
             if [ "$name" = "root" ]; then
-              # Root site — delete stale root files while preserving app subdirs
+              # Root site — delete stale root files while preserving app subdirs.
+              # Use the discovered app list (not merged/*/) to avoid excluding
+              # root-owned directories like assets/ and stylesheets/.
               excludes=""
-              for app_subdir in merged/*/; do
-                [ -d "$app_subdir" ] || continue
-                excludes="$excludes --exclude=$(basename "$app_subdir")"
+              for app in $(echo "$all_apps" | jq -r '.[]'); do
+                excludes="$excludes --exclude=$app"
               done
               rsync -a --delete --exclude='.*' $excludes "$art_dir" merged/
             else
