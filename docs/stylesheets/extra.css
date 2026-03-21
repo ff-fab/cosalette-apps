@@ -54,7 +54,8 @@
 /* Hide the auto-fetched latest release tag next to the repo name.
  * The monorepo itself has no releases — only individual apps do,
  * so the label shows misleading app-specific versions.
+ * Target only the version fact so that other facts (e.g. stars) remain visible.
  */
-.md-source__facts {
+.md-source__fact--version {
   display: none;
 }
