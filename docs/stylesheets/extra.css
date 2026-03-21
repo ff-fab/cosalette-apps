@@ -12,6 +12,27 @@
   margin-right: auto;
 }
 
+/* ── Clickable grid cards ───────────────────────────────────────────── */
+
+/* Make the anchor fill the entire card so the whole tile is clickable. */
+.grid.cards li .card-link {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  padding: 0.6rem;
+  margin: -0.6rem;
+}
+
+/* Themed card backgrounds — light mode */
+[data-md-color-scheme="default"] .grid.cards li {
+  background: #f5f5f5;
+}
+
+/* Themed card backgrounds — dark mode */
+[data-md-color-scheme="slate"] .grid.cards li {
+  background: #2a2a2a;
+}
+
 /* Hide the auto-fetched latest release tag next to the repo name.
  * The monorepo itself has no releases — only individual apps do,
  * so the label shows misleading app-specific versions.
