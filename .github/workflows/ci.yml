@@ -9,6 +9,15 @@ env:
 
 jobs:
   detect:
+    # Skip full CI for release-please PRs — they only change changelogs and
+    # version numbers, which were already tested on main. When detect is
+    # skipped, shared and app-ci are skipped too, and ci-gate auto-passes.
+    # The actor check prevents humans from bypassing CI by naming a branch
+    # with the release-please-- prefix.
+    if: >-
+      github.event_name == 'push'
+      || github.actor != 'ff-fab-release-bot[bot]'
+      || !startsWith(github.head_ref, 'release-please--')
     runs-on: ubuntu-latest
     outputs:
       apps: ${{ steps.apps.outputs.apps }}
