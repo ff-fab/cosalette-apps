@@ -3,7 +3,7 @@ name: pr-review
 description:
   Review open pull requests — fetch all reviewer feedback, CI results, and code changes,
   then provide actionable analysis. With a PR number, reviews that single PR. Without
-  arguments, reviews ALL open PRs (excluding please-release). Use when the user says
+  arguments, reviews ALL open PRs (excluding release-please). Use when the user says
   "review this PR", "check PR feedback", "what did reviewers say", "review all PRs",
   "address review comments", or any variation involving pull request review.
 ---
@@ -26,13 +26,13 @@ If `$ARGUMENTS` is empty, list every open PR and filter:
 
 ```bash
 gh pr list --state open --json number,title,author,headRefName \
-  --jq '.[] | select((.author.login == "please-release" | not) and (.headRefName | startswith("please-release") | not))'
+  --jq '.[] | select((.author.login == "release-please" | not) and (.headRefName | startswith("release-please") | not))'
 ```
 
-This excludes PRs authored by `please-release` AND PRs from branches starting with
-`please-release` (covers both bot-authored PRs and release branches).
+This excludes PRs authored by `release-please` AND PRs from branches starting with
+`release-please` (covers both bot-authored PRs and release branches).
 
-If the list is empty, say "No open PRs to review (excluding please-release)" and stop.
+If the list is empty, say "No open PRs to review (excluding release-please)" and stop.
 
 Otherwise, process each PR in sequence using the steps below. Produce a **separate full
 review per PR**, each clearly headed with the PR number and title. After all individual
