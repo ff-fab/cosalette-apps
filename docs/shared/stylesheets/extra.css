@@ -1,0 +1,10 @@
+/* SPDX-FileCopyrightText: 2026 ff-fab
+ * SPDX-License-Identifier: MIT
+ */
+
+/* Hide the theme's auto-fetched repo-wide version; version-fetch.js
+ * replaces it with the correct per-app release and unhides the element.
+ */
+.md-source__fact--version {
+  display: none;
+}
