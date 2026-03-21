@@ -5,6 +5,10 @@
  * Fetch the latest GitHub release for this app and display it in the
  * Material for MkDocs version element.  Results are cached in
  * sessionStorage so the GitHub API is hit at most once per browser session.
+ *
+ * A MutationObserver guards against the theme's own JS overwriting our
+ * value with the repo-wide latest release (which belongs to a different app
+ * in this monorepo).
  */
 (function () {
   "use strict";
@@ -19,23 +23,58 @@
     return meta ? meta.content.trim() : null;
   }
 
-  /** Set the version text and make the element visible. */
-  function applyVersion(version) {
-    var el = document.querySelector(".md-source__fact--version");
-    if (!el) return;
+  function storageGet(key) {
+    try {
+      return sessionStorage.getItem(key);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storageSet(key, val) {
+    try {
+      sessionStorage.setItem(key, val);
+    } catch (e) {
+      /* best-effort — storage may be disabled in private browsing */
+    }
+  }
+
+  /**
+   * Set the version text, make the element visible, and install a
+   * MutationObserver that re-applies our value if the theme's JS
+   * overwrites it (race condition with Material's own release fetch).
+   */
+  function applyAndGuard(el, version) {
     el.textContent = version;
     el.style.display = "inline";
+
+    var observer = new MutationObserver(function () {
+      observer.disconnect();
+      el.textContent = version;
+      el.style.display = "inline";
+    });
+    observer.observe(el, {
+      childList: true,
+      characterData: true,
+      subtree: true,
+    });
+    // Safety cleanup — Material should be done well within 30 s.
+    setTimeout(function () {
+      observer.disconnect();
+    }, 30000);
   }
 
   function run() {
     var app = getAppName();
     if (!app) return;
 
+    var el = document.querySelector(".md-source__fact--version");
+    if (!el) return;
+
     var cacheKey = CACHE_PREFIX + app;
-    var cached;
-    try { cached = sessionStorage.getItem(cacheKey); } catch (e) { /* storage unavailable */ }
+    var cached = storageGet(cacheKey);
     if (cached) {
-      applyVersion(cached);
+      applyAndGuard(el, cached);
       return;
     }
 
@@ -52,8 +91,8 @@
           var tag = releases[i].tag_name || "";
           if (tag.indexOf(prefix) === 0) {
             var version = tag.slice(app.length + 1); // strip "<app>-"
-            applyVersion(version);
-            try { sessionStorage.setItem(cacheKey, version); } catch (e) { /* best-effort */ }
+            applyAndGuard(el, version);
+            storageSet(cacheKey, version);
             return;
           }
         }
