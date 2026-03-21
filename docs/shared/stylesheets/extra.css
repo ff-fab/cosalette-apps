@@ -2,6 +2,14 @@
  * SPDX-License-Identifier: MIT
  */
 
+/* Hide the theme's auto-fetched repo-wide version until version-fetch.js
+ * replaces it with the correct per-app release.  CSS hides instantly
+ * (before JS runs) to prevent a flash of the wrong version.
+ */
+.md-source__fact--version {
+  display: none;
+}
+
 /* Hide fork count to free space for the per-app version tag. */
 .md-source__fact--forks {
   display: none;
