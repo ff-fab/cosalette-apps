@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.1.1](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.1.0...gas2mqtt-v0.1.1) (2026-03-21)
+
+
+### Features
+
+* **gas2mqtt:** migrate gas2mqtt into monorepo ([#2](https://github.com/ff-fab/cosalette-apps/issues/2)) ([55b6b00](https://github.com/ff-fab/cosalette-apps/commit/55b6b000b1e504927c9c780d265a12f243bd5beb))
+* **gas2mqtt:** migrate gas2mqtt into monorepo (Phase 2) ([#5](https://github.com/ff-fab/cosalette-apps/issues/5)) ([cef92a4](https://github.com/ff-fab/cosalette-apps/commit/cef92a4c83190d7fee2612e25cb8a2013b1e7be3))
+* **jeelink2mqtt:** migrate jeelink2mqtt into monorepo ([#6](https://github.com/ff-fab/cosalette-apps/issues/6)) ([b3992d6](https://github.com/ff-fab/cosalette-apps/commit/b3992d648da10735b5d4eafcf1b969f619834b93))
+
+
+### Bug Fixes
+
+* **gas2mqtt:** replace *** with --- in docs grid cards ([dd9fb2c](https://github.com/ff-fab/cosalette-apps/commit/dd9fb2cd2320453c3823864499bdeeccc9a5ee8b))
+
+
+### Documentation
+
+* fix gas2mqtt tiles and polish monorepo root docs ([82fd520](https://github.com/ff-fab/cosalette-apps/commit/82fd520f18b42874d088c8a2fd6f694dd53e385e))
+
 ## [0.1.1](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.1.0...gas2mqtt-v0.1.1) (2026-03-20)
 
 
