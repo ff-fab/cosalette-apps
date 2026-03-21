@@ -129,6 +129,7 @@ tasks:
       - mkdir -p docs/stylesheets docs/javascripts
       - cp {{.ROOT_DIR}}/docs/shared/stylesheets/extra.css docs/stylesheets/extra.css
       - cp {{.ROOT_DIR}}/docs/shared/javascripts/version-fetch.js docs/javascripts/version-fetch.js
+      - cp {{.ROOT_DIR}}/docs/shared/javascripts/header-breadcrumb.js docs/javascripts/header-breadcrumb.js
 
   docs:serve:
     desc: 'Preview docs for {{.APP_NAME}}'
