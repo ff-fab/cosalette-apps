@@ -25,7 +25,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: gh-pages-deploy
+  group: gh-pages-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -98,8 +98,8 @@ jobs:
           runCmd: task docs:build
 
   deploy-root:
-    needs: build-root
-    if: github.event_name != 'pull_request'
+    needs: [build-root, app-docs]
+    if: always() && github.event_name != 'pull_request' && needs.build-root.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -133,6 +133,7 @@ jobs:
     strategy:
       matrix:
         app: ${{ fromJson(needs.detect.outputs.apps) }}
+      max-parallel: 1
       fail-fast: false
     uses: ./.github/workflows/docs-app.yml
     with:
