@@ -10,6 +10,7 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 COPY apps/vito2mqtt/pyproject.toml apps/vito2mqtt/
 COPY apps/vito2mqtt/README.md apps/vito2mqtt/
+COPY apps/vito2mqtt/LICENSE apps/vito2mqtt/
 COPY apps/vito2mqtt/packages/src/ apps/vito2mqtt/packages/src/
 
 # Install the application using locked dependencies (no cache to keep image small)
