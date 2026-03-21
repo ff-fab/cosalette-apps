@@ -19,6 +19,7 @@ env:
 
 permissions:
   contents: write
+  packages: read
   pages: write
   id-token: write
 
