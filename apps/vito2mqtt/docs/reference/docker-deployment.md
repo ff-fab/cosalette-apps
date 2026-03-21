@@ -205,9 +205,9 @@ file. In Docker, this is persisted via a named volume:
 
 ```yaml
 volumes:
-  - vito2mqtt_data:/data
+  - vito2mqtt-data:/app/data
 environment:
-  VITO2MQTT_STORE_PATH: /data/store.json
+  VITO2MQTT_STORE_PATH: /app/data/store.json
 ```
 
 The `docker-compose.yml` configures this automatically. The state file survives
@@ -217,33 +217,33 @@ container restarts and image upgrades.
 
 ```bash
 # View the current store contents
-docker exec vito2mqtt-app cat /data/store.json
+docker compose exec vito2mqtt cat /app/data/store.json
 
 # Reset state (removes all stored data)
 docker compose down
-docker volume rm vito2mqtt_vito2mqtt_data
+docker volume rm vito2mqtt_vito2mqtt-data
 docker compose up -d
 ```
 
 ### Mosquitto Data Volume
 
-Messages and subscriptions are stored in the named volume `mosquitto_data`.
+Messages and subscriptions are stored in the named volume `mosquitto-data`.
 This persists across container restarts and removals until explicitly deleted.
 
 !!! note "Volume name prefix"
     Docker Compose prefixes volume names with the project name (directory name by
     default). If you cloned into `vito2mqtt/`, the actual volume names are
-    `vito2mqtt_mosquitto_data`, `vito2mqtt_vito2mqtt_data`, etc.
+    `vito2mqtt_mosquitto-data`, `vito2mqtt_vito2mqtt-data`, etc.
 
 ```bash
 # Inspect volume (prefix matches your project directory name)
-docker volume inspect vito2mqtt_mosquitto_data
+docker volume inspect vito2mqtt_mosquitto-data
 
 # List all volumes
 docker volume ls
 
 # Delete volume (warning: removes persisted data)
-docker volume rm vito2mqtt_mosquitto_data
+docker volume rm vito2mqtt_mosquitto-data
 ```
 
 ## Monitoring and Debugging
@@ -374,7 +374,7 @@ listener 1883 0.0.0.0
 Create password file:
 
 ```bash
-docker run --rm -it eclipse-mosquitto:2.0 mosquitto_passwd -c /tmp/passwd user1
+docker run --rm -it eclipse-mosquitto:2 mosquitto_passwd -c /tmp/passwd user1
 # Enter password when prompted
 
 # Copy to host mount
@@ -388,7 +388,7 @@ mosquitto:
   volumes:
     - ./mosquitto/passwd:/mosquitto/config/passwd
     - ./mosquitto.conf:/mosquitto/config/mosquitto.conf
-    - mosquitto_data:/mosquitto/data
+    - mosquitto-data:/mosquitto/data
 ```
 
 ### TLS/SSL
