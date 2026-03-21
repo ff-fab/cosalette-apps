@@ -1,63 +1,66 @@
 # cosalette-apps
 
-A monorepo collection for various cosalette based smart home apps.
+A monorepo collection of IoT-to-MQTT bridge applications for smart home automation, all
+built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 [![CI](https://github.com/ff-fab/cosalette-apps/actions/workflows/ci.yml/badge.svg)](https://github.com/ff-fab/cosalette-apps/actions/workflows/ci.yml)
 [![Docs](https://github.com/ff-fab/cosalette-apps/actions/workflows/docs.yml/badge.svg)](https://ff-fab.github.io/cosalette-apps/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
+[![cosalette](https://img.shields.io/badge/framework-cosalette-orange)](https://github.com/ff-fab/cosalette)
+[![REUSE](https://img.shields.io/badge/REUSE-compliant-green)](https://reuse.software/)
 
-**[Documentation](https://ff-fab.github.io/cosalette-apps/)** ·
-**[Quickstart](https://ff-fab.github.io/cosalette-apps/getting-started/quickstart/)** ·
-**[API Reference](https://ff-fab.github.io/cosalette-apps/reference/api/)**
+**[Documentation](https://ff-fab.github.io/cosalette-apps/)**
 
 ---
 
 ## What is cosalette-apps?
 
-<!-- TODO: One-paragraph description of what this project does and who it's for. -->
+This monorepo consolidates multiple standalone IoT-to-MQTT bridge applications into a
+single repository with shared tooling, CI, and release infrastructure. Each app reads
+data from a physical sensor or device and publishes it to an MQTT broker for consumption
+by Home Assistant or other home-automation systems.
 
-### Key Features
+All apps are built on [cosalette](https://github.com/ff-fab/cosalette), a Python
+framework for IoT-to-MQTT applications that provides async MQTT lifecycle management,
+decorator-based device registration, hexagonal architecture via PEP 544 Protocols, and
+pydantic-settings integration.
 
-<!-- TODO: Replace with real features -->
+## Apps
 
-- Feature one
-- Feature two
-- Feature three
+| App                                | Description                                                                                                                         | License                                                                          | Docs                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| [gas2mqtt](apps/gas2mqtt/)         | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)           | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)     |
+| [jeelink2mqtt](apps/jeelink2mqtt/) | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                               | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)       | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/) |
+| [vito2mqtt](apps/vito2mqtt/)       | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.  | [![GPL-3.0](https://img.shields.io/badge/GPL--3.0-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)    |
 
-## Quick Start
+## Architecture
 
-```bash
-pip install cosalette-apps
-# or: uv add cosalette-apps
-```
+- **Framework:** [cosalette](https://github.com/ff-fab/cosalette) — async MQTT
+  lifecycle, decorator-based device registration, hexagonal architecture
+- **Build system:** [uv](https://docs.astral.sh/uv/) workspaces +
+  [Taskfile](https://taskfile.dev/)
+- **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default, GPL-3.0 for
+  vito2mqtt)
+- **CI:** Per-app change detection with reusable workflows
+- **Releases:** Release Please manifest mode (per-app versioning)
+- **Docs:** [Zensical](https://zensical.squidfunk.com/) with per-app sub-sites
 
-```python
-# TODO: Add a minimal usage example here
-```
-
-See the
-[Quickstart](https://ff-fab.github.io/cosalette-apps/getting-started/quickstart/) for a
-full walkthrough.
+See [ADR-001](docs/adr/ADR-001-monorepo-structure.md) for the full decision record on
+the monorepo structure.
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, commands, project
 structure, and code quality standards.
 
-## Documentation
-
-Full documentation is published at
-**[ff-fab.github.io/cosalette-apps](https://ff-fab.github.io/cosalette-apps/)**.
-
-| Section                                                                     | What you'll find                     |
-| --------------------------------------------------------------------------- | ------------------------------------ |
-| [Getting Started](https://ff-fab.github.io/cosalette-apps/getting-started/) | Installation, quickstart tutorial    |
-| [Concepts](https://ff-fab.github.io/cosalette-apps/concepts/)               | Architecture & design explanations   |
-| [How-To Guides](https://ff-fab.github.io/cosalette-apps/guides/)            | Step-by-step guides for each feature |
-| [Reference](https://ff-fab.github.io/cosalette-apps/reference/)             | API docs, CLI options, schemas       |
-| [ADRs](https://ff-fab.github.io/cosalette-apps/adr/)                        | Architecture Decision Records        |
-
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+This repository uses mixed licensing:
+
+- **gas2mqtt** and **jeelink2mqtt** are licensed under the
+  [MIT License](apps/gas2mqtt/LICENSE).
+- **vito2mqtt** is licensed under [GPL-3.0-or-later](apps/vito2mqtt/LICENSE).
+- Monorepo infrastructure and shared files are licensed under the
+  [MIT License](LICENSE).
+
+See [REUSE.toml](REUSE.toml) for the complete licensing breakdown.
