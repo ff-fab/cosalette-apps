@@ -5,19 +5,15 @@ on:
       app:
         required: true
         type: string
-      deploy:
-        required: false
-        type: boolean
-        default: false
 
 env:
   DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       packages: read
     steps:
       - uses: actions/checkout@v6
@@ -35,10 +31,9 @@ jobs:
           cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
           push: never
           runCmd: task ${{ inputs.app }}:docs:build
-      - uses: peaceiris/actions-gh-pages@v4
-        if: inputs.deploy
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./apps/${{ inputs.app }}/site
-          destination_dir: ${{ inputs.app }}
-          keep_files: true
+          name: docs-${{ inputs.app }}
+          path: apps/${{ inputs.app }}/site
+          retention-days: 1
