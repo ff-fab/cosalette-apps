@@ -33,6 +33,7 @@ site_url = "https://ff-fab.github.io/cosalette-apps/gas2mqtt/"
 repo_url = "https://github.com/ff-fab/cosalette-apps"
 repo_name = "ff-fab/cosalette-apps"
 edit_uri = "edit/main/apps/gas2mqtt/docs/"
+extra_css = ["stylesheets/extra.css"]
 
 # ---------------------------------------------------------------------------
 # Navigation
