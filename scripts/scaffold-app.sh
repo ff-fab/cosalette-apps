@@ -328,7 +328,7 @@ sed -i "${LAST_FLAG}a\\
       - apps/${NAME}/packages/src/\\
     carryforward: true" codecov.yml
 
-# 7. Root pyproject.toml — add extraPaths entry
+# 7. pyproject.toml — add extraPaths entry for Pyright
 sed -i "s|extraPaths = \[|extraPaths = [\"apps/${NAME}/packages/src\", |" pyproject.toml
 
 # 8. REUSE.toml — update annotations
@@ -369,7 +369,7 @@ grep -q "$NAME" Taskfile.yml || die "Taskfile.yml edit failed — $NAME not foun
 jq -e --arg p "apps/$NAME" '.packages[$p]' release-please-config.json >/dev/null || die "release-please-config.json edit failed"
 jq -e --arg p "apps/$NAME" '.[$p]' .release-please-manifest.json >/dev/null || die ".release-please-manifest.json edit failed"
 grep -q "$NAME" codecov.yml || die "codecov.yml edit failed — $NAME not found"
-grep -q "apps/${NAME}/packages/src" pyproject.toml || die "pyright extraPaths edit failed"
+grep -q "apps/${NAME}/packages/src" pyproject.toml || die "pyproject.toml extraPaths edit failed"
 grep -q "$NAME" REUSE.toml || die "REUSE.toml edit failed — $NAME not found"
 
 echo "✓ Scaffolded apps/$NAME"
