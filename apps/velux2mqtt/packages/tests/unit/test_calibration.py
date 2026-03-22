@@ -302,11 +302,17 @@ class TestEdgeCases:
     def test_restart_after_cancel(
         self, sm: CalibrationStateMachine, clock: FakeClock
     ) -> None:
-        """Can start a fresh calibration after cancel."""
+        """Can start a fresh calibration after cancel; old data is cleared."""
         sm.start(runs=1)
         sm.go()
         clock.advance(5.0)
+        sm.mark()  # record a close measurement
         sm.cancel()
+
+        # Stale data must be gone
+        assert sm.total_runs == 0
+        with pytest.raises(CalibrationError, match="no close measurements"):
+            _ = sm.average_close
 
         # Should be able to start again
         sm.start(runs=2)

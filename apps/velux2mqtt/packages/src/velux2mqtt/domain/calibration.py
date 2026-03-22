@@ -148,6 +148,11 @@ class CalibrationStateMachine:
         """
         self.state = CalibrationState.IDLE
         self._start_time = None
+        self._total_runs = 0
+        self._current_run = 0
+        self._direction = CalibrationDirection.CLOSE
+        self._close_durations.clear()
+        self._open_durations.clear()
         return CalibrationEvent()
 
     # -- query helpers --------------------------------------------------------
