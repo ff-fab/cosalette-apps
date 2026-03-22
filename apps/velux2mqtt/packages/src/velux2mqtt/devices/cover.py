@@ -1,0 +1,274 @@
+"""Cover device — GPIO-driven position control for Velux covers.
+
+A "cover" is Home Assistant's term for blinds, shutters, windows, and
+similar openable devices.  Each cover (e.g. blind, window) is registered
+as a cosalette device via :func:`make_cover`.
+The device function owns the MQTT command loop: it parses inbound
+payloads, plans moves through the DriftCompensator, executes GPIO
+button presses, and publishes position state.
+
+Startup homing (optional) moves the cover to a known endpoint on
+boot so the position tracker starts from a reliable reference.
+
+Command flow:
+    MQTT payload -> parse_command() -> DriftCompensator.plan_move()
+    -> for each MoveStep: press GPIO pin -> sleep(travel_time)
+    -> press stop -> update PositionTracker -> publish state
+"""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import Awaitable, Callable
+
+import cosalette
+
+from velux2mqtt.domain.command import (
+    Direction,
+    InvalidCommandError,
+    parse_command,
+)
+from velux2mqtt.domain.drift import DriftCompensator, MoveStep
+from velux2mqtt.domain.position import PositionTracker
+from velux2mqtt.ports import GpioSwitchPort
+from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
+
+
+def make_cover(
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+) -> Callable[..., Awaitable[None]]:
+    """Create a cover device function for registration with cosalette.
+
+    Returns an async callable with the signature expected by
+    ``app.add_device(name, func)``.  The returned function captures
+    *cover_cfg* and *settings* via closure.
+
+    Args:
+        cover_cfg: Per-cover configuration (pins, travel durations).
+        settings: Application-wide settings (button press duration, homing, drift).
+
+    Returns:
+        Async device function suitable for ``app.add_device``.
+    """
+
+    async def cover_device(ctx: cosalette.DeviceContext) -> None:
+        gpio: GpioSwitchPort = ctx.adapter(GpioSwitchPort)  # type: ignore[type-abstract]
+        logger = logging.getLogger(f"cosalette.{ctx.name}")
+
+        tracker = PositionTracker(
+            travel_duration_up=cover_cfg.travel_duration_up,
+            travel_duration_down=cover_cfg.travel_duration_down,
+            travel_time_offset=cover_cfg.travel_time_offset,
+        )
+        drift = DriftCompensator(threshold=settings.drift_recalibration_threshold)
+
+        # --- Startup homing ---
+        if settings.enable_startup_homing:
+            await _run_homing(
+                ctx=ctx,
+                gpio=gpio,
+                cover_cfg=cover_cfg,
+                settings=settings,
+                tracker=tracker,
+                logger=logger,
+            )
+
+        # Publish initial state
+        await _publish_position(ctx, tracker)
+
+        # --- Command loop ---
+        @ctx.on_command
+        async def handle_command(topic: str, payload: str) -> None:  # noqa: ARG001
+            try:
+                command = parse_command(payload)
+            except InvalidCommandError as exc:
+                logger.warning("Invalid command: %s", exc)
+                return
+
+            if command.direction is Direction.STOP:
+                await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+                tracker.stop()
+                drift.reset()
+                await _publish_position(ctx, tracker)
+                return
+
+            target = command.position
+            if target is None:
+                logger.warning("Command has no target position, ignoring")
+                return
+
+            steps = drift.plan_move(tracker.position, target)
+            for step in steps:
+                if ctx.shutdown_requested:
+                    break
+                await _execute_step(
+                    ctx=ctx,
+                    gpio=gpio,
+                    cover_cfg=cover_cfg,
+                    settings=settings,
+                    tracker=tracker,
+                    step=step,
+                    logger=logger,
+                )
+                await _publish_position(ctx, tracker)
+
+        # Keep device alive until shutdown
+        while not ctx.shutdown_requested:
+            await ctx.sleep(1.0)
+
+    return cover_device
+
+
+async def _run_homing(
+    *,
+    ctx: cosalette.DeviceContext,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    tracker: PositionTracker,
+    logger: logging.Logger,
+) -> None:
+    """Move cover to a known endpoint on startup.
+
+    Presses the homing direction button, waits for full travel plus
+    a safety margin, then presses stop to ensure the motor halts.
+    Finalizes the tracker at the endpoint.
+
+    Args:
+        ctx: Device context for shutdown-aware sleep.
+        gpio: GPIO adapter for button presses.
+        cover_cfg: Cover pin and travel configuration.
+        settings: Application settings (homing direction, button press duration).
+        tracker: Position tracker to finalize at endpoint.
+        logger: Logger for status messages.
+    """
+    if settings.homing_direction == "close":
+        pin = cover_cfg.pin_down
+        travel = cover_cfg.travel_duration_down
+    else:
+        pin = cover_cfg.pin_up
+        travel = cover_cfg.travel_duration_up
+
+    logger.info(
+        "Homing %s: %s for %.1fs",
+        cover_cfg.name,
+        settings.homing_direction,
+        travel + cover_cfg.max_timer_margin,
+    )
+
+    # Press direction button
+    await gpio.press(pin, settings.button_press_duration)
+
+    # Wait for full travel + margin
+    await ctx.sleep(travel + cover_cfg.max_timer_margin)
+
+    if ctx.shutdown_requested:
+        # Best-effort stop to avoid leaving the motor running
+        await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+        return
+
+    # Press stop
+    await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+
+    # Finalize position
+    if settings.homing_direction == "close":
+        tracker.finalize_closed()
+    else:
+        tracker.finalize_open()
+
+    logger.info("Homing complete: position=%d%%", tracker.position_int)
+
+
+async def _execute_step(
+    *,
+    ctx: cosalette.DeviceContext,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    tracker: PositionTracker,
+    step: MoveStep,
+    logger: logging.Logger,
+) -> None:
+    """Execute a single movement step (direct or recalibration).
+
+    For endpoint targets (0 or 100), uses full travel + margin and
+    finalizes the tracker at the endpoint.  For intermediate targets,
+    calculates travel time from the current position and stops after
+    the computed duration.
+
+    Args:
+        ctx: Device context for shutdown-aware sleep.
+        gpio: GPIO adapter for button presses.
+        cover_cfg: Cover pin and travel configuration.
+        settings: Application settings (button press duration).
+        tracker: Position tracker to update.
+        step: The MoveStep to execute.
+        logger: Logger for status messages.
+    """
+    current = tracker.position
+    target = step.target
+
+    if target == tracker.position_int and not step.is_recalibration:
+        return  # Already at target
+
+    # Determine direction
+    if target > current:
+        pin = cover_cfg.pin_up
+        tracker.start_opening()
+    else:
+        pin = cover_cfg.pin_down
+        tracker.start_closing()
+
+    # Calculate travel time
+    if target in (0, 100):
+        # Full travel to endpoint: use full duration + margin
+        if target == 100:
+            travel_time = cover_cfg.travel_duration_up + cover_cfg.max_timer_margin
+        else:
+            travel_time = cover_cfg.travel_duration_down + cover_cfg.max_timer_margin
+    else:
+        travel_time = tracker.travel_time_for(current, target)
+
+    logger.info(
+        "Moving %s: %d%% -> %d%% (%.1fs)%s",
+        cover_cfg.name,
+        round(current),
+        target,
+        travel_time,
+        " [recalibration]" if step.is_recalibration else "",
+    )
+
+    # Press direction button
+    await gpio.press(pin, settings.button_press_duration)
+
+    # Wait for travel
+    await ctx.sleep(travel_time)
+
+    if ctx.shutdown_requested:
+        # Best-effort stop to avoid leaving the motor running
+        await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+        tracker.stop()
+        return
+
+    # Press stop
+    await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+
+    # Finalize position
+    if target == 0:
+        tracker.finalize_closed()
+    elif target == 100:
+        tracker.finalize_open()
+    else:
+        tracker.stop()
+
+
+async def _publish_position(
+    ctx: cosalette.DeviceContext,
+    tracker: PositionTracker,
+) -> None:
+    """Publish current position state to MQTT.
+
+    Payload format: ``{"position": <int 0-100>}``
+    """
+    await ctx.publish_state({"position": tracker.position_int})
