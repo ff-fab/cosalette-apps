@@ -1,8 +1,10 @@
 """Calibration state machine — timed measurement of cover travel durations.
 
 Guides the user through a multi-run calibration procedure that alternates
-between close and open directions, timing each traversal.  On completion
-the machine provides averaged durations per direction.
+between close and open directions, timing each traversal.  Each direction
+pass has two marks: the first records the motor start lag (offset), the
+second records the actual travel duration.  On completion the machine
+provides averaged durations per direction and the average offset.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ class CalibrationState(Enum):
 
     IDLE = auto()
     READY = auto()
+    TIMING_OFFSET = auto()
     TIMING = auto()
     COMPLETE = auto()
 
@@ -54,8 +57,9 @@ class CalibrationStateMachine:
 
         sm = CalibrationStateMachine()
         sm.start(runs=3)       # IDLE -> READY (run 1/3, direction=close)
-        sm.go()                # READY -> TIMING (starts timer, returns press event)
-        sm.mark()              # TIMING -> READY|COMPLETE (records measurement)
+        sm.go()                # READY -> TIMING_OFFSET (starts timer, press event)
+        sm.mark()              # TIMING_OFFSET -> TIMING (records offset)
+        sm.mark()              # TIMING -> READY|COMPLETE (records travel)
 
     Args:
         time_source: Callable returning monotonic seconds (injectable for tests).
@@ -72,6 +76,7 @@ class CalibrationStateMachine:
     _start_time: float | None = field(default=None, init=False, repr=False)
     _close_durations: list[float] = field(default_factory=list, init=False, repr=False)
     _open_durations: list[float] = field(default_factory=list, init=False, repr=False)
+    _offset_durations: list[float] = field(default_factory=list, init=False, repr=False)
 
     # -- public transitions --------------------------------------------------
 
@@ -98,6 +103,7 @@ class CalibrationStateMachine:
         self._direction = CalibrationDirection.CLOSE
         self._close_durations.clear()
         self._open_durations.clear()
+        self._offset_durations.clear()
         self.state = CalibrationState.READY
         return CalibrationEvent(direction=self._direction)
 
@@ -112,24 +118,44 @@ class CalibrationStateMachine:
         """
         self._require_state(CalibrationState.READY, "go")
         self._start_time = self.time_source()
-        self.state = CalibrationState.TIMING
+        self.state = CalibrationState.TIMING_OFFSET
         return CalibrationEvent(press_button=True, direction=self._direction)
 
     def mark(self) -> CalibrationEvent:
-        """Stop timing and record the measurement.
+        """Record a measurement mark.
 
-        Records the elapsed duration for the current direction, then either
-        advances to the next direction/run or transitions to COMPLETE.
+        In TIMING_OFFSET state: records the motor start lag (offset) and
+        transitions to TIMING to continue measuring the travel duration.
+
+        In TIMING state: records the travel duration, then either advances
+        to the next direction/run or transitions to COMPLETE.
 
         Returns:
             Event describing the next expected action.
 
         Raises:
-            CalibrationError: If not in TIMING state.
+            CalibrationError: If not in TIMING_OFFSET or TIMING state.
         """
-        self._require_state(CalibrationState.TIMING, "mark")
-        assert self._start_time is not None  # noqa: S101 — guaranteed by state
+        if self.state is CalibrationState.TIMING_OFFSET:
+            return self._mark_offset()
+        if self.state is CalibrationState.TIMING:
+            return self._mark_travel()
 
+        msg = f"cannot mark() in {self.state.name} state"
+        raise CalibrationError(msg)
+
+    def _mark_offset(self) -> CalibrationEvent:
+        """Record offset duration and transition to TIMING."""
+        assert self._start_time is not None  # noqa: S101 — guaranteed by state
+        elapsed = self.time_source() - self._start_time
+        self._offset_durations.append(elapsed)
+        self._start_time = self.time_source()
+        self.state = CalibrationState.TIMING
+        return CalibrationEvent(direction=self._direction)
+
+    def _mark_travel(self) -> CalibrationEvent:
+        """Record travel duration and advance to next step."""
+        assert self._start_time is not None  # noqa: S101 — guaranteed by state
         elapsed = self.time_source() - self._start_time
         self._start_time = None
 
@@ -153,6 +179,7 @@ class CalibrationStateMachine:
         self._direction = CalibrationDirection.CLOSE
         self._close_durations.clear()
         self._open_durations.clear()
+        self._offset_durations.clear()
         return CalibrationEvent()
 
     # -- query helpers --------------------------------------------------------
@@ -195,6 +222,18 @@ class CalibrationStateMachine:
             msg = "no open measurements recorded"
             raise CalibrationError(msg)
         return sum(self._open_durations) / len(self._open_durations)
+
+    @property
+    def average_offset(self) -> float:
+        """Average motor start/stop lag (offset) in seconds.
+
+        Raises:
+            CalibrationError: If no offset measurements recorded.
+        """
+        if not self._offset_durations:
+            msg = "no offset measurements recorded"
+            raise CalibrationError(msg)
+        return sum(self._offset_durations) / len(self._offset_durations)
 
     # -- internals ------------------------------------------------------------
 
