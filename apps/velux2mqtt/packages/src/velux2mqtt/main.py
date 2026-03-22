@@ -1,7 +1,8 @@
 """Application composition root for velux2mqtt.
 
 Assembles the cosalette :class:`~cosalette.App` instance, registers
-one device per configured cover, and exposes the CLI entry point.
+one device per configured cover (e.g. blind, window), and exposes the
+CLI entry point.
 """
 
 from __future__ import annotations

@@ -1,6 +1,8 @@
 """Cover device — GPIO-driven position control for Velux covers.
 
-Each cover is registered as a cosalette device via :func:`make_cover`.
+A "cover" is Home Assistant's term for blinds, shutters, windows, and
+similar openable devices.  Each cover (e.g. blind, window) is registered
+as a cosalette device via :func:`make_cover`.
 The device function owns the MQTT command loop: it parses inbound
 payloads, plans moves through the DriftCompensator, executes GPIO
 button presses, and publishes position state.
