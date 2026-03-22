@@ -87,6 +87,7 @@ def make_cover(
                 return
 
             if command.direction is Direction.STOP:
+                await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
                 tracker.stop()
                 drift.reset()
                 await _publish_position(ctx, tracker)
@@ -163,6 +164,8 @@ async def _run_homing(
     await ctx.sleep(travel + cover_cfg.max_timer_margin)
 
     if ctx.shutdown_requested:
+        # Best-effort stop to avoid leaving the motor running
+        await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
         return
 
     # Press stop
@@ -243,6 +246,8 @@ async def _execute_step(
     await ctx.sleep(travel_time)
 
     if ctx.shutdown_requested:
+        # Best-effort stop to avoid leaving the motor running
+        await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
         tracker.stop()
         return
 
