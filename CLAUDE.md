@@ -14,7 +14,9 @@ follow them.
 - [.github/instructions/testing-python.instructions.md](.github/instructions/testing-python.instructions.md)
   — pytest patterns, AAA, ISTQB techniques
 - [.github/instructions/documentation.instructions.md](.github/instructions/documentation.instructions.md)
-  — Zensical site generator, ADR format
+  — Zensical site generator, ADR format —
+- [.github/instructions/cosalette-framework-reference.instructions.md](.github/instructions/cosalette-framework-reference.instructions.md)
+  — Cosalette framework reference
 
 ## Monorepo Layout
 
