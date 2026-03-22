@@ -198,9 +198,10 @@ class TestRunHoming:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert — pressed down but never pressed stop (shutdown after sleep)
-        assert len(gpio.presses) == 1
+        # Assert — pressed down, then best-effort stop on shutdown
+        assert len(gpio.presses) == 2
         assert gpio.presses[0].pin == 22  # down
+        assert gpio.presses[1].pin == 27  # stop (best-effort)
 
 
 # ---------------------------------------------------------------------------
@@ -302,6 +303,37 @@ class TestExecuteStep:
 
         # Assert — should press up, then stop
         assert gpio.presses[0].pin == 17  # up
+        assert gpio.presses[1].pin == 27  # stop
+
+    async def test_intermediate_downward_presses_down_pin(self) -> None:
+        """Moving to lower intermediate position presses down pin.
+
+        Technique: Equivalence Partitioning — intermediate move down.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        tracker.position = 80.0
+        step = MoveStep(target=30)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEFAULT_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — should press down, then stop
+        assert gpio.presses[0].pin == 22  # down
         assert gpio.presses[1].pin == 27  # stop
 
     async def test_already_at_target_skips_movement(self) -> None:
@@ -490,9 +522,11 @@ class TestMakeCover:
         assert handler is not None
 
         ctx.published_states.clear()
+        gpio.presses.clear()
         await handler("topic", "stop")
 
-        # Assert
+        # Assert — presses physical stop pin and publishes state
+        assert any(p.pin == 27 for p in gpio.presses)  # stop pin
         assert ctx.published_states == [{"position": 0}]
 
     async def test_open_command_triggers_movement(self) -> None:
