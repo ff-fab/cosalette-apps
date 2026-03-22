@@ -1,20 +1,26 @@
 """Unit tests for the cover device handler.
 
 Test Techniques Used:
-- State Transition Testing: Homing -> idle, command -> moving -> stopped
-- Equivalence Partitioning: Open/close/stop commands, intermediate positions
+- State Transition Testing: Homing -> idle, command -> moving -> stopped,
+  calibration IDLE -> READY -> TIMING -> COMPLETE
+- Equivalence Partitioning: Open/close/stop commands, intermediate positions,
+  calibration actions (start/go/mark/cancel)
 - Boundary Value Analysis: Endpoints (0%, 100%), already-at-target
-- Error Guessing: Invalid command payloads, shutdown during movement
-- Specification-based Testing: Drift recalibration multi-step moves
+- Error Guessing: Invalid command payloads, shutdown during movement,
+  normal commands blocked during calibration, invalid calibration transitions
+- Specification-based Testing: Drift recalibration multi-step moves,
+  calibration MQTT status publishing, result publishing on completion
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 
 from velux2mqtt.adapters.fake import FakeGpio, PressCall
 from velux2mqtt.devices.cover import (
     _execute_step,
+    _parse_calibrate,
     _publish_position,
     _run_homing,
     make_cover,
@@ -74,6 +80,7 @@ class FakeDeviceContext:
         self._gpio = gpio
         self._shutdown = shutdown
         self.published_states: list[dict[str, object]] = []
+        self.published_channels: list[tuple[str, str]] = []
         self._command_handler = None
 
     @property
@@ -94,6 +101,16 @@ class FakeDeviceContext:
         retain: bool = True,  # noqa: ARG002
     ) -> None:
         self.published_states.append(payload)
+
+    async def publish(
+        self,
+        channel: str,
+        payload: str,
+        *,
+        retain: bool = False,  # noqa: ARG002
+        qos: int = 1,  # noqa: ARG002
+    ) -> None:
+        self.published_channels.append((channel, payload))
 
     async def sleep(self, seconds: float) -> None:  # noqa: ARG002
         """No-op sleep for tests."""
@@ -576,3 +593,229 @@ class TestMakeCover:
 
         # Assert — no state published, no exception
         assert ctx.published_states == []
+
+
+# ---------------------------------------------------------------------------
+# Calibration parsing tests
+# ---------------------------------------------------------------------------
+
+
+class TestParseCalibrate:
+    """Test calibration payload parsing."""
+
+    def test_valid_start_action(self) -> None:
+        """Extracts 'start' from valid calibration JSON.
+
+        Technique: Specification-based — verify parsing contract.
+        """
+        result = _parse_calibrate('{"calibrate": "start"}')
+        assert result is not None
+        assert result["action"] == "start"
+
+    def test_start_with_runs(self) -> None:
+        """Extracts runs parameter from start action."""
+        result = _parse_calibrate('{"calibrate": "start", "runs": 5}')
+        assert result is not None
+        assert result["action"] == "start"
+        assert result["runs"] == 5
+
+    def test_valid_go_action(self) -> None:
+        """Extracts 'go' from valid calibration JSON."""
+        result = _parse_calibrate('{"calibrate": "go"}')
+        assert result is not None
+        assert result["action"] == "go"
+
+    def test_valid_mark_action(self) -> None:
+        """Extracts 'mark' from valid calibration JSON."""
+        result = _parse_calibrate('{"calibrate": "mark"}')
+        assert result is not None
+        assert result["action"] == "mark"
+
+    def test_valid_cancel_action(self) -> None:
+        """Extracts 'cancel' from valid calibration JSON."""
+        result = _parse_calibrate('{"calibrate": "cancel"}')
+        assert result is not None
+        assert result["action"] == "cancel"
+
+    def test_non_json_returns_none(self) -> None:
+        """Non-JSON payloads return None.
+
+        Technique: Equivalence Partitioning — non-calibration payload.
+        """
+        assert _parse_calibrate("open") is None
+
+    def test_unknown_action_returns_none(self) -> None:
+        """Unknown calibrate action returns None."""
+        assert _parse_calibrate('{"calibrate": "unknown"}') is None
+
+    def test_position_json_returns_none(self) -> None:
+        """Normal position JSON returns None (no calibrate key)."""
+        assert _parse_calibrate('{"position": 50}') is None
+
+    def test_invalid_json_returns_none(self) -> None:
+        """Malformed JSON returns None."""
+        assert _parse_calibrate("{bad json") is None
+
+
+# ---------------------------------------------------------------------------
+# Calibration integration tests (via make_cover handler)
+# ---------------------------------------------------------------------------
+
+
+class TestCalibrationDispatch:
+    """Test calibration commands dispatched through cover handler."""
+
+    async def _setup_handler(self) -> tuple[FakeDeviceContext, FakeGpio]:
+        """Create a cover device and return ctx + gpio with handler ready."""
+        gpio = FakeGpio()
+        settings = _make_settings(enable_homing=False)
+        device_fn = make_cover(_DEFAULT_COVER, settings)
+        ctx = FakeDeviceContext(gpio, shutdown=True)
+        await device_fn(ctx)
+        return ctx, gpio
+
+    async def test_start_publishes_ready_state(self) -> None:
+        """Calibration start transitions to READY and publishes state.
+
+        Technique: State Transition Testing — IDLE -> READY.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act
+        await handler("topic", '{"calibrate": "start"}')
+
+        # Assert
+        assert len(ctx.published_channels) == 1
+        channel, payload = ctx.published_channels[0]
+        assert channel == "calibrate/state"
+        data = json.loads(payload)
+        assert data["state"] == "READY"
+        assert data["run"] == 1
+        assert data["direction"] == "CLOSE"
+
+    async def test_go_presses_button_and_publishes_timing(self) -> None:
+        """Go transitions to TIMING, presses direction button.
+
+        Technique: State Transition Testing — READY -> TIMING.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        await handler("topic", '{"calibrate": "start"}')
+        gpio.presses.clear()
+        ctx.published_channels.clear()
+
+        # Act
+        await handler("topic", '{"calibrate": "go"}')
+
+        # Assert — presses down pin (first direction is CLOSE)
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0].pin == 22  # down
+        channel, payload = ctx.published_channels[0]
+        assert channel == "calibrate/state"
+        assert json.loads(payload)["state"] == "TIMING"
+
+    async def test_normal_commands_blocked_during_calibration(self) -> None:
+        """Normal cover commands are rejected during active calibration.
+
+        Technique: Error Guessing — concurrent command during calibration.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        await handler("topic", '{"calibrate": "start"}')
+        gpio.presses.clear()
+        ctx.published_states.clear()
+
+        # Act — try a normal open command
+        await handler("topic", "open")
+
+        # Assert — no GPIO presses, no position published
+        assert len(gpio.presses) == 0
+        assert len(ctx.published_states) == 0
+
+    async def test_cancel_returns_to_idle(self) -> None:
+        """Cancel from any state returns to IDLE, normal commands work again.
+
+        Technique: State Transition Testing — cancel exits cleanly.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        await handler("topic", '{"calibrate": "start"}')
+        ctx.published_channels.clear()
+
+        # Act
+        await handler("topic", '{"calibrate": "cancel"}')
+
+        # Assert — publishes IDLE state
+        assert len(ctx.published_channels) == 1
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["state"] == "IDLE"
+
+        # Normal commands should work again
+        ctx._shutdown = False
+        gpio.presses.clear()
+        await handler("topic", "open")
+        assert any(p.pin == 17 for p in gpio.presses)
+
+    async def test_invalid_transition_publishes_error_state(self) -> None:
+        """Invalid calibration transition warns and publishes current state.
+
+        Technique: Error Guessing — go() from IDLE state.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — go without start
+        await handler("topic", '{"calibrate": "go"}')
+
+        # Assert — publishes current (IDLE) state after error
+        assert len(ctx.published_channels) == 1
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["state"] == "IDLE"
+
+    async def test_full_calibration_publishes_result(self) -> None:
+        """Complete single-run calibration publishes averaged results.
+
+        Technique: Specification-based — full calibration lifecycle.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — run a complete single-run calibration
+        await handler("topic", '{"calibrate": "start", "runs": 1}')
+        await handler("topic", '{"calibrate": "go"}')  # close timing
+        await handler("topic", '{"calibrate": "mark"}')  # stop close
+        await handler("topic", '{"calibrate": "go"}')  # open timing
+        await handler("topic", '{"calibrate": "mark"}')  # stop open -> COMPLETE
+
+        # Assert — result published on calibrate/result channel
+        result_msgs = [
+            (ch, json.loads(p))
+            for ch, p in ctx.published_channels
+            if ch == "calibrate/result"
+        ]
+        assert len(result_msgs) == 1
+        _ch, result = result_msgs[0]
+        assert "avg_close" in result
+        assert "avg_open" in result
+
+        # Final state should be COMPLETE
+        state_msgs = [
+            json.loads(p) for ch, p in ctx.published_channels if ch == "calibrate/state"
+        ]
+        assert state_msgs[-1]["state"] == "COMPLETE"
