@@ -1,9 +1,9 @@
 """Unit tests for CalibrationStateMachine.
 
 Test Techniques Used:
-- State Transition Testing: IDLE -> READY -> TIMING -> READY/COMPLETE lifecycle
+- State Transition Testing: IDLE -> READY -> TIMING_OFFSET -> TIMING -> READY/COMPLETE
 - Boundary Value Analysis: Single run, varying measurements
-- Specification-based Testing: Direction alternation, average computation
+- Specification-based Testing: Direction alternation, average computation, offset
 - Error Guessing: Invalid transitions from each state
 """
 
@@ -40,6 +40,20 @@ def sm(clock: FakeClock) -> CalibrationStateMachine:
     return CalibrationStateMachine(time_source=clock)
 
 
+def _do_direction(
+    sm: CalibrationStateMachine,
+    clock: FakeClock,
+    offset: float,
+    travel: float,
+) -> None:
+    """Helper: go -> mark (offset) -> mark (travel) for one direction."""
+    sm.go()
+    clock.advance(offset)
+    sm.mark()  # records offset, transitions to TIMING
+    clock.advance(travel)
+    sm.mark()  # records travel, advances
+
+
 # -- Happy path: full 3-run calibration ------------------------------------
 
 
@@ -49,34 +63,43 @@ class TestFullCalibration:
     def test_three_run_calibration(
         self, sm: CalibrationStateMachine, clock: FakeClock
     ) -> None:
-        """Complete 3-run calibration records 3 close and 3 open durations."""
+        """Complete 3-run calibration records 3 close, 3 open, and 6 offset durations."""
         sm.start(runs=3)
         assert sm.state is CalibrationState.READY
         assert sm.current_run == 1
 
         close_times = [10.0, 11.0, 12.0]
         open_times = [9.0, 10.0, 11.0]
+        offset_time = 0.5
 
         for run in range(3):
-            # Close phase
+            # Close phase: go -> mark(offset) -> mark(travel)
             assert sm.direction is CalibrationDirection.CLOSE
             event = sm.go()
             assert event.press_button is True
             assert event.direction is CalibrationDirection.CLOSE
+            assert sm.state is CalibrationState.TIMING_OFFSET
+
+            clock.advance(offset_time)
+            event = sm.mark()  # offset mark
             assert sm.state is CalibrationState.TIMING
+            assert event.direction is CalibrationDirection.CLOSE
 
             clock.advance(close_times[run])
-            event = sm.mark()
+            event = sm.mark()  # travel mark
             assert sm.state is CalibrationState.READY
             assert sm.direction is CalibrationDirection.OPEN
 
-            # Open phase
+            # Open phase: go -> mark(offset) -> mark(travel)
             event = sm.go()
             assert event.press_button is True
             assert event.direction is CalibrationDirection.OPEN
 
+            clock.advance(offset_time)
+            sm.mark()  # offset mark
+
             clock.advance(open_times[run])
-            event = sm.mark()
+            event = sm.mark()  # travel mark
 
             if run < 2:
                 assert sm.state is CalibrationState.READY
@@ -86,6 +109,7 @@ class TestFullCalibration:
 
         assert sm.average_close == pytest.approx(11.0)
         assert sm.average_open == pytest.approx(10.0)
+        assert sm.average_offset == pytest.approx(0.5)
 
 
 # -- Direction alternation --------------------------------------------------
@@ -104,9 +128,7 @@ class TestDirectionAlternation:
     ) -> None:
         """After close measurement, direction switches to open."""
         sm.start(runs=1)
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
         assert sm.direction is CalibrationDirection.OPEN
 
     def test_resets_to_close_on_new_run(
@@ -116,12 +138,8 @@ class TestDirectionAlternation:
         sm.start(runs=2)
 
         # Run 1: close then open
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
 
         # Run 2 should start with close
         assert sm.current_run == 2
@@ -140,24 +158,17 @@ class TestAverageComputation:
         """Averages correctly computed from varying measurements."""
         sm.start(runs=2)
 
-        # Run 1: close=8, open=6
-        sm.go()
-        clock.advance(8.0)
-        sm.mark()
-        sm.go()
-        clock.advance(6.0)
-        sm.mark()
+        # Run 1: close=8, open=6, offsets=0.4
+        _do_direction(sm, clock, offset=0.4, travel=8.0)
+        _do_direction(sm, clock, offset=0.4, travel=6.0)
 
-        # Run 2: close=12, open=14
-        sm.go()
-        clock.advance(12.0)
-        sm.mark()
-        sm.go()
-        clock.advance(14.0)
-        sm.mark()
+        # Run 2: close=12, open=14, offsets=0.6
+        _do_direction(sm, clock, offset=0.6, travel=12.0)
+        _do_direction(sm, clock, offset=0.6, travel=14.0)
 
         assert sm.average_close == pytest.approx(10.0)
         assert sm.average_open == pytest.approx(10.0)
+        assert sm.average_offset == pytest.approx(0.5)
 
     def test_average_close_no_data_raises(self, sm: CalibrationStateMachine) -> None:
         """Accessing average_close without data raises CalibrationError."""
@@ -168,6 +179,11 @@ class TestAverageComputation:
         """Accessing average_open without data raises CalibrationError."""
         with pytest.raises(CalibrationError, match="no open measurements"):
             _ = sm.average_open
+
+    def test_average_offset_no_data_raises(self, sm: CalibrationStateMachine) -> None:
+        """Accessing average_offset without data raises CalibrationError."""
+        with pytest.raises(CalibrationError, match="no offset measurements"):
+            _ = sm.average_offset
 
 
 # -- Cancel from each state ------------------------------------------------
@@ -183,11 +199,24 @@ class TestCancel:
         sm.cancel()
         assert sm.state is CalibrationState.IDLE
 
+    def test_cancel_from_timing_offset(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Cancel from TIMING_OFFSET returns to IDLE."""
+        sm.start(runs=1)
+        sm.go()
+        assert sm.state is CalibrationState.TIMING_OFFSET
+
+        sm.cancel()
+        assert sm.state is CalibrationState.IDLE
+
     def test_cancel_from_timing(
         self, sm: CalibrationStateMachine, clock: FakeClock
     ) -> None:
         sm.start(runs=1)
         sm.go()
+        clock.advance(0.5)
+        sm.mark()  # offset -> TIMING
         assert sm.state is CalibrationState.TIMING
 
         sm.cancel()
@@ -197,12 +226,8 @@ class TestCancel:
         self, sm: CalibrationStateMachine, clock: FakeClock
     ) -> None:
         sm.start(runs=1)
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
         assert sm.state is CalibrationState.COMPLETE
 
         sm.cancel()
@@ -236,12 +261,23 @@ class TestInvalidTransitions:
         with pytest.raises(CalibrationError, match="cannot mark.*READY"):
             sm.mark()
 
+    def test_go_from_timing_offset(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Cannot go() while in TIMING_OFFSET."""
+        sm.start(runs=1)
+        sm.go()
+        with pytest.raises(CalibrationError, match="cannot go.*TIMING_OFFSET"):
+            sm.go()
+
     def test_go_from_timing(
         self, sm: CalibrationStateMachine, clock: FakeClock
     ) -> None:
-        """Cannot go() while already timing."""
+        """Cannot go() while in TIMING."""
         sm.start(runs=1)
         sm.go()
+        clock.advance(0.5)
+        sm.mark()  # offset -> TIMING
         with pytest.raises(CalibrationError, match="cannot go.*TIMING"):
             sm.go()
 
@@ -256,16 +292,107 @@ class TestInvalidTransitions:
     ) -> None:
         """Cannot start() from COMPLETE — must cancel() first."""
         sm.start(runs=1)
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
-        sm.go()
-        clock.advance(5.0)
-        sm.mark()
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
+        _do_direction(sm, clock, offset=0.3, travel=5.0)
         assert sm.state is CalibrationState.COMPLETE
 
         with pytest.raises(CalibrationError, match="cannot start.*COMPLETE"):
             sm.start(runs=1)
+
+
+# -- Offset-specific tests -------------------------------------------------
+
+
+class TestOffsetMeasurement:
+    """Verify the TIMING_OFFSET -> TIMING transition and offset recording."""
+
+    def test_go_transitions_to_timing_offset(self, sm: CalibrationStateMachine) -> None:
+        """go() transitions from READY to TIMING_OFFSET."""
+        sm.start(runs=1)
+        event = sm.go()
+        assert sm.state is CalibrationState.TIMING_OFFSET
+        assert event.press_button is True
+
+    def test_first_mark_records_offset_and_transitions_to_timing(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """First mark() in TIMING_OFFSET records offset, goes to TIMING.
+
+        Technique: State Transition Testing — TIMING_OFFSET -> TIMING.
+        """
+        sm.start(runs=1)
+        sm.go()
+        clock.advance(0.8)
+        event = sm.mark()
+
+        assert sm.state is CalibrationState.TIMING
+        assert event.press_button is False
+        assert event.direction is CalibrationDirection.CLOSE
+
+    def test_offset_event_has_no_button_press(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Offset mark event does not request a button press."""
+        sm.start(runs=1)
+        sm.go()
+        clock.advance(0.5)
+        event = sm.mark()
+        assert event.press_button is False
+
+    def test_offset_measured_separately_from_travel(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Offset and travel durations are independent measurements.
+
+        Technique: Specification-based — offset timer resets for travel.
+        """
+        sm.start(runs=1)
+        sm.go()
+        clock.advance(0.7)
+        sm.mark()  # offset = 0.7
+
+        clock.advance(5.0)
+        sm.mark()  # close travel = 5.0
+
+        # Open direction
+        sm.go()
+        clock.advance(0.9)
+        sm.mark()  # offset = 0.9
+
+        clock.advance(6.0)
+        sm.mark()  # open travel = 6.0
+
+        assert sm.average_offset == pytest.approx(0.8)  # (0.7 + 0.9) / 2
+        assert sm.average_close == pytest.approx(5.0)
+        assert sm.average_open == pytest.approx(6.0)
+
+    def test_offset_cleared_on_cancel(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Cancel clears offset measurements.
+
+        Technique: State Transition Testing — cancel clears all data.
+        """
+        sm.start(runs=1)
+        sm.go()
+        clock.advance(0.5)
+        sm.mark()  # record one offset
+        sm.cancel()
+
+        with pytest.raises(CalibrationError, match="no offset measurements"):
+            _ = sm.average_offset
+
+    def test_offset_cleared_on_restart(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Restart after cancel clears offset data from previous attempt."""
+        sm.start(runs=1)
+        _do_direction(sm, clock, offset=1.0, travel=5.0)
+        sm.cancel()
+        sm.start(runs=1)
+
+        with pytest.raises(CalibrationError, match="no offset measurements"):
+            _ = sm.average_offset
 
 
 # -- Edge cases -------------------------------------------------------------
@@ -275,20 +402,16 @@ class TestEdgeCases:
     """Boundary and edge case scenarios."""
 
     def test_single_run(self, sm: CalibrationStateMachine, clock: FakeClock) -> None:
-        """Single run produces one close and one open measurement."""
+        """Single run produces one close, one open, and two offset measurements."""
         sm.start(runs=1)
 
-        sm.go()
-        clock.advance(7.5)
-        sm.mark()
-
-        sm.go()
-        clock.advance(8.5)
-        sm.mark()
+        _do_direction(sm, clock, offset=0.5, travel=7.5)
+        _do_direction(sm, clock, offset=0.5, travel=8.5)
 
         assert sm.state is CalibrationState.COMPLETE
         assert sm.average_close == pytest.approx(7.5)
         assert sm.average_open == pytest.approx(8.5)
+        assert sm.average_offset == pytest.approx(0.5)
 
     def test_runs_less_than_one_raises(self, sm: CalibrationStateMachine) -> None:
         """start(runs=0) raises ValueError."""
@@ -305,8 +428,10 @@ class TestEdgeCases:
         """Can start a fresh calibration after cancel; old data is cleared."""
         sm.start(runs=1)
         sm.go()
+        clock.advance(0.5)
+        sm.mark()  # offset
         clock.advance(5.0)
-        sm.mark()  # record a close measurement
+        sm.mark()  # close travel
         sm.cancel()
 
         # Stale data must be gone
