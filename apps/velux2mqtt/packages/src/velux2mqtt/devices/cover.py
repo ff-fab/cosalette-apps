@@ -10,6 +10,10 @@ button presses, and publishes position state.
 Startup homing (optional) moves the cover to a known endpoint on
 boot so the position tracker starts from a reliable reference.
 
+Calibration commands (``{"calibrate": "start|go|mark|cancel"}``) are
+intercepted before normal command parsing.  During active calibration
+normal cover commands are blocked.
+
 Command flow:
     MQTT payload -> parse_command() -> DriftCompensator.plan_move()
     -> for each MoveStep: press GPIO pin -> sleep(travel_time)
@@ -18,11 +22,18 @@ Command flow:
 
 from __future__ import annotations
 
+import json
 import logging
 from collections.abc import Awaitable, Callable
 
 import cosalette
 
+from velux2mqtt.domain.calibration import (
+    CalibrationDirection,
+    CalibrationError,
+    CalibrationState,
+    CalibrationStateMachine,
+)
 from velux2mqtt.domain.command import (
     Direction,
     InvalidCommandError,
@@ -62,6 +73,7 @@ def make_cover(
             travel_time_offset=cover_cfg.travel_time_offset,
         )
         drift = DriftCompensator(threshold=settings.drift_recalibration_threshold)
+        calibration = CalibrationStateMachine()
 
         # --- Startup homing ---
         if settings.enable_startup_homing:
@@ -80,6 +92,29 @@ def make_cover(
         # --- Command loop ---
         @ctx.on_command
         async def handle_command(topic: str, payload: str) -> None:  # noqa: ARG001
+            # Intercept calibration commands before normal parsing
+            cal_params = _parse_calibrate(payload)
+            if cal_params is not None:
+                await _handle_calibration(
+                    ctx=ctx,
+                    gpio=gpio,
+                    cover_cfg=cover_cfg,
+                    settings=settings,
+                    calibration=calibration,
+                    params=cal_params,
+                    logger=logger,
+                )
+                return
+
+            # Block normal commands during active calibration
+            if calibration.state in (CalibrationState.READY, CalibrationState.TIMING):
+                logger.warning(
+                    "Calibration active (%s), ignoring command: %s",
+                    calibration.state.name,
+                    payload,
+                )
+                return
+
             try:
                 command = parse_command(payload)
             except InvalidCommandError as exc:
@@ -272,3 +307,119 @@ async def _publish_position(
     Payload format: ``{"position": <int 0-100>}``
     """
     await ctx.publish_state({"position": tracker.position_int})
+
+
+# ---------------------------------------------------------------------------
+# Calibration helpers
+# ---------------------------------------------------------------------------
+
+_CALIBRATE_ACTIONS = frozenset({"start", "go", "mark", "cancel"})
+
+
+def _parse_calibrate(payload: str) -> dict[str, object] | None:
+    """Extract calibration parameters from a JSON payload, or None.
+
+    Returns a dict with at least ``{"action": "<action>"}`` on success,
+    plus any extra fields (e.g. ``runs``).
+    """
+    text = payload.strip()
+    if not text.startswith("{"):
+        return None
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    action = data.get("calibrate")
+    if isinstance(action, str) and action in _CALIBRATE_ACTIONS:
+        result: dict[str, object] = {"action": action}
+        if "runs" in data:
+            result["runs"] = data["runs"]
+        return result
+    return None
+
+
+async def _handle_calibration(
+    *,
+    ctx: cosalette.DeviceContext,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    calibration: CalibrationStateMachine,
+    params: dict[str, object],
+    logger: logging.Logger,
+) -> None:
+    """Dispatch a calibration action and publish status.
+
+    Args:
+        ctx: Device context for publishing.
+        gpio: GPIO adapter for button presses.
+        cover_cfg: Cover pin and travel configuration.
+        settings: Application settings (button press duration).
+        calibration: The calibration state machine instance.
+        params: Parsed calibration parameters (action, optional runs).
+        logger: Logger for status messages.
+    """
+    action = params["action"]
+    try:
+        if action == "start":
+            runs_raw = params.get("runs", settings.calibration_runs)
+            runs = int(runs_raw)  # type: ignore[call-overload]
+            calibration.start(runs=runs)
+        elif action == "go":
+            event = calibration.go()
+            if event.press_button and event.direction is not None:
+                pin = (
+                    cover_cfg.pin_down
+                    if event.direction is CalibrationDirection.CLOSE
+                    else cover_cfg.pin_up
+                )
+                await gpio.press(pin, settings.button_press_duration)
+        elif action == "mark":
+            event = calibration.mark()
+            if event.press_button and event.direction is not None:
+                pin = (
+                    cover_cfg.pin_down
+                    if event.direction is CalibrationDirection.CLOSE
+                    else cover_cfg.pin_up
+                )
+                await gpio.press(pin, settings.button_press_duration)
+        elif action == "cancel":
+            calibration.cancel()
+    except (CalibrationError, ValueError, TypeError) as exc:
+        logger.warning("Calibration error: %s", exc)
+        await _publish_calibration_state(ctx, calibration)
+        return
+
+    await _publish_calibration_state(ctx, calibration)
+
+    if calibration.state is CalibrationState.COMPLETE:
+        logger.info(
+            "Calibration complete: avg_close=%.2fs, avg_open=%.2fs",
+            calibration.average_close,
+            calibration.average_open,
+        )
+        await ctx.publish(
+            "calibrate/result",
+            json.dumps(
+                {
+                    "avg_close": round(calibration.average_close, 2),
+                    "avg_open": round(calibration.average_open, 2),
+                }
+            ),
+            retain=True,
+        )
+
+
+async def _publish_calibration_state(
+    ctx: cosalette.DeviceContext,
+    calibration: CalibrationStateMachine,
+) -> None:
+    """Publish current calibration state to MQTT."""
+    payload: dict[str, object] = {"state": calibration.state.name}
+    if calibration.state is not CalibrationState.IDLE:
+        payload["run"] = calibration.current_run
+        payload["total_runs"] = calibration.total_runs
+        payload["direction"] = calibration.direction.name
+    await ctx.publish("calibrate/state", json.dumps(payload), retain=True)
