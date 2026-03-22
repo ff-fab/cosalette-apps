@@ -28,9 +28,10 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
   <figcaption>Four-wire I2C connection — no external pull-up resistors needed (the breakout board includes them).</figcaption>
 </figure>
 
-!!! tip "Enable I2C" Run `sudo raspi-config` → **Interface Options** → **I2C** →
-**Enable**, then reboot. Verify with `i2cdetect -y 1` — you should see `0d` in the
-output.
+!!! tip "Enable I2C"
+    Run `sudo raspi-config` → **Interface Options** → **I2C** →
+    **Enable**, then reboot. Verify with `i2cdetect -y 1` — you should see `0d` in the
+    output.
 
 ---
 
@@ -152,10 +153,12 @@ You should see messages on these topics within the first minute:
 Move a magnet near the sensor. You should see `gas2mqtt/gas_counter/state` update with
 an incremented counter and the trigger changing between `"OPEN"` and `"CLOSED"`.
 
-!!! warning "No messages?" - Confirm the broker is reachable:
-`mosquitto_pub -h localhost -t test -m hello` - Check gas2mqtt logs:
-`docker compose logs gas2mqtt` or the terminal output - Verify I2C: `i2cdetect -y 1`
-should show `0d`
+!!! warning "No messages?"
+    - Confirm the broker is reachable:
+      `mosquitto_pub -h localhost -t test -m hello`
+    - Check gas2mqtt logs:
+      `docker compose logs gas2mqtt` or the terminal output
+    - Verify I2C: `i2cdetect -y 1` should show `0d`
 
 ---
 
