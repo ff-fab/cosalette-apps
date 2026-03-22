@@ -17,6 +17,10 @@
     "apps/vito2mqtt": {
       "component": "vito2mqtt",
       "release-type": "python"
+    },
+    "apps/velux2mqtt": {
+      "component": "velux2mqtt",
+      "release-type": "python"
     }
   }
 }
