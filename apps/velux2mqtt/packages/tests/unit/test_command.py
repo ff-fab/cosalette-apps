@@ -1,4 +1,10 @@
-"""Unit tests for CoverCommand parsing."""
+"""Unit tests for CoverCommand parsing.
+
+Test Techniques Used:
+- Equivalence Partitioning: Text, numeric, and JSON command payload variants
+- Boundary Value Analysis: Position boundaries (0, 100, negative, >100)
+- Error Guessing: Malformed JSON, empty payload, garbage text
+"""
 
 import pytest
 
@@ -86,6 +92,10 @@ class TestJsonCommands:
     def test_unknown_command_in_json_raises(self) -> None:
         with pytest.raises(InvalidCommandError, match="unknown command"):
             parse_command('{"command": "explode"}')
+
+    def test_invalid_position_value_raises(self) -> None:
+        with pytest.raises(InvalidCommandError, match="invalid position value"):
+            parse_command('{"position": "foo"}')
 
     def test_missing_keys_raises(self) -> None:
         with pytest.raises(InvalidCommandError, match="must contain"):

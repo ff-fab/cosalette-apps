@@ -1,6 +1,9 @@
-"""Unit tests for GPIO adapters."""
+"""Unit tests for GPIO adapters (FakeGpio test double).
 
-import pytest
+Test Techniques Used:
+- State Transition Testing: GPIO adapter lifecycle (init → press → cleanup)
+- Specification-based Testing: Async context manager enter/exit behavior
+"""
 
 from velux2mqtt.adapters.fake import FakeGpio, PressCall
 
@@ -26,7 +29,6 @@ class TestFakeGpio:
         assert fake.initialized_pins == [9, 10, 11]
         assert fake.is_initialized is True
 
-    @pytest.mark.asyncio
     async def test_press_records_call(self) -> None:
         """press() records pin and duration without delay."""
         fake = FakeGpio()
@@ -47,7 +49,6 @@ class TestFakeGpio:
 
         assert fake.is_closed is True
 
-    @pytest.mark.asyncio
     async def test_async_context_manager(self) -> None:
         """Async context manager initializes on enter, cleans up on exit."""
         fake = FakeGpio()
@@ -59,7 +60,6 @@ class TestFakeGpio:
 
         assert fake.is_closed is True
 
-    @pytest.mark.asyncio
     async def test_multiple_presses_ordered(self) -> None:
         """Press calls are recorded in order."""
         fake = FakeGpio()
