@@ -241,3 +241,6 @@ __marimo__/
 # Dolt database files (added by bd init)
 .dolt/
 *.db
+
+# legacy project files for local reference only
+legacy/

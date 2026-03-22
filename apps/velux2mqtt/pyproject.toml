@@ -1,0 +1,88 @@
+[project]
+name = "velux2mqtt"
+version = "0.1.0"
+description = "Control Velux covers via KLF 050 remotes and M74HC4066 GPIO switches"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
+]
+
+dependencies = [
+    "cosalette>=0.1.7",
+    "gpiozero>=2.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+]
+
+[project.scripts]
+velux2mqtt = "velux2mqtt.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["packages/src/velux2mqtt"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (require mock servers)",
+    "slow: Tests that take > 1 second",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["packages/src/velux2mqtt"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+    "*/main.py",
+    "*/app.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "def __repr__",
+    'if __name__ == "__main__":',
+    "^\\s*\\.\\.\\.$",
+]
+fail_under = 80
+show_missing = true
+skip_covered = false
+
+[tool.coverage.json]
+output = "coverage.json"
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+# App-specific mypy overrides — root mypy config handles common settings
+[[tool.mypy.overrides]]
+module = ["gpiozero.*"]
+ignore_missing_imports = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["velux2mqtt"]
