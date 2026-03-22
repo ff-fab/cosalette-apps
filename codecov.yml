@@ -21,6 +21,10 @@ flags:
     paths:
       - apps/vito2mqtt/packages/src/
     carryforward: true
+  velux2mqtt:
+    paths:
+      - apps/velux2mqtt/packages/src/
+    carryforward: true
 
 comment:
   layout: 'condensed_header, condensed_files, condensed_footer, components'

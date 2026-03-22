@@ -1,0 +1,5 @@
+[project]
+site_name = "velux2mqtt"
+site_description = "Control Velux covers via KLF 050 remotes and M74HC4066 GPIO switches"
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/version-fetch.js", "javascripts/header-breadcrumb.js", "javascripts/palette-sync.js"]
