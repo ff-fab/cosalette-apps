@@ -819,3 +819,46 @@ class TestCalibrationDispatch:
             json.loads(p) for ch, p in ctx.published_channels if ch == "calibrate/state"
         ]
         assert state_msgs[-1]["state"] == "COMPLETE"
+
+    async def test_normal_commands_allowed_after_complete(self) -> None:
+        """Normal cover commands work once calibration reaches COMPLETE.
+
+        Technique: State Transition Testing — COMPLETE does not block commands.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Complete a calibration run
+        await handler("topic", '{"calibrate": "start", "runs": 1}')
+        await handler("topic", '{"calibrate": "go"}')
+        await handler("topic", '{"calibrate": "mark"}')
+        await handler("topic", '{"calibrate": "go"}')
+        await handler("topic", '{"calibrate": "mark"}')
+
+        # Act — send a normal command while in COMPLETE state
+        ctx._shutdown = False
+        gpio.presses.clear()
+        await handler("topic", "open")
+
+        # Assert — command executes (up pin pressed)
+        assert any(p.pin == 17 for p in gpio.presses)
+
+    async def test_null_runs_does_not_crash(self) -> None:
+        """Null runs value in payload is handled gracefully.
+
+        Technique: Error Guessing — null JSON value for runs.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — should not raise TypeError
+        await handler("topic", '{"calibrate": "start", "runs": null}')
+
+        # Assert — error published, no crash
+        assert len(ctx.published_channels) == 1
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["state"] == "IDLE"
