@@ -1,4 +1,10 @@
-"""Unit tests for DriftCompensator."""
+"""Unit tests for DriftCompensator.
+
+Test Techniques Used:
+- Specification-based Testing: Recalibration threshold and optimal endpoint selection
+- Boundary Value Analysis: Threshold edge cases (0, 1, 2)
+- State Transition Testing: Consecutive intermediate counter reset on endpoint arrival
+"""
 
 from velux2mqtt.domain.drift import DriftCompensator, MoveStep
 

@@ -97,7 +97,13 @@ def _parse_json(text: str) -> CoverCommand:
         raise InvalidCommandError(f"expected JSON object, got {type(data).__name__}")
 
     if "position" in data:
-        return _position_command(int(data["position"]))
+        try:
+            position = int(data["position"])
+        except (ValueError, TypeError) as exc:
+            raise InvalidCommandError(
+                f"invalid position value: {data['position']!r}"
+            ) from exc
+        return _position_command(position)
 
     if "command" in data:
         cmd = str(data["command"]).casefold()

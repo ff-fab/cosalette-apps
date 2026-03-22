@@ -1,4 +1,10 @@
-"""Unit tests for Velux2MqttSettings and CoverConfig."""
+"""Unit tests for Velux2MqttSettings and CoverConfig.
+
+Test Techniques Used:
+- Boundary Value Analysis: GPIO pin range (0–27), travel duration (gt=0)
+- Equivalence Partitioning: Valid/invalid setting combinations
+- Specification-based Testing: Default values match documented behavior
+"""
 
 import pytest
 from pydantic import ValidationError

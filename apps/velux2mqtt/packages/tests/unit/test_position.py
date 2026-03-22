@@ -1,4 +1,10 @@
-"""Unit tests for PositionTracker."""
+"""Unit tests for PositionTracker.
+
+Test Techniques Used:
+- State Transition Testing: STOPPED → OPENING → CLOSING state machine
+- Boundary Value Analysis: Position clamping at 0% and 100%
+- Specification-based Testing: Travel time offset, asymmetric durations
+"""
 
 from velux2mqtt.domain.position import MovementState, PositionTracker
 
@@ -91,6 +97,35 @@ class TestBasicMovement:
 
         tracker.start_closing()
         clock[0] = 30.0
+        tracker.stop()
+
+        assert tracker.position_int == 0
+
+
+class TestIdempotent:
+    """Test that repeated same-direction calls are no-ops."""
+
+    def test_start_opening_while_opening(self) -> None:
+        """Calling start_opening() while already opening preserves position."""
+        tracker, clock = _make_tracker(duration_up=20.0, offset=0.0)
+
+        tracker.start_opening()
+        clock[0] = 10.0  # 50% traveled
+        tracker.start_opening()  # should be no-op
+        clock[0] = 20.0  # another 10s → should reach 100%
+        tracker.stop()
+
+        assert tracker.position_int == 100
+
+    def test_start_closing_while_closing(self) -> None:
+        """Calling start_closing() while already closing preserves position."""
+        tracker, clock = _make_tracker(duration_down=20.0, offset=0.0)
+        tracker.position = 100.0
+
+        tracker.start_closing()
+        clock[0] = 10.0  # 50% traveled
+        tracker.start_closing()  # should be no-op
+        clock[0] = 20.0  # another 10s → should reach 0%
         tracker.stop()
 
         assert tracker.position_int == 0

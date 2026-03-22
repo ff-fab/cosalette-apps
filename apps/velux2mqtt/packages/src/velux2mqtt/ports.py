@@ -9,9 +9,10 @@ at runtime by cosalette's adapter registry.
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Protocol, Self
+from typing import Protocol, Self, runtime_checkable
 
 
+@runtime_checkable
 class GpioSwitchPort(Protocol):
     """Port for controlling GPIO-driven analog switches.
 

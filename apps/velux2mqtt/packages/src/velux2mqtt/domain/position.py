@@ -42,8 +42,11 @@ class PositionTracker:
     def start_opening(self) -> None:
         """Begin opening movement (toward 100%).
 
+        If already opening, this is a no-op (idempotent).
         If currently closing, stops first and updates position.
         """
+        if self.state == MovementState.OPENING:
+            return
         if self.state == MovementState.CLOSING:
             self._apply_elapsed()
         self.state = MovementState.OPENING
@@ -52,8 +55,11 @@ class PositionTracker:
     def start_closing(self) -> None:
         """Begin closing movement (toward 0%).
 
+        If already closing, this is a no-op (idempotent).
         If currently opening, stops first and updates position.
         """
+        if self.state == MovementState.CLOSING:
+            return
         if self.state == MovementState.OPENING:
             self._apply_elapsed()
         self.state = MovementState.CLOSING
