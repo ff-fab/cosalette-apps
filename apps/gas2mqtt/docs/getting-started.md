@@ -153,10 +153,12 @@ You should see messages on these topics within the first minute:
 Move a magnet near the sensor. You should see `gas2mqtt/gas_counter/state` update with
 an incremented counter and the trigger changing between `"OPEN"` and `"CLOSED"`.
 
-!!! warning "No messages?" - Confirm the broker is reachable:
-`mosquitto_pub -h localhost -t test -m hello` - Check gas2mqtt logs:
-`docker compose logs gas2mqtt` or the terminal output - Verify I2C: `i2cdetect -y 1`
-should show `0d`
+!!! warning "No messages?"
+    - Confirm the broker is reachable:
+      `mosquitto_pub -h localhost -t test -m hello`
+    - Check gas2mqtt logs:
+      `docker compose logs gas2mqtt` or the terminal output
+    - Verify I2C: `i2cdetect -y 1` should show `0d`
 
 ---
 
