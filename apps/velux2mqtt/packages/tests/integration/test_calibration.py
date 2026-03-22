@@ -94,8 +94,8 @@ class TestCalibrationFlow:
 
         # Assert -- calibration states published in order
         states = _get_cal_states(mock_mqtt, "blind")
-        assert len(states) >= 5, (
-            f"Expected >= 5 state messages, got {len(states)}: {states}"
+        assert len(states) == 5, (
+            f"Expected == 5 state messages, got {len(states)}: {states}"
         )
 
         # Step 1: start -> READY, run=1, direction=CLOSE
@@ -244,6 +244,93 @@ class TestCalibrationFlow:
         # Assert -- no result published
         results = _get_cal_results(mock_mqtt, "blind")
         assert len(results) == 0
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_cancel_from_timing_returns_to_idle(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+    ) -> None:
+        """Cancel during TIMING state returns to IDLE with no result.
+
+        Technique: State Transition Testing -- cancel from TIMING -> IDLE.
+        """
+        blind_set = f"{TOPIC_PREFIX}/blind/set"
+
+        # Act -- start calibration, enter TIMING, then cancel
+        commands: list[tuple[str, str]] = [
+            (blind_set, _cal_cmd("start", runs=1)),
+            (blind_set, _cal_cmd("go")),  # enter TIMING
+            (blind_set, _cal_cmd("cancel")),
+        ]
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            commands,
+        )
+
+        # Assert -- last state is IDLE
+        states = _get_cal_states(mock_mqtt, "blind")
+        assert states[-1]["state"] == "IDLE"
+
+        # Assert -- no result published
+        results = _get_cal_results(mock_mqtt, "blind")
+        assert len(results) == 0
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_start_without_explicit_runs_uses_default(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+        fake_gpio: FakeGpio,
+    ) -> None:
+        """Start without explicit runs uses default calibration_runs from settings.
+
+        Technique: Specification-based -- settings default (calibration_runs=3)
+        flows through when start command omits runs parameter.
+        """
+        blind_set = f"{TOPIC_PREFIX}/blind/set"
+
+        # Arrange -- build commands for default 3 runs (close/open per run)
+        commands: list[tuple[str, str]] = [
+            (blind_set, _cal_cmd("start")),  # no runs parameter
+        ]
+        for _run in range(3):
+            commands.extend(
+                [
+                    (blind_set, _cal_cmd("go")),
+                    (blind_set, _cal_cmd("mark")),
+                    (blind_set, _cal_cmd("go")),
+                    (blind_set, _cal_cmd("mark")),
+                ]
+            )
+
+        # Act
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            commands,
+        )
+
+        # Assert -- calibration completed successfully
+        states = _get_cal_states(mock_mqtt, "blind")
+        assert states[-1]["state"] == "COMPLETE", (
+            f"Expected final state COMPLETE, got {states[-1]['state']}"
+        )
+
+        # Assert -- result published with averaged values
+        results = _get_cal_results(mock_mqtt, "blind")
+        assert len(results) == 1, f"Expected 1 result, got {len(results)}"
+        assert "avg_close" in results[0]
+        assert "avg_open" in results[0]
+        assert isinstance(results[0]["avg_close"], float)
+        assert isinstance(results[0]["avg_open"], float)
 
 
 # ---------------------------------------------------------------------------
@@ -397,7 +484,7 @@ class TestCalibrationCoverIsolation:
         # Assert -- blind has calibration state, window does not
         blind_states = _get_cal_states(mock_mqtt, "blind")
         window_states = _get_cal_states(mock_mqtt, "window")
-        assert len(blind_states) >= 5, "Blind should have calibration states"
+        assert len(blind_states) == 5, "Blind should have calibration states"
         assert len(window_states) == 0, (
             f"Window should have no calibration state messages; got: {window_states}"
         )
