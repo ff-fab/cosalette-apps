@@ -107,7 +107,7 @@ def make_cover(
                 return
 
             # Block normal commands during active calibration
-            if calibration.state is not CalibrationState.IDLE:
+            if calibration.state in (CalibrationState.READY, CalibrationState.TIMING):
                 logger.warning(
                     "Calibration active (%s), ignoring command: %s",
                     calibration.state.name,
@@ -364,7 +364,7 @@ async def _handle_calibration(
     action = params["action"]
     try:
         if action == "start":
-            runs_raw = params.get("runs", 3)
+            runs_raw = params.get("runs", settings.calibration_runs)
             runs = int(runs_raw)  # type: ignore[call-overload]
             calibration.start(runs=runs)
         elif action == "go":
@@ -387,7 +387,7 @@ async def _handle_calibration(
                 await gpio.press(pin, settings.button_press_duration)
         elif action == "cancel":
             calibration.cancel()
-    except (CalibrationError, ValueError) as exc:
+    except (CalibrationError, ValueError, TypeError) as exc:
         logger.warning("Calibration error: %s", exc)
         await _publish_calibration_state(ctx, calibration)
         return
@@ -408,6 +408,7 @@ async def _handle_calibration(
                     "avg_open": round(calibration.average_open, 2),
                 }
             ),
+            retain=True,
         )
 
 
@@ -421,4 +422,4 @@ async def _publish_calibration_state(
         payload["run"] = calibration.current_run
         payload["total_runs"] = calibration.total_runs
         payload["direction"] = calibration.direction.name
-    await ctx.publish("calibrate/state", json.dumps(payload))
+    await ctx.publish("calibrate/state", json.dumps(payload), retain=True)
