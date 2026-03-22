@@ -81,7 +81,7 @@ async def run_app_briefly(
     """Start the app as a background task, wait, then shut it down cleanly."""
     shutdown_event = asyncio.Event()
     task = asyncio.create_task(
-        app._run_async(  # noqa: SLF001
+        app._run_async(
             mqtt=mock_mqtt,
             settings=test_settings,
             shutdown_event=shutdown_event,
@@ -113,7 +113,7 @@ async def run_app_with_commands(
     """
     shutdown_event = asyncio.Event()
     task = asyncio.create_task(
-        app._run_async(  # noqa: SLF001
+        app._run_async(
             mqtt=mock_mqtt,
             settings=test_settings,
             shutdown_event=shutdown_event,

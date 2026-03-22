@@ -368,3 +368,76 @@ class TestMqttSubscriptions:
         assert f"{TOPIC_PREFIX}/window/set" in subscribed, (
             f"Window set topic not subscribed; got: {subscribed}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Invalid / unknown commands
+# ---------------------------------------------------------------------------
+
+
+class TestInvalidCommands:
+    """Verify that invalid commands are handled gracefully at integration level."""
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_invalid_command_does_not_crash_or_change_state(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+        fake_gpio: FakeGpio,
+    ) -> None:
+        """Unknown command payload is silently dropped — no crash, no GPIO, no new state.
+
+        Technique: Error Guessing — malformed payload through full app wiring.
+        """
+        # Act — send an invalid command to blind
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            [(f"{TOPIC_PREFIX}/blind/set", "wiggle")],
+        )
+
+        # Assert — no GPIO presses occurred (no homing, no valid command)
+        assert fake_gpio.presses == [], (
+            f"No GPIO presses expected for invalid command; got: {fake_gpio.presses}"
+        )
+
+        # Assert — state count unchanged (only the initial publish, no extra)
+        blind_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/blind/state")
+        assert len(blind_states) == 1, (
+            f"Only initial state publish expected, no extra from invalid command; "
+            f"got {len(blind_states)}: {blind_states}"
+        )
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_valid_command_after_invalid_still_works(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+        fake_gpio: FakeGpio,
+    ) -> None:
+        """A valid command succeeds even after a prior invalid command.
+
+        Technique: Error Guessing — verify invalid command does not poison state.
+        """
+        # Act — invalid then valid
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            [
+                (f"{TOPIC_PREFIX}/blind/set", "garbage_payload"),
+                (f"{TOPIC_PREFIX}/blind/set", "open"),
+            ],
+        )
+
+        # Assert — blind up pin was pressed (valid command worked)
+        pressed_pins = [p.pin for p in fake_gpio.presses]
+        assert BLIND_CFG.pin_up in pressed_pins, (
+            f"Blind up pin {BLIND_CFG.pin_up} should be pressed after valid command; "
+            f"got: {pressed_pins}"
+        )
