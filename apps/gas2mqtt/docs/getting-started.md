@@ -28,9 +28,10 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
   <figcaption>Four-wire I2C connection — no external pull-up resistors needed (the breakout board includes them).</figcaption>
 </figure>
 
-!!! tip "Enable I2C" Run `sudo raspi-config` → **Interface Options** → **I2C** →
-**Enable**, then reboot. Verify with `i2cdetect -y 1` — you should see `0d` in the
-output.
+!!! tip "Enable I2C"
+    Run `sudo raspi-config` → **Interface Options** → **I2C** →
+    **Enable**, then reboot. Verify with `i2cdetect -y 1` — you should see `0d` in the
+    output.
 
 ---
 
