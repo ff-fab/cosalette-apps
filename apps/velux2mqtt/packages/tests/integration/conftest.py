@@ -29,6 +29,7 @@ BLIND_CFG = CoverConfig(
     travel_duration_down=0.05,
     travel_time_offset=0.0,
     max_timer_margin=0.02,
+    measure_offset=True,
 )
 
 WINDOW_CFG = CoverConfig(

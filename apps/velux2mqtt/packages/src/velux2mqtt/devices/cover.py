@@ -449,7 +449,7 @@ async def _handle_calibration(
         if action == "start":
             runs_raw = params.get("runs", settings.calibration_runs)
             runs = int(runs_raw)  # type: ignore[call-overload]
-            measure_off = bool(params.get("measure_offset", True))
+            measure_off = bool(params.get("measure_offset", cover_cfg.measure_offset))
             measure_db = bool(params.get("measure_dead_band", False))
             calibration.start(
                 runs=runs,
