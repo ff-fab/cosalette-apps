@@ -625,3 +625,164 @@ class TestDeadBandMeasurement:
 
         assert sm.state is CalibrationState.COMPLETE
         assert sm.average_dead_band == pytest.approx(1.0)
+
+
+# -- Optional offset measurement --------------------------------------------
+
+
+def _do_direction_no_offset(
+    sm: CalibrationStateMachine,
+    clock: FakeClock,
+    travel: float,
+) -> None:
+    """Helper: go -> mark(travel) for one direction (no offset)."""
+    sm.go()
+    clock.advance(travel)
+    sm.mark()  # records travel, advances
+
+
+def _do_direction_no_offset_with_dead_band(
+    sm: CalibrationStateMachine,
+    clock: FakeClock,
+    dead_band: float,
+    travel: float,
+) -> None:
+    """Helper: go -> mark(dead_band) -> mark(travel) for one direction (no offset)."""
+    sm.go()
+    clock.advance(dead_band)
+    sm.mark()  # records dead band, transitions to TIMING
+    clock.advance(travel)
+    sm.mark()  # records travel, advances
+
+
+class TestMeasureOffsetDisabled:
+    """Tests for calibration with measure_offset=False."""
+
+    def test_go_skips_timing_offset_to_timing(self, clock: FakeClock) -> None:
+        """With measure_offset=False, go() transitions directly to TIMING.
+
+        Technique: State Transition Testing — READY -> TIMING (skip TIMING_OFFSET).
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False)
+        event = sm.go()
+
+        assert sm.state is CalibrationState.TIMING
+        assert event.press_button is True
+        assert event.direction is CalibrationDirection.CLOSE
+
+    def test_go_skips_offset_to_dead_band_when_both(self, clock: FakeClock) -> None:
+        """With measure_offset=False and measure_dead_band=True, go() -> TIMING_DEAD_BAND.
+
+        Technique: State Transition Testing — READY -> TIMING_DEAD_BAND.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False, measure_dead_band=True)
+        sm.go()
+
+        assert sm.state is CalibrationState.TIMING_DEAD_BAND
+
+    def test_full_calibration_without_offset(self, clock: FakeClock) -> None:
+        """Complete single-run calibration without offset measurement.
+
+        Technique: Specification-based — full lifecycle without offset.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False)
+
+        _do_direction_no_offset(sm, clock, travel=8.0)
+        _do_direction_no_offset(sm, clock, travel=9.0)
+
+        assert sm.state is CalibrationState.COMPLETE
+        assert sm.average_close == pytest.approx(8.0)
+        assert sm.average_open == pytest.approx(9.0)
+        assert sm.has_offset is False
+
+    def test_has_offset_true_by_default(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """has_offset is True when offset is measured (default).
+
+        Technique: Specification-based — flag on by default.
+        """
+        sm.start(runs=1)
+        _do_direction(sm, clock, offset=0.5, travel=8.0)
+        _do_direction(sm, clock, offset=0.5, travel=9.0)
+
+        assert sm.has_offset is True
+
+    def test_has_offset_false_without_measurement(self, clock: FakeClock) -> None:
+        """has_offset is False when measure_offset=False.
+
+        Technique: Specification-based — flag reflects measurement state.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False)
+        _do_direction_no_offset(sm, clock, travel=8.0)
+        _do_direction_no_offset(sm, clock, travel=9.0)
+
+        assert sm.has_offset is False
+
+    def test_average_offset_raises_when_not_measured(self, clock: FakeClock) -> None:
+        """Accessing average_offset without measurement raises CalibrationError.
+
+        Technique: Error Guessing — accessing empty offset list.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False)
+        _do_direction_no_offset(sm, clock, travel=8.0)
+        _do_direction_no_offset(sm, clock, travel=9.0)
+
+        with pytest.raises(CalibrationError, match="no offset measurements"):
+            _ = sm.average_offset
+
+    def test_multi_run_without_offset(self, clock: FakeClock) -> None:
+        """Multi-run calibration without offset completes correctly.
+
+        Technique: Specification-based — averaged travel over 2 runs, no offset.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=2, measure_offset=False)
+
+        _do_direction_no_offset(sm, clock, travel=8.0)
+        _do_direction_no_offset(sm, clock, travel=9.0)
+
+        _do_direction_no_offset(sm, clock, travel=12.0)
+        _do_direction_no_offset(sm, clock, travel=11.0)
+
+        assert sm.state is CalibrationState.COMPLETE
+        assert sm.average_close == pytest.approx(10.0)
+        assert sm.average_open == pytest.approx(10.0)
+        assert sm.has_offset is False
+
+    def test_no_offset_with_dead_band(self, clock: FakeClock) -> None:
+        """Calibration with dead band but no offset: go -> dead_band -> travel.
+
+        Technique: State Transition Testing — READY -> TIMING_DEAD_BAND -> TIMING.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False, measure_dead_band=True)
+
+        _do_direction_no_offset_with_dead_band(sm, clock, dead_band=1.0, travel=8.0)
+        _do_direction_no_offset_with_dead_band(sm, clock, dead_band=1.2, travel=9.0)
+
+        assert sm.state is CalibrationState.COMPLETE
+        assert sm.average_close == pytest.approx(8.0)
+        assert sm.average_open == pytest.approx(9.0)
+        assert sm.average_dead_band == pytest.approx(1.1)
+        assert sm.has_offset is False
+        assert sm.has_dead_band is True
+
+    def test_cancel_resets_measure_offset(self, clock: FakeClock) -> None:
+        """Cancel resets measure_offset to default True.
+
+        Technique: State Transition Testing — cancel resets all flags.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_offset=False)
+        sm.cancel()
+
+        # Starting again without measure_offset uses default (True)
+        sm.start(runs=1)
+        sm.go()
+        assert sm.state is CalibrationState.TIMING_OFFSET

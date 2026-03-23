@@ -902,6 +902,100 @@ class TestCalibrationDispatch:
         assert result is not None
         assert result["measure_dead_band"] is True
 
+    async def test_parse_calibrate_extracts_measure_offset(self) -> None:
+        """Parse calibrate extracts measure_offset parameter.
+
+        Technique: Specification-based — parameter extraction.
+        """
+        result = _parse_calibrate('{"calibrate": "start", "measure_offset": false}')
+        assert result is not None
+        assert result["measure_offset"] is False
+
+    async def test_start_with_measure_offset_false(self) -> None:
+        """Start with measure_offset=false passes flag to state machine.
+
+        Technique: Specification-based — offset flag forwarding.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act
+        await handler(
+            "topic",
+            '{"calibrate": "start", "runs": 1, "measure_offset": false}',
+        )
+
+        # Assert
+        assert len(ctx.published_channels) == 1
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["state"] == "READY"
+
+    async def test_calibration_without_offset_omits_avg_offset(self) -> None:
+        """Calibration without offset measurement omits avg_offset from result.
+
+        Technique: Specification-based — result payload without offset.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — complete calibration without offset (go + mark per direction)
+        await handler(
+            "topic",
+            '{"calibrate": "start", "runs": 1, "measure_offset": false}',
+        )
+        await handler("topic", '{"calibrate": "go"}')  # close: go -> TIMING
+        await handler("topic", '{"calibrate": "mark"}')  # close: travel
+        await handler("topic", '{"calibrate": "go"}')  # open: go -> TIMING
+        await handler("topic", '{"calibrate": "mark"}')  # open: travel -> COMPLETE
+
+        # Assert — result excludes avg_offset
+        result_msgs = [
+            (ch, json.loads(p))
+            for ch, p in ctx.published_channels
+            if ch == "calibrate/result"
+        ]
+        assert len(result_msgs) == 1
+        _ch, result = result_msgs[0]
+        assert "avg_close" in result
+        assert "avg_open" in result
+        assert "avg_offset" not in result
+
+    async def test_calibration_with_offset_includes_avg_offset(self) -> None:
+        """Calibration with offset measurement (default) includes avg_offset.
+
+        Technique: Specification-based — result payload with offset.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — complete calibration with offset (go + mark*2 per direction)
+        await handler(
+            "topic",
+            '{"calibrate": "start", "runs": 1}',
+        )
+        await handler("topic", '{"calibrate": "go"}')  # close: go
+        await handler("topic", '{"calibrate": "mark"}')  # close: offset
+        await handler("topic", '{"calibrate": "mark"}')  # close: travel
+        await handler("topic", '{"calibrate": "go"}')  # open: go
+        await handler("topic", '{"calibrate": "mark"}')  # open: offset
+        await handler("topic", '{"calibrate": "mark"}')  # open: travel -> COMPLETE
+
+        # Assert — result includes avg_offset
+        result_msgs = [
+            (ch, json.loads(p))
+            for ch, p in ctx.published_channels
+            if ch == "calibrate/result"
+        ]
+        assert len(result_msgs) == 1
+        _ch, result = result_msgs[0]
+        assert "avg_offset" in result
+
     async def test_calibration_with_dead_band_publishes_result_with_pct(
         self,
     ) -> None:
