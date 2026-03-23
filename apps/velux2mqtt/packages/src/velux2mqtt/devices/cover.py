@@ -415,6 +415,8 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
         result: dict[str, object] = {"action": action}
         if "runs" in data:
             result["runs"] = data["runs"]
+        if "measure_offset" in data and isinstance(data["measure_offset"], bool):
+            result["measure_offset"] = data["measure_offset"]
         if "measure_dead_band" in data and isinstance(data["measure_dead_band"], bool):
             result["measure_dead_band"] = data["measure_dead_band"]
         return result
@@ -447,8 +449,13 @@ async def _handle_calibration(
         if action == "start":
             runs_raw = params.get("runs", settings.calibration_runs)
             runs = int(runs_raw)  # type: ignore[call-overload]
+            measure_off = bool(params.get("measure_offset", cover_cfg.measure_offset))
             measure_db = bool(params.get("measure_dead_band", False))
-            calibration.start(runs=runs, measure_dead_band=measure_db)
+            calibration.start(
+                runs=runs,
+                measure_offset=measure_off,
+                measure_dead_band=measure_db,
+            )
         elif action == "go":
             event = calibration.go()
             if event.press_button and event.direction is not None:
@@ -480,31 +487,28 @@ async def _handle_calibration(
         result_data: dict[str, object] = {
             "avg_close": round(calibration.average_close, 2),
             "avg_open": round(calibration.average_open, 2),
-            "avg_offset": round(calibration.average_offset, 2),
         }
+        if calibration.has_offset:
+            result_data["avg_offset"] = round(calibration.average_offset, 2)
         if calibration.has_dead_band:
             db_pct = calibration.dead_band_pct(
                 calibration.average_close, calibration.average_open
             )
             result_data["avg_dead_band"] = round(calibration.average_dead_band, 2)
             result_data["dead_band_pct"] = round(db_pct, 1)
-            logger.info(
-                "Calibration complete: avg_close=%.2fs, avg_open=%.2fs, "
-                "avg_offset=%.2fs, avg_dead_band=%.2fs (%.1f%%)",
-                calibration.average_close,
-                calibration.average_open,
-                calibration.average_offset,
-                calibration.average_dead_band,
-                db_pct,
+
+        # Build log message with measured components
+        parts = [
+            f"avg_close={calibration.average_close:.2f}s",
+            f"avg_open={calibration.average_open:.2f}s",
+        ]
+        if calibration.has_offset:
+            parts.append(f"avg_offset={calibration.average_offset:.2f}s")
+        if calibration.has_dead_band:
+            parts.append(
+                f"avg_dead_band={calibration.average_dead_band:.2f}s ({db_pct:.1f}%)"
             )
-        else:
-            logger.info(
-                "Calibration complete: avg_close=%.2fs, avg_open=%.2fs, "
-                "avg_offset=%.2fs",
-                calibration.average_close,
-                calibration.average_open,
-                calibration.average_offset,
-            )
+        logger.info("Calibration complete: %s", ", ".join(parts))
         await ctx.publish(
             "calibrate/result",
             json.dumps(result_data),

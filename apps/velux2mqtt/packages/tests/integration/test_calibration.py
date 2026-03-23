@@ -52,6 +52,14 @@ def _cal_direction_cmds(topic: str) -> list[tuple[str, str]]:
     ]
 
 
+def _cal_direction_no_offset_cmds(topic: str) -> list[tuple[str, str]]:
+    """Build the 2-step command sequence for one direction without offset: go, mark(travel)."""
+    return [
+        (topic, _cal_cmd("go")),
+        (topic, _cal_cmd("mark")),  # travel mark
+    ]
+
+
 def _get_cal_states(mock_mqtt: MockMqttClient, cover: str) -> list[dict[str, object]]:
     """Extract parsed calibration state messages for a cover."""
     raw = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/state")
@@ -568,3 +576,89 @@ class TestCalibrationCoverIsolation:
         # Assert -- window has no calibration result
         window_results = _get_cal_results(mock_mqtt, "window")
         assert len(window_results) == 0
+
+
+# ---------------------------------------------------------------------------
+# Optional offset measurement
+# ---------------------------------------------------------------------------
+
+
+class TestCalibrationWithoutOffset:
+    """Calibration flow with measure_offset=false."""
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_calibration_without_offset_publishes_result(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+        fake_gpio: FakeGpio,
+    ) -> None:
+        """Calibration with measure_offset=false skips TIMING_OFFSET and omits avg_offset.
+
+        Technique: State Transition Testing -- READY -> TIMING (skip TIMING_OFFSET)
+        -> READY -> TIMING -> COMPLETE.
+        """
+        blind_set = f"{TOPIC_PREFIX}/blind/set"
+
+        commands: list[tuple[str, str]] = [
+            (blind_set, _cal_cmd("start", runs=1, measure_offset=False)),
+            *_cal_direction_no_offset_cmds(blind_set),  # close
+            *_cal_direction_no_offset_cmds(blind_set),  # open
+        ]
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            commands,
+        )
+
+        # Assert -- state transitions skip TIMING_OFFSET
+        states = _get_cal_states(mock_mqtt, "blind")
+        state_names = [s["state"] for s in states]
+        assert "TIMING_OFFSET" not in state_names, (
+            f"TIMING_OFFSET should be skipped; got: {state_names}"
+        )
+        assert states[-1]["state"] == "COMPLETE"
+
+        # Assert -- result published without avg_offset
+        results = _get_cal_results(mock_mqtt, "blind")
+        assert len(results) == 1
+        assert "avg_close" in results[0]
+        assert "avg_open" in results[0]
+        assert "avg_offset" not in results[0]
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_calibration_without_offset_correct_state_count(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+        fake_gpio: FakeGpio,
+    ) -> None:
+        """Without offset, single-run produces 5 state messages (not 7).
+
+        Technique: Specification-based -- state count: READY + (TIMING + READY)
+        + (TIMING + COMPLETE) = 5.
+        """
+        blind_set = f"{TOPIC_PREFIX}/blind/set"
+
+        commands: list[tuple[str, str]] = [
+            (blind_set, _cal_cmd("start", runs=1, measure_offset=False)),
+            *_cal_direction_no_offset_cmds(blind_set),  # close
+            *_cal_direction_no_offset_cmds(blind_set),  # open
+        ]
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            commands,
+        )
+
+        states = _get_cal_states(mock_mqtt, "blind")
+        assert len(states) == 5, (
+            f"Expected 5 state messages without offset, got {len(states)}: "
+            f"{[s['state'] for s in states]}"
+        )
