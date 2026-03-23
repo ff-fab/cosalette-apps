@@ -73,6 +73,13 @@ class CalibrationStateMachine:
         sm.mark()              # TIMING_DEAD_BAND -> TIMING (records dead band)
         sm.mark()              # TIMING -> READY|COMPLETE (records travel)
 
+    Usage without offset measurement::
+
+        sm = CalibrationStateMachine()
+        sm.start(runs=3, measure_offset=False)
+        sm.go()                # READY -> TIMING (starts timer, press event)
+        sm.mark()              # TIMING -> READY|COMPLETE (records travel)
+
     Args:
         time_source: Callable returning monotonic seconds (injectable for tests).
     """
@@ -82,6 +89,7 @@ class CalibrationStateMachine:
     state: CalibrationState = field(default=CalibrationState.IDLE, init=False)
     _total_runs: int = field(default=0, init=False, repr=False)
     _current_run: int = field(default=0, init=False, repr=False)
+    _measure_offset: bool = field(default=True, init=False, repr=False)
     _measure_dead_band: bool = field(default=False, init=False, repr=False)
     _direction: CalibrationDirection = field(
         default=CalibrationDirection.CLOSE, init=False, repr=False
@@ -97,12 +105,19 @@ class CalibrationStateMachine:
     # -- public transitions --------------------------------------------------
 
     def start(
-        self, runs: int = 3, *, measure_dead_band: bool = False
+        self,
+        runs: int = 3,
+        *,
+        measure_offset: bool = True,
+        measure_dead_band: bool = False,
     ) -> CalibrationEvent:
         """Begin calibration: move to READY for the first run.
 
         Args:
             runs: Number of close/open measurement cycles to perform.
+            measure_offset: If True, include the TIMING_OFFSET state to
+                measure motor start lag.  When False, go() transitions
+                directly to TIMING (or TIMING_DEAD_BAND if applicable).
             measure_dead_band: If True, add a dead band measurement step
                 between offset and travel timing.
 
@@ -120,6 +135,7 @@ class CalibrationStateMachine:
 
         self._total_runs = runs
         self._current_run = 1
+        self._measure_offset = measure_offset
         self._measure_dead_band = measure_dead_band
         self._direction = CalibrationDirection.CLOSE
         self._close_durations.clear()
@@ -132,6 +148,11 @@ class CalibrationStateMachine:
     def go(self) -> CalibrationEvent:
         """Trigger a button press and start timing.
 
+        When ``measure_offset`` is True (default), transitions to
+        TIMING_OFFSET.  When False, skips offset measurement and
+        transitions directly to TIMING_DEAD_BAND (if measuring dead
+        band) or TIMING.
+
         Returns:
             Event requesting a button press with the current direction.
 
@@ -140,7 +161,12 @@ class CalibrationStateMachine:
         """
         self._require_state(CalibrationState.READY, "go")
         self._start_time = self.time_source()
-        self.state = CalibrationState.TIMING_OFFSET
+        if self._measure_offset:
+            self.state = CalibrationState.TIMING_OFFSET
+        elif self._measure_dead_band:
+            self.state = CalibrationState.TIMING_DEAD_BAND
+        else:
+            self.state = CalibrationState.TIMING
         return CalibrationEvent(press_button=True, direction=self._direction)
 
     def mark(self) -> CalibrationEvent:
@@ -219,6 +245,7 @@ class CalibrationStateMachine:
         self._start_time = None
         self._total_runs = 0
         self._current_run = 0
+        self._measure_offset = True
         self._measure_dead_band = False
         self._direction = CalibrationDirection.CLOSE
         self._close_durations.clear()
@@ -291,6 +318,11 @@ class CalibrationStateMachine:
             msg = "no dead band measurements recorded"
             raise CalibrationError(msg)
         return sum(self._dead_band_durations) / len(self._dead_band_durations)
+
+    @property
+    def has_offset(self) -> bool:
+        """True if offset measurements were taken."""
+        return len(self._offset_durations) > 0
 
     @property
     def has_dead_band(self) -> bool:

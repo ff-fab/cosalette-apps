@@ -47,6 +47,12 @@ class CoverConfig(BaseModel):
         description="Extra seconds added to travel duration for the safety "
         "cutoff timer",
     )
+    measure_offset: bool = Field(
+        default=True,
+        description="Whether to measure travel_time_offset during calibration. "
+        "When False, calibration skips the TIMING_OFFSET state and uses the "
+        "manually-configured travel_time_offset value.",
+    )
     dead_band_pct: float = Field(
         default=0.0,
         ge=0,
