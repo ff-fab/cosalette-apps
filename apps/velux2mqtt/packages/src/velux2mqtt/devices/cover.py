@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 import cosalette
 
@@ -110,6 +111,7 @@ def make_cover(
             if calibration.state in (
                 CalibrationState.READY,
                 CalibrationState.TIMING_OFFSET,
+                CalibrationState.TIMING_DEAD_BAND,
                 CalibrationState.TIMING,
             ):
                 logger.warning(
@@ -219,6 +221,30 @@ async def _run_homing(
     logger.info("Homing complete: position=%d%%", tracker.position_int)
 
 
+def _dead_band_time(cover_cfg: CoverConfig, direction: Literal["up", "down"]) -> float:
+    """Calculate dead band traversal time in seconds.
+
+    The dead band is the portion of total travel where the handle
+    rotates but the cover does not yet move.  ``dead_band_pct`` is
+    defined as a percentage of *total* travel (dead band + effective
+    movement), so the inversion is ``db = f/(1-f) * effective``.
+
+    Args:
+        cover_cfg: Cover configuration with dead_band_pct.
+        direction: ``"up"`` or ``"down"``.
+
+    Returns:
+        Seconds for dead band traversal, or 0.0 if disabled.
+    """
+    if cover_cfg.dead_band_pct <= 0:
+        return 0.0
+    fraction = cover_cfg.dead_band_pct / 100.0
+    scale = fraction / (1.0 - fraction)
+    if direction == "up":
+        return scale * cover_cfg.travel_duration_up
+    return scale * cover_cfg.travel_duration_down
+
+
 async def _execute_step(
     *,
     ctx: cosalette.DeviceContext,
@@ -236,6 +262,18 @@ async def _execute_step(
     calculates travel time from the current position and stops after
     the computed duration.
 
+    When dead band is configured:
+
+    - **Opening from 0%**: the button is pressed once and the system
+      waits for the dead band time (handle rotation) before starting
+      the position tracker.  The handle and cover move in one
+      continuous motion.
+    - **Closing to 0%**: after the effective cover travel completes,
+      the system waits an additional dead band time for the handle to
+      close before pressing stop.
+    - The dead band is never stopped within -- the handle always fully
+      opens or fully closes.
+
     Args:
         ctx: Device context for shutdown-aware sleep.
         gpio: GPIO adapter for button presses.
@@ -251,13 +289,16 @@ async def _execute_step(
     if target == tracker.position_int and not step.is_recalibration:
         return  # Already at target
 
+    opening = target > current
+    needs_open_dead_band = (
+        opening and tracker.position_int == 0 and _dead_band_time(cover_cfg, "up") > 0
+    )
+
     # Determine direction
-    if target > current:
+    if opening:
         pin = cover_cfg.pin_up
-        tracker.start_opening()
     else:
         pin = cover_cfg.pin_down
-        tracker.start_closing()
 
     # Calculate travel time
     if target in (0, 100):
@@ -269,26 +310,60 @@ async def _execute_step(
     else:
         travel_time = tracker.travel_time_for(current, target)
 
-    logger.info(
-        "Moving %s: %d%% -> %d%% (%.1fs)%s",
-        cover_cfg.name,
-        round(current),
-        target,
-        travel_time,
-        " [recalibration]" if step.is_recalibration else "",
-    )
-
-    # Press direction button
-    await gpio.press(pin, settings.button_press_duration)
+    # Dead band: when opening from 0, press button and wait for handle
+    # rotation before starting the position tracker
+    if needs_open_dead_band:
+        db_time = _dead_band_time(cover_cfg, "up")
+        logger.info(
+            "Dead band %s: opening handle (%.1fs) then moving to %d%%",
+            cover_cfg.name,
+            db_time,
+            target,
+        )
+        await gpio.press(pin, settings.button_press_duration)
+        await ctx.sleep(db_time)
+        if ctx.shutdown_requested:
+            await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+            return
+        # Now start tracking effective movement (handle is open)
+        tracker.start_opening()
+    else:
+        logger.info(
+            "Moving %s: %d%% -> %d%% (%.1fs)%s",
+            cover_cfg.name,
+            round(current),
+            target,
+            travel_time,
+            " [recalibration]" if step.is_recalibration else "",
+        )
+        if opening:
+            tracker.start_opening()
+        else:
+            tracker.start_closing()
+        await gpio.press(pin, settings.button_press_duration)
 
     # Wait for travel
     await ctx.sleep(travel_time)
 
     if ctx.shutdown_requested:
-        # Best-effort stop to avoid leaving the motor running
         await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
         tracker.stop()
         return
+
+    # Dead band: when closing to 0, wait for handle to close after
+    # effective travel completes (motor is still running)
+    db_close = _dead_band_time(cover_cfg, "down")
+    if target == 0 and db_close > 0:
+        logger.info(
+            "Dead band %s: closing handle (%.1fs)",
+            cover_cfg.name,
+            db_close,
+        )
+        await ctx.sleep(db_close)
+        if ctx.shutdown_requested:
+            await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+            tracker.stop()
+            return
 
     # Press stop
     await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
@@ -340,6 +415,8 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
         result: dict[str, object] = {"action": action}
         if "runs" in data:
             result["runs"] = data["runs"]
+        if "measure_dead_band" in data and isinstance(data["measure_dead_band"], bool):
+            result["measure_dead_band"] = data["measure_dead_band"]
         return result
     return None
 
@@ -370,7 +447,8 @@ async def _handle_calibration(
         if action == "start":
             runs_raw = params.get("runs", settings.calibration_runs)
             runs = int(runs_raw)  # type: ignore[call-overload]
-            calibration.start(runs=runs)
+            measure_db = bool(params.get("measure_dead_band", False))
+            calibration.start(runs=runs, measure_dead_band=measure_db)
         elif action == "go":
             event = calibration.go()
             if event.press_button and event.direction is not None:
@@ -399,21 +477,37 @@ async def _handle_calibration(
     await _publish_calibration_state(ctx, calibration)
 
     if calibration.state is CalibrationState.COMPLETE:
-        logger.info(
-            "Calibration complete: avg_close=%.2fs, avg_open=%.2fs, avg_offset=%.2fs",
-            calibration.average_close,
-            calibration.average_open,
-            calibration.average_offset,
-        )
+        result_data: dict[str, object] = {
+            "avg_close": round(calibration.average_close, 2),
+            "avg_open": round(calibration.average_open, 2),
+            "avg_offset": round(calibration.average_offset, 2),
+        }
+        if calibration.has_dead_band:
+            db_pct = calibration.dead_band_pct(
+                calibration.average_close, calibration.average_open
+            )
+            result_data["avg_dead_band"] = round(calibration.average_dead_band, 2)
+            result_data["dead_band_pct"] = round(db_pct, 1)
+            logger.info(
+                "Calibration complete: avg_close=%.2fs, avg_open=%.2fs, "
+                "avg_offset=%.2fs, avg_dead_band=%.2fs (%.1f%%)",
+                calibration.average_close,
+                calibration.average_open,
+                calibration.average_offset,
+                calibration.average_dead_band,
+                db_pct,
+            )
+        else:
+            logger.info(
+                "Calibration complete: avg_close=%.2fs, avg_open=%.2fs, "
+                "avg_offset=%.2fs",
+                calibration.average_close,
+                calibration.average_open,
+                calibration.average_offset,
+            )
         await ctx.publish(
             "calibrate/result",
-            json.dumps(
-                {
-                    "avg_close": round(calibration.average_close, 2),
-                    "avg_open": round(calibration.average_open, 2),
-                    "avg_offset": round(calibration.average_offset, 2),
-                }
-            ),
+            json.dumps(result_data),
             retain=True,
         )
 

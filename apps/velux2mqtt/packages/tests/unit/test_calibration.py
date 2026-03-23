@@ -1,9 +1,11 @@
 """Unit tests for CalibrationStateMachine.
 
 Test Techniques Used:
-- State Transition Testing: IDLE -> READY -> TIMING_OFFSET -> TIMING -> READY/COMPLETE
+- State Transition Testing: IDLE -> READY -> TIMING_OFFSET -> TIMING -> READY/COMPLETE,
+  including TIMING_DEAD_BAND when measure_dead_band=True
 - Boundary Value Analysis: Single run, varying measurements
-- Specification-based Testing: Direction alternation, average computation, offset
+- Specification-based Testing: Direction alternation, average computation, offset,
+  dead band percentage calculation
 - Error Guessing: Invalid transitions from each state
 """
 
@@ -457,3 +459,169 @@ class TestEdgeCases:
         event = sm.start(runs=1)
         assert event.press_button is False
         assert event.direction is CalibrationDirection.CLOSE
+
+
+# -- Dead band measurement ---------------------------------------------------
+
+
+def _do_direction_with_dead_band(
+    sm: CalibrationStateMachine,
+    clock: FakeClock,
+    offset: float,
+    dead_band: float,
+    travel: float,
+) -> None:
+    """Helper: go -> mark(offset) -> mark(dead_band) -> mark(travel)."""
+    sm.go()
+    clock.advance(offset)
+    sm.mark()  # records offset, transitions to TIMING_DEAD_BAND
+    clock.advance(dead_band)
+    sm.mark()  # records dead band, transitions to TIMING
+    clock.advance(travel)
+    sm.mark()  # records travel, advances
+
+
+class TestDeadBandMeasurement:
+    """Tests for calibration with measure_dead_band=True."""
+
+    def test_offset_mark_transitions_to_timing_dead_band(
+        self, clock: FakeClock
+    ) -> None:
+        """With measure_dead_band, offset mark goes to TIMING_DEAD_BAND.
+
+        Technique: State Transition Testing — TIMING_OFFSET -> TIMING_DEAD_BAND.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_dead_band=True)
+        sm.go()
+        clock.advance(0.5)
+        event = sm.mark()  # offset mark
+
+        assert sm.state is CalibrationState.TIMING_DEAD_BAND
+        assert event.direction is CalibrationDirection.CLOSE
+
+    def test_dead_band_mark_transitions_to_timing(self, clock: FakeClock) -> None:
+        """Dead band mark transitions to TIMING.
+
+        Technique: State Transition Testing — TIMING_DEAD_BAND -> TIMING.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_dead_band=True)
+        sm.go()
+        clock.advance(0.5)
+        sm.mark()  # offset
+        clock.advance(1.0)
+        event = sm.mark()  # dead band
+
+        assert sm.state is CalibrationState.TIMING
+        assert event.direction is CalibrationDirection.CLOSE
+
+    def test_full_calibration_with_dead_band(self, clock: FakeClock) -> None:
+        """Complete single-run calibration with dead band records all measurements.
+
+        Technique: Specification-based — full lifecycle with dead band.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_dead_band=True)
+
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=1.0, travel=8.0)
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=1.2, travel=9.0)
+
+        assert sm.state is CalibrationState.COMPLETE
+        assert sm.average_close == pytest.approx(8.0)
+        assert sm.average_open == pytest.approx(9.0)
+        assert sm.average_offset == pytest.approx(0.5)
+        assert sm.average_dead_band == pytest.approx(1.1)
+        assert sm.has_dead_band is True
+
+    def test_dead_band_pct_calculation(self, clock: FakeClock) -> None:
+        """Dead band percentage computed from travel and dead band durations.
+
+        Technique: Specification-based — percentage formula verification.
+
+        With close=8s, open=9s, dead_band=1s per direction:
+        avg_total = ((8+1) + (9+1)) / 2 = 9.5
+        pct = 1.0 / 9.5 * 100 = 10.53%
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_dead_band=True)
+
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=1.0, travel=8.0)
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=1.0, travel=9.0)
+
+        pct = sm.dead_band_pct(sm.average_close, sm.average_open)
+        assert pct == pytest.approx(10.526, abs=0.01)
+
+    def test_has_dead_band_false_without_measurement(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """has_dead_band is False when not measuring dead band.
+
+        Technique: Specification-based — flag off by default.
+        """
+        sm.start(runs=1)
+        _do_direction(sm, clock, offset=0.5, travel=8.0)
+        _do_direction(sm, clock, offset=0.5, travel=9.0)
+
+        assert sm.has_dead_band is False
+
+    def test_average_dead_band_no_data_raises(
+        self, sm: CalibrationStateMachine
+    ) -> None:
+        """Accessing average_dead_band without data raises CalibrationError.
+
+        Technique: Error Guessing — accessing empty measurement list.
+        """
+        with pytest.raises(CalibrationError, match="no dead band measurements"):
+            _ = sm.average_dead_band
+
+    def test_cancel_clears_dead_band_data(self, clock: FakeClock) -> None:
+        """Cancel clears dead band measurements.
+
+        Technique: State Transition Testing — cancel resets all data.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=1, measure_dead_band=True)
+        sm.go()
+        clock.advance(0.5)
+        sm.mark()  # offset
+        clock.advance(1.0)
+        sm.mark()  # dead band
+        sm.cancel()
+
+        assert sm.has_dead_band is False
+        with pytest.raises(CalibrationError, match="no dead band measurements"):
+            _ = sm.average_dead_band
+
+    def test_without_dead_band_skips_timing_dead_band_state(
+        self, sm: CalibrationStateMachine, clock: FakeClock
+    ) -> None:
+        """Without measure_dead_band, offset mark goes directly to TIMING.
+
+        Technique: State Transition Testing — backward compatibility.
+        """
+        sm.start(runs=1)
+        sm.go()
+        clock.advance(0.5)
+        sm.mark()  # offset mark
+
+        assert sm.state is CalibrationState.TIMING
+
+    def test_multi_run_dead_band_averages(self, clock: FakeClock) -> None:
+        """Multi-run calibration averages dead band durations correctly.
+
+        Technique: Specification-based — averaged dead band over 2 runs.
+        """
+        sm = CalibrationStateMachine(time_source=clock)
+        sm.start(runs=2, measure_dead_band=True)
+
+        # Run 1
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=0.8, travel=10.0)
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=0.8, travel=10.0)
+
+        # Run 2
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=1.2, travel=10.0)
+        _do_direction_with_dead_band(sm, clock, offset=0.5, dead_band=1.2, travel=10.0)
+
+        assert sm.state is CalibrationState.COMPLETE
+        assert sm.average_dead_band == pytest.approx(1.0)
