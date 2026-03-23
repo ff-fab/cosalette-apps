@@ -9,7 +9,8 @@ Test Techniques Used:
 - Error Guessing: Invalid command payloads, shutdown during movement,
   normal commands blocked during calibration, invalid calibration transitions
 - Specification-based Testing: Drift recalibration multi-step moves,
-  calibration MQTT status publishing, result publishing on completion
+  calibration MQTT status publishing, result publishing on completion,
+  dead band traversal on open/close
 """
 
 from __future__ import annotations
@@ -17,8 +18,11 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
+
 from velux2mqtt.adapters.fake import FakeGpio, PressCall
 from velux2mqtt.devices.cover import (
+    _dead_band_time,
     _execute_step,
     _parse_calibrate,
     _publish_position,
@@ -867,3 +871,293 @@ class TestCalibrationDispatch:
         assert len(ctx.published_channels) == 1
         data = json.loads(ctx.published_channels[0][1])
         assert data["state"] == "IDLE"
+
+    async def test_start_with_measure_dead_band(self) -> None:
+        """Start with measure_dead_band passes flag to state machine.
+
+        Technique: Specification-based — dead band flag forwarding.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act
+        await handler(
+            "topic",
+            '{"calibrate": "start", "runs": 1, "measure_dead_band": true}',
+        )
+
+        # Assert
+        assert len(ctx.published_channels) == 1
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["state"] == "READY"
+
+    async def test_parse_calibrate_extracts_measure_dead_band(self) -> None:
+        """Parse calibrate extracts measure_dead_band parameter.
+
+        Technique: Specification-based — parameter extraction.
+        """
+        result = _parse_calibrate('{"calibrate": "start", "measure_dead_band": true}')
+        assert result is not None
+        assert result["measure_dead_band"] is True
+
+    async def test_calibration_with_dead_band_publishes_result_with_pct(
+        self,
+    ) -> None:
+        """Calibration with dead band publishes result including dead_band_pct.
+
+        Technique: Specification-based — result payload with dead band.
+        """
+        # Arrange
+        ctx, _gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — complete calibration with dead band (go + mark*3 per direction)
+        await handler(
+            "topic",
+            '{"calibrate": "start", "runs": 1, "measure_dead_band": true}',
+        )
+        await handler("topic", '{"calibrate": "go"}')  # close: go
+        await handler("topic", '{"calibrate": "mark"}')  # close: offset
+        await handler("topic", '{"calibrate": "mark"}')  # close: dead band
+        await handler("topic", '{"calibrate": "mark"}')  # close: travel
+        await handler("topic", '{"calibrate": "go"}')  # open: go
+        await handler("topic", '{"calibrate": "mark"}')  # open: offset
+        await handler("topic", '{"calibrate": "mark"}')  # open: dead band
+        await handler("topic", '{"calibrate": "mark"}')  # open: travel -> COMPLETE
+
+        # Assert — result includes dead band fields
+        result_msgs = [
+            (ch, json.loads(p))
+            for ch, p in ctx.published_channels
+            if ch == "calibrate/result"
+        ]
+        assert len(result_msgs) == 1
+        _ch, result = result_msgs[0]
+        assert "avg_dead_band" in result
+        assert "dead_band_pct" in result
+
+
+# ---------------------------------------------------------------------------
+# Dead band tests
+# ---------------------------------------------------------------------------
+
+_DEAD_BAND_COVER = CoverConfig(
+    name="window",
+    pin_up=17,
+    pin_stop=27,
+    pin_down=22,
+    travel_duration_up=20.0,
+    travel_duration_down=20.0,
+    travel_time_offset=1.0,
+    max_timer_margin=2.0,
+    dead_band_pct=10.0,  # 10% dead band = 2s of 20s travel
+)
+
+
+class TestDeadBandTime:
+    """Test dead band time calculation."""
+
+    def test_dead_band_time_up(self) -> None:
+        """Dead band time for up direction uses travel_duration_up.
+
+        Technique: Specification-based — formula verification.
+        """
+        result = _dead_band_time(_DEAD_BAND_COVER, "up")
+        assert result == pytest.approx(2.0)  # 10% of 20s
+
+    def test_dead_band_time_down(self) -> None:
+        """Dead band time for down direction uses travel_duration_down.
+
+        Technique: Specification-based — formula verification.
+        """
+        result = _dead_band_time(_DEAD_BAND_COVER, "down")
+        assert result == pytest.approx(2.0)  # 10% of 20s
+
+    def test_dead_band_time_zero_when_disabled(self) -> None:
+        """Dead band time is 0 when dead_band_pct is 0.
+
+        Technique: Boundary Value Analysis — disabled dead band.
+        """
+        result = _dead_band_time(_DEFAULT_COVER, "up")
+        assert result == 0.0
+
+    def test_dead_band_time_asymmetric(self) -> None:
+        """Dead band time differs for up/down with asymmetric travel durations.
+
+        Technique: Equivalence Partitioning — asymmetric travel.
+        """
+        cover = CoverConfig(
+            name="test",
+            pin_up=1,
+            pin_stop=2,
+            pin_down=3,
+            travel_duration_up=20.0,
+            travel_duration_down=10.0,
+            dead_band_pct=10.0,
+        )
+        assert _dead_band_time(cover, "up") == pytest.approx(2.0)
+        assert _dead_band_time(cover, "down") == pytest.approx(1.0)
+
+
+class TestExecuteStepDeadBand:
+    """Test dead band traversal in _execute_step."""
+
+    async def test_opening_from_zero_with_dead_band_presses_up_once(self) -> None:
+        """Opening from 0% with dead band presses up pin once (not twice).
+
+        The dead band and effective movement are one continuous motion.
+
+        Technique: Specification-based — single button press for dead band + move.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        step = MoveStep(target=100)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEAD_BAND_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — up pin pressed once (for dead band), then stop
+        up_presses = [p for p in gpio.presses if p.pin == 17]
+        assert len(up_presses) == 1  # single press covers dead band + movement
+
+    async def test_opening_from_nonzero_no_dead_band(self) -> None:
+        """Opening from non-zero position skips dead band traversal.
+
+        Technique: Equivalence Partitioning — dead band only applies from 0%.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        tracker.position = 50.0
+        step = MoveStep(target=100)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEAD_BAND_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — normal movement, up then stop
+        assert gpio.presses[0].pin == 17  # up
+        assert gpio.presses[1].pin == 27  # stop
+
+    async def test_closing_to_zero_with_dead_band(self) -> None:
+        """Closing to 0% with dead band waits extra time for handle closure.
+
+        Technique: Specification-based — dead band traversal on close.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        tracker.position = 50.0
+        step = MoveStep(target=0)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEAD_BAND_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — down pin pressed, then stop (dead band adds wait time)
+        assert gpio.presses[0].pin == 22  # down
+        assert gpio.presses[1].pin == 27  # stop
+        assert tracker.position == 0.0
+
+    async def test_closing_to_nonzero_no_dead_band(self) -> None:
+        """Closing to non-zero position skips dead band traversal.
+
+        Technique: Equivalence Partitioning — dead band only applies to 0%.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        tracker.position = 80.0
+        step = MoveStep(target=30)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEAD_BAND_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — normal down then stop
+        assert gpio.presses[0].pin == 22  # down
+        assert gpio.presses[1].pin == 27  # stop
+
+    async def test_no_dead_band_when_disabled(self) -> None:
+        """No dead band traversal when dead_band_pct is 0.
+
+        Technique: Boundary Value Analysis — disabled dead band.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        step = MoveStep(target=100)
+
+        # Act (using _DEFAULT_COVER which has dead_band_pct=0)
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEFAULT_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — up then stop, no extra GPIO presses
+        assert len(gpio.presses) == 2
+        assert gpio.presses[0].pin == 17  # up
+        assert gpio.presses[1].pin == 27  # stop
