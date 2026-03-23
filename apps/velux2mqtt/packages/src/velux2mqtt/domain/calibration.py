@@ -147,9 +147,10 @@ class CalibrationStateMachine:
     def _mark_offset(self) -> CalibrationEvent:
         """Record offset duration and transition to TIMING."""
         assert self._start_time is not None  # noqa: S101 — guaranteed by state
-        elapsed = self.time_source() - self._start_time
+        now = self.time_source()
+        elapsed = now - self._start_time
         self._offset_durations.append(elapsed)
-        self._start_time = self.time_source()
+        self._start_time = now
         self.state = CalibrationState.TIMING
         return CalibrationEvent(direction=self._direction)
 
@@ -225,7 +226,7 @@ class CalibrationStateMachine:
 
     @property
     def average_offset(self) -> float:
-        """Average motor start/stop lag (offset) in seconds.
+        """Average motor start lag (offset) in seconds.
 
         Raises:
             CalibrationError: If no offset measurements recorded.
