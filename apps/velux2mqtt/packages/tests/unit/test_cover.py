@@ -696,10 +696,10 @@ class TestCalibrationDispatch:
         assert data["run"] == 1
         assert data["direction"] == "CLOSE"
 
-    async def test_go_presses_button_and_publishes_timing(self) -> None:
-        """Go transitions to TIMING, presses direction button.
+    async def test_go_presses_button_and_publishes_timing_offset(self) -> None:
+        """Go transitions to TIMING_OFFSET, presses direction button.
 
-        Technique: State Transition Testing — READY -> TIMING.
+        Technique: State Transition Testing — READY -> TIMING_OFFSET.
         """
         # Arrange
         ctx, gpio = await self._setup_handler()
@@ -718,7 +718,7 @@ class TestCalibrationDispatch:
         assert gpio.presses[0].pin == 22  # down
         channel, payload = ctx.published_channels[0]
         assert channel == "calibrate/state"
-        assert json.loads(payload)["state"] == "TIMING"
+        assert json.loads(payload)["state"] == "TIMING_OFFSET"
 
     async def test_normal_commands_blocked_during_calibration(self) -> None:
         """Normal cover commands are rejected during active calibration.
@@ -787,7 +787,7 @@ class TestCalibrationDispatch:
         assert data["state"] == "IDLE"
 
     async def test_full_calibration_publishes_result(self) -> None:
-        """Complete single-run calibration publishes averaged results.
+        """Complete single-run calibration publishes averaged results including offset.
 
         Technique: Specification-based — full calibration lifecycle.
         """
@@ -796,12 +796,14 @@ class TestCalibrationDispatch:
         handler = ctx._command_handler
         assert handler is not None
 
-        # Act — run a complete single-run calibration
+        # Act — run a complete single-run calibration (go + mark-offset + mark-travel)
         await handler("topic", '{"calibrate": "start", "runs": 1}')
-        await handler("topic", '{"calibrate": "go"}')  # close timing
-        await handler("topic", '{"calibrate": "mark"}')  # stop close
-        await handler("topic", '{"calibrate": "go"}')  # open timing
-        await handler("topic", '{"calibrate": "mark"}')  # stop open -> COMPLETE
+        await handler("topic", '{"calibrate": "go"}')  # close: button press
+        await handler("topic", '{"calibrate": "mark"}')  # close: offset mark
+        await handler("topic", '{"calibrate": "mark"}')  # close: travel mark
+        await handler("topic", '{"calibrate": "go"}')  # open: button press
+        await handler("topic", '{"calibrate": "mark"}')  # open: offset mark
+        await handler("topic", '{"calibrate": "mark"}')  # open: travel mark -> COMPLETE
 
         # Assert — result published on calibrate/result channel
         result_msgs = [
@@ -813,6 +815,7 @@ class TestCalibrationDispatch:
         _ch, result = result_msgs[0]
         assert "avg_close" in result
         assert "avg_open" in result
+        assert "avg_offset" in result
 
         # Final state should be COMPLETE
         state_msgs = [
@@ -830,11 +833,13 @@ class TestCalibrationDispatch:
         handler = ctx._command_handler
         assert handler is not None
 
-        # Complete a calibration run
+        # Complete a calibration run (go + mark-offset + mark-travel per direction)
         await handler("topic", '{"calibrate": "start", "runs": 1}')
         await handler("topic", '{"calibrate": "go"}')
         await handler("topic", '{"calibrate": "mark"}')
+        await handler("topic", '{"calibrate": "mark"}')
         await handler("topic", '{"calibrate": "go"}')
+        await handler("topic", '{"calibrate": "mark"}')
         await handler("topic", '{"calibrate": "mark"}')
 
         # Act — send a normal command while in COMPLETE state

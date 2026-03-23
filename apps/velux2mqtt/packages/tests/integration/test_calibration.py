@@ -2,14 +2,16 @@
 
 Exercises the full calibration MQTT ping-pong through the real app wiring:
 start calibration on one cover, send go/mark commands for multiple runs in
-each direction, verify status messages at each step, verify final results
-published, verify normal commands rejected during calibration, and verify
-the second cover is unaffected.
+each direction (with offset marks), verify status messages at each step,
+verify final results published (including avg_offset), verify normal commands
+rejected during calibration, and verify the second cover is unaffected.
 
 Test Techniques Used:
-- State Transition Testing: Full calibration lifecycle IDLE -> READY -> TIMING -> COMPLETE
+- State Transition Testing: Full calibration lifecycle IDLE -> READY -> TIMING_OFFSET
+  -> TIMING -> COMPLETE
 - Integration Testing: Full app wiring with MQTT command delivery and GPIO interaction
-- Specification-based: MQTT topic payloads, calibration result format, direction alternation
+- Specification-based: MQTT topic payloads, calibration result format, direction
+  alternation, offset measurement
 - Error Guessing: Normal commands during calibration, cross-cover interference
 """
 
@@ -39,6 +41,15 @@ def _cal_cmd(action: str, **kwargs: object) -> str:
     """Build a calibration JSON command payload."""
     data: dict[str, object] = {"calibrate": action, **kwargs}
     return json.dumps(data)
+
+
+def _cal_direction_cmds(topic: str) -> list[tuple[str, str]]:
+    """Build the 3-step command sequence for one direction: go, mark(offset), mark(travel)."""
+    return [
+        (topic, _cal_cmd("go")),
+        (topic, _cal_cmd("mark")),  # offset mark
+        (topic, _cal_cmd("mark")),  # travel mark
+    ]
 
 
 def _get_cal_states(mock_mqtt: MockMqttClient, cover: str) -> list[dict[str, object]]:
@@ -72,18 +83,16 @@ class TestCalibrationFlow:
     ) -> None:
         """Single-run calibration publishes correct state at each step and final result.
 
-        Technique: State Transition Testing -- IDLE -> READY -> TIMING -> READY
-        -> TIMING -> COMPLETE, verifying each published state.
+        Technique: State Transition Testing -- IDLE -> READY -> TIMING_OFFSET -> TIMING
+        -> READY -> TIMING_OFFSET -> TIMING -> COMPLETE, verifying each published state.
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
 
-        # Act -- full single-run calibration sequence
+        # Act -- full single-run calibration sequence (go + mark-offset + mark-travel)
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # close timing
-            (blind_set, _cal_cmd("mark")),  # end close -> READY (open)
-            (blind_set, _cal_cmd("go")),  # open timing
-            (blind_set, _cal_cmd("mark")),  # end open -> COMPLETE
+            *_cal_direction_cmds(blind_set),  # close direction
+            *_cal_direction_cmds(blind_set),  # open direction
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -94,8 +103,8 @@ class TestCalibrationFlow:
 
         # Assert -- calibration states published in order
         states = _get_cal_states(mock_mqtt, "blind")
-        assert len(states) == 5, (
-            f"Expected == 5 state messages, got {len(states)}: {states}"
+        assert len(states) == 7, (
+            f"Expected 7 state messages, got {len(states)}: {states}"
         )
 
         # Step 1: start -> READY, run=1, direction=CLOSE
@@ -103,26 +112,34 @@ class TestCalibrationFlow:
         assert states[0]["run"] == 1
         assert states[0]["direction"] == "CLOSE"
 
-        # Step 2: go -> TIMING
-        assert states[1]["state"] == "TIMING"
+        # Step 2: go -> TIMING_OFFSET
+        assert states[1]["state"] == "TIMING_OFFSET"
 
-        # Step 3: mark -> READY (switches to OPEN)
-        assert states[2]["state"] == "READY"
-        assert states[2]["direction"] == "OPEN"
+        # Step 3: mark (offset) -> TIMING
+        assert states[2]["state"] == "TIMING"
 
-        # Step 4: go -> TIMING
-        assert states[3]["state"] == "TIMING"
+        # Step 4: mark (travel) -> READY (switches to OPEN)
+        assert states[3]["state"] == "READY"
+        assert states[3]["direction"] == "OPEN"
 
-        # Step 5: mark -> COMPLETE
-        assert states[4]["state"] == "COMPLETE"
+        # Step 5: go -> TIMING_OFFSET
+        assert states[4]["state"] == "TIMING_OFFSET"
 
-        # Assert -- result published
+        # Step 6: mark (offset) -> TIMING
+        assert states[5]["state"] == "TIMING"
+
+        # Step 7: mark (travel) -> COMPLETE
+        assert states[6]["state"] == "COMPLETE"
+
+        # Assert -- result published with offset
         results = _get_cal_results(mock_mqtt, "blind")
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert "avg_close" in results[0]
         assert "avg_open" in results[0]
+        assert "avg_offset" in results[0]
         assert isinstance(results[0]["avg_close"], float)
         assert isinstance(results[0]["avg_open"], float)
+        assert isinstance(results[0]["avg_offset"], float)
 
     @pytest.mark.integration
     @pytest.mark.slow
@@ -136,23 +153,19 @@ class TestCalibrationFlow:
         """Two-run calibration produces averaged result across both runs.
 
         Technique: Specification-based -- verify multi-run direction alternation
-        and final averaged result.
+        and final averaged result including offset.
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
 
-        # 2 runs: close/open, close/open
+        # 2 runs: close/open, close/open (each with offset mark)
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start", runs=2)),
             # Run 1
-            (blind_set, _cal_cmd("go")),
-            (blind_set, _cal_cmd("mark")),
-            (blind_set, _cal_cmd("go")),
-            (blind_set, _cal_cmd("mark")),
+            *_cal_direction_cmds(blind_set),
+            *_cal_direction_cmds(blind_set),
             # Run 2
-            (blind_set, _cal_cmd("go")),
-            (blind_set, _cal_cmd("mark")),
-            (blind_set, _cal_cmd("go")),
-            (blind_set, _cal_cmd("mark")),
+            *_cal_direction_cmds(blind_set),
+            *_cal_direction_cmds(blind_set),
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -165,11 +178,12 @@ class TestCalibrationFlow:
         states = _get_cal_states(mock_mqtt, "blind")
         assert states[-1]["state"] == "COMPLETE"
 
-        # Assert -- result published with averaged values
+        # Assert -- result published with averaged values including offset
         results = _get_cal_results(mock_mqtt, "blind")
         assert len(results) == 1
         assert results[0]["avg_close"] > 0
         assert results[0]["avg_open"] > 0
+        assert results[0]["avg_offset"] >= 0
 
     @pytest.mark.integration
     @pytest.mark.slow
@@ -189,10 +203,8 @@ class TestCalibrationFlow:
 
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # close -> down pin
-            (blind_set, _cal_cmd("mark")),
-            (blind_set, _cal_cmd("go")),  # open -> up pin
-            (blind_set, _cal_cmd("mark")),
+            *_cal_direction_cmds(blind_set),  # close -> down pin
+            *_cal_direction_cmds(blind_set),  # open -> up pin
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -247,6 +259,40 @@ class TestCalibrationFlow:
 
     @pytest.mark.integration
     @pytest.mark.slow
+    async def test_cancel_from_timing_offset_returns_to_idle(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+    ) -> None:
+        """Cancel during TIMING_OFFSET state returns to IDLE with no result.
+
+        Technique: State Transition Testing -- cancel from TIMING_OFFSET -> IDLE.
+        """
+        blind_set = f"{TOPIC_PREFIX}/blind/set"
+
+        commands: list[tuple[str, str]] = [
+            (blind_set, _cal_cmd("start", runs=1)),
+            (blind_set, _cal_cmd("go")),  # enter TIMING_OFFSET
+            (blind_set, _cal_cmd("cancel")),
+        ]
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            commands,
+        )
+
+        # Assert -- last state is IDLE
+        states = _get_cal_states(mock_mqtt, "blind")
+        assert states[-1]["state"] == "IDLE"
+
+        # Assert -- no result published
+        results = _get_cal_results(mock_mqtt, "blind")
+        assert len(results) == 0
+
+    @pytest.mark.integration
+    @pytest.mark.slow
     async def test_cancel_from_timing_returns_to_idle(
         self,
         integration_app_no_homing: App,
@@ -259,10 +305,11 @@ class TestCalibrationFlow:
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
 
-        # Act -- start calibration, enter TIMING, then cancel
+        # Act -- start calibration, enter TIMING_OFFSET, mark offset -> TIMING, cancel
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # enter TIMING
+            (blind_set, _cal_cmd("go")),  # enter TIMING_OFFSET
+            (blind_set, _cal_cmd("mark")),  # offset -> TIMING
             (blind_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
@@ -296,19 +343,13 @@ class TestCalibrationFlow:
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
 
-        # Arrange -- build commands for default 3 runs (close/open per run)
+        # Arrange -- build commands for default 3 runs
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start")),  # no runs parameter
         ]
         for _run in range(3):
-            commands.extend(
-                [
-                    (blind_set, _cal_cmd("go")),
-                    (blind_set, _cal_cmd("mark")),
-                    (blind_set, _cal_cmd("go")),
-                    (blind_set, _cal_cmd("mark")),
-                ]
-            )
+            commands.extend(_cal_direction_cmds(blind_set))  # close
+            commands.extend(_cal_direction_cmds(blind_set))  # open
 
         # Act
         await run_app_with_commands(
@@ -324,13 +365,15 @@ class TestCalibrationFlow:
             f"Expected final state COMPLETE, got {states[-1]['state']}"
         )
 
-        # Assert -- result published with averaged values
+        # Assert -- result published with averaged values including offset
         results = _get_cal_results(mock_mqtt, "blind")
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert "avg_close" in results[0]
         assert "avg_open" in results[0]
+        assert "avg_offset" in results[0]
         assert isinstance(results[0]["avg_close"], float)
         assert isinstance(results[0]["avg_open"], float)
+        assert isinstance(results[0]["avg_offset"], float)
 
 
 # ---------------------------------------------------------------------------
@@ -368,11 +411,46 @@ class TestCalibrationCommandBlocking:
         )
 
         # Assert -- blind up pin NOT pressed by "open" command
-        # (no movement pins pressed; only calibration state published)
         pressed_pins = [p.pin for p in fake_gpio.presses]
         assert BLIND_CFG.pin_up not in pressed_pins, (
             f"Up pin {BLIND_CFG.pin_up} should NOT be pressed during calibration; "
             f"got: {pressed_pins}"
+        )
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_normal_command_rejected_during_timing_offset_state(
+        self,
+        integration_app_no_homing: App,
+        mock_mqtt: MockMqttClient,
+        test_settings_no_homing: Velux2MqttSettings,
+        fake_gpio: FakeGpio,
+    ) -> None:
+        """Stop command is ignored while calibration is in TIMING_OFFSET state.
+
+        Technique: Error Guessing -- stop command during offset timing.
+        """
+        blind_set = f"{TOPIC_PREFIX}/blind/set"
+
+        commands: list[tuple[str, str]] = [
+            (blind_set, _cal_cmd("start", runs=1)),
+            (blind_set, _cal_cmd("go")),  # now TIMING_OFFSET
+            (blind_set, "stop"),  # should be rejected
+            (blind_set, _cal_cmd("mark")),  # continue to TIMING
+            (blind_set, _cal_cmd("mark")),  # complete close travel
+        ]
+        await run_app_with_commands(
+            integration_app_no_homing,
+            mock_mqtt,
+            test_settings_no_homing,
+            commands,
+        )
+
+        # Assert -- stop pin NOT pressed by the "stop" command
+        stop_presses = [p for p in fake_gpio.presses if p.pin == BLIND_CFG.pin_stop]
+        assert len(stop_presses) == 0, (
+            f"Stop pin should not be pressed during calibration TIMING_OFFSET; "
+            f"got {len(stop_presses)} presses"
         )
 
     @pytest.mark.integration
@@ -392,9 +470,10 @@ class TestCalibrationCommandBlocking:
 
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # now TIMING
+            (blind_set, _cal_cmd("go")),  # now TIMING_OFFSET
+            (blind_set, _cal_cmd("mark")),  # now TIMING
             (blind_set, "stop"),  # should be rejected
-            (blind_set, _cal_cmd("mark")),  # continue calibration
+            (blind_set, _cal_cmd("mark")),  # complete close travel
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -404,7 +483,6 @@ class TestCalibrationCommandBlocking:
         )
 
         # Assert -- stop pin NOT pressed by the "stop" command
-        # The only presses should be from calibration go (down pin)
         stop_presses = [p for p in fake_gpio.presses if p.pin == BLIND_CFG.pin_stop]
         assert len(stop_presses) == 0, (
             f"Stop pin should not be pressed during calibration TIMING; "
@@ -469,10 +547,8 @@ class TestCalibrationCoverIsolation:
 
         commands: list[tuple[str, str]] = [
             (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),
-            (blind_set, _cal_cmd("mark")),
-            (blind_set, _cal_cmd("go")),
-            (blind_set, _cal_cmd("mark")),
+            *_cal_direction_cmds(blind_set),  # close
+            *_cal_direction_cmds(blind_set),  # open
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -484,7 +560,7 @@ class TestCalibrationCoverIsolation:
         # Assert -- blind has calibration state, window does not
         blind_states = _get_cal_states(mock_mqtt, "blind")
         window_states = _get_cal_states(mock_mqtt, "window")
-        assert len(blind_states) == 5, "Blind should have calibration states"
+        assert len(blind_states) == 7, "Blind should have calibration states"
         assert len(window_states) == 0, (
             f"Window should have no calibration state messages; got: {window_states}"
         )
