@@ -953,7 +953,7 @@ _DEAD_BAND_COVER = CoverConfig(
     travel_duration_down=20.0,
     travel_time_offset=1.0,
     max_timer_margin=2.0,
-    dead_band_pct=10.0,  # 10% dead band = 2s of 20s travel
+    dead_band_pct=10.0,  # 10% of total = (0.1/0.9)*20 ≈ 2.222s
 )
 
 
@@ -966,7 +966,7 @@ class TestDeadBandTime:
         Technique: Specification-based — formula verification.
         """
         result = _dead_band_time(_DEAD_BAND_COVER, "up")
-        assert result == pytest.approx(2.0)  # 10% of 20s
+        assert result == pytest.approx(2.222, abs=0.01)  # (0.1/0.9)*20
 
     def test_dead_band_time_down(self) -> None:
         """Dead band time for down direction uses travel_duration_down.
@@ -974,7 +974,7 @@ class TestDeadBandTime:
         Technique: Specification-based — formula verification.
         """
         result = _dead_band_time(_DEAD_BAND_COVER, "down")
-        assert result == pytest.approx(2.0)  # 10% of 20s
+        assert result == pytest.approx(2.222, abs=0.01)  # (0.1/0.9)*20
 
     def test_dead_band_time_zero_when_disabled(self) -> None:
         """Dead band time is 0 when dead_band_pct is 0.
@@ -998,8 +998,8 @@ class TestDeadBandTime:
             travel_duration_down=10.0,
             dead_band_pct=10.0,
         )
-        assert _dead_band_time(cover, "up") == pytest.approx(2.0)
-        assert _dead_band_time(cover, "down") == pytest.approx(1.0)
+        assert _dead_band_time(cover, "up") == pytest.approx(2.222, abs=0.01)
+        assert _dead_band_time(cover, "down") == pytest.approx(1.111, abs=0.01)
 
 
 class TestExecuteStepDeadBand:

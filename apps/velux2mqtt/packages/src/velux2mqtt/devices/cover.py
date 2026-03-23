@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Awaitable, Callable
+from typing import Literal
 
 import cosalette
 
@@ -220,11 +221,13 @@ async def _run_homing(
     logger.info("Homing complete: position=%d%%", tracker.position_int)
 
 
-def _dead_band_time(cover_cfg: CoverConfig, direction: str) -> float:
+def _dead_band_time(cover_cfg: CoverConfig, direction: Literal["up", "down"]) -> float:
     """Calculate dead band traversal time in seconds.
 
     The dead band is the portion of total travel where the handle
-    rotates but the cover does not yet move.
+    rotates but the cover does not yet move.  ``dead_band_pct`` is
+    defined as a percentage of *total* travel (dead band + effective
+    movement), so the inversion is ``db = f/(1-f) * effective``.
 
     Args:
         cover_cfg: Cover configuration with dead_band_pct.
@@ -236,9 +239,10 @@ def _dead_band_time(cover_cfg: CoverConfig, direction: str) -> float:
     if cover_cfg.dead_band_pct <= 0:
         return 0.0
     fraction = cover_cfg.dead_band_pct / 100.0
+    scale = fraction / (1.0 - fraction)
     if direction == "up":
-        return fraction * cover_cfg.travel_duration_up
-    return fraction * cover_cfg.travel_duration_down
+        return scale * cover_cfg.travel_duration_up
+    return scale * cover_cfg.travel_duration_down
 
 
 async def _execute_step(
@@ -411,7 +415,7 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
         result: dict[str, object] = {"action": action}
         if "runs" in data:
             result["runs"] = data["runs"]
-        if "measure_dead_band" in data:
+        if "measure_dead_band" in data and isinstance(data["measure_dead_band"], bool):
             result["measure_dead_band"] = data["measure_dead_band"]
         return result
     return None
