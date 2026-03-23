@@ -33,6 +33,7 @@ class TestCoverConfig:
         assert cover.pin_up == 9
         assert cover.travel_time_offset == 1.0
         assert cover.max_timer_margin == 2.0
+        assert cover.dead_band_pct == 0.0
 
     def test_duplicate_pins_rejected(self) -> None:
         """Covers must have three distinct GPIO pins."""
@@ -68,6 +69,54 @@ class TestCoverConfig:
                 pin_down=11,
                 travel_duration_up=-1.0,
                 travel_duration_down=18.0,
+            )
+
+    def test_dead_band_pct_valid(self) -> None:
+        """Dead band percentage between 0 and 100 is accepted.
+
+        Technique: Boundary Value Analysis — dead_band_pct valid range.
+        """
+        cover = CoverConfig(
+            name="window",
+            pin_up=9,
+            pin_stop=10,
+            pin_down=11,
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+            dead_band_pct=15.0,
+        )
+        assert cover.dead_band_pct == 15.0
+
+    def test_dead_band_pct_negative_rejected(self) -> None:
+        """Negative dead band percentage is rejected.
+
+        Technique: Boundary Value Analysis — below minimum.
+        """
+        with pytest.raises(ValidationError):
+            CoverConfig(
+                name="bad",
+                pin_up=9,
+                pin_stop=10,
+                pin_down=11,
+                travel_duration_up=20.0,
+                travel_duration_down=20.0,
+                dead_band_pct=-1.0,
+            )
+
+    def test_dead_band_pct_100_rejected(self) -> None:
+        """Dead band percentage of 100 is rejected (lt=100).
+
+        Technique: Boundary Value Analysis — at exclusive upper bound.
+        """
+        with pytest.raises(ValidationError):
+            CoverConfig(
+                name="bad",
+                pin_up=9,
+                pin_stop=10,
+                pin_down=11,
+                travel_duration_up=20.0,
+                travel_duration_down=20.0,
+                dead_band_pct=100.0,
             )
 
 
