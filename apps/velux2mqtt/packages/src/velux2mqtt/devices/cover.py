@@ -107,7 +107,11 @@ def make_cover(
                 return
 
             # Block normal commands during active calibration
-            if calibration.state in (CalibrationState.READY, CalibrationState.TIMING):
+            if calibration.state in (
+                CalibrationState.READY,
+                CalibrationState.TIMING_OFFSET,
+                CalibrationState.TIMING,
+            ):
                 logger.warning(
                     "Calibration active (%s), ignoring command: %s",
                     calibration.state.name,
@@ -396,9 +400,10 @@ async def _handle_calibration(
 
     if calibration.state is CalibrationState.COMPLETE:
         logger.info(
-            "Calibration complete: avg_close=%.2fs, avg_open=%.2fs",
+            "Calibration complete: avg_close=%.2fs, avg_open=%.2fs, avg_offset=%.2fs",
             calibration.average_close,
             calibration.average_open,
+            calibration.average_offset,
         )
         await ctx.publish(
             "calibrate/result",
@@ -406,6 +411,7 @@ async def _handle_calibration(
                 {
                     "avg_close": round(calibration.average_close, 2),
                     "avg_open": round(calibration.average_open, 2),
+                    "avg_offset": round(calibration.average_offset, 2),
                 }
             ),
             retain=True,
