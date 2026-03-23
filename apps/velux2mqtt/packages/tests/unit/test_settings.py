@@ -33,7 +33,24 @@ class TestCoverConfig:
         assert cover.pin_up == 9
         assert cover.travel_time_offset == 1.0
         assert cover.max_timer_margin == 2.0
+        assert cover.measure_offset is False
         assert cover.dead_band_pct == 0.0
+
+    def test_measure_offset_true(self) -> None:
+        """Cover with measure_offset=True is accepted.
+
+        Technique: Specification-based — optional boolean field.
+        """
+        cover = CoverConfig(
+            name="blind",
+            pin_up=9,
+            pin_stop=10,
+            pin_down=11,
+            travel_duration_up=18.5,
+            travel_duration_down=18.5,
+            measure_offset=True,
+        )
+        assert cover.measure_offset is True
 
     def test_duplicate_pins_rejected(self) -> None:
         """Covers must have three distinct GPIO pins."""
