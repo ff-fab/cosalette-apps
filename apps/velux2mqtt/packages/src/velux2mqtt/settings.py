@@ -47,6 +47,13 @@ class CoverConfig(BaseModel):
         description="Extra seconds added to travel duration for the safety "
         "cutoff timer",
     )
+    dead_band_pct: float = Field(
+        default=0.0,
+        ge=0,
+        lt=100,
+        description="Percentage of total travel consumed by handle rotation "
+        "before actual cover movement begins (0 disables dead band)",
+    )
 
     @model_validator(mode="after")
     def _pins_unique(self) -> CoverConfig:
