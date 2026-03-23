@@ -48,7 +48,7 @@ class CoverConfig(BaseModel):
         "cutoff timer",
     )
     measure_offset: bool = Field(
-        default=True,
+        default=False,
         description="Whether to measure travel_time_offset during calibration. "
         "When False, calibration skips the TIMING_OFFSET state and uses the "
         "manually-configured travel_time_offset value.",

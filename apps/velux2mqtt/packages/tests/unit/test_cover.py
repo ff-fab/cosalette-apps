@@ -47,6 +47,7 @@ _DEFAULT_COVER = CoverConfig(
     travel_duration_down=20.0,
     travel_time_offset=1.0,
     max_timer_margin=2.0,
+    measure_offset=True,
 )
 
 
@@ -931,6 +932,41 @@ class TestCalibrationDispatch:
         assert len(ctx.published_channels) == 1
         data = json.loads(ctx.published_channels[0][1])
         assert data["state"] == "READY"
+
+    async def test_start_uses_cover_config_measure_offset_default(self) -> None:
+        """Start without measure_offset in payload uses cover_cfg.measure_offset.
+
+        Technique: Specification-based — config default propagation.
+        """
+        # Arrange — cover with measure_offset=True (non-default)
+        cover = CoverConfig(
+            name="blind",
+            pin_up=17,
+            pin_stop=27,
+            pin_down=22,
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+            travel_time_offset=1.0,
+            max_timer_margin=2.0,
+            measure_offset=True,
+        )
+        gpio = FakeGpio()
+        settings = _make_settings(enable_homing=False)
+        device_fn = make_cover(cover, settings)
+        ctx = FakeDeviceContext(gpio, shutdown=True)
+        await device_fn(ctx)
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — start without measure_offset in payload, then go
+        await handler("topic", '{"calibrate": "start", "runs": 1}')
+        await handler("topic", '{"calibrate": "go"}')
+
+        # Assert — go should enter TIMING_OFFSET (offset enabled via config)
+        states = [
+            json.loads(p) for ch, p in ctx.published_channels if ch == "calibrate/state"
+        ]
+        assert states[-1]["state"] == "TIMING_OFFSET"
 
     async def test_calibration_without_offset_omits_avg_offset(self) -> None:
         """Calibration without offset measurement omits avg_offset from result.
