@@ -2,12 +2,11 @@
 
 velux2mqtt uses
 [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/) for
-configuration, giving you three ways to set any value:
+configuration. Values can come from three sources that override built-in defaults:
 
 1. **CLI flags** — highest priority
 2. **Environment variables** — `VELUX2MQTT_` prefix
 3. **`.env` file** — loaded from the working directory
-4. **Defaults** — built-in sensible values
 
 Higher-priority sources override lower ones. For most deployments, a `.env` file is all
 you need.
@@ -70,7 +69,7 @@ timing.
 | `travel_time_offset` | float   | no       | `1.0`   | Seconds subtracted from elapsed time for motor start/stop lag               |
 | `max_timer_margin`   | float   | no       | `2.0`   | Extra seconds added to travel duration for the safety cutoff timer          |
 | `measure_offset`     | bool    | no       | `false` | Measure `travel_time_offset` during calibration instead of using the manual value |
-| `dead_band_pct`      | float   | no       | `0.0`   | Percentage of total travel consumed by handle rotation before cover moves (0 disables) |
+| `dead_band_pct`      | float   | no       | `0.0`   | Percentage (0–<100) of total travel consumed by handle rotation before cover moves (0 disables) |
 
 **Validation rules:**
 
