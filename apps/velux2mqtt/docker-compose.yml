@@ -3,11 +3,17 @@ services:
     build:
       context: ../..
       dockerfile: apps/velux2mqtt/Dockerfile
+    image: ghcr.io/ff-fab/velux2mqtt:latest
     restart: unless-stopped
-    volumes:
-      - velux2mqtt-data:/app/data
+    devices:
+      - /dev/gpiochip0:/dev/gpiochip0 # Pi Zero 2 W / Pi 4; use /dev/gpiochip4 for Pi 5
+    group_add:
+      - gpio
+    env_file: .env
     environment:
       VELUX2MQTT_MQTT__HOST: mosquitto
+    volumes:
+      - velux2mqtt-data:/app/data
     depends_on:
       - mosquitto
 
@@ -15,12 +21,13 @@ services:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - '127.0.0.1:1883:1883'
+      - '1883:1883'
     volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto-data:/mosquitto/data
-      - mosquitto-config:/mosquitto/config
+      - mosquitto-log:/mosquitto/log
 
 volumes:
   velux2mqtt-data:
   mosquitto-data:
-  mosquitto-config:
+  mosquitto-log:
