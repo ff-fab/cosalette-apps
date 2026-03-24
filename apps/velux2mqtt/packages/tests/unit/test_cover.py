@@ -261,10 +261,10 @@ class TestExecuteStep:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert
+        # Assert — endpoint moves skip the STOP press (motor stalls at limit)
         assert tracker.position == 0.0
-        assert gpio.presses[0] == PressCall(pin=22, duration=0.5)  # down
-        assert gpio.presses[1] == PressCall(pin=27, duration=0.5)  # stop
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0] == PressCall(pin=22, duration=0.5)  # down only
 
     async def test_endpoint_open_finalizes_at_hundred(self) -> None:
         """Moving to 100% uses full travel + margin and finalizes.
@@ -292,9 +292,10 @@ class TestExecuteStep:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert
+        # Assert — endpoint moves skip the STOP press (motor stalls at limit)
         assert tracker.position == 100.0
-        assert gpio.presses[0] == PressCall(pin=17, duration=0.5)  # up
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0] == PressCall(pin=17, duration=0.5)  # up only
 
     async def test_intermediate_position_presses_correct_pin(self) -> None:
         """Moving to intermediate position presses correct direction pin.
@@ -414,9 +415,78 @@ class TestExecuteStep:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert — should still press down + stop even though position=0
+        # Assert — should still press down even though position=0
         # because position_int matches but is_recalibration overrides skip
         assert tracker.position == 0.0
+
+    async def test_intermediate_position_still_sends_stop(self) -> None:
+        """Intermediate moves (e.g. 50%) still get a STOP press.
+
+        Technique: Equivalence Partitioning — non-endpoint target.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        ctx = FakeDeviceContext(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        tracker.position = 20.0
+        step = MoveStep(target=50)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEFAULT_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — intermediate move: direction press + stop press
+        assert len(gpio.presses) == 2
+        assert gpio.presses[0] == PressCall(pin=17, duration=0.5)  # up
+        assert gpio.presses[1] == PressCall(pin=27, duration=0.5)  # stop
+
+    async def test_endpoint_close_waits_full_travel_without_stop(self) -> None:
+        """Endpoint close still waits full travel + margin, just no STOP.
+
+        Technique: Specification-based — verify travel time preserved.
+        """
+        # Arrange
+        sleep_times: list[float] = []
+
+        class TimingCtx(FakeDeviceContext):
+            async def sleep(self, seconds: float) -> None:
+                sleep_times.append(seconds)
+
+        gpio = FakeGpio()
+        ctx = TimingCtx(gpio)
+        settings = _make_settings()
+        tracker = PositionTracker(
+            travel_duration_up=20.0,
+            travel_duration_down=20.0,
+        )
+        tracker.position = 50.0
+        step = MoveStep(target=0)
+
+        # Act
+        await _execute_step(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=_DEFAULT_COVER,
+            settings=settings,
+            tracker=tracker,
+            step=step,
+            logger=__import__("logging").getLogger("test"),
+        )
+
+        # Assert — full travel (20.0) + margin (2.0) waited, no STOP press
+        assert sleep_times == [22.0]
+        assert len(gpio.presses) == 1  # only direction press, no stop
 
 
 # ---------------------------------------------------------------------------
@@ -1224,9 +1294,9 @@ class TestExecuteStepDeadBand:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert — normal movement, up then stop
-        assert gpio.presses[0].pin == 17  # up
-        assert gpio.presses[1].pin == 27  # stop
+        # Assert — endpoint move skips STOP (motor stalls at limit)
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0].pin == 17  # up only
 
     async def test_closing_to_zero_with_dead_band(self) -> None:
         """Closing to 0% with dead band waits extra time for handle closure.
@@ -1255,9 +1325,9 @@ class TestExecuteStepDeadBand:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert — down pin pressed, then stop (dead band adds wait time)
-        assert gpio.presses[0].pin == 22  # down
-        assert gpio.presses[1].pin == 27  # stop
+        # Assert — endpoint move skips STOP; dead band wait still happens
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0].pin == 22  # down only
         assert tracker.position == 0.0
 
     async def test_closing_to_nonzero_no_dead_band(self) -> None:
@@ -1317,7 +1387,6 @@ class TestExecuteStepDeadBand:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert — up then stop, no extra GPIO presses
-        assert len(gpio.presses) == 2
-        assert gpio.presses[0].pin == 17  # up
-        assert gpio.presses[1].pin == 27  # stop
+        # Assert — endpoint move skips STOP (motor stalls at limit)
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0].pin == 17  # up only

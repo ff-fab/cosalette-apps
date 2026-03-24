@@ -129,7 +129,7 @@ cover position doesn't change. velux2mqtt accounts for this:
 - **Opening from 0%**: waits for the dead band time (handle rotation) before starting the
   position tracker
 - **Closing to 0%**: after effective travel completes, waits for the handle to close
-  before pressing stop
+  before the motor stalls at the physical limit (no explicit stop press)
 
 ### Devices
 
@@ -170,9 +170,14 @@ sequenceDiagram
         D->>G: press(direction_pin, duration)
         G->>K: GPIO HIGH (button press)
         Note over D: sleep(travel_time)
-        D->>G: press(stop_pin, duration)
-        G->>K: GPIO HIGH (stop press)
-        D->>POS: stop() or finalize_open/closed()
+        alt Intermediate target (1-99%)
+            D->>G: press(stop_pin, duration)
+            G->>K: GPIO HIGH (stop press)
+            D->>POS: stop()
+        else Endpoint target (0% or 100%)
+            Note over D: motor stalls at physical limit
+            D->>POS: finalize_open() or finalize_closed()
+        end
     end
     D->>M: publish {cover}/state {"position": N}
 ```

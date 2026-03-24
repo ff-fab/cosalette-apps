@@ -17,7 +17,11 @@ normal cover commands are blocked.
 Command flow:
     MQTT payload -> parse_command() -> DriftCompensator.plan_move()
     -> for each MoveStep: press GPIO pin -> sleep(travel_time)
-    -> press stop -> update PositionTracker -> publish state
+    -> press stop (intermediate moves only) -> update PositionTracker
+    -> publish state
+
+Endpoint moves (0% or 100%) let the motor stall at the physical limit
+and skip the explicit STOP press.
 """
 
 from __future__ import annotations
@@ -365,15 +369,15 @@ async def _execute_step(
             tracker.stop()
             return
 
-    # Press stop
-    await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
-
-    # Finalize position
+    # Finalize position — endpoint moves let the motor stall at the
+    # physical limit so no STOP press is needed.  Intermediate moves
+    # must be stopped explicitly.
     if target == 0:
         tracker.finalize_closed()
     elif target == 100:
         tracker.finalize_open()
     else:
+        await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
         tracker.stop()
 
 
