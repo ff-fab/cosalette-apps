@@ -418,6 +418,7 @@ class TestExecuteStep:
         # Assert — should still press down even though position=0
         # because position_int matches but is_recalibration overrides skip
         assert tracker.position == 0.0
+        assert len(gpio.presses) >= 1
 
     async def test_intermediate_position_still_sends_stop(self) -> None:
         """Intermediate moves (e.g. 50%) still get a STOP press.
@@ -484,9 +485,11 @@ class TestExecuteStep:
             logger=__import__("logging").getLogger("test"),
         )
 
-        # Assert — full travel (20.0) + margin (2.0) waited, no STOP press
-        assert sleep_times == [22.0]
+        # Assert — full travel + configured margin waited, no STOP press
+        expected_sleep = tracker.travel_duration_down + _DEFAULT_COVER.max_timer_margin
+        assert sleep_times == [expected_sleep]
         assert len(gpio.presses) == 1  # only direction press, no stop
+        assert gpio.presses[0].pin == _DEFAULT_COVER.pin_down
 
 
 # ---------------------------------------------------------------------------
