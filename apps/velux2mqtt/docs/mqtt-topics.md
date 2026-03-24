@@ -160,7 +160,7 @@ are blocked.
 ```
 
 ```json title="Start with options"
-{"calibrate": "start", "runs": 5, "measure_offset": true, "measure_dead_band": true}
+{"calibrate": "start", "runs": 5, "measure_offset": true, "measure_dead_band": true, "starting_state": "closed"}
 ```
 
 ```json title="Trigger button press"
@@ -177,7 +177,7 @@ are blocked.
 
 | Action   | Description                                                         |
 | -------- | ------------------------------------------------------------------- |
-| `start`  | Begin calibration (optional: `runs`, `measure_offset`, `measure_dead_band`) |
+| `start`  | Begin calibration (optional: `runs`, `measure_offset`, `measure_dead_band`, `starting_state`) |
 | `go`     | Press the direction button and start timing                         |
 | `mark`   | Record a timing mark (offset, dead band, or travel depending on state) |
 | `cancel` | Abort calibration and return to normal operation                    |

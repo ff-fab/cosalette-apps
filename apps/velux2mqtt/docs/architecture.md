@@ -18,12 +18,12 @@ graph TD
     subgraph Software
         direction LR
         subgraph Adapters
-            GPIO[GpiozeroAdapter\nproduction]
-            FAKE[FakeGpio\ntest / dry-run]
+            GPIO["GpiozeroAdapter<br><i>production</i>"]
+            FAKE["FakeGpio<br><i>test / dry-run</i>"]
         end
 
         subgraph Ports
-            GP[GpioSwitchPort\nProtocol]
+            GP["GpioSwitchPort<br><i>Protocol</i>"]
         end
 
         subgraph Devices

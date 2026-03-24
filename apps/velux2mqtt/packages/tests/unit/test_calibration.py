@@ -204,11 +204,11 @@ class TestAverageComputation:
         """Averages correctly computed from varying measurements."""
         sm.start(runs=2)
 
-        # Run 1: close=8, open=6, offsets=0.4
+        # Run 1: open=8, close=6, offsets=0.4
         _do_direction(sm, clock, offset=0.4, travel=8.0)
         _do_direction(sm, clock, offset=0.4, travel=6.0)
 
-        # Run 2: close=12, open=14, offsets=0.6
+        # Run 2: open=12, close=14, offsets=0.6
         _do_direction(sm, clock, offset=0.6, travel=12.0)
         _do_direction(sm, clock, offset=0.6, travel=14.0)
 
