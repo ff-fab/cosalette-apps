@@ -419,6 +419,8 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
             result["measure_offset"] = data["measure_offset"]
         if "measure_dead_band" in data and isinstance(data["measure_dead_band"], bool):
             result["measure_dead_band"] = data["measure_dead_band"]
+        if "starting_state" in data and isinstance(data["starting_state"], str):
+            result["starting_state"] = data["starting_state"]
         return result
     return None
 
@@ -451,10 +453,12 @@ async def _handle_calibration(
             runs = int(runs_raw)  # type: ignore[call-overload]
             measure_off = bool(params.get("measure_offset", cover_cfg.measure_offset))
             measure_db = bool(params.get("measure_dead_band", False))
+            starting_st = str(params.get("starting_state", "closed"))
             calibration.start(
                 runs=runs,
                 measure_offset=measure_off,
                 measure_dead_band=measure_db,
+                starting_state=starting_st,
             )
         elif action == "go":
             event = calibration.go()
