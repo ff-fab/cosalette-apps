@@ -1,0 +1,500 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-15 0 1075 735" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif">
+  <title>Raspberry Pi to M74HC4066 to KLF 050 wiring diagram</title>
+  <desc>Wiring diagram showing the connection between a Raspberry Pi 40-pin GPIO header, two M74HC4066 quad analog switch ICs, and two KLF 050 remote controls. IC1 controls a blind cover via GPIO 9/10/11 (SPI pins). IC2 controls a window cover via GPIO 23/24/25. Both ICs are powered from 3.3V (pin 1) and GND (pin 6).</desc>
+  <defs>
+    <style>
+      .pin-label { font-size: 8.5px; fill: #fff; font-weight: 600; }
+      .pin-num { font-size: 9.5px; fill: #ddd; }
+      .board-label { font-size: 16px; font-weight: 700; fill: #fff; }
+      .sub-label { font-size: 11px; fill: #ccc; }
+      .wire-label { font-size: 11px; font-weight: 600; }
+      .legend-text { font-size: 11px; fill: #555; }
+      .pin-3v3 { fill: #e63946; }
+      .pin-5v { fill: #9d4600; }
+      .pin-gnd { fill: #1d3557; }
+      .pin-gpio { fill: #4a7c59; }
+      .pin-sda { fill: #457b9d; }
+      .pin-scl { fill: #b8960c; }
+      .pin-uart { fill: #6a5e72; }
+      .pin-spi { fill: #5e6a72; }
+      .pin-id { fill: #555; }
+      .pin-highlight { stroke: #fff; stroke-width: 1.5; }
+      .pin-ctrl-blind { fill: #1976D2; }
+      .pin-ctrl-window { fill: #E65100; }
+      .wire-blind-up { stroke: #2196F3; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .wire-blind-stop { stroke: #1976D2; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .wire-blind-down { stroke: #1565C0; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .wire-window-up { stroke: #FF9800; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .wire-window-stop { stroke: #F57C00; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .wire-window-down { stroke: #EF6C00; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+      .ic-body { fill: #2b2b3d; stroke: #1a1a2e; stroke-width: 2; }
+      .ic-label { font-size: 13px; font-weight: 700; fill: #fff; }
+      .ic-sub { font-size: 10px; fill: #d0d0d0; }
+      .sw-label { font-size: 10px; fill: #eee; font-weight: 600; }
+      .sw-line { stroke: #bbb; stroke-width: 1.5; }
+      .sw-dot { fill: #ccc; }
+      .remote-body { fill: #37474F; stroke: #263238; stroke-width: 2; }
+      .remote-label { font-size: 13px; font-weight: 700; fill: #fff; }
+      .remote-sub { font-size: 11px; fill: #CFD8DC; }
+      .btn-up { fill: #43A047; }
+      .btn-stop { fill: #FB8C00; }
+      .btn-down { fill: #E53935; }
+      .btn-label { font-size: 10px; fill: #fff; font-weight: 600; }
+      .signal-wire { stroke: #78909C; stroke-width: 1.8; stroke-dasharray: 6 3; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect x="-15" width="1075" height="735" rx="8" fill="#fafafa" stroke="#e0e0e0" stroke-width="1"/>
+
+  <!-- Title -->
+  <text x="530" y="22" text-anchor="middle" font-size="18" font-weight="700" fill="#333">Raspberry Pi ↔ M74HC4066 ↔ KLF 050 Wiring</text>
+
+  <g transform="translate(0,15)">
+  <!-- ===== Raspberry Pi Board ===== -->
+  <rect x="30" y="60" width="310" height="540" rx="10" fill="#2d5016" stroke="#1a3a0a" stroke-width="2"/>
+  <text x="185" y="85" text-anchor="middle" class="board-label">Raspberry Pi</text>
+  <text x="185" y="99" text-anchor="middle" class="sub-label">40-Pin GPIO Header</text>
+
+  <!-- Row 1: Pin 1 (3.3V) / Pin 2 (5V) -->
+  <rect x="75" y="113" width="90" height="18" rx="3" class="pin-3v3 pin-highlight"/>
+  <text x="120" y="125" text-anchor="middle" class="pin-label">3.3V</text>
+  <text x="67" y="125" text-anchor="end" class="pin-num">1</text>
+  <rect x="195" y="113" width="90" height="18" rx="3" class="pin-5v"/>
+  <text x="240" y="125" text-anchor="middle" class="pin-label">5V</text>
+  <text x="293" y="125" text-anchor="start" class="pin-num">2</text>
+
+  <!-- Row 2: Pin 3 (SDA) / Pin 4 (5V) -->
+  <rect x="75" y="135" width="90" height="18" rx="3" class="pin-sda"/>
+  <text x="120" y="147" text-anchor="middle" class="pin-label">GPIO 2 (SDA)</text>
+  <text x="67" y="147" text-anchor="end" class="pin-num">3</text>
+  <rect x="195" y="135" width="90" height="18" rx="3" class="pin-5v"/>
+  <text x="240" y="147" text-anchor="middle" class="pin-label">5V</text>
+  <text x="293" y="147" text-anchor="start" class="pin-num">4</text>
+
+  <!-- Row 3: Pin 5 (SCL) / Pin 6 (GND) -->
+  <rect x="75" y="157" width="90" height="18" rx="3" class="pin-scl"/>
+  <text x="120" y="169" text-anchor="middle" class="pin-label">GPIO 3 (SCL)</text>
+  <text x="67" y="169" text-anchor="end" class="pin-num">5</text>
+  <rect x="195" y="157" width="90" height="18" rx="3" class="pin-gnd pin-highlight"/>
+  <text x="240" y="169" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="169" text-anchor="start" class="pin-num">6</text>
+
+  <!-- Row 4: Pin 7 (GPIO 4) / Pin 8 (TXD) -->
+  <rect x="75" y="179" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="191" text-anchor="middle" class="pin-label">GPIO 4</text>
+  <text x="67" y="191" text-anchor="end" class="pin-num">7</text>
+  <rect x="195" y="179" width="90" height="18" rx="3" class="pin-uart"/>
+  <text x="240" y="191" text-anchor="middle" class="pin-label">GPIO 14 (TXD)</text>
+  <text x="293" y="191" text-anchor="start" class="pin-num">8</text>
+
+  <!-- Row 5: Pin 9 (GND) / Pin 10 (RXD) -->
+  <rect x="75" y="201" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="120" y="213" text-anchor="middle" class="pin-label">GND</text>
+  <text x="67" y="213" text-anchor="end" class="pin-num">9</text>
+  <rect x="195" y="201" width="90" height="18" rx="3" class="pin-uart"/>
+  <text x="240" y="213" text-anchor="middle" class="pin-label">GPIO 15 (RXD)</text>
+  <text x="293" y="213" text-anchor="start" class="pin-num">10</text>
+
+  <!-- Row 6: Pin 11 (GPIO 17) / Pin 12 (GPIO 18) -->
+  <rect x="75" y="223" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="235" text-anchor="middle" class="pin-label">GPIO 17</text>
+  <text x="67" y="235" text-anchor="end" class="pin-num">11</text>
+  <rect x="195" y="223" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="235" text-anchor="middle" class="pin-label">GPIO 18</text>
+  <text x="293" y="235" text-anchor="start" class="pin-num">12</text>
+
+  <!-- Row 7: Pin 13 (GPIO 27) / Pin 14 (GND) -->
+  <rect x="75" y="245" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="257" text-anchor="middle" class="pin-label">GPIO 27</text>
+  <text x="67" y="257" text-anchor="end" class="pin-num">13</text>
+  <rect x="195" y="245" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="257" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="257" text-anchor="start" class="pin-num">14</text>
+
+  <!-- Row 8: Pin 15 (GPIO 22) / Pin 16 (GPIO 23) -->
+  <rect x="75" y="267" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="279" text-anchor="middle" class="pin-label">GPIO 22</text>
+  <text x="67" y="279" text-anchor="end" class="pin-num">15</text>
+  <rect x="195" y="267" width="90" height="18" rx="3" class="pin-gpio pin-highlight"/>
+  <text x="240" y="279" text-anchor="middle" class="pin-label">GPIO 23</text>
+  <text x="293" y="279" text-anchor="start" class="pin-num">16</text>
+
+  <!-- Row 9: Pin 17 (3.3V) / Pin 18 (GPIO 24) -->
+  <rect x="75" y="289" width="90" height="18" rx="3" class="pin-3v3"/>
+  <text x="120" y="301" text-anchor="middle" class="pin-label">3.3V</text>
+  <text x="67" y="301" text-anchor="end" class="pin-num">17</text>
+  <rect x="195" y="289" width="90" height="18" rx="3" class="pin-gpio pin-highlight"/>
+  <text x="240" y="301" text-anchor="middle" class="pin-label">GPIO 24</text>
+  <text x="293" y="301" text-anchor="start" class="pin-num">18</text>
+
+  <!-- Row 10: Pin 19 (MOSI) / Pin 20 (GND) -->
+  <rect x="75" y="311" width="90" height="18" rx="3" class="pin-spi pin-highlight"/>
+  <text x="120" y="323" text-anchor="middle" class="pin-label">GPIO 10 (MOSI)</text>
+  <text x="67" y="323" text-anchor="end" class="pin-num">19</text>
+  <rect x="195" y="311" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="323" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="323" text-anchor="start" class="pin-num">20</text>
+
+  <!-- Row 11: Pin 21 (MISO) / Pin 22 (GPIO 25) -->
+  <rect x="75" y="333" width="90" height="18" rx="3" class="pin-spi pin-highlight"/>
+  <text x="120" y="345" text-anchor="middle" class="pin-label">GPIO 9 (MISO)</text>
+  <text x="67" y="345" text-anchor="end" class="pin-num">21</text>
+  <rect x="195" y="333" width="90" height="18" rx="3" class="pin-gpio pin-highlight"/>
+  <text x="240" y="345" text-anchor="middle" class="pin-label">GPIO 25</text>
+  <text x="293" y="345" text-anchor="start" class="pin-num">22</text>
+
+  <!-- Row 12: Pin 23 (SCLK) / Pin 24 (CE0) -->
+  <rect x="75" y="355" width="90" height="18" rx="3" class="pin-spi pin-highlight"/>
+  <text x="120" y="367" text-anchor="middle" class="pin-label">GPIO 11 (SCLK)</text>
+  <text x="67" y="367" text-anchor="end" class="pin-num">23</text>
+  <rect x="195" y="355" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="240" y="367" text-anchor="middle" class="pin-label">GPIO 8 (CE0)</text>
+  <text x="293" y="367" text-anchor="start" class="pin-num">24</text>
+
+  <!-- Row 13: Pin 25 (GND) / Pin 26 (CE1) -->
+  <rect x="75" y="377" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="120" y="389" text-anchor="middle" class="pin-label">GND</text>
+  <text x="67" y="389" text-anchor="end" class="pin-num">25</text>
+  <rect x="195" y="377" width="90" height="18" rx="3" class="pin-spi"/>
+  <text x="240" y="389" text-anchor="middle" class="pin-label">GPIO 7 (CE1)</text>
+  <text x="293" y="389" text-anchor="start" class="pin-num">26</text>
+
+  <!-- Row 14: Pin 27 (ID_SD) / Pin 28 (ID_SC) -->
+  <rect x="75" y="399" width="90" height="18" rx="3" class="pin-id"/>
+  <text x="120" y="411" text-anchor="middle" class="pin-label">GPIO 0 (ID_SD)</text>
+  <text x="67" y="411" text-anchor="end" class="pin-num">27</text>
+  <rect x="195" y="399" width="90" height="18" rx="3" class="pin-id"/>
+  <text x="240" y="411" text-anchor="middle" class="pin-label">GPIO 1 (ID_SC)</text>
+  <text x="293" y="411" text-anchor="start" class="pin-num">28</text>
+
+  <!-- Row 15: Pin 29 (GPIO 5) / Pin 30 (GND) -->
+  <rect x="75" y="421" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="433" text-anchor="middle" class="pin-label">GPIO 5</text>
+  <text x="67" y="433" text-anchor="end" class="pin-num">29</text>
+  <rect x="195" y="421" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="433" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="433" text-anchor="start" class="pin-num">30</text>
+
+  <!-- Row 16: Pin 31 (GPIO 6) / Pin 32 (GPIO 12) -->
+  <rect x="75" y="443" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="455" text-anchor="middle" class="pin-label">GPIO 6</text>
+  <text x="67" y="455" text-anchor="end" class="pin-num">31</text>
+  <rect x="195" y="443" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="455" text-anchor="middle" class="pin-label">GPIO 12</text>
+  <text x="293" y="455" text-anchor="start" class="pin-num">32</text>
+
+  <!-- Row 17: Pin 33 (GPIO 13) / Pin 34 (GND) -->
+  <rect x="75" y="465" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="477" text-anchor="middle" class="pin-label">GPIO 13</text>
+  <text x="67" y="477" text-anchor="end" class="pin-num">33</text>
+  <rect x="195" y="465" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="240" y="477" text-anchor="middle" class="pin-label">GND</text>
+  <text x="293" y="477" text-anchor="start" class="pin-num">34</text>
+
+  <!-- Row 18: Pin 35 (GPIO 19) / Pin 36 (GPIO 16) -->
+  <rect x="75" y="487" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="499" text-anchor="middle" class="pin-label">GPIO 19</text>
+  <text x="67" y="499" text-anchor="end" class="pin-num">35</text>
+  <rect x="195" y="487" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="499" text-anchor="middle" class="pin-label">GPIO 16</text>
+  <text x="293" y="499" text-anchor="start" class="pin-num">36</text>
+
+  <!-- Row 19: Pin 37 (GPIO 26) / Pin 38 (GPIO 20) -->
+  <rect x="75" y="509" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="120" y="521" text-anchor="middle" class="pin-label">GPIO 26</text>
+  <text x="67" y="521" text-anchor="end" class="pin-num">37</text>
+  <rect x="195" y="509" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="521" text-anchor="middle" class="pin-label">GPIO 20</text>
+  <text x="293" y="521" text-anchor="start" class="pin-num">38</text>
+
+  <!-- Row 20: Pin 39 (GND) / Pin 40 (GPIO 21) -->
+  <rect x="75" y="531" width="90" height="18" rx="3" class="pin-gnd"/>
+  <text x="120" y="543" text-anchor="middle" class="pin-label">GND</text>
+  <text x="67" y="543" text-anchor="end" class="pin-num">39</text>
+  <rect x="195" y="531" width="90" height="18" rx="3" class="pin-gpio"/>
+  <text x="240" y="543" text-anchor="middle" class="pin-label">GPIO 21</text>
+  <text x="293" y="543" text-anchor="start" class="pin-num">40</text>
+
+  <!-- USB/Ethernet hint -->
+  <rect x="115" y="557" width="130" height="18" rx="6" fill="#1a3a0a" stroke="#0d1f05" stroke-width="1"/>
+  <text x="180" y="570" text-anchor="middle" font-size="9" fill="#6a9f4a">USB / Ethernet</text>
+
+  <!-- ===== IC 1 — M74HC4066 (Blind) ===== -->
+  <rect x="480" y="85" width="240" height="218" rx="8" class="ic-body"/>
+  <!-- IC notch -->
+  <circle cx="500" cy="98" r="4" fill="none" stroke="#666" stroke-width="1"/>
+  <text x="600" y="110" text-anchor="middle" class="ic-label">M74HC4066 — IC1</text>
+  <text x="600" y="125" text-anchor="middle" class="ic-sub">Quad Bilateral Switch (Blind)</text>
+
+  <!-- VCC label — right side of IC -->
+  <rect x="722" y="109" width="60" height="14" rx="3" class="pin-3v3"/>
+  <text x="752" y="120" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">VCC (pin 14)</text>
+  <text x="718" y="120" text-anchor="end" font-size="9" fill="#ccc">14</text>
+
+  <!-- Switch 1: GPIO 9 → UP -->
+  <rect x="490" y="155" width="50" height="16" rx="3" class="pin-ctrl-blind"/>
+  <text x="515" y="166" text-anchor="middle" class="sw-label">GPIO 9</text>
+  <!-- switch symbol -->
+  <line x1="545" y1="163" x2="562" y2="163" class="sw-line"/>
+  <circle cx="567" cy="163" r="2.5" class="sw-dot"/>
+  <line x1="572" y1="163" x2="580" y2="159" class="sw-line"/>
+  <line x1="584" y1="163" x2="600" y2="163" class="sw-line"/>
+  <circle cx="567" cy="155" r="1.5" fill="#ccc"/>
+  <line x1="567" y1="155" x2="567" y2="158" stroke="#ccc" stroke-width="1"/>
+  <!-- output label -->
+  <rect x="604" y="155" width="48" height="16" rx="3" fill="#43A047"/>
+  <text x="628" y="166" text-anchor="middle" class="sw-label" style="fill:#fff">→ UP</text>
+
+  <!-- Switch 2: GPIO 10 → STOP -->
+  <rect x="490" y="179" width="50" height="16" rx="3" class="pin-ctrl-blind"/>
+  <text x="515" y="190" text-anchor="middle" class="sw-label">GPIO 10</text>
+  <!-- switch symbol -->
+  <line x1="545" y1="187" x2="562" y2="187" class="sw-line"/>
+  <circle cx="567" cy="187" r="2.5" class="sw-dot"/>
+  <line x1="572" y1="187" x2="580" y2="183" class="sw-line"/>
+  <line x1="584" y1="187" x2="600" y2="187" class="sw-line"/>
+  <circle cx="567" cy="179" r="1.5" fill="#ccc"/>
+  <line x1="567" y1="179" x2="567" y2="182" stroke="#ccc" stroke-width="1"/>
+  <!-- output label -->
+  <rect x="604" y="179" width="48" height="16" rx="3" fill="#FB8C00"/>
+  <text x="628" y="190" text-anchor="middle" class="sw-label" style="fill:#fff">→ STOP</text>
+
+  <!-- Switch 3: GPIO 11 → DOWN -->
+  <rect x="490" y="203" width="50" height="16" rx="3" class="pin-ctrl-blind"/>
+  <text x="515" y="214" text-anchor="middle" class="sw-label">GPIO 11</text>
+  <!-- switch symbol -->
+  <line x1="545" y1="211" x2="562" y2="211" class="sw-line"/>
+  <circle cx="567" cy="211" r="2.5" class="sw-dot"/>
+  <line x1="572" y1="211" x2="580" y2="207" class="sw-line"/>
+  <line x1="584" y1="211" x2="600" y2="211" class="sw-line"/>
+  <circle cx="567" cy="203" r="1.5" fill="#ccc"/>
+  <line x1="567" y1="203" x2="567" y2="206" stroke="#ccc" stroke-width="1"/>
+  <!-- output label -->
+  <rect x="604" y="203" width="48" height="16" rx="3" fill="#E53935"/>
+  <text x="628" y="214" text-anchor="middle" class="sw-label" style="fill:#fff">→ DOWN</text>
+
+  <!-- Switch 4: N/C -->
+  <text x="560" y="238" text-anchor="middle" font-size="9" fill="#999" font-style="italic">Switch 4: N/C</text>
+
+  <!-- GND label bottom -->
+  <rect x="570" y="245" width="60" height="14" rx="3" class="pin-gnd"/>
+  <text x="600" y="256" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">GND (pin 7)</text>
+  <text x="488" y="256" text-anchor="end" font-size="9" fill="#ccc">7</text>
+
+  <!-- ===== IC 2 — M74HC4066 (Window) ===== -->
+  <rect x="480" y="315" width="240" height="218" rx="8" class="ic-body"/>
+  <!-- IC notch -->
+  <circle cx="500" cy="328" r="4" fill="none" stroke="#666" stroke-width="1"/>
+  <text x="600" y="340" text-anchor="middle" class="ic-label">M74HC4066 — IC2</text>
+  <text x="600" y="355" text-anchor="middle" class="ic-sub">Quad Bilateral Switch (Window)</text>
+
+  <!-- VCC label — right side of IC -->
+  <rect x="722" y="353" width="60" height="14" rx="3" class="pin-3v3"/>
+  <text x="752" y="364" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">VCC (pin 14)</text>
+  <text x="718" y="364" text-anchor="end" font-size="9" fill="#ccc">14</text>
+
+  <!-- Switch 1: GPIO 23 → UP -->
+  <rect x="490" y="385" width="50" height="16" rx="3" class="pin-ctrl-window"/>
+  <text x="515" y="396" text-anchor="middle" class="sw-label">GPIO 23</text>
+  <!-- switch symbol -->
+  <line x1="545" y1="393" x2="562" y2="393" class="sw-line"/>
+  <circle cx="567" cy="393" r="2.5" class="sw-dot"/>
+  <line x1="572" y1="393" x2="580" y2="389" class="sw-line"/>
+  <line x1="584" y1="393" x2="600" y2="393" class="sw-line"/>
+  <circle cx="567" cy="385" r="1.5" fill="#ccc"/>
+  <line x1="567" y1="385" x2="567" y2="388" stroke="#ccc" stroke-width="1"/>
+  <!-- output label -->
+  <rect x="604" y="385" width="48" height="16" rx="3" fill="#43A047"/>
+  <text x="628" y="396" text-anchor="middle" class="sw-label" style="fill:#fff">→ UP</text>
+
+  <!-- Switch 2: GPIO 24 → STOP -->
+  <rect x="490" y="409" width="50" height="16" rx="3" class="pin-ctrl-window"/>
+  <text x="515" y="420" text-anchor="middle" class="sw-label">GPIO 24</text>
+  <!-- switch symbol -->
+  <line x1="545" y1="417" x2="562" y2="417" class="sw-line"/>
+  <circle cx="567" cy="417" r="2.5" class="sw-dot"/>
+  <line x1="572" y1="417" x2="580" y2="413" class="sw-line"/>
+  <line x1="584" y1="417" x2="600" y2="417" class="sw-line"/>
+  <circle cx="567" cy="409" r="1.5" fill="#ccc"/>
+  <line x1="567" y1="409" x2="567" y2="412" stroke="#ccc" stroke-width="1"/>
+  <!-- output label -->
+  <rect x="604" y="409" width="48" height="16" rx="3" fill="#FB8C00"/>
+  <text x="628" y="420" text-anchor="middle" class="sw-label" style="fill:#fff">→ STOP</text>
+
+  <!-- Switch 3: GPIO 25 → DOWN -->
+  <rect x="490" y="433" width="50" height="16" rx="3" class="pin-ctrl-window"/>
+  <text x="515" y="444" text-anchor="middle" class="sw-label">GPIO 25</text>
+  <!-- switch symbol -->
+  <line x1="545" y1="441" x2="562" y2="441" class="sw-line"/>
+  <circle cx="567" cy="441" r="2.5" class="sw-dot"/>
+  <line x1="572" y1="441" x2="580" y2="437" class="sw-line"/>
+  <line x1="584" y1="441" x2="600" y2="441" class="sw-line"/>
+  <circle cx="567" cy="433" r="1.5" fill="#ccc"/>
+  <line x1="567" y1="433" x2="567" y2="436" stroke="#ccc" stroke-width="1"/>
+  <!-- output label -->
+  <rect x="604" y="433" width="48" height="16" rx="3" fill="#E53935"/>
+  <text x="628" y="444" text-anchor="middle" class="sw-label" style="fill:#fff">→ DOWN</text>
+
+  <!-- Switch 4: N/C -->
+  <text x="560" y="468" text-anchor="middle" font-size="9" fill="#999" font-style="italic">Switch 4: N/C</text>
+
+  <!-- GND label bottom -->
+  <rect x="570" y="475" width="60" height="14" rx="3" class="pin-gnd"/>
+  <text x="600" y="486" text-anchor="middle" font-size="9" fill="#fff" font-weight="600">GND (pin 7)</text>
+  <text x="488" y="486" text-anchor="end" font-size="9" fill="#ccc">7</text>
+
+  <!-- ===== KLF 050 Remote — Blind ===== -->
+  <rect x="830" y="95" width="190" height="190" rx="8" class="remote-body"/>
+  <text x="925" y="120" text-anchor="middle" class="remote-label">KLF 050</text>
+  <text x="925" y="135" text-anchor="middle" class="remote-sub">(Blind)</text>
+
+  <!-- Button contacts -->
+  <rect x="855" y="151" width="140" height="24" rx="4" class="btn-up"/>
+  <text x="925" y="167" text-anchor="middle" class="btn-label">▲ UP</text>
+
+  <rect x="855" y="183" width="140" height="24" rx="4" class="btn-stop"/>
+  <text x="925" y="199" text-anchor="middle" class="btn-label">■ STOP</text>
+
+  <rect x="855" y="215" width="140" height="24" rx="4" class="btn-down"/>
+  <text x="925" y="231" text-anchor="middle" class="btn-label">▼ DOWN</text>
+
+  <!-- RF indicator -->
+  <text x="925" y="263" text-anchor="middle" font-size="10" fill="#78909C" font-style="italic">RF → VELUX actuator</text>
+
+  <!-- ===== KLF 050 Remote — Window ===== -->
+  <rect x="830" y="325" width="190" height="190" rx="8" class="remote-body"/>
+  <text x="925" y="350" text-anchor="middle" class="remote-label">KLF 050</text>
+  <text x="925" y="365" text-anchor="middle" class="remote-sub">(Window)</text>
+
+  <!-- Button contacts -->
+  <rect x="855" y="381" width="140" height="24" rx="4" class="btn-up"/>
+  <text x="925" y="397" text-anchor="middle" class="btn-label">▲ UP</text>
+
+  <rect x="855" y="413" width="140" height="24" rx="4" class="btn-stop"/>
+  <text x="925" y="429" text-anchor="middle" class="btn-label">■ STOP</text>
+
+  <rect x="855" y="445" width="140" height="24" rx="4" class="btn-down"/>
+  <text x="925" y="461" text-anchor="middle" class="btn-label">▼ DOWN</text>
+
+  <!-- RF indicator -->
+  <text x="925" y="493" text-anchor="middle" font-size="10" fill="#78909C" font-style="italic">RF → VELUX actuator</text>
+
+  <!-- ===== Wires (drawn AFTER all boards for z-order) ===== -->
+
+  <!-- === Power wires === -->
+
+  <!-- 3.3V: Pin 1 → left → up → right along top → down right side to IC1 VCC and IC2 VCC -->
+  <path d="M 75 122 L -8 122 L -8 30 L 752 30 L 752 123"
+        fill="none" stroke="#e63946" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- 3.3V branch to IC2 VCC -->
+  <path d="M 752 123 L 752 353"
+        fill="none" stroke="#e63946" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- GND: Pin 6 → right → down to vertical rail → split to IC1 GND and IC2 GND -->
+  <path d="M 285 166 L 430 166 L 430 259 L 570 259"
+        fill="none" stroke="#1d3557" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <!-- GND vertical rail down to IC2 -->
+  <path d="M 430 259 L 430 489 L 570 489"
+        fill="none" stroke="#1d3557" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- === Control wires: RPi → IC control pins (Blind / IC1) === -->
+
+  <!-- GPIO 9 (MISO, pin 21) → IC1 SW1 control — blind UP (leftmost blue wire, no crossings) -->
+  <path d="M 75 342 L 0 342 L 0 42 L 460 42 L 460 163 L 490 163"
+        fill="none" class="wire-blind-up"/>
+
+  <!-- GPIO 10 (MOSI, pin 19) → IC1 SW2 control — blind STOP -->
+  <path d="M 75 320 L 8 320 L 8 48 L 452 48 L 452 187 L 490 187"
+        fill="none" class="wire-blind-stop"/>
+
+  <!-- GPIO 11 (SCLK, pin 23) → IC1 SW3 control — blind DOWN -->
+  <path d="M 75 364 L 16 364 L 16 54 L 444 54 L 444 211 L 490 211"
+        fill="none" class="wire-blind-down"/>
+
+  <!-- === Control wires: RPi → IC control pins (Window / IC2) === -->
+
+  <!-- GPIO 23 (pin 16) → IC2 SW1 control — window UP -->
+  <path d="M 285 276 L 460 276 L 460 393 L 490 393"
+        fill="none" class="wire-window-up"/>
+
+  <!-- GPIO 24 (pin 18) → IC2 SW2 control — window STOP -->
+  <path d="M 285 298 L 452 298 L 452 417 L 490 417"
+        fill="none" class="wire-window-stop"/>
+
+  <!-- GPIO 25 (pin 22) → IC2 SW3 control — window DOWN -->
+  <path d="M 285 342 L 444 342 L 444 441 L 490 441"
+        fill="none" class="wire-window-down"/>
+
+  <!-- === Signal wires: IC switch outputs → KLF 050 button contacts === -->
+
+  <!-- IC1 → KLF Blind -->
+  <path d="M 652 163 L 855 163"
+        fill="none" class="signal-wire" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 652 187 L 770 187 L 770 195 L 855 195"
+        fill="none" class="signal-wire" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 652 211 L 760 211 L 760 227 L 855 227"
+        fill="none" class="signal-wire" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- IC2 → KLF Window -->
+  <path d="M 652 393 L 855 393"
+        fill="none" class="signal-wire" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 652 417 L 770 417 L 770 425 L 855 425"
+        fill="none" class="signal-wire" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 652 441 L 760 441 L 760 457 L 855 457"
+        fill="none" class="signal-wire" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- === Wire labels on horizontal/vertical runs === -->
+  <text x="340" y="27" text-anchor="middle" class="wire-label" fill="#e63946">3.3V (power)</text>
+
+  <text x="405" y="162" text-anchor="middle" class="wire-label" fill="#1d3557">GND</text>
+  <text x="765" y="153" text-anchor="middle" font-size="10" fill="#78909C">signal pairs</text>
+  <text x="765" y="383" text-anchor="middle" font-size="10" fill="#78909C">signal pairs</text>
+
+  <!-- ===== Legend ===== -->
+  <rect x="30" y="640" width="1000" height="70" rx="6" fill="#f0f0f0" stroke="#ddd" stroke-width="1"/>
+  <text x="45" y="660" font-size="11" font-weight="600" fill="#333">Pin types:</text>
+
+  <rect x="110" y="651" width="12" height="12" rx="2" class="pin-3v3"/>
+  <text x="127" y="661" class="legend-text">3.3V</text>
+
+  <rect x="167" y="651" width="12" height="12" rx="2" class="pin-5v"/>
+  <text x="184" y="661" class="legend-text">5V</text>
+
+  <rect x="210" y="651" width="12" height="12" rx="2" class="pin-gnd"/>
+  <text x="227" y="661" class="legend-text">GND</text>
+
+  <rect x="262" y="651" width="12" height="12" rx="2" class="pin-gpio"/>
+  <text x="279" y="661" class="legend-text">GPIO</text>
+
+  <rect x="320" y="651" width="12" height="12" rx="2" class="pin-spi"/>
+  <text x="337" y="661" class="legend-text">SPI</text>
+
+  <rect x="365" y="651" width="12" height="12" rx="2" class="pin-sda"/>
+  <text x="382" y="661" class="legend-text">I2C SDA</text>
+
+  <rect x="425" y="651" width="12" height="12" rx="2" class="pin-scl"/>
+  <text x="442" y="661" class="legend-text">I2C SCL</text>
+
+  <rect x="492" y="651" width="12" height="12" rx="2" class="pin-uart"/>
+  <text x="509" y="661" class="legend-text">UART</text>
+
+  <rect x="548" y="651" width="12" height="12" rx="2" class="pin-id"/>
+  <text x="565" y="661" class="legend-text">ID EEPROM</text>
+
+  <!-- Second row of legend -->
+  <text x="45" y="683" font-size="11" font-weight="600" fill="#333">Control:</text>
+
+  <rect x="110" y="674" width="12" height="12" rx="2" class="pin-ctrl-blind"/>
+  <text x="127" y="684" class="legend-text">Blind control</text>
+
+  <rect x="210" y="674" width="12" height="12" rx="2" class="pin-ctrl-window"/>
+  <text x="227" y="684" class="legend-text">Window control</text>
+
+  <line x1="328" y1="680" x2="360" y2="680" class="signal-wire"/>
+  <text x="367" y="684" class="legend-text">Signal pair</text>
+
+  <rect x="440" y="674" width="16" height="16" rx="3" fill="none" stroke="#fff" stroke-width="1.5"/>
+  <text x="461" y="684" class="legend-text">= connected</text>
+  </g>
+</svg>
