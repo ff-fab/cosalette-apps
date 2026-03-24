@@ -699,12 +699,13 @@ class TestCalibrationDispatch:
         data = json.loads(payload)
         assert data["state"] == "READY"
         assert data["run"] == 1
-        assert data["direction"] == "CLOSE"
+        assert data["direction"] == "OPEN"
 
     async def test_go_presses_button_and_publishes_timing_offset(self) -> None:
         """Go transitions to TIMING_OFFSET, presses direction button.
 
         Technique: State Transition Testing — READY -> TIMING_OFFSET.
+        Default starting_state='closed' means first direction is OPEN (up pin).
         """
         # Arrange
         ctx, gpio = await self._setup_handler()
@@ -718,9 +719,9 @@ class TestCalibrationDispatch:
         # Act
         await handler("topic", '{"calibrate": "go"}')
 
-        # Assert — presses down pin (first direction is CLOSE)
+        # Assert — presses up pin (first direction is OPEN)
         assert len(gpio.presses) == 1
-        assert gpio.presses[0].pin == 22  # down
+        assert gpio.presses[0].pin == 17  # up
         channel, payload = ctx.published_channels[0]
         assert channel == "calibrate/state"
         assert json.loads(payload)["state"] == "TIMING_OFFSET"
