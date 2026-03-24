@@ -1,12 +1,17 @@
 """Calibration state machine — timed measurement of cover travel durations.
 
 Guides the user through a multi-run calibration procedure that alternates
-between close and open directions, timing each traversal.  Each direction
-pass has up to three marks: the first records the motor start lag (offset),
-the optional second records the dead band (handle rotation time), and the
-final one records the actual travel duration.  On completion the machine
-provides averaged durations per direction, the average offset, and the
-average dead band percentage.
+between close and open directions, timing each traversal.  The mark order
+within each direction pass is **direction-aware** when measuring dead band:
+
+- **Open** (closed -> open): offset -> dead band -> travel
+- **Close** (open -> closed): offset -> travel -> dead band
+
+This models the physical behaviour where the handle rotates *before* the
+window body moves when opening, but *after* the body has travelled when
+closing.  Without dead band measurement the order is the same for both
+directions.  On completion the machine provides averaged durations per
+direction, the average offset, and the average dead band percentage.
 """
 
 from __future__ import annotations
@@ -64,7 +69,7 @@ class CalibrationStateMachine:
         sm.mark()              # TIMING_OFFSET -> TIMING (records offset)
         sm.mark()              # TIMING -> READY|COMPLETE (records travel)
 
-    Usage with dead band measurement::
+    Usage with dead band — OPEN direction (closed -> open)::
 
         sm = CalibrationStateMachine()
         sm.start(runs=3, measure_dead_band=True)
@@ -72,6 +77,13 @@ class CalibrationStateMachine:
         sm.mark()              # TIMING_OFFSET -> TIMING_DEAD_BAND (records offset)
         sm.mark()              # TIMING_DEAD_BAND -> TIMING (records dead band)
         sm.mark()              # TIMING -> READY|COMPLETE (records travel)
+
+    Usage with dead band — CLOSE direction (open -> closed)::
+
+        sm.go()                # READY -> TIMING_OFFSET
+        sm.mark()              # TIMING_OFFSET -> TIMING (records offset)
+        sm.mark()              # TIMING -> TIMING_DEAD_BAND (records travel)
+        sm.mark()              # TIMING_DEAD_BAND -> READY|COMPLETE (records dead band)
 
     Usage without offset measurement::
 
@@ -91,8 +103,11 @@ class CalibrationStateMachine:
     _current_run: int = field(default=0, init=False, repr=False)
     _measure_offset: bool = field(default=True, init=False, repr=False)
     _measure_dead_band: bool = field(default=False, init=False, repr=False)
+    _first_direction: CalibrationDirection = field(
+        default=CalibrationDirection.OPEN, init=False, repr=False
+    )
     _direction: CalibrationDirection = field(
-        default=CalibrationDirection.CLOSE, init=False, repr=False
+        default=CalibrationDirection.OPEN, init=False, repr=False
     )
     _start_time: float | None = field(default=None, init=False, repr=False)
     _close_durations: list[float] = field(default_factory=list, init=False, repr=False)
@@ -110,6 +125,7 @@ class CalibrationStateMachine:
         *,
         measure_offset: bool = True,
         measure_dead_band: bool = False,
+        starting_state: str = "closed",
     ) -> CalibrationEvent:
         """Begin calibration: move to READY for the first run.
 
@@ -120,24 +136,37 @@ class CalibrationStateMachine:
                 directly to TIMING (or TIMING_DEAD_BAND if applicable).
             measure_dead_band: If True, add a dead band measurement step
                 between offset and travel timing.
+            starting_state: Physical state of the cover when calibration
+                begins.  ``"closed"`` (default) means the cover is fully
+                closed, so the first direction is OPEN.  ``"open"`` means
+                the cover is fully open, so the first direction is CLOSE.
 
         Returns:
             Event indicating readiness (no button press yet).
 
         Raises:
             CalibrationError: If not in IDLE state.
-            ValueError: If *runs* < 1.
+            ValueError: If *runs* < 1 or *starting_state* is invalid.
         """
         self._require_state(CalibrationState.IDLE, "start")
         if runs < 1:
             msg = f"runs must be >= 1, got {runs}"
+            raise ValueError(msg)
+        if starting_state not in ("closed", "open"):
+            msg = f"starting_state must be 'closed' or 'open', got {starting_state!r}"
             raise ValueError(msg)
 
         self._total_runs = runs
         self._current_run = 1
         self._measure_offset = measure_offset
         self._measure_dead_band = measure_dead_band
-        self._direction = CalibrationDirection.CLOSE
+        # First direction is the opposite of the starting state:
+        # closed -> move OPEN first; open -> move CLOSE first.
+        if starting_state == "closed":
+            self._first_direction = CalibrationDirection.OPEN
+        else:
+            self._first_direction = CalibrationDirection.CLOSE
+        self._direction = self._first_direction
         self._close_durations.clear()
         self._open_durations.clear()
         self._offset_durations.clear()
@@ -149,9 +178,12 @@ class CalibrationStateMachine:
         """Trigger a button press and start timing.
 
         When ``measure_offset`` is True (default), transitions to
-        TIMING_OFFSET.  When False, skips offset measurement and
-        transitions directly to TIMING_DEAD_BAND (if measuring dead
-        band) or TIMING.
+        TIMING_OFFSET.  When False, the next state depends on direction
+        and dead band setting:
+
+        - OPEN without offset, with dead band -> TIMING_DEAD_BAND
+        - CLOSE without offset, with dead band -> TIMING (travel first)
+        - Without offset or dead band -> TIMING
 
         Returns:
             Event requesting a button press with the current direction.
@@ -163,7 +195,7 @@ class CalibrationStateMachine:
         self._start_time = self.time_source()
         if self._measure_offset:
             self.state = CalibrationState.TIMING_OFFSET
-        elif self._measure_dead_band:
+        elif self._measure_dead_band and self._is_open:
             self.state = CalibrationState.TIMING_DEAD_BAND
         else:
             self.state = CalibrationState.TIMING
@@ -172,15 +204,17 @@ class CalibrationStateMachine:
     def mark(self) -> CalibrationEvent:
         """Record a measurement mark.
 
-        In TIMING_OFFSET state: records the motor start lag (offset) and
-        transitions to TIMING_DEAD_BAND (if measuring dead band) or
-        TIMING to continue measuring the travel duration.
+        The transition depends on both the current state and the direction
+        when ``measure_dead_band`` is True:
 
-        In TIMING_DEAD_BAND state: records the dead band (handle rotation)
-        duration and transitions to TIMING.
+        **OPEN** (dead band before travel):
+        TIMING_OFFSET -> TIMING_DEAD_BAND -> TIMING -> advance
 
-        In TIMING state: records the travel duration, then either advances
-        to the next direction/run or transitions to COMPLETE.
+        **CLOSE** (travel before dead band):
+        TIMING_OFFSET -> TIMING -> TIMING_DEAD_BAND -> advance
+
+        Without dead band, both directions follow:
+        TIMING_OFFSET -> TIMING -> advance
 
         Returns:
             Event describing the next expected action.
@@ -200,39 +234,66 @@ class CalibrationStateMachine:
         raise CalibrationError(msg)
 
     def _mark_offset(self) -> CalibrationEvent:
-        """Record offset duration and transition to TIMING_DEAD_BAND or TIMING."""
+        """Record offset duration and transition to next timing state.
+
+        OPEN with dead band: -> TIMING_DEAD_BAND (dead band before travel).
+        CLOSE with dead band: -> TIMING (travel before dead band).
+        Without dead band: -> TIMING.
+        """
         assert self._start_time is not None  # noqa: S101 — guaranteed by state
         now = self.time_source()
         elapsed = now - self._start_time
         self._offset_durations.append(elapsed)
         self._start_time = now
-        if self._measure_dead_band:
+        if self._measure_dead_band and self._is_open:
             self.state = CalibrationState.TIMING_DEAD_BAND
         else:
             self.state = CalibrationState.TIMING
         return CalibrationEvent(direction=self._direction)
 
     def _mark_dead_band(self) -> CalibrationEvent:
-        """Record dead band duration and transition to TIMING."""
+        """Record dead band duration and transition.
+
+        OPEN direction: dead band is measured before travel -> TIMING.
+        CLOSE direction: dead band is the last mark -> advance to next
+        direction/run.
+        """
         assert self._start_time is not None  # noqa: S101 — guaranteed by state
         now = self.time_source()
         elapsed = now - self._start_time
         self._dead_band_durations.append(elapsed)
-        self._start_time = now
-        self.state = CalibrationState.TIMING
-        return CalibrationEvent(direction=self._direction)
+        if self._is_open:
+            # Open: dead band before travel — continue to TIMING
+            self._start_time = now
+            self.state = CalibrationState.TIMING
+            return CalibrationEvent(direction=self._direction)
+        # Close: dead band is the final mark — advance
+        self._start_time = None
+        return self._advance()
 
     def _mark_travel(self) -> CalibrationEvent:
-        """Record travel duration and advance to next step."""
+        """Record travel duration and determine next step.
+
+        CLOSE with dead band: travel is followed by dead band ->
+        TIMING_DEAD_BAND (timer continues for handle rotation).
+        Otherwise: travel is the final mark -> advance.
+        """
         assert self._start_time is not None  # noqa: S101 — guaranteed by state
-        elapsed = self.time_source() - self._start_time
-        self._start_time = None
+        now = self.time_source()
+        elapsed = now - self._start_time
 
         if self._direction is CalibrationDirection.CLOSE:
             self._close_durations.append(elapsed)
         else:
             self._open_durations.append(elapsed)
 
+        if self._measure_dead_band and not self._is_open:
+            # Close direction: dead band comes after travel
+            self._start_time = now
+            self.state = CalibrationState.TIMING_DEAD_BAND
+            return CalibrationEvent(direction=self._direction)
+
+        self._start_time = None
         return self._advance()
 
     def cancel(self) -> CalibrationEvent:
@@ -247,7 +308,8 @@ class CalibrationStateMachine:
         self._current_run = 0
         self._measure_offset = True
         self._measure_dead_band = False
-        self._direction = CalibrationDirection.CLOSE
+        self._first_direction = CalibrationDirection.OPEN
+        self._direction = CalibrationDirection.OPEN
         self._close_durations.clear()
         self._open_durations.clear()
         self._offset_durations.clear()
@@ -349,18 +411,27 @@ class CalibrationStateMachine:
 
     # -- internals ------------------------------------------------------------
 
+    @property
+    def _is_open(self) -> bool:
+        """True when the current direction is OPEN."""
+        return self._direction is CalibrationDirection.OPEN
+
     def _advance(self) -> CalibrationEvent:
         """Determine next state after a measurement."""
-        if self._direction is CalibrationDirection.CLOSE:
-            # After close, always do open in the same run
-            self._direction = CalibrationDirection.OPEN
+        if self._direction is self._first_direction:
+            # After the first direction, switch to the other within the same run
+            self._direction = (
+                CalibrationDirection.OPEN
+                if self._first_direction is CalibrationDirection.CLOSE
+                else CalibrationDirection.CLOSE
+            )
             self.state = CalibrationState.READY
             return CalibrationEvent(direction=self._direction)
 
-        # After open, advance to next run or complete
+        # After the second direction, advance to next run or complete
         if self._current_run < self._total_runs:
             self._current_run += 1
-            self._direction = CalibrationDirection.CLOSE
+            self._direction = self._first_direction
             self.state = CalibrationState.READY
             return CalibrationEvent(direction=self._direction)
 

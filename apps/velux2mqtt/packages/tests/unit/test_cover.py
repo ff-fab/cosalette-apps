@@ -699,12 +699,13 @@ class TestCalibrationDispatch:
         data = json.loads(payload)
         assert data["state"] == "READY"
         assert data["run"] == 1
-        assert data["direction"] == "CLOSE"
+        assert data["direction"] == "OPEN"
 
     async def test_go_presses_button_and_publishes_timing_offset(self) -> None:
         """Go transitions to TIMING_OFFSET, presses direction button.
 
         Technique: State Transition Testing — READY -> TIMING_OFFSET.
+        Default starting_state='closed' means first direction is OPEN (up pin).
         """
         # Arrange
         ctx, gpio = await self._setup_handler()
@@ -718,12 +719,41 @@ class TestCalibrationDispatch:
         # Act
         await handler("topic", '{"calibrate": "go"}')
 
-        # Assert — presses down pin (first direction is CLOSE)
+        # Assert — presses up pin (first direction is OPEN)
         assert len(gpio.presses) == 1
-        assert gpio.presses[0].pin == 22  # down
+        assert gpio.presses[0].pin == 17  # up
         channel, payload = ctx.published_channels[0]
         assert channel == "calibrate/state"
         assert json.loads(payload)["state"] == "TIMING_OFFSET"
+
+    async def test_start_with_starting_state_open_presses_down_pin(self) -> None:
+        """starting_state='open' wires through: first direction CLOSE, go presses down pin.
+
+        Technique: Specification-based — starting_state parameter end-to-end wiring.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — start with starting_state=open
+        await handler(
+            "topic",
+            '{"calibrate": "start", "starting_state": "open"}',
+        )
+
+        # Assert — first direction is CLOSE
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["direction"] == "CLOSE"
+
+        # Act — go should press down pin
+        gpio.presses.clear()
+        ctx.published_channels.clear()
+        await handler("topic", '{"calibrate": "go"}')
+
+        # Assert — presses down pin (direction is CLOSE)
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0].pin == 22  # down
 
     async def test_normal_commands_blocked_during_calibration(self) -> None:
         """Normal cover commands are rejected during active calibration.
