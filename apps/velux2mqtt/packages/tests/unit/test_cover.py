@@ -726,6 +726,35 @@ class TestCalibrationDispatch:
         assert channel == "calibrate/state"
         assert json.loads(payload)["state"] == "TIMING_OFFSET"
 
+    async def test_start_with_starting_state_open_presses_down_pin(self) -> None:
+        """starting_state='open' wires through: first direction CLOSE, go presses down pin.
+
+        Technique: Specification-based — starting_state parameter end-to-end wiring.
+        """
+        # Arrange
+        ctx, gpio = await self._setup_handler()
+        handler = ctx._command_handler
+        assert handler is not None
+
+        # Act — start with starting_state=open
+        await handler(
+            "topic",
+            '{"calibrate": "start", "starting_state": "open"}',
+        )
+
+        # Assert — first direction is CLOSE
+        data = json.loads(ctx.published_channels[0][1])
+        assert data["direction"] == "CLOSE"
+
+        # Act — go should press down pin
+        gpio.presses.clear()
+        ctx.published_channels.clear()
+        await handler("topic", '{"calibrate": "go"}')
+
+        # Assert — presses down pin (direction is CLOSE)
+        assert len(gpio.presses) == 1
+        assert gpio.presses[0].pin == 22  # down
+
     async def test_normal_commands_blocked_during_calibration(self) -> None:
         """Normal cover commands are rejected during active calibration.
 
