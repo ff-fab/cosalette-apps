@@ -178,6 +178,32 @@ class TestBleakAirthingsReader:
             with pytest.raises(BleReadError, match="unexpected"):
                 await reader.read("AA:BB:CC:DD:EE:FF")
 
+    async def test_malformed_payload_raises_ble_read_error(self) -> None:
+        """Truncated GATT payload triggers struct.error → BleReadError.
+
+        Technique: Error Guessing — device returns fewer bytes than expected.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        # Return only 1 byte for temperature (needs 2 for "<h")
+        payloads = {
+            "00002a6e-0000-1000-8000-00805f9b34fb": b"\x01",
+            "00002a6f-0000-1000-8000-00805f9b34fb": struct.pack("<H", 4500),
+            "b42e01aa-ade7-11e4-89d3-123b93f75cba": struct.pack("<H", 80),
+            "b42e0a4c-ade7-11e4-89d3-123b93f75cba": struct.pack("<H", 65),
+        }
+        mock_client = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(side_effect=lambda uuid: payloads[uuid])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+        ):
+            reader = BleakAirthingsReader()
+            with pytest.raises(BleReadError):
+                await reader.read("AA:BB:CC:DD:EE:FF")
+
     async def test_negative_temperature(self) -> None:
         """Signed short correctly represents negative temperatures."""
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader

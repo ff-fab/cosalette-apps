@@ -55,9 +55,12 @@ class BleakAirthingsReader:
                 raise mapped(str(exc)) from exc
             raise BleReadError(str(exc)) from exc
 
-        return AirthingsReading(
-            temperature=struct.unpack("<h", raw_temp)[0] / 100.0,
-            humidity=struct.unpack("<H", raw_hum)[0] / 100.0,
-            radon_24h_avg=struct.unpack("<H", raw_radon_24h)[0],
-            radon_long_term_avg=struct.unpack("<H", raw_radon_lta)[0],
-        )
+        try:
+            return AirthingsReading(
+                temperature=struct.unpack("<h", raw_temp)[0] / 100.0,
+                humidity=struct.unpack("<H", raw_hum)[0] / 100.0,
+                radon_24h_avg=struct.unpack("<H", raw_radon_24h)[0],
+                radon_long_term_avg=struct.unpack("<H", raw_radon_lta)[0],
+            )
+        except struct.error as exc:
+            raise BleReadError(str(exc)) from exc
