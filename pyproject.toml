@@ -50,7 +50,7 @@ pythonVersion = "3.14"
 venvPath = "."
 venv = ".venv"
 # Updated dynamically as apps are added:
-extraPaths = ["apps/velux2mqtt/packages/src", "apps/gas2mqtt/packages/src", "apps/jeelink2mqtt/packages/src", "apps/vito2mqtt/packages/src"]
+extraPaths = ["apps/airthings2mqtt/packages/src", "apps/velux2mqtt/packages/src", "apps/gas2mqtt/packages/src", "apps/jeelink2mqtt/packages/src", "apps/vito2mqtt/packages/src"]
 
 [dependency-groups]
 docs = [
