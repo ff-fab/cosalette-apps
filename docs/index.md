@@ -26,6 +26,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
     Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.
 
+-   **[velux2mqtt](velux2mqtt/)** <span class="card-license">MIT</span>
+
+    ---
+
+    Controls Velux covers via Velux remotes and relays connected to GPIO pins,
+    publishing state and accepting commands via MQTT.
+
 -   **[vito2mqtt](vito2mqtt/)** <span class="card-license">GPL-3.0-or-later</span>
 
     ---
