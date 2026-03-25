@@ -4,7 +4,7 @@ version: '3'
 
 vars:
   # Add apps here as they are migrated. Order doesn't matter.
-  APPS: [velux2mqtt, gas2mqtt, jeelink2mqtt, vito2mqtt]
+  APPS: [airthings2mqtt, velux2mqtt, gas2mqtt, jeelink2mqtt, vito2mqtt]
 
 # ── Per-app includes ─────────────────────────────────────────
 # Each app is included from the reusable template with its own
@@ -33,7 +33,12 @@ includes:
     dir: ./apps/velux2mqtt
     vars:
       APP_NAME: velux2mqtt
-      MODULE_NAME: velux2mqtt
+
+  airthings2mqtt:
+    taskfile: ./taskfiles/PythonApp.yml
+    dir: ./apps/airthings2mqtt
+    vars:
+      APP_NAME: airthings2mqtt
 
 tasks:
   default:

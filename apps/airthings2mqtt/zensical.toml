@@ -1,0 +1,5 @@
+[project]
+site_name = "airthings2mqtt"
+site_description = "Reads Airthings Wave air quality sensors over BLE and publishes temperature, humidity, and radon data to MQTT."
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/version-fetch.js", "javascripts/header-breadcrumb.js", "javascripts/palette-sync.js"]
