@@ -10,6 +10,7 @@ authors = [
 ]
 
 dependencies = [
+    "bleak>=0.22",
     "cosalette>=0.1.7",
 ]
 
