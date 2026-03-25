@@ -30,7 +30,7 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
     ---
 
-    Controls Velux covers via velux remotes and GPIO switches,
+    Controls Velux covers via KLF 050 remotes and M74HC4066 GPIO switches,
     publishing state and accepting commands via MQTT.
 
 -   **[vito2mqtt](vito2mqtt/)** <span class="card-license">GPL-3.0-or-later</span>
