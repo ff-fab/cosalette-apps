@@ -2,6 +2,9 @@
 
 This test imports the application package so coverage is non-zero.
 Replace it with real tests as the project evolves.
+
+Test Techniques Used:
+- Smoke Testing: Verifies that the top-level package can be imported without errors.
 """
 
 import importlib
