@@ -25,6 +25,10 @@ flags:
     paths:
       - apps/velux2mqtt/packages/src/
     carryforward: true
+  airthings2mqtt:
+    paths:
+      - apps/airthings2mqtt/packages/src/
+    carryforward: true
 
 comment:
   layout: 'condensed_header, condensed_files, condensed_footer, components'

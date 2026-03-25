@@ -21,6 +21,10 @@
     "apps/velux2mqtt": {
       "component": "velux2mqtt",
       "release-type": "python"
+    },
+    "apps/airthings2mqtt": {
+      "component": "airthings2mqtt",
+      "release-type": "python"
     }
   }
 }
