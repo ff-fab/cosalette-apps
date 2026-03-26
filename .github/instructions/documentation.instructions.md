@@ -39,15 +39,17 @@ Every app homepage must include:
 
 1. **Badges** — License, Python version, cosalette framework
 2. **Bold tagline** — one-sentence description of what the app does
-3. **Prose paragraph** — brief explanation of how it works
-4. **Features section** — bullet list of key capabilities
-5. **Hardware table** (if applicable) — sensor/interface/platform
-6. **Quick Links** — grid cards (Material `grid cards` syntax) linking to each
+3. **Quick Links** — grid cards (Material `grid cards` syntax) linking to each
    documentation page (Getting Started, Configuration, MQTT Topics, etc.)
 
-Do not leave the homepage as just a title and one-liner. The scaffold generates a
-starter homepage with badges and grid cards — expand it with app-specific features and
-hardware details.
+The scaffold generates these three automatically. Additionally, each homepage should
+include (expand after scaffolding):
+
+4. **Prose paragraph** — brief explanation of how the app works
+5. **Features section** — bullet list of key capabilities
+6. **Hardware table** (if applicable) — sensor/interface/platform
+
+Do not leave the homepage as just a title and one-liner.
 
 ## ADR Format
 
