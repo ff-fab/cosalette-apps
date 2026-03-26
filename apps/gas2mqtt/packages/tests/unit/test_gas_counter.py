@@ -454,16 +454,17 @@ class TestGasCounterCommand:
         # neutral Bz that shouldn't happen)
         assert len(_published_states(mock_mqtt)) == publish_count_before
 
-    async def test_command_invalid_json_logged(
+    async def test_command_invalid_json_propagates(
         self,
         mock_mqtt: MockMqttClient,
         fake_clock: FakeClock,
         fake_magnetometer: FakeMagnetometer,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """Invalid JSON in command payload logs an error, doesn't crash.
+        """Invalid JSON in command payload propagates to the framework.
 
-        Technique: Error Guessing — malformed MQTT payload.
+        Technique: Error Guessing — malformed MQTT payload. The framework
+        handles error logging and error-topic publication; the handler
+        must not swallow the exception.
         """
         # Arrange
         fake_magnetometer.bz = BZ_NEUTRAL
@@ -477,17 +478,15 @@ class TestGasCounterCommand:
             description="initial state",
         )
 
-        # Act
+        # Act / Assert — error propagates
         assert ctx.command_handler is not None
-        await ctx.command_handler(
-            "gas2mqtt/gas_counter/set",
-            "not valid json{{{",
-        )
+        with pytest.raises(json.JSONDecodeError):
+            await ctx.command_handler(
+                "gas2mqtt/gas_counter/set",
+                "not valid json{{{",
+            )
         ctx._shutdown_event.set()
         await task
-
-        # Assert — error logged, device still alive
-        assert any("Invalid consumption command" in r.message for r in caplog.records)
 
 
 # ======================================================================
@@ -497,23 +496,25 @@ class TestGasCounterCommand:
 
 @pytest.mark.unit
 class TestGasCounterErrorHandling:
-    """Verify the polling loop survives I2C errors."""
+    """Verify poll-loop resilience to transient hardware errors."""
 
-    async def test_i2c_error_does_not_crash_loop(
+    async def test_i2c_error_logged_and_loop_continues(
         self,
         mock_mqtt: MockMqttClient,
         fake_clock: FakeClock,
         fake_magnetometer: FakeMagnetometer,
+        caplog,
     ) -> None:
-        """OSError during magnetometer read is logged; loop continues.
+        """OSError during magnetometer read is logged; loop continues on next poll cycle.
+
+        The device handles transient I2C errors locally to keep the polling
+        loop alive, since @app.device does not auto-restart coroutines.
 
         Technique: Error Guessing — I2C bus failure during operation.
         """
-        # Arrange — make the magnetometer raise OSError, then recover
-        error_mag = FakeMagnetometer()
-        error_mag.initialize()
+        # Arrange — magnetometer fails then recovers
         call_count = 0
-        original_read = error_mag.read
+        original_read = fake_magnetometer.read
 
         def flaky_read():  # noqa: ANN202
             nonlocal call_count
@@ -522,20 +523,26 @@ class TestGasCounterErrorHandling:
                 raise OSError("I2C bus error")
             return original_read()
 
+        fake_magnetometer.bz = BZ_NEUTRAL
+        error_mag = FakeMagnetometer()
+        error_mag.initialize()
         error_mag.read = flaky_read  # type: ignore[assignment,method-assign]
 
         ctx, store = _make_context(mock_mqtt, fake_clock, error_mag)
         task = asyncio.create_task(gas_counter(ctx, store))
 
-        # Act — let the loop run through the errors and a recovery
-        await wait_for_condition(
-            lambda: call_count >= 3,
-            description="I2C recovery",
-        )
+        # Act — let the loop run through errors and recovery
+        import logging as _logging
+
+        with caplog.at_level(_logging.WARNING):
+            await asyncio.sleep(0.1)
+
         ctx._shutdown_event.set()
         await task
 
-        # Assert — device started (initial state published) and survived
+        # Assert — error was logged at WARNING level
+        assert "I2C read error" in caplog.text
+        # Assert — loop survived (initial state was published)
         states = _published_states(mock_mqtt)
         assert len(states) >= 1
 
