@@ -167,13 +167,18 @@ async def gas_counter(
     _save_state()
 
     while not ctx.shutdown_requested:
-        counter, should_publish = _process_poll(
-            magnetometer,
-            trigger,
-            counter,
-            consumption,
-            logger,
-        )
+        try:
+            counter, should_publish = _process_poll(
+                magnetometer,
+                trigger,
+                counter,
+                consumption,
+                logger,
+            )
+        except OSError:
+            logger.warning("I2C read error — will retry next poll cycle", exc_info=True)
+            await ctx.sleep(settings.poll_interval)
+            continue
         if should_publish:
             await ctx.publish_state(_build_state())
             _save_state()

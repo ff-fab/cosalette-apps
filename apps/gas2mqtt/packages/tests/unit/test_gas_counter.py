@@ -496,34 +496,55 @@ class TestGasCounterCommand:
 
 @pytest.mark.unit
 class TestGasCounterErrorHandling:
-    """Verify poll-loop errors propagate to the framework."""
+    """Verify poll-loop resilience to transient hardware errors."""
 
-    async def test_i2c_error_propagates_to_framework(
+    async def test_i2c_error_logged_and_loop_continues(
         self,
         mock_mqtt: MockMqttClient,
         fake_clock: FakeClock,
         fake_magnetometer: FakeMagnetometer,
+        caplog,
     ) -> None:
-        """OSError during magnetometer read propagates to the framework.
+        """OSError during magnetometer read is logged; loop continues on next poll cycle.
+
+        The device handles transient I2C errors locally to keep the polling
+        loop alive, since @app.device does not auto-restart coroutines.
 
         Technique: Error Guessing — I2C bus failure during operation.
-        The framework handles error logging, error-topic publication,
-        and loop recovery; the device handler must not swallow the error.
         """
+        # Arrange — magnetometer fails then recovers
+        call_count = 0
+        original_read = fake_magnetometer.read
 
-        # Arrange — make the magnetometer raise OSError
-        def failing_read():  # noqa: ANN202
-            raise OSError("I2C bus error")
+        def flaky_read():  # noqa: ANN202
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                raise OSError("I2C bus error")
+            return original_read()
 
+        fake_magnetometer.bz = BZ_NEUTRAL
         error_mag = FakeMagnetometer()
         error_mag.initialize()
-        error_mag.read = failing_read  # type: ignore[assignment,method-assign]
+        error_mag.read = flaky_read  # type: ignore[assignment,method-assign]
 
         ctx, store = _make_context(mock_mqtt, fake_clock, error_mag)
+        task = asyncio.create_task(gas_counter(ctx, store))
 
-        # Act / Assert — OSError propagates out of the device coroutine
-        with pytest.raises(OSError, match="I2C bus error"):
-            await gas_counter(ctx, store)
+        # Act — let the loop run through errors and recovery
+        import logging as _logging
+
+        with caplog.at_level(_logging.WARNING):
+            await asyncio.sleep(0.1)
+
+        ctx._shutdown_event.set()
+        await task
+
+        # Assert — error was logged at WARNING level
+        assert "I2C read error" in caplog.text
+        # Assert — loop survived (initial state was published)
+        states = _published_states(mock_mqtt)
+        assert len(states) >= 1
 
 
 # ======================================================================
