@@ -29,10 +29,10 @@ index tile.
 
 - N/A (documentation-only epic)
 
-**Test Coverage:**
+**Test Coverage (scope: this epic):**
 
-- Total tests written: 0 (documentation-only epic, no code changes)
-- All tests passing: N/A
+- New or modified tests in this epic: 0 (documentation-only; no application code changes)
+- Existing airthings2mqtt tests: unit and integration suites under apps/airthings2mqtt/packages/tests/ (not changed in this epic)
 
 **Recommendations for Next Steps:**
 

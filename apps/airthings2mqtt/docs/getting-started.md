@@ -48,11 +48,15 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         image: ghcr.io/ff-fab/airthings2mqtt:latest
         restart: unless-stopped
         network_mode: host
+        cap_add:
+          - NET_ADMIN
+          - SYS_ADMIN
         env_file: .env
         environment:
-          AIRTHINGS2MQTT_MQTT__HOST: mosquitto
+          AIRTHINGS2MQTT_MQTT__HOST: localhost
         volumes:
           - airthings2mqtt-data:/app/data
+          - /var/run/dbus:/var/run/dbus:ro
         depends_on:
           - mosquitto
 
@@ -101,8 +105,9 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
 
     !!! warning "BlueZ and D-Bus access"
         BLE communication requires access to the host Bluetooth stack via D-Bus.
-        `network_mode: host` provides this automatically. If you use bridge networking
-        instead, you must mount the D-Bus socket manually.
+        The compose file mounts `/var/run/dbus` and adds `NET_ADMIN` / `SYS_ADMIN`
+        capabilities for BlueZ access. `network_mode: host` avoids additional network
+        configuration.
 
 === "Manual (pip/uv)"
 
