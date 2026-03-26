@@ -22,6 +22,33 @@ This monorepo has **multiple independent documentation sites**:
 | Root (monorepo)| `zensical.toml`                       | `task docs:serve`                | `task docs:build`                |
 | Per-app        | `apps/<name>/zensical.toml`           | `task <app>:docs:serve`          | `task <app>:docs:build`          |
 
+## App Documentation Conventions
+
+### Navigation
+
+All app documentation sites use **top-bar tab navigation** (`navigation.tabs`), not
+sidebar navigation. The `zensical.toml` for every app must include a full
+`[project.theme]` section with `navigation.tabs`, `navigation.tabs.sticky`, palette
+toggles, and all standard markdown extensions. See any existing app (e.g.
+`apps/gas2mqtt/zensical.toml`) as reference. The `task app:new` scaffold generates this
+automatically.
+
+### Homepage (`docs/index.md`)
+
+Every app homepage must include:
+
+1. **Badges** — License, Python version, cosalette framework
+2. **Bold tagline** — one-sentence description of what the app does
+3. **Prose paragraph** — brief explanation of how it works
+4. **Features section** — bullet list of key capabilities
+5. **Hardware table** (if applicable) — sensor/interface/platform
+6. **Quick Links** — grid cards (Material `grid cards` syntax) linking to each
+   documentation page (Getting Started, Configuration, MQTT Topics, etc.)
+
+Do not leave the homepage as just a title and one-liner. The scaffold generates a
+starter homepage with badges and grid cards — expand it with app-specific features and
+hardware details.
+
 ## ADR Format
 
 Architecture Decision Records follow this structure. ADRs live in two places:
