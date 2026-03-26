@@ -55,7 +55,8 @@ class TestFakeAirthingsReader:
                 radon_long_term_avg=70,
             ),
         ]
-        reader = FakeAirthingsReader(readings=readings)
+        reader = FakeAirthingsReader()
+        reader.readings = readings
 
         first = await reader.read("AA:BB:CC:DD:EE:FF")
         second = await reader.read("AA:BB:CC:DD:EE:FF")

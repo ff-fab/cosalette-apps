@@ -30,11 +30,8 @@ class FakeAirthingsReader:
         raise_on_next: Exception to raise on next read(), cleared after use.
     """
 
-    def __init__(
-        self,
-        readings: list[AirthingsReading] | None = None,
-    ) -> None:
-        self.readings: list[AirthingsReading] = readings or [_DEFAULT_READING]
+    def __init__(self) -> None:
+        self.readings: list[AirthingsReading] = [_DEFAULT_READING]
         self.calls: list[str] = []
         self.raise_on_next: Exception | None = None
         self._index: int = 0
