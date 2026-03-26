@@ -283,12 +283,13 @@ class TestPyLaCrosseAdapterCallback:
         assert len(received) == 0
         assert "Unparsable LaCrosse frame" in caplog.text
 
-    def test_register_callback_handles_exception_in_callback(
-        self, opened_adapter: tuple[object, MagicMock], caplog
+    def test_register_callback_propagates_exception_from_callback(
+        self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
-        """Wrapper catches and logs exceptions raised by the user callback.
+        """Exceptions from the user callback propagate to the framework.
 
-        Technique: Error Guessing — callback blows up, adapter stays alive.
+        Technique: Error Guessing — callback error propagates so the
+        framework can log and publish to the error topic.
         """
         adapter, mock_instance = opened_adapter
 
@@ -300,12 +301,9 @@ class TestPyLaCrosseAdapterCallback:
         adapter.register_callback(bad_callback)
         wrapper = mock_instance.register_all.call_args[0][0]
 
-        # Act — should NOT propagate the ValueError
-        with caplog.at_level(logging.ERROR):
+        # Act / Assert — ValueError propagates
+        with pytest.raises(ValueError, match="boom"):
             wrapper("id=1 t=20.0 h=50 nbat=0")
-
-        # Assert — error was logged, not raised
-        assert "Error processing LaCrosse frame" in caplog.text
 
 
 # ======================================================================
