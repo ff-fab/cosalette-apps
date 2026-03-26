@@ -13,6 +13,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 <div class="grid cards" markdown>
 
+-   **[airthings2mqtt](airthings2mqtt/)** <span class="card-license">MIT</span>
+
+    ---
+
+    Bridges Airthings Wave BLE air quality sensors to MQTT, publishing CO2, VOC,
+    temperature, humidity, pressure, and radon readings.
+
 -   **[gas2mqtt](gas2mqtt/)** <span class="card-license">MIT</span>
 
     ---
