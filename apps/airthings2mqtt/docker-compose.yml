@@ -5,13 +5,43 @@ services:
       dockerfile: apps/airthings2mqtt/Dockerfile
     image: ghcr.io/ff-fab/airthings2mqtt:latest
     restart: unless-stopped
+    # BLE requires access to the host Bluetooth stack via D-Bus.
+    # network_mode: host is the simplest approach on a Raspberry Pi.
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_ADMIN
     env_file: .env
     environment:
-      AIRTHINGS2MQTT_MQTT__HOST: mosquitto
+      # With network_mode: host, use localhost (or the IP of your broker)
+      AIRTHINGS2MQTT_MQTT__HOST: localhost
+      # AIRTHINGS2MQTT_DEVICE_MAC: "XX:XX:XX:XX:XX:XX"
+      # AIRTHINGS2MQTT_POLL_INTERVAL: "1500"
     volumes:
       - airthings2mqtt-data:/app/data
+      # D-Bus socket for BlueZ communication
+      - /var/run/dbus:/var/run/dbus:ro
     depends_on:
       - mosquitto
+
+  # --- Multi-device example (uncomment and duplicate as needed) ---
+  # airthings2mqtt-bedroom:
+  #   image: ghcr.io/ff-fab/airthings2mqtt:latest
+  #   restart: unless-stopped
+  #   network_mode: host
+  #   cap_add:
+  #     - NET_ADMIN
+  #     - SYS_ADMIN
+  #   env_file: .env
+  #   environment:
+  #     AIRTHINGS2MQTT_MQTT__HOST: localhost
+  #     AIRTHINGS2MQTT_DEVICE_MAC: "AA:BB:CC:DD:EE:FF"
+  #     AIRTHINGS2MQTT_DEVICE_NAME: "bedroom"
+  #   volumes:
+  #     - airthings2mqtt-bedroom-data:/app/data
+  #     - /var/run/dbus:/var/run/dbus:ro
+  #   depends_on:
+  #     - mosquitto
 
   mosquitto:
     image: eclipse-mosquitto:2
@@ -25,5 +55,6 @@ services:
 
 volumes:
   airthings2mqtt-data:
+  # airthings2mqtt-bedroom-data:
   mosquitto-data:
   mosquitto-log:
