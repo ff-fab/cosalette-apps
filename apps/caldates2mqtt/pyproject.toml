@@ -1,0 +1,86 @@
+[project]
+name = "caldates2mqtt"
+version = "0.1.0"
+description = "CalDAV calendar dates to MQTT bridge"
+readme = "README.md"
+requires-python = ">=3.14"
+license = { text = "MIT" }
+authors = [
+    { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
+]
+
+dependencies = [
+    "cosalette>=0.1.7",
+    "caldav>=1.4",
+]
+
+[project.scripts]
+caldates2mqtt = "caldates2mqtt.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["packages/src/caldates2mqtt"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (require mock servers)",
+    "slow: Tests that take > 1 second",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["packages/src/caldates2mqtt"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+    "*/main.py",
+    "*/app.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "def __repr__",
+    'if __name__ == "__main__":',
+    "^\\s*\\.\\.\\.$",
+]
+fail_under = 80
+show_missing = true
+skip_covered = false
+
+[tool.coverage.json]
+output = "coverage.json"
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.mypy]
+[[tool.mypy.overrides]]
+module = ["caldav.*", "requests.*"]
+ignore_missing_imports = true
+
+[tool.ruff.lint.isort]
+known-first-party = ["caldates2mqtt"]
