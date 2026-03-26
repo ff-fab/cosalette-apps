@@ -65,8 +65,9 @@ class PyLaCrosseAdapter:
 
         The wrapper parses the pylacrosse sensor string format
         (``"id=X t=Y.Y h=Z nbat=N"``) into a :class:`SensorReading`
-        and forwards it to the caller's callback.  Parse errors are
-        logged but not propagated.
+        and forwards it to the caller's callback.  Unparsable frames
+        (regex mismatch) are logged as warnings and skipped; all other
+        errors propagate to the framework's error handling.
         """
         if self._lacrosse is None:
             msg = "Adapter not open — call open() first"
@@ -78,17 +79,14 @@ class PyLaCrosseAdapter:
                 logger.warning("Unparsable LaCrosse frame: %r", sensor_string)
                 return
 
-            try:
-                reading = SensorReading(
-                    sensor_id=int(match.group(1)),
-                    temperature=float(match.group(2)),
-                    humidity=int(match.group(3)),
-                    low_battery=match.group(4) != "0",
-                    timestamp=datetime.now(UTC),
-                )
-                callback(reading)
-            except Exception:
-                logger.exception("Error processing LaCrosse frame: %r", sensor_string)
+            reading = SensorReading(
+                sensor_id=int(match.group(1)),
+                temperature=float(match.group(2)),
+                humidity=int(match.group(3)),
+                low_battery=match.group(4) != "0",
+                timestamp=datetime.now(UTC),
+            )
+            callback(reading)
 
         self._lacrosse.register_all(_wrapper)
 
