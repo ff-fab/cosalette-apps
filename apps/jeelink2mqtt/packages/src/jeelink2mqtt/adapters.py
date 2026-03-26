@@ -65,8 +65,11 @@ class PyLaCrosseAdapter:
 
         The wrapper parses the pylacrosse sensor string format
         (``"id=X t=Y.Y h=Z nbat=N"``) into a :class:`SensorReading`
-        and forwards it to the caller's callback.  Parse errors are
-        logged but not propagated.
+        and forwards it to the caller's callback.  Unparsable frames
+        (regex mismatch) are logged as warnings and skipped.  Errors
+        during parsing or in the callback are logged but not propagated,
+        because this wrapper runs on pylacrosse's serial reader thread
+        where unhandled exceptions would kill the thread.
         """
         if self._lacrosse is None:
             msg = "Adapter not open — call open() first"
@@ -88,6 +91,10 @@ class PyLaCrosseAdapter:
                 )
                 callback(reading)
             except Exception:
+                # Thread boundary: this runs on pylacrosse's serial reader
+                # thread, outside cosalette's asyncio error isolation.
+                # Letting exceptions propagate would kill the reader thread
+                # and silently stop all frame processing.
                 logger.exception("Error processing LaCrosse frame: %r", sensor_string)
 
         self._lacrosse.register_all(_wrapper)
