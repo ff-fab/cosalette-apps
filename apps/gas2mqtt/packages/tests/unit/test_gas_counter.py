@@ -454,16 +454,17 @@ class TestGasCounterCommand:
         # neutral Bz that shouldn't happen)
         assert len(_published_states(mock_mqtt)) == publish_count_before
 
-    async def test_command_invalid_json_logged(
+    async def test_command_invalid_json_propagates(
         self,
         mock_mqtt: MockMqttClient,
         fake_clock: FakeClock,
         fake_magnetometer: FakeMagnetometer,
-        caplog: pytest.LogCaptureFixture,
     ) -> None:
-        """Invalid JSON in command payload logs an error, doesn't crash.
+        """Invalid JSON in command payload propagates to the framework.
 
-        Technique: Error Guessing — malformed MQTT payload.
+        Technique: Error Guessing — malformed MQTT payload. The framework
+        handles error logging and error-topic publication; the handler
+        must not swallow the exception.
         """
         # Arrange
         fake_magnetometer.bz = BZ_NEUTRAL
@@ -477,17 +478,15 @@ class TestGasCounterCommand:
             description="initial state",
         )
 
-        # Act
+        # Act / Assert — error propagates
         assert ctx.command_handler is not None
-        await ctx.command_handler(
-            "gas2mqtt/gas_counter/set",
-            "not valid json{{{",
-        )
+        with pytest.raises(json.JSONDecodeError):
+            await ctx.command_handler(
+                "gas2mqtt/gas_counter/set",
+                "not valid json{{{",
+            )
         ctx._shutdown_event.set()
         await task
-
-        # Assert — error logged, device still alive
-        assert any("Invalid consumption command" in r.message for r in caplog.records)
 
 
 # ======================================================================
@@ -497,47 +496,34 @@ class TestGasCounterCommand:
 
 @pytest.mark.unit
 class TestGasCounterErrorHandling:
-    """Verify the polling loop survives I2C errors."""
+    """Verify poll-loop errors propagate to the framework."""
 
-    async def test_i2c_error_does_not_crash_loop(
+    async def test_i2c_error_propagates_to_framework(
         self,
         mock_mqtt: MockMqttClient,
         fake_clock: FakeClock,
         fake_magnetometer: FakeMagnetometer,
     ) -> None:
-        """OSError during magnetometer read is logged; loop continues.
+        """OSError during magnetometer read propagates to the framework.
 
         Technique: Error Guessing — I2C bus failure during operation.
+        The framework handles error logging, error-topic publication,
+        and loop recovery; the device handler must not swallow the error.
         """
-        # Arrange — make the magnetometer raise OSError, then recover
+
+        # Arrange — make the magnetometer raise OSError
+        def failing_read():  # noqa: ANN202
+            raise OSError("I2C bus error")
+
         error_mag = FakeMagnetometer()
         error_mag.initialize()
-        call_count = 0
-        original_read = error_mag.read
-
-        def flaky_read():  # noqa: ANN202
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 2:
-                raise OSError("I2C bus error")
-            return original_read()
-
-        error_mag.read = flaky_read  # type: ignore[assignment,method-assign]
+        error_mag.read = failing_read  # type: ignore[assignment,method-assign]
 
         ctx, store = _make_context(mock_mqtt, fake_clock, error_mag)
-        task = asyncio.create_task(gas_counter(ctx, store))
 
-        # Act — let the loop run through the errors and a recovery
-        await wait_for_condition(
-            lambda: call_count >= 3,
-            description="I2C recovery",
-        )
-        ctx._shutdown_event.set()
-        await task
-
-        # Assert — device started (initial state published) and survived
-        states = _published_states(mock_mqtt)
-        assert len(states) >= 1
+        # Act / Assert — OSError propagates out of the device coroutine
+        with pytest.raises(OSError, match="I2C bus error"):
+            await gas_counter(ctx, store)
 
 
 # ======================================================================
