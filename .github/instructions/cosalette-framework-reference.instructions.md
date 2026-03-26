@@ -609,6 +609,76 @@ lifecycle entry (since 0.1.5).
 
 ---
 
+## Device Error Handling — Do / Don't
+
+The framework provides **automatic error isolation** for all device types:
+
+- **`@app.telemetry`**: exceptions are logged, published to the error topic, and the
+  polling loop continues automatically.
+- **`@app.command`**: command dispatch errors are handled by the framework.
+- **`@app.device`**: task-level errors are caught, logged, and published to the error
+  topic.
+
+**Consecutive identical errors are deduplicated** — logged once until recovery.
+
+### Don't: Catch and swallow domain errors
+
+```python
+# ❌ BAD — duplicates framework behaviour and hides errors from the error topic
+@app.telemetry("sensor", interval=5.0)
+async def sensor(ctx: DeviceContext) -> dict[str, object]:
+    try:
+        reading = await read_sensor()
+        return {"temperature": reading}
+    except OSError:
+        logger.exception("Read failed")  # swallowed — never reaches error topic
+```
+
+```python
+# ❌ BAD — broad except in callback prevents framework error handling
+def register_callback(self, callback):
+    def _wrapper(raw_data):
+        try:
+            reading = parse(raw_data)
+            callback(reading)
+        except Exception:
+            logger.exception("Error")  # swallowed
+    self._driver.register(_wrapper)
+```
+
+### Do: Let errors propagate to the framework
+
+```python
+# ✅ GOOD — framework logs, publishes to error topic, continues loop
+@app.telemetry("sensor", interval=5.0)
+async def sensor(ctx: DeviceContext) -> dict[str, object]:
+    reading = await read_sensor()
+    return {"temperature": reading}
+```
+
+```python
+# ✅ GOOD — skip unparsable input, propagate real errors
+def register_callback(self, callback):
+    def _wrapper(raw_data):
+        match = FRAME_RE.search(raw_data)
+        if match is None:
+            logger.warning("Unparsable frame: %r", raw_data)
+            return  # skip — not an error
+        reading = parse(match)
+        callback(reading)
+    self._driver.register(_wrapper)
+```
+
+### When local error handling IS appropriate
+
+- **Skipping bad input** (e.g., unparsable frames): log a warning and `return` — this
+  is filtering, not error handling.
+- **Cleanup / resource release**: use `try/finally`, not `try/except`.
+- **Retry with backoff**: only when the framework's default "log + continue" is
+  insufficient and the retry logic adds value beyond what the next poll cycle provides.
+
+---
+
 ## Known Constraints (0.1.8)
 
 - **Python 3.14+** required (PEP 695 `type` statement syntax)
