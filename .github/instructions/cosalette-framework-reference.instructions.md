@@ -617,7 +617,8 @@ The framework provides **automatic error isolation** for all device types:
   polling loop continues automatically.
 - **`@app.command`**: command dispatch errors are handled by the framework.
 - **`@app.device`**: task-level errors are caught, logged, and published to the error
-  topic.
+  topic. **The coroutine is not restarted** — if your device loop must survive transient
+  errors, catch expected exceptions locally (log and continue).
 
 **Consecutive identical errors are deduplicated** — logged once until recovery.
 
@@ -676,6 +677,10 @@ def register_callback(self, callback):
 - **Cleanup / resource release**: use `try/finally`, not `try/except`.
 - **Retry with backoff**: only when the framework's default "log + continue" is
   insufficient and the retry logic adds value beyond what the next poll cycle provides.
+- **Thread boundaries**: callbacks invoked from foreign threads (e.g., serial reader
+  threads in hardware libraries) are outside the framework's asyncio error boundary.
+  Use local error handling to keep the thread alive and marshal errors into the event
+  loop if framework-level reporting is needed.
 
 ---
 
