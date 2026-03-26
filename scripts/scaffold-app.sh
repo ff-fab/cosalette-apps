@@ -183,12 +183,17 @@ output = "coverage.xml"
 known-first-party = ["$PKG_NAME"]
 EOF
 
-# ── README.md ────────────────────────────────────────────────
+# ── Badges ───────────────────────────────────────────────────
+# README badge links to relative LICENSE; docs badge links to GitHub URL.
 if [[ "$LICENSE" == "MIT" ]]; then
   BADGE='[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)'
+  DOCS_BADGE='[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ff-fab/cosalette-apps/blob/main/apps/'"$NAME"'/LICENSE)'
 else
   BADGE='[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](LICENSE)'
+  DOCS_BADGE='[![License: GPL-3.0-or-later](https://img.shields.io/badge/License-GPL--3.0--or--later-blue.svg)](https://github.com/ff-fab/cosalette-apps/blob/main/apps/'"$NAME"'/LICENSE)'
 fi
+
+# ── README.md ────────────────────────────────────────────────
 cat > "$APP/README.md" <<EOF
 # $NAME
 
@@ -445,7 +450,7 @@ EOF
 cat > "$APP/docs/index.md" <<EOF
 # $NAME
 
-$BADGE
+$DOCS_BADGE
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 [![cosalette](https://img.shields.io/badge/framework-cosalette-orange)](https://github.com/ff-fab/cosalette)
 
