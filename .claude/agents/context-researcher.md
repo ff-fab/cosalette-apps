@@ -60,7 +60,9 @@ Key conventions to be aware of:
    - Which files and functions are directly relevant?
    - How does the existing code work in this area?
    - What patterns and conventions does this codebase follow here?
-   - What libraries/dependencies are involved, and at what versions?
+   - What libraries/dependencies are involved, and at what versions? Which libraries/
+     dependencies are relevant to this task?
+   - What ADRs and architectural constraints are relevant?
    - Are there existing similar implementations to reference?
 
 ## Research Guidelines
@@ -73,9 +75,14 @@ Key conventions to be aware of:
 - **Identify test coverage**: Where are the tests? What patterns do they follow
   (fixtures, mocks, parametrize)?
 - **Flag uncertainty honestly**: If something is genuinely unclear, say so rather than
-  guessing
+  guessing. If you don't have a credible source for a claim, say so. Don't guess. Don't
+  infer. "I don't have data on this" is always a valid answer.
 - **Do not act**: Never modify files, run mutating commands, create branches, or make
   commits
+- **Verify with citations**: Every recommendation, claim, or piece of advice must cite a
+  specific source (file, external source found via web search (with URL), ADR, a named
+  expert, paper, or researcher, official documentation). If you generate a claim and
+  cannot find a supporting source, retract it.
 
 ## Output Format
 
