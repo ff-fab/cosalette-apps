@@ -147,15 +147,12 @@ async def gas_counter(
         if consumption is None:
             logger.warning("Consumption command received but tracking is disabled")
             return
-        try:
-            data = json.loads(payload)
-            if "consumption_m3" in data:
-                consumption.set_consumption(float(data["consumption_m3"]))
-                logger.info("Consumption set to %.3f m³", consumption.consumption_m3)
-                await ctx.publish_state(_build_state())
-                _save_state()
-        except (json.JSONDecodeError, ValueError, TypeError) as exc:
-            logger.error("Invalid consumption command: %s", exc)
+        data = json.loads(payload)
+        if "consumption_m3" in data:
+            consumption.set_consumption(float(data["consumption_m3"]))
+            logger.info("Consumption set to %.3f m³", consumption.consumption_m3)
+            await ctx.publish_state(_build_state())
+            _save_state()
 
     def _save_state() -> None:
         """Persist current state to the device store."""
@@ -170,17 +167,14 @@ async def gas_counter(
     _save_state()
 
     while not ctx.shutdown_requested:
-        try:
-            counter, should_publish = _process_poll(
-                magnetometer,
-                trigger,
-                counter,
-                consumption,
-                logger,
-            )
-            if should_publish:
-                await ctx.publish_state(_build_state())
-                _save_state()
-        except OSError:
-            logger.exception("I2C read error")
+        counter, should_publish = _process_poll(
+            magnetometer,
+            trigger,
+            counter,
+            consumption,
+            logger,
+        )
+        if should_publish:
+            await ctx.publish_state(_build_state())
+            _save_state()
         await ctx.sleep(settings.poll_interval)
