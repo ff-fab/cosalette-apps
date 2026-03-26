@@ -12,11 +12,13 @@ import asyncio
 import pytest
 from cosalette import App, MockMqttClient
 
+from pydantic import Field
+from pydantic_settings import PydanticBaseSettingsSource
+
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.main import _poll_interval, _telemetry
 from airthings2mqtt.ports import AirthingsReaderPort
 from airthings2mqtt.settings import Airthings2MqttSettings
-from tests.fixtures.config import make_airthings2mqtt_settings
 
 TOPIC_PREFIX = "airthings2mqtt"
 """Default MQTT topic prefix used by integration tests."""
@@ -25,16 +27,48 @@ DEVICE_NAME = "airthings"
 """Default device name used in MQTT topics."""
 
 
-def build_integration_app() -> App:
-    """Construct a fully-wired App backed by FakeAirthingsReader.
+class _FastPollSettings(Airthings2MqttSettings):
+    """Settings subclass that allows sub-60s poll intervals for testing.
 
-    Mirrors the wiring in ``airthings2mqtt.main`` but forces the fake
+    Overrides both ``poll_interval`` validation (removes ge=60) and
+    settings sources (ignores env vars / .env files) so integration
+    tests can use very short poll intervals deterministically.
+    """
+
+    poll_interval: int = Field(  # type: ignore[assignment]
+        default=1,
+        ge=1,
+        description="Poll interval in seconds (relaxed for tests)",
+    )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[Airthings2MqttSettings],  # noqa: ARG003
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        return (init_settings,)
+
+
+def build_integration_app(
+    adapter: type | object = FakeAirthingsReader,
+) -> App:
+    """Construct a fully-wired App with the given reader adapter.
+
+    Mirrors the wiring in ``airthings2mqtt.main`` but substitutes the
     adapter so tests run without real BLE hardware.
+
+    Args:
+        adapter: Adapter class or factory callable for AirthingsReaderPort.
+            Defaults to FakeAirthingsReader.
     """
     test_app = App(
         name="airthings2mqtt",
         settings_class=Airthings2MqttSettings,
-        adapters={AirthingsReaderPort: FakeAirthingsReader},
+        adapters={AirthingsReaderPort: adapter},
     )
     test_app.telemetry("airthings", interval=_poll_interval)(_telemetry)
     return test_app
@@ -74,8 +108,8 @@ def mock_mqtt() -> MockMqttClient:
 
 @pytest.fixture
 def test_settings() -> Airthings2MqttSettings:
-    """Isolated settings with minimum poll interval for fast tests."""
-    return make_airthings2mqtt_settings(poll_interval=60)
+    """Isolated settings with very short poll interval for fast tests."""
+    return _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=1)  # type: ignore[return-value]
 
 
 @pytest.fixture
