@@ -238,8 +238,8 @@ class TestErrorDeduplication:
         # Arrange
         app = build_integration_app(adapter=_AlwaysRaisingReader)
 
-        # Act — run long enough for multiple poll cycles
-        await run_app_briefly(app, mock_mqtt, test_settings, wait=0.4)
+        # Act — run long enough for multiple poll cycles (>= 2 intervals)
+        await run_app_briefly(app, mock_mqtt, test_settings, wait=2.5)
 
         # Assert — error topic should have exactly 1 message (deduplicated)
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"

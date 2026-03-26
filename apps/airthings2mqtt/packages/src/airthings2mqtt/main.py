@@ -24,7 +24,10 @@ app = cosalette.App(
 
 def _poll_interval(s: cosalette.Settings) -> float:
     """Deferred interval — resolved after settings are parsed."""
-    assert isinstance(s, Airthings2MqttSettings)
+    if not isinstance(s, Airthings2MqttSettings):
+        raise TypeError(
+            f"_poll_interval expected Airthings2MqttSettings, got {type(s).__name__}"
+        )
     return float(s.poll_interval)
 
 
