@@ -8,7 +8,6 @@ services:
     # BLE requires access to the host Bluetooth stack via D-Bus.
     # network_mode: host is the simplest approach on a Raspberry Pi.
     network_mode: host
-    privileged: true
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN
@@ -30,7 +29,6 @@ services:
   #   image: ghcr.io/ff-fab/airthings2mqtt:latest
   #   restart: unless-stopped
   #   network_mode: host
-  #   privileged: true
   #   cap_add:
   #     - NET_ADMIN
   #     - SYS_ADMIN
