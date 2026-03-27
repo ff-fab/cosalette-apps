@@ -99,6 +99,70 @@ class TestCalDates2MqttSettingsValidation:
         )
         assert settings.calendars[0].poll_interval == 0.1
 
+    def test_entries_rejects_zero(self) -> None:
+        """Entries must be > 0."""
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "entries": 0,
+                    }
+                ]
+            )
+
+    def test_entries_rejects_negative(self) -> None:
+        """Negative entries is rejected."""
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "entries": -1,
+                    }
+                ]
+            )
+
+    def test_days_rejects_zero(self) -> None:
+        """Days must be > 0."""
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "days": 0,
+                    }
+                ]
+            )
+
+    def test_days_rejects_negative(self) -> None:
+        """Negative days is rejected."""
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "days": -1,
+                    }
+                ]
+            )
+
     def test_caldav_timeout_rejects_zero(self) -> None:
         """CalDAV timeout must be > 0."""
         with pytest.raises(ValidationError):

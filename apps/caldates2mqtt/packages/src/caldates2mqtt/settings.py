@@ -25,8 +25,10 @@ class CalendarConfig(BaseModel):
     calendar_name: str = Field(description="Calendar name on the server")
     username: str = Field(description="CalDAV auth username")
     password: SecretStr = Field(description="CalDAV auth password")
-    entries: int = Field(default=5, description="Number of upcoming events to fetch")
-    days: int = Field(default=14, description="Lookahead window in days")
+    entries: int = Field(
+        default=5, gt=0, description="Number of upcoming events to fetch"
+    )
+    days: int = Field(default=14, gt=0, description="Lookahead window in days")
     poll_interval: float = Field(
         default=7200.0,
         gt=0,

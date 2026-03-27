@@ -31,10 +31,6 @@ extra_javascript = ["javascripts/version-fetch.js", "javascripts/header-breadcru
 
 nav = [
     { "Home" = "index.md" },
-    { "Getting Started" = "getting-started.md" },
-    { "Configuration" = "configuration.md" },
-    { "MQTT Topics" = "mqtt-topics.md" },
-    { "ADRs" = "adr/" },
 ]
 
 # ---------------------------------------------------------------------------

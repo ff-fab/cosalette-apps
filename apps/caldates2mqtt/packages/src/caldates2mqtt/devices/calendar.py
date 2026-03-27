@@ -82,9 +82,14 @@ def make_calendar_handler(
             if payload:
                 try:
                     data = json.loads(payload)
-                    override_entries = data.get("entries")
-                    override_days = data.get("days")
-                except json.JSONDecodeError, AttributeError:
+                    if isinstance(data, dict):
+                        raw_entries = data.get("entries")
+                        if isinstance(raw_entries, int) and raw_entries > 0:
+                            override_entries = raw_entries
+                        raw_days = data.get("days")
+                        if isinstance(raw_days, int) and raw_days > 0:
+                            override_days = raw_days
+                except json.JSONDecodeError:
                     pass
             logger.info("Re-read command received for calendar %s", cal.key)
             await _read_and_publish(

@@ -10,7 +10,7 @@ import socket
 
 import caldav.lib.error
 import pytest
-import requests
+import niquests
 
 from caldates2mqtt.errors import (
     ERROR_TYPE_MAP,
@@ -57,12 +57,12 @@ class TestErrorTypeMap:
         assert ERROR_TYPE_MAP[caldav.lib.error.AuthorizationError] is CalDavAuthError
 
     def test_connection_error_mapped(self) -> None:
-        """requests ConnectionError maps to CalDavConnectionError."""
-        assert ERROR_TYPE_MAP[requests.ConnectionError] is CalDavConnectionError
+        """niquests ConnectionError maps to CalDavConnectionError."""
+        assert ERROR_TYPE_MAP[niquests.ConnectionError] is CalDavConnectionError
 
     def test_timeout_mapped(self) -> None:
-        """requests Timeout maps to CalDavTimeoutError."""
-        assert ERROR_TYPE_MAP[requests.Timeout] is CalDavTimeoutError
+        """niquests Timeout maps to CalDavTimeoutError."""
+        assert ERROR_TYPE_MAP[niquests.Timeout] is CalDavTimeoutError
 
     def test_socket_timeout_mapped(self) -> None:
         """socket.timeout maps to CalDavTimeoutError."""
