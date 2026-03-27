@@ -52,7 +52,7 @@ warrant custom retry logic in the device handler.
 **Proposed improvement:** Configurable retry/backoff:
 
 ```python
-@app.telemetry(
+@app.device(
     "calendar",
     interval=7200,
     retry=3,

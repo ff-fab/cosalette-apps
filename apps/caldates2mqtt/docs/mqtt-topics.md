@@ -11,7 +11,7 @@ device topics.
 | Topic                                    | Dir      | Payload                          | Retain | QoS |
 | ---------------------------------------- | -------- | -------------------------------- | ------ | --- |
 | `caldates2mqtt/{calendar}/state`         | outbound | Calendar events JSON             | yes    | 1   |
-| `caldates2mqtt/{calendar}/set`           | inbound  | Re-read command (JSON or empty)  | no     | --- |
+| `caldates2mqtt/{calendar}/set`           | inbound  | Re-read command (JSON or empty)  | ---    | --- |
 | `caldates2mqtt/{calendar}/availability`  | outbound | `"online"` / `"offline"`         | yes    | 1   |
 | `caldates2mqtt/{calendar}/error`         | outbound | Per-device error JSON            | no     | 1   |
 | `caldates2mqtt/status`                   | outbound | Heartbeat JSON + LWT `"offline"` | yes    | 1   |
