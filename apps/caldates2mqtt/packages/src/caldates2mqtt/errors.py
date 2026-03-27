@@ -11,7 +11,7 @@ from __future__ import annotations
 import socket
 
 import caldav.lib.error
-import requests
+import niquests
 
 
 class CalDavError(Exception):
@@ -36,8 +36,8 @@ class CalDavReadError(CalDavError):
 
 ERROR_TYPE_MAP: dict[type[Exception], type[CalDavError]] = {
     caldav.lib.error.AuthorizationError: CalDavAuthError,
-    requests.ConnectionError: CalDavConnectionError,
-    requests.Timeout: CalDavTimeoutError,
+    niquests.ConnectionError: CalDavConnectionError,
+    niquests.Timeout: CalDavTimeoutError,
     socket.timeout: CalDavTimeoutError,
 }
 """Maps upstream exception types to caldates2mqtt error classes.

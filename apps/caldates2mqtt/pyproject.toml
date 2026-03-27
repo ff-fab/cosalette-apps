@@ -79,7 +79,7 @@ output = "coverage.xml"
 
 [tool.mypy]
 [[tool.mypy.overrides]]
-module = ["caldav.*", "requests.*"]
+module = ["caldav.*", "niquests.*"]
 ignore_missing_imports = true
 
 [tool.ruff.lint.isort]
