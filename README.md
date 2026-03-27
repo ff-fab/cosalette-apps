@@ -27,11 +27,12 @@ pydantic-settings integration.
 
 ## Apps
 
-| App                                | Description                                                                                                                         | License                                                                                              | Docs                                                                   |
-| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| [gas2mqtt](apps/gas2mqtt/)         | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)                               | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)     |
-| [jeelink2mqtt](apps/jeelink2mqtt/) | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                               | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)                           | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/) |
-| [vito2mqtt](apps/vito2mqtt/)       | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.  | [![GPL-3.0-or-later](https://img.shields.io/badge/GPL--3.0--or--later-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)    |
+| App                                  | Description                                                                                                                            | License                                                                                              | Docs                                                                    |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| [caldates2mqtt](apps/caldates2mqtt/) | Reads CalDAV calendar dates and publishes upcoming all-day events to MQTT, with multi-calendar support and on-demand re-read commands. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/caldates2mqtt/LICENSE)                          | [Documentation](https://ff-fab.github.io/cosalette-apps/caldates2mqtt/) |
+| [gas2mqtt](apps/gas2mqtt/)           | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT.    | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)                               | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)      |
+| [jeelink2mqtt](apps/jeelink2mqtt/)   | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                                  | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)                           | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)  |
+| [vito2mqtt](apps/vito2mqtt/)         | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.     | [![GPL-3.0-or-later](https://img.shields.io/badge/GPL--3.0--or--later-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)     |
 
 ## Architecture
 
@@ -57,6 +58,7 @@ structure, and code quality standards.
 
 This repository uses mixed licensing:
 
+- **caldates2mqtt** is licensed under the [MIT License](apps/caldates2mqtt/LICENSE).
 - **gas2mqtt** is licensed under the [MIT License](apps/gas2mqtt/LICENSE).
 - **jeelink2mqtt** is licensed under the [MIT License](apps/jeelink2mqtt/LICENSE).
 - **vito2mqtt** is licensed under [GPL-3.0-or-later](apps/vito2mqtt/LICENSE).

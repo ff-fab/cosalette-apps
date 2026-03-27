@@ -1,0 +1,123 @@
+# ADR-001: Migrate to cosalette Framework
+
+## Status
+
+Accepted **Date:** 2026-03-27
+
+## Context
+
+The caldates2mqtt application reads upcoming all-day events from CalDAV calendars
+(Nextcloud) and publishes them as JSON to MQTT for consumption by Home Assistant and
+other smart home systems. The legacy implementation was a pull-based REST endpoint in
+jl4services --- a monolithic service that polled calendars and served results over HTTP.
+
+Key concerns that drove the migration:
+
+- **Push-based architecture** --- the legacy REST endpoint required consumers to poll for
+  data. An MQTT-native approach pushes updates to subscribers, eliminating polling
+  overhead and enabling real-time notifications.
+- **Independent lifecycle** --- bundling calendar reading inside jl4services coupled
+  deployment with unrelated services. A standalone app can be deployed, updated, and
+  restarted independently.
+- **Multi-calendar support** --- the legacy service handled a single calendar. The new
+  design registers one device per configured calendar, supporting any number of calendars
+  from a single instance.
+- **Operational visibility** --- the legacy service had no health reporting. MQTT-native
+  heartbeats, per-device availability, and LWT are essential for detecting silent failures
+  in unattended deployments.
+- **Command support** --- consumers need the ability to trigger immediate re-reads (e.g.
+  after adding a calendar event). MQTT commands are a natural fit.
+
+## Decision
+
+Build caldates2mqtt on the **cosalette** IoT-to-MQTT framework (v0.1.8+).
+
+cosalette provides:
+
+- `@app.device()` for full-lifecycle coroutines with periodic polling and command handling
+- `app.add_device()` for dynamic registration of multiple devices from settings
+- Automatic MQTT connection management with reconnect
+- Built-in health reporting: heartbeats, per-device availability, LWT
+- Pydantic-based settings with env / `.env` / CLI layering
+- Dependency injection via type annotations
+- Adapter registration with dry-run alternatives
+
+### Key Design Choices
+
+- **`@app.device()` over `@app.telemetry()`**: caldates2mqtt needs both periodic polling
+  and on-demand re-read via MQTT command. `@app.device()` provides full loop control with
+  `@ctx.on_command`, while `@app.telemetry()` only supports periodic return-dict semantics
+  with no command handling.
+- **Dynamic registration from settings**: calendars are configured as a JSON list in
+  environment variables. `app.add_device()` is called in a loop at module level, one
+  device per calendar. This requires eager settings construction (see Consequences).
+- **Stateless CalDAV adapter**: each `read_events()` call creates a fresh `DAVClient`.
+  CalDAV connections are infrequent (every 2 hours) and short-lived, making connection
+  pooling unnecessary.
+- **Thread executor for synchronous library**: the `caldav` library is synchronous.
+  `asyncio.to_thread()` bridges it into the async event loop without blocking.
+
+## Decision Drivers
+
+- **Error isolation** --- CalDAV servers can be transiently unavailable (network issues,
+  maintenance windows). The `@app.device()` coroutine handles errors in its loop, while
+  the framework provides automatic error publishing and deduplication.
+- **Testability** --- the Ports & Adapters pattern lets us swap the real CalDAV adapter
+  for a `FakeCalDavReader` in tests, enabling full coverage without a CalDAV server.
+- **Shutdown awareness** --- `ctx.sleep()` returns early on SIGTERM/SIGINT, enabling
+  graceful shutdown even during 2-hour polling intervals.
+- **Configuration** --- Pydantic settings with the `CALDATES2MQTT_` prefix support
+  Docker-native `.env` files. The `calendars` field accepts a JSON list, enabling
+  flexible multi-calendar configuration.
+- **Operational visibility** --- heartbeats and LWT are free from cosalette, essential
+  for unattended deployments.
+
+## Considered Options
+
+1. **cosalette framework** --- purpose-built for IoT-to-MQTT bridges.
+2. **Standalone asyncio + aiomqtt** --- custom async loop without a framework.
+3. **Keep in jl4services** --- add MQTT publishing to the existing monolith.
+
+## Decision Matrix
+
+| Criterion              | cosalette | Standalone | jl4services |
+| ---------------------- | --------- | ---------- | ----------- |
+| Multi-calendar support | 5         | 4          | 3           |
+| Testability            | 5         | 3          | 2           |
+| Operational visibility | 5         | 2          | 2           |
+| Command support        | 5         | 4          | 1           |
+| Migration effort       | 4         | 4          | 5           |
+| Deployment flexibility | 5         | 5          | 2           |
+| Maintenance burden     | 5         | 3          | 2           |
+
+_Scale: 1 (poor) to 5 (excellent)_
+
+## Consequences
+
+### Positive
+
+- **Ports-and-adapters architecture** --- domain types (`CalendarEvent`, `CalDavPort`)
+  have zero I/O dependencies. The CalDAV adapter is a thin wrapper that translates library
+  calls to domain types.
+- **Comprehensive test suite** --- unit tests cover the device handler, adapter error
+  translation, settings validation, and command dispatch without a CalDAV server.
+- **Multi-calendar from config** --- `app.add_device()` in a loop creates one device per
+  configured calendar, all managed by a single process.
+- **On-demand re-read** --- `@ctx.on_command` registers a command handler per calendar
+  device, enabling consumers to trigger immediate reads with optional parameter overrides.
+- **Automatic health reporting** --- heartbeats, per-device availability, and LWT come
+  free from cosalette.
+- **Docker-ready** --- no special hardware access required. Simple `docker compose up`
+  deployment with only network access to CalDAV and MQTT.
+
+### Negative
+
+- **Framework dependency** --- the application depends on cosalette's lifecycle and
+  conventions. API changes in cosalette require migration work.
+- **Python 3.14+ requirement** --- cosalette requires Python 3.14+, limiting deployment
+  to systems with recent Python.
+- **Eager settings construction** --- dynamic device registration requires settings at
+  module level. This means `--help` and `--version` crash when required env vars are
+  absent. This is a known framework limitation (documented in framework-opportunities.md).
+
+_2026-03-27_
