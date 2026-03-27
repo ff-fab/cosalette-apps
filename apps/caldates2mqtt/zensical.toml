@@ -1,0 +1,158 @@
+# Documentation site configuration (native Zensical format)
+#
+# Zensical is a documentation framework by the creators of Material for MkDocs.
+# This file replaces mkdocs.yml with native TOML configuration.
+#
+# Usage (via Taskfile — single source of truth for tool commands):
+#   task caldates2mqtt:docs:serve   # Local preview with hot reload
+#   task caldates2mqtt:docs:build   # Build static site to site/
+
+
+# ---------------------------------------------------------------------------
+# Project
+# ---------------------------------------------------------------------------
+
+[project]
+site_name = "caldates2mqtt"
+site_description = "CalDAV calendar dates to MQTT bridge"
+
+# Canonical URL for the deployed site. Used for sitemap and social cards.
+site_url = "https://ff-fab.github.io/cosalette-apps/caldates2mqtt/"
+
+repo_url = "https://github.com/ff-fab/cosalette-apps"
+repo_name = "ff-fab/cosalette-apps"
+edit_uri = "edit/main/apps/caldates2mqtt/docs/"
+extra_css = ["stylesheets/extra.css"]
+extra_javascript = ["javascripts/version-fetch.js", "javascripts/header-breadcrumb.js", "javascripts/palette-sync.js"]
+
+# ---------------------------------------------------------------------------
+# Navigation
+# ---------------------------------------------------------------------------
+
+nav = [
+    { "Home" = "index.md" },
+]
+
+# ---------------------------------------------------------------------------
+# Theme
+# ---------------------------------------------------------------------------
+
+[project.theme]
+features = [
+    "navigation.tabs",
+    "navigation.tabs.sticky",
+    "navigation.sections",
+    "navigation.expand",
+    "navigation.indexes",
+    "navigation.top",
+    "search.suggest",
+    "search.highlight",
+    "content.code.copy",
+    "content.code.annotate",
+    "content.tabs.link",
+    "content.action.edit",
+]
+
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+
+# --- Color palette toggle (dark / light) ---
+
+[[project.theme.palette]]
+scheme = "slate"
+primary = "teal"
+accent = "cyan"
+toggle.icon = "material/brightness-4"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+scheme = "default"
+primary = "teal"
+accent = "cyan"
+toggle.icon = "material/brightness-7"
+toggle.name = "Switch to dark mode"
+
+# ---------------------------------------------------------------------------
+# Plugins
+# ---------------------------------------------------------------------------
+
+[project.plugins.autorefs]
+
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["packages/src"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+show_source = true
+show_root_heading = true
+show_symbol_type_heading = true
+members_order = "source"
+show_signature_annotations = true
+separate_signature = true
+signature_crossrefs = true
+merge_init_into_class = true
+docstring_style = "google"
+
+# ---------------------------------------------------------------------------
+# Markdown extensions
+# ---------------------------------------------------------------------------
+
+# Admonitions (note, warning, tip, etc.)
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+
+# HTML / attribute extensions (required for grid cards, icon sizing)
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.md_in_html]
+
+# Code blocks
+[project.markdown_extensions.pymdownx.highlight]
+anchor_linenums = true
+line_spans = "__span"
+pygments_lang_class = true
+
+[project.markdown_extensions.pymdownx.inlinehilite]
+
+[project.markdown_extensions.pymdownx.superfences]
+
+[[project.markdown_extensions.pymdownx.superfences.custom_fences]]
+name = "mermaid"
+class = "mermaid"
+format = "pymdownx.superfences.fence_code_format"
+
+# Content tabs (e.g., showing Python / TypeScript side by side)
+[project.markdown_extensions.pymdownx.tabbed]
+alternate_style = true
+
+# Typography and formatting
+[project.markdown_extensions.pymdownx.mark]
+[project.markdown_extensions.pymdownx.smartsymbols]
+[project.markdown_extensions.pymdownx.keys]
+
+# Lists and task lists
+[project.markdown_extensions.def_list]
+[project.markdown_extensions.pymdownx.tasklist]
+custom_checkbox = true
+
+# Table of contents
+[project.markdown_extensions.toc]
+permalink = true
+toc_depth = 3
+
+# Tables
+[project.markdown_extensions.tables]
+
+# Footnotes
+[project.markdown_extensions.footnotes]
+
+# Emoji (used sparingly for status indicators)
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
+
+# ---------------------------------------------------------------------------
+# Extra
+# ---------------------------------------------------------------------------
+
+[[project.extra.social]]
+icon = "fontawesome/brands/github"
+link = "https://github.com/ff-fab/cosalette-apps"

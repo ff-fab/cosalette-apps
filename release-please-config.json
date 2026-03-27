@@ -25,6 +25,10 @@
     "apps/airthings2mqtt": {
       "component": "airthings2mqtt",
       "release-type": "python"
+    },
+    "apps/caldates2mqtt": {
+      "component": "caldates2mqtt",
+      "release-type": "python"
     }
   }
 }
