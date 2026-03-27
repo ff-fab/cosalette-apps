@@ -280,6 +280,25 @@ class TestCalendarDeviceCommand:
 
         assert fake_reader.calls[-1][4] == 14
 
+    async def test_reread_ignores_invalid_override_types(
+        self,
+        mock_mqtt: MockMqttClient,
+        fake_clock: FakeClock,
+        fake_reader: FakeCalDavReader,
+    ) -> None:
+        """Re-read command with non-int or negative overrides uses defaults."""
+        cal = _make_cal_config(entries=5, days=14)
+        ctx = _make_context(mock_mqtt, fake_clock, fake_reader)
+        handler = make_calendar_handler(cal)
+
+        await _run_handler_once(handler, ctx, fake_reader)
+
+        await ctx._command_handler(
+            "caldates2mqtt/garbage/set", '{"entries": "ten", "days": -1}'
+        )
+
+        assert fake_reader.calls[-1][4] == 14
+
     async def test_reread_with_non_dict_json(
         self,
         mock_mqtt: MockMqttClient,
