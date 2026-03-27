@@ -20,6 +20,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
     Bridges Airthings Wave BLE air quality sensors to MQTT, publishing 24-hour and
     long-term radon averages.
 
+-   **[caldates2mqtt](caldates2mqtt/)** <span class="card-license">MIT</span>
+
+    ---
+
+    Reads CalDAV calendar dates and publishes upcoming all-day events to MQTT, with
+    multi-calendar support and on-demand re-read commands.
+
 -   **[gas2mqtt](gas2mqtt/)** <span class="card-license">MIT</span>
 
     ---
