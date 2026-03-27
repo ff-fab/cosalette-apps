@@ -105,7 +105,7 @@ class TestReReadCommand:
         )
 
         # Assert — re-read used configured days (14)
-        assert fake_reader.calls[-1][4] == 14
+        assert fake_reader.calls[-1][4] == 14  # [4] = days
 
     @pytest.mark.integration
     @pytest.mark.slow
@@ -132,7 +132,7 @@ class TestReReadCommand:
         )
 
         # Assert — at least one read used the overridden days=7
-        days_used = [call[4] for call in fake_reader.calls]
+        days_used = [call[4] for call in fake_reader.calls]  # [4] = days
         assert 7 in days_used, (
             f"Expected at least one read with days=7; got days: {days_used}"
         )
@@ -176,4 +176,4 @@ class TestReReadCommand:
         )
 
         # Assert — fallback to configured days (14)
-        assert fake_reader.calls[-1][4] == 14
+        assert fake_reader.calls[-1][4] == 14  # [4] = days

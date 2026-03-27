@@ -80,7 +80,7 @@ def build_integration_app(
     """
     app = App(
         name="caldates2mqtt",
-        settings_class=CalDates2MqttSettings,
+        settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
     )
     for cal in calendars:
