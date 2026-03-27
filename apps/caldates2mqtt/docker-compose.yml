@@ -1,0 +1,29 @@
+services:
+  caldates2mqtt:
+    build:
+      context: ../..
+      dockerfile: apps/caldates2mqtt/Dockerfile
+    image: ghcr.io/ff-fab/caldates2mqtt:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CALDATES2MQTT_MQTT__HOST: mosquitto
+    volumes:
+      - caldates2mqtt-data:/app/data
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '1883:1883'
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  caldates2mqtt-data:
+  mosquitto-data:
+  mosquitto-log:
