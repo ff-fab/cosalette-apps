@@ -55,6 +55,7 @@ extraPaths = ["apps/caldates2mqtt/packages/src", "apps/airthings2mqtt/packages/s
 [dependency-groups]
 docs = [
     "mkdocs-autorefs>=1.4.4",
+    "mkdocs-click-zoom @ git+https://github.com/ff-fab/mkdocs-click-zoom.git",
     "mkdocstrings[python]>=0.29",
     "zensical>=0.0.23",
 ]
