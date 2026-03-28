@@ -365,6 +365,7 @@ toggle.name = "Switch to dark mode"
 # ---------------------------------------------------------------------------
 
 [project.plugins.autorefs]
+[project.plugins.click-zoom]
 
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["packages/src"]
