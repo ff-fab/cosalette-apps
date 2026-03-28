@@ -336,7 +336,7 @@ dev = [
 ]
 docs = [
     { name = "mkdocs-autorefs", specifier = ">=1.4.4" },
-    { name = "mkdocs-click-zoom", git = "https://github.com/ff-fab/mkdocs-click-zoom.git" },
+    { name = "mkdocs-click-zoom", git = "https://github.com/ff-fab/mkdocs-click-zoom.git?rev=v0.2.0" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.29" },
     { name = "zensical", specifier = ">=0.0.23" },
 ]
@@ -907,8 +907,8 @@ wheels = [
 
 [[package]]
 name = "mkdocs-click-zoom"
-version = "0.1.0"
-source = { git = "https://github.com/ff-fab/mkdocs-click-zoom.git#526bc9182dab830f3fbd878180c284ed2d19632e" }
+version = "0.2.0"
+source = { git = "https://github.com/ff-fab/mkdocs-click-zoom.git?rev=v0.2.0#09631d71b221703eac6a3c9543739acac0c12614" }
 dependencies = [
     { name = "mkdocs" },
 ]
