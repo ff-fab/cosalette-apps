@@ -19,10 +19,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
-from pydantic import BaseModel, ConfigDict, model_validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 class CanvasConfig(BaseModel):
@@ -30,30 +30,32 @@ class CanvasConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    size: int = 100
+    size: int = Field(default=100, ge=1)
     """Side length of the square canvas (0..size inclusive)."""
 
-
-class HighlightedRegion(BaseModel):
-    """A named rectangular region to highlight on the canvas."""
-
-    model_config = ConfigDict(frozen=True)
-
-    name: str
-    x: int
-    y: int
-    width: int
-    height: int
+    north_rotation: float = 0.0
+    """Compass rotation offset in degrees."""
 
 
 class BuildingConfig(BaseModel):
-    """A named building defined by its polygon vertices and height."""
+    """A named building defined by its polygon vertices."""
 
     model_config = ConfigDict(frozen=True)
 
     name: str
-    height: float
-    vertices: list[tuple[int, int]]
+    vertices: list[tuple[float, float]]
+    casts_shadow: bool = True
+    style: Literal["home", "neighbor", "default"] = "default"
+
+
+class HighlightedRegion(BaseModel):
+    """A named polygon region to highlight on the canvas."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    vertices: list[tuple[float, float]]
+    color: str
 
 
 class GeometryConfig(BaseModel):
@@ -61,9 +63,9 @@ class GeometryConfig(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
-    canvas: CanvasConfig = CanvasConfig()
+    canvas: CanvasConfig = Field(default_factory=CanvasConfig)
     buildings: list[BuildingConfig]
-    highlighted_regions: list[HighlightedRegion] = []
+    highlighted_regions: list[HighlightedRegion] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _validate_geometry(self) -> GeometryConfig:
@@ -83,12 +85,13 @@ class GeometryConfig(BaseModel):
                     raise ValueError(msg)
 
         for region in self.highlighted_regions:
-            if region.x < 0 or region.y < 0:
-                msg = f"Highlighted region '{region.name}' has negative origin ({region.x}, {region.y})"
+            if len(region.vertices) < 3:
+                msg = f"Highlighted region '{region.name}' must have at least 3 vertices, got {len(region.vertices)}"
                 raise ValueError(msg)
-            if region.x + region.width > size or region.y + region.height > size:
-                msg = f"Highlighted region '{region.name}' extends outside canvas bounds (0..{size})"
-                raise ValueError(msg)
+            for x, y in region.vertices:
+                if not (0 <= x <= size and 0 <= y <= size):
+                    msg = f"Highlighted region '{region.name}' vertex ({x}, {y}) is outside canvas bounds (0..{size})"
+                    raise ValueError(msg)
 
         return self
 
@@ -121,4 +124,8 @@ def load_geometry(path: Path) -> GeometryConfig:
     if data is None:
         data = {}
 
-    return GeometryConfig.model_validate(data)
+    try:
+        return GeometryConfig.model_validate(data)
+    except ValidationError as exc:
+        msg = str(exc)
+        raise ValueError(msg) from exc
