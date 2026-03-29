@@ -2,7 +2,7 @@
 
 Solar shadow visualization service
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
 ## Contributing
@@ -12,4 +12,7 @@ structure, and development guidelines.
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+This program is free software: you can redistribute it and/or modify it under the terms
+of the GNU General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version. See [LICENSE](LICENSE)
+for details.
