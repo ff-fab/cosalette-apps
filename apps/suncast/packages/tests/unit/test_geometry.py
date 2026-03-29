@@ -27,11 +27,11 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
 
 from suncast.domain.geometry import (
     BuildingConfig,
     CanvasConfig,
+    HighlightedRegion,
     load_geometry,
 )
 
@@ -42,7 +42,6 @@ from suncast.domain.geometry import (
 MINIMAL_YAML = """\
 buildings:
   - name: house
-    height: 10.0
     vertices:
       - [0, 0]
       - [10, 0]
@@ -52,26 +51,31 @@ buildings:
 FULL_YAML = """\
 canvas:
   size: 200
+  north_rotation: 15.5
 buildings:
   - name: tower
-    height: 50.0
     vertices:
       - [10, 10]
       - [30, 10]
       - [30, 40]
       - [10, 40]
+    casts_shadow: true
+    style: home
   - name: shed
-    height: 5.0
     vertices:
       - [100, 100]
       - [120, 100]
       - [120, 110]
+    casts_shadow: false
+    style: neighbor
 highlighted_regions:
   - name: garden
-    x: 50
-    y: 50
-    width: 30
-    height: 20
+    vertices:
+      - [50, 50]
+      - [80, 50]
+      - [80, 70]
+      - [50, 70]
+    color: "#00ff00"
 """
 
 MINIMAL_JSON = """\
@@ -79,7 +83,6 @@ MINIMAL_JSON = """\
   "buildings": [
     {
       "name": "box",
-      "height": 8.0,
       "vertices": [[0, 0], [50, 0], [50, 50]]
     }
   ]
@@ -104,6 +107,14 @@ class TestCanvasConfigDefaults:
         # Assert
         assert canvas.size == 100
 
+    def test_default_north_rotation_is_zero(self) -> None:
+        """Default north_rotation should be 0.0."""
+        # Arrange / Act
+        canvas = CanvasConfig()
+
+        # Assert
+        assert canvas.north_rotation == 0.0
+
     def test_custom_size(self) -> None:
         """Canvas size can be overridden."""
         # Arrange / Act
@@ -112,13 +123,27 @@ class TestCanvasConfigDefaults:
         # Assert
         assert canvas.size == 200
 
+    def test_custom_north_rotation(self) -> None:
+        """north_rotation can be overridden."""
+        # Arrange / Act
+        canvas = CanvasConfig(north_rotation=45.0)
+
+        # Assert
+        assert canvas.north_rotation == 45.0
+
+    def test_size_must_be_positive(self) -> None:
+        """Canvas size <= 0 should raise ValidationError."""
+        # Act / Assert
+        with pytest.raises(ValueError, match="greater than or equal to 1"):
+            CanvasConfig(size=0)
+
     def test_frozen_immutability(self) -> None:
         """Assigning to a frozen model field should raise an error."""
         # Arrange
         canvas = CanvasConfig()
 
         # Assert
-        with pytest.raises(ValidationError):
+        with pytest.raises(Exception):
             canvas.size = 999  # type: ignore[misc]
 
 
@@ -132,29 +157,90 @@ class TestBuildingConfigConstruction:
     """Specification-based: verify BuildingConfig fields."""
 
     def test_basic_construction(self) -> None:
-        """A BuildingConfig stores name, height, and vertices."""
+        """A BuildingConfig stores name and vertices."""
         # Arrange / Act
         building = BuildingConfig(
             name="house",
-            height=12.5,
             vertices=[(0, 0), (10, 0), (10, 10)],
         )
 
         # Assert
         assert building.name == "house"
-        assert building.height == 12.5
         assert len(building.vertices) == 3
+
+    def test_default_casts_shadow_true(self) -> None:
+        """casts_shadow defaults to True."""
+        # Arrange / Act
+        building = BuildingConfig(name="house", vertices=[(0, 0), (1, 0), (1, 1)])
+
+        # Assert
+        assert building.casts_shadow is True
+
+    def test_default_style_is_default(self) -> None:
+        """style defaults to 'default'."""
+        # Arrange / Act
+        building = BuildingConfig(name="house", vertices=[(0, 0), (1, 0), (1, 1)])
+
+        # Assert
+        assert building.style == "default"
+
+    def test_custom_style_and_casts_shadow(self) -> None:
+        """casts_shadow and style can be overridden."""
+        # Arrange / Act
+        building = BuildingConfig(
+            name="garage",
+            vertices=[(0, 0), (5, 0), (5, 5)],
+            casts_shadow=False,
+            style="neighbor",
+        )
+
+        # Assert
+        assert building.casts_shadow is False
+        assert building.style == "neighbor"
+
+    def test_float_vertices(self) -> None:
+        """Vertices accept float coordinates."""
+        # Arrange / Act
+        building = BuildingConfig(
+            name="precise",
+            vertices=[(0.5, 1.25), (10.75, 0.0), (10.75, 10.5)],
+        )
+
+        # Assert
+        assert building.vertices[0] == (0.5, 1.25)
 
     def test_frozen_immutability(self) -> None:
         """Assigning to a frozen model field should raise an error."""
         # Arrange
-        building = BuildingConfig(
-            name="house", height=10.0, vertices=[(0, 0), (1, 0), (1, 1)]
+        building = BuildingConfig(name="house", vertices=[(0, 0), (1, 0), (1, 1)])
+
+        # Assert
+        with pytest.raises(Exception):
+            building.name = "other"  # type: ignore[misc]
+
+
+# ---------------------------------------------------------------------------
+# HighlightedRegion construction
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestHighlightedRegionConstruction:
+    """Specification-based: verify HighlightedRegion fields."""
+
+    def test_basic_construction(self) -> None:
+        """A HighlightedRegion stores name, vertices, and color."""
+        # Arrange / Act
+        region = HighlightedRegion(
+            name="patio",
+            vertices=[(0, 0), (10, 0), (10, 10)],
+            color="#ff0000",
         )
 
         # Assert
-        with pytest.raises(ValidationError):
-            building.name = "other"  # type: ignore[misc]
+        assert region.name == "patio"
+        assert len(region.vertices) == 3
+        assert region.color == "#ff0000"
 
 
 # ---------------------------------------------------------------------------
@@ -177,8 +263,11 @@ class TestLoadGeometryFromYaml:
 
         # Assert
         assert config.canvas.size == 100
+        assert config.canvas.north_rotation == 0.0
         assert len(config.buildings) == 1
         assert config.buildings[0].name == "house"
+        assert config.buildings[0].casts_shadow is True
+        assert config.buildings[0].style == "default"
         assert config.highlighted_regions == []
 
     def test_full_yaml(self, tmp_path: Path) -> None:
@@ -192,11 +281,18 @@ class TestLoadGeometryFromYaml:
 
         # Assert
         assert config.canvas.size == 200
+        assert config.canvas.north_rotation == 15.5
         assert len(config.buildings) == 2
         assert config.buildings[0].name == "tower"
+        assert config.buildings[0].casts_shadow is True
+        assert config.buildings[0].style == "home"
         assert config.buildings[1].name == "shed"
+        assert config.buildings[1].casts_shadow is False
+        assert config.buildings[1].style == "neighbor"
         assert len(config.highlighted_regions) == 1
         assert config.highlighted_regions[0].name == "garden"
+        assert config.highlighted_regions[0].color == "#00ff00"
+        assert len(config.highlighted_regions[0].vertices) == 4
 
 
 # ---------------------------------------------------------------------------
@@ -220,7 +316,6 @@ class TestLoadGeometryFromJson:
         # Assert
         assert len(config.buildings) == 1
         assert config.buildings[0].name == "box"
-        assert config.buildings[0].height == 8.0
 
 
 # ---------------------------------------------------------------------------
@@ -252,22 +347,21 @@ class TestLoadGeometryValidation:
             load_geometry(f)
 
     def test_no_buildings_raises(self, tmp_path: Path) -> None:
-        """Empty buildings list should raise ValidationError."""
+        """Empty buildings list should raise ValueError."""
         # Arrange
         f = tmp_path / "empty.yaml"
         f.write_text("buildings: []\n")
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="At least one building"):
+        with pytest.raises(ValueError, match="At least one building"):
             load_geometry(f)
 
     def test_fewer_than_three_vertices(self, tmp_path: Path) -> None:
-        """A building with fewer than 3 vertices should raise ValidationError."""
+        """A building with fewer than 3 vertices should raise ValueError."""
         # Arrange
         content = """\
 buildings:
   - name: line
-    height: 5.0
     vertices:
       - [0, 0]
       - [10, 0]
@@ -276,18 +370,17 @@ buildings:
         f.write_text(content)
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="at least 3 vertices"):
+        with pytest.raises(ValueError, match="at least 3 vertices"):
             load_geometry(f)
 
     def test_vertex_outside_canvas(self, tmp_path: Path) -> None:
-        """A vertex outside the canvas should raise ValidationError."""
+        """A vertex outside the canvas should raise ValueError."""
         # Arrange
         content = """\
 canvas:
   size: 50
 buildings:
   - name: big
-    height: 10.0
     vertices:
       - [0, 0]
       - [51, 0]
@@ -297,34 +390,58 @@ buildings:
         f.write_text(content)
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="outside canvas bounds"):
+        with pytest.raises(ValueError, match="outside canvas bounds"):
             load_geometry(f)
 
-    def test_highlighted_region_outside_canvas(self, tmp_path: Path) -> None:
-        """A highlighted region extending beyond canvas should raise ValidationError."""
+    def test_highlighted_region_vertex_outside_canvas(self, tmp_path: Path) -> None:
+        """A highlighted region vertex beyond canvas should raise ValueError."""
         # Arrange
         content = """\
 canvas:
   size: 100
 buildings:
   - name: ok
-    height: 5.0
     vertices:
       - [0, 0]
       - [10, 0]
       - [10, 10]
 highlighted_regions:
   - name: overflow
-    x: 90
-    y: 90
-    width: 20
-    height: 20
+    vertices:
+      - [90, 90]
+      - [110, 90]
+      - [110, 110]
+    color: red
 """
         f = tmp_path / "region.yaml"
         f.write_text(content)
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="extends outside canvas bounds"):
+        with pytest.raises(ValueError, match="outside canvas bounds"):
+            load_geometry(f)
+
+    def test_highlighted_region_fewer_than_three_vertices(self, tmp_path: Path) -> None:
+        """A highlighted region with fewer than 3 vertices should raise ValueError."""
+        # Arrange
+        content = """\
+buildings:
+  - name: ok
+    vertices:
+      - [0, 0]
+      - [10, 0]
+      - [10, 10]
+highlighted_regions:
+  - name: tiny
+    vertices:
+      - [0, 0]
+      - [5, 5]
+    color: blue
+"""
+        f = tmp_path / "region_small.yaml"
+        f.write_text(content)
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="at least 3 vertices"):
             load_geometry(f)
 
     def test_error_message_includes_building_name(self, tmp_path: Path) -> None:
@@ -333,7 +450,6 @@ highlighted_regions:
         content = """\
 buildings:
   - name: problematic_tower
-    height: 10.0
     vertices:
       - [0, 0]
       - [200, 0]
@@ -343,7 +459,17 @@ buildings:
         f.write_text(content)
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="problematic_tower"):
+        with pytest.raises(ValueError, match="problematic_tower"):
+            load_geometry(f)
+
+    def test_validation_error_raised_as_value_error(self, tmp_path: Path) -> None:
+        """Pydantic ValidationError should be wrapped as ValueError."""
+        # Arrange
+        f = tmp_path / "bad.yaml"
+        f.write_text("buildings: not_a_list\n")
+
+        # Act / Assert
+        with pytest.raises(ValueError):
             load_geometry(f)
 
 
@@ -362,7 +488,6 @@ class TestVertexBoundaryValues:
         content = """\
 buildings:
   - name: corner
-    height: 5.0
     vertices:
       - [0, 0]
       - [10, 0]
@@ -385,7 +510,6 @@ canvas:
   size: 50
 buildings:
   - name: edge
-    height: 5.0
     vertices:
       - [0, 0]
       - [50, 0]
@@ -400,6 +524,28 @@ buildings:
         # Assert
         assert config.buildings[0].vertices[2] == (50, 50)
 
+    def test_float_vertex_at_boundary(self, tmp_path: Path) -> None:
+        """Float vertex at exactly canvas size should be valid."""
+        # Arrange
+        content = """\
+canvas:
+  size: 50
+buildings:
+  - name: precise
+    vertices:
+      - [0.0, 0.0]
+      - [50.0, 0.0]
+      - [50.0, 50.0]
+"""
+        f = tmp_path / "float_boundary.yaml"
+        f.write_text(content)
+
+        # Act
+        config = load_geometry(f)
+
+        # Assert
+        assert config.buildings[0].vertices[2] == (50.0, 50.0)
+
     def test_vertex_one_past_max_is_invalid(self, tmp_path: Path) -> None:
         """Vertex at (size+1, 0) should fail validation."""
         # Arrange
@@ -408,7 +554,6 @@ canvas:
   size: 50
 buildings:
   - name: oob
-    height: 5.0
     vertices:
       - [0, 0]
       - [51, 0]
@@ -418,7 +563,7 @@ buildings:
         f.write_text(content)
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="outside canvas bounds"):
+        with pytest.raises(ValueError, match="outside canvas bounds"):
             load_geometry(f)
 
     def test_negative_vertex_is_invalid(self, tmp_path: Path) -> None:
@@ -427,7 +572,6 @@ buildings:
         content = """\
 buildings:
   - name: neg
-    height: 5.0
     vertices:
       - [-1, 0]
       - [10, 0]
@@ -437,5 +581,5 @@ buildings:
         f.write_text(content)
 
         # Act / Assert
-        with pytest.raises(ValidationError, match="outside canvas bounds"):
+        with pytest.raises(ValueError, match="outside canvas bounds"):
             load_geometry(f)
