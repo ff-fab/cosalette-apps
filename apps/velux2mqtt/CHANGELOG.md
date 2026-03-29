@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.2](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.1.1...velux2mqtt-v0.1.2) (2026-03-29)
+
+
+### Features
+
+* **docs:** add mkdocs-click-zoom plugin to all documentation sites ([#70](https://github.com/ff-fab/cosalette-apps/issues/70)) ([cba3f9a](https://github.com/ff-fab/cosalette-apps/commit/cba3f9a57192fbad2bad6d7d7ca0a0b1692cb031))
+
+
+### Documentation
+
+* homogenise app documentation with top-bar nav and rich homepages ([#63](https://github.com/ff-fab/cosalette-apps/issues/63)) ([beaf450](https://github.com/ff-fab/cosalette-apps/commit/beaf4506166fae75dc542c68ce124260b2cd967f))
+
 ## [0.1.1](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.1.0...velux2mqtt-v0.1.1) (2026-03-25)
 
 
