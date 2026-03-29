@@ -6,7 +6,7 @@ SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
 SPDX-License-Identifier = "MIT"
 
 [[annotations]]
-path = "apps/vito2mqtt/**"
+path = ["apps/vito2mqtt/**", "apps/suncast/**"]
 SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
