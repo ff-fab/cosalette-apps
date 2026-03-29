@@ -60,6 +60,6 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Negative
 
 - Requires reimplementation of solar position math (mitigated by `astral` library)
-- Requires clean-room reimplementation of shadow geometry (see ADR-002)
+- Requires clean-room reimplementation of shadow geometry (see ADR-003)
 
 _2026-03-29_

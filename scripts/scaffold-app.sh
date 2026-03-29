@@ -501,7 +501,10 @@ EOF
 # ── Repo-root config modifications ──────────────────────────
 
 # 1. Taskfile.yml — add to APPS list
-sed -i "s/APPS: \[/APPS: [${NAME}, /" Taskfile.yml
+# Find the opening bracket of the APPS array (line after "APPS:") and insert there
+APPS_LINE=$(grep -n '^\s*APPS:' Taskfile.yml | head -1 | cut -d: -f1)
+APPS_BRACKET=$((APPS_LINE + 1))
+sed -i "${APPS_BRACKET}a\\      ${NAME}," Taskfile.yml
 
 # 2. Taskfile.yml — add include block after last app include
 LAST_APP_INCLUDE=$(grep -n 'MODULE_NAME:' Taskfile.yml | tail -1 | cut -d: -f1)

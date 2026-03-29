@@ -1,10 +1,15 @@
 # suncast
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ff-fab/cosalette-apps/blob/main/apps/suncast/LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://github.com/ff-fab/cosalette-apps/blob/main/apps/suncast/LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 [![cosalette](https://img.shields.io/badge/framework-cosalette-orange)](https://github.com/ff-fab/cosalette)
 
 **Solar shadow visualization service**
+
+suncast is a cosalette-based IoT service that computes solar positions from GPS
+coordinates and generates shadow visualizations of building footprints. It publishes SVG
+(and optionally PNG) images via MQTT and filesystem output, enabling both OpenHAB and
+Home Assistant dashboards to display real-time shadow maps.
 
 ---
 
