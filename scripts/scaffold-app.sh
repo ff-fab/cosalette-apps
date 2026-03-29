@@ -61,6 +61,16 @@ mkdir -p \
 # ── Source files ─────────────────────────────────────────────
 cat > "$APP/packages/src/$PKG_NAME/__init__.py" <<EOF
 """$NAME — $DESC."""
+
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("$NAME")
+except PackageNotFoundError:  # pragma: no cover
+    # Fallback for editable installs without metadata
+    __version__ = "0.0.0+unknown"
+
+__all__ = ["__version__"]
 EOF
 
 touch "$APP/packages/src/$PKG_NAME/py.typed"
@@ -88,6 +98,9 @@ cat > "$APP/packages/tests/unit/test_placeholder.py" <<EOF
 
 This test imports the application package so coverage is non-zero.
 Replace it with real tests as the project evolves.
+
+Test Techniques Used:
+- Smoke Testing: Verifies the $NAME package can be imported without errors.
 """
 
 import importlib
