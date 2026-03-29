@@ -50,14 +50,14 @@ TROMSO_TZ = "Europe/Oslo"
 
 @pytest.fixture()
 def berlin_summer_solstice_noon() -> SunPosition:
-    """Compute solar position for Berlin at summer solstice noon."""
+    """Compute solar position for Berlin at 12:00 UTC on the summer solstice."""
     at = dt.datetime(2026, 6, 21, 12, 0, tzinfo=dt.timezone.utc)
     return compute_solar_position(BERLIN_LAT, BERLIN_LON, BERLIN_TZ, at)
 
 
 @pytest.fixture()
 def berlin_winter_solstice_noon() -> SunPosition:
-    """Compute solar position for Berlin at winter solstice noon."""
+    """Compute solar position for Berlin at 12:00 UTC on the winter solstice."""
     at = dt.datetime(2026, 12, 21, 12, 0, tzinfo=dt.timezone.utc)
     return compute_solar_position(BERLIN_LAT, BERLIN_LON, BERLIN_TZ, at)
 
@@ -406,3 +406,29 @@ class TestNaiveDatetimeInput:
         # Assert
         assert result_naive.azimuth == pytest.approx(result_aware.azimuth, abs=0.01)
         assert result_naive.elevation == pytest.approx(result_aware.elevation, abs=0.01)
+
+    def test_utc_midnight_uses_local_calendar_day(self) -> None:
+        """UTC datetime near midnight normalizes to the location's local date.
+
+        Technique: Error Guessing — midnight boundary across timezones.
+
+        23:30 UTC on June 20 = 01:30 CEST on June 21 in Berlin.
+        Sunrise/sunset should be for June 21 (the local date), not June 20.
+        """
+        # Arrange
+        from zoneinfo import ZoneInfo
+
+        utc_near_midnight = dt.datetime(2026, 6, 20, 23, 30, tzinfo=dt.timezone.utc)
+        local_next_day = dt.datetime(2026, 6, 21, 1, 30, tzinfo=ZoneInfo(BERLIN_TZ))
+
+        # Act
+        result_utc = compute_solar_position(
+            BERLIN_LAT, BERLIN_LON, BERLIN_TZ, utc_near_midnight
+        )
+        result_local = compute_solar_position(
+            BERLIN_LAT, BERLIN_LON, BERLIN_TZ, local_next_day
+        )
+
+        # Assert — same instant, same local date, same sunrise/sunset
+        assert result_utc.sunrise_time == result_local.sunrise_time
+        assert result_utc.sunset_time == result_local.sunset_time
