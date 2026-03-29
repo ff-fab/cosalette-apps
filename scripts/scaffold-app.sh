@@ -504,7 +504,7 @@ EOF
 sed -i "s/APPS: \[/APPS: [${NAME}, /" Taskfile.yml
 
 # 2. Taskfile.yml — add include block after last app include
-LAST_APP_INCLUDE=$(grep -n 'APP_NAME:' Taskfile.yml | tail -1 | cut -d: -f1)
+LAST_APP_INCLUDE=$(grep -n 'MODULE_NAME:' Taskfile.yml | tail -1 | cut -d: -f1)
 sed -i "${LAST_APP_INCLUDE}a\\
 \\
   ${NAME}:\\
