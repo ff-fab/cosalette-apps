@@ -1,0 +1,46 @@
+# Example geometry configuration for suncast.
+# Copy this file to geometry.yaml and adjust to match your house layout.
+#
+# All coordinates are in a square canvas (default 100x100 arbitrary units).
+# The origin (0, 0) is the top-left corner.
+
+canvas:
+  size: 100 # square canvas side length in arbitrary units
+  north_rotation: 0 # degrees clockwise from canvas-up to true north
+
+buildings:
+  - name: home
+    vertices:
+      - [50.75, 33.75]
+      - [80.00, 52.25]
+      - [67.25, 72.50]
+      - [70.75, 75.00]
+      - [62.00, 89.00]
+      - [54.75, 90.50]
+      - [26.50, 72.75]
+    casts_shadow: true
+    style: home # "home" | "neighbor" | "default"
+
+  - name: neighbour_north
+    vertices:
+      - [4.75, 59.00]
+      - [10.50, 49.75]
+      - [6.75, 47.50]
+      - [18.25, 29.25]
+      - [22.00, 31.50]
+      - [32.00, 15.25]
+      - [54.00, 28.75]
+      - [26.75, 72.75]
+    casts_shadow: true
+    style: neighbor
+
+highlighted_regions:
+  - name: dining_room
+    vertices:
+      - [70.75, 75.00]
+      - [62.00, 89.00]
+      - [58.75, 86.25]
+      - [66.00, 72.00]
+      - [80.00, 52.25]
+      - [67.25, 72.50]
+    color: '#b38c3a'

@@ -244,3 +244,7 @@ __marimo__/
 
 # legacy project files for local reference only
 legacy/
+
+# Local-only ADRs (licensing/legal — never committed)
+**/docs/adr/ADR-000-*
+tmp/

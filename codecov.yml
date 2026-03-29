@@ -33,6 +33,10 @@ flags:
     paths:
       - apps/caldates2mqtt/packages/src/
     carryforward: true
+  suncast:
+    paths:
+      - apps/suncast/packages/src/
+    carryforward: true
 
 comment:
   layout: 'condensed_header, condensed_files, condensed_footer, components'

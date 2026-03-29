@@ -1,0 +1,26 @@
+services:
+  suncast:
+    build:
+      context: ../..
+      dockerfile: apps/suncast/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - suncast-data:/app/data
+    environment:
+      SUNCAST_MQTT__HOST: mosquitto
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:1883:1883'
+    volumes:
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-config:/mosquitto/config
+
+volumes:
+  suncast-data:
+  mosquitto-data:
+  mosquitto-config:
