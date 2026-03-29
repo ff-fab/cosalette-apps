@@ -1,0 +1,17 @@
+# Sidecar configuration for SVG geometry import.
+# Maps shape IDs from the SVG file to roles and rendering properties.
+# Shapes not listed here get default properties (casts_shadow: true, style: default).
+
+canvas:
+  north_rotation: 0
+
+shape_roles:
+  home:
+    casts_shadow: true
+    style: home
+  neighbour_north:
+    casts_shadow: true
+    style: neighbor
+  dining_room:
+    highlighted: true
+    color: '#b38c3a'
