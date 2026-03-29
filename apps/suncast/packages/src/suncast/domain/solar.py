@@ -77,7 +77,7 @@ def compute_solar_position(
     if at.tzinfo is None:
         at_aware = at.replace(tzinfo=tz)
     else:
-        at_aware = at
+        at_aware = at.astimezone(tz)
 
     current_azimuth = azimuth(observer, at_aware)
     current_elevation = elevation(observer, at_aware)
