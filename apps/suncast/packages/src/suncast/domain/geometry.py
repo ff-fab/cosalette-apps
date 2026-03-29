@@ -110,16 +110,17 @@ def load_geometry(path: Path) -> GeometryConfig:
         FileNotFoundError: If the file does not exist.
     """
     suffix = path.suffix.lower()
+    if suffix not in (".yaml", ".yml", ".json"):
+        msg = f"Unsupported file extension '{suffix}'. Use .yaml, .yml, or .json."
+        raise ValueError(msg)
+
     text = path.read_text(encoding="utf-8")
 
     data: Any
     if suffix in (".yaml", ".yml"):
         data = yaml.safe_load(text)
-    elif suffix == ".json":
-        data = json.loads(text)
     else:
-        msg = f"Unsupported file extension '{suffix}'. Use .yaml, .yml, or .json."
-        raise ValueError(msg)
+        data = json.loads(text)
 
     if data is None:
         data = {}

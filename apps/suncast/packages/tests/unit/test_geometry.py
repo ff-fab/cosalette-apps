@@ -27,6 +27,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from suncast.domain.geometry import (
     BuildingConfig,
@@ -143,7 +144,7 @@ class TestCanvasConfigDefaults:
         canvas = CanvasConfig()
 
         # Assert
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             canvas.size = 999  # type: ignore[misc]
 
 
@@ -215,7 +216,7 @@ class TestBuildingConfigConstruction:
         building = BuildingConfig(name="house", vertices=[(0, 0), (1, 0), (1, 1)])
 
         # Assert
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             building.name = "other"  # type: ignore[misc]
 
 
