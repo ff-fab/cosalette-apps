@@ -14,3 +14,13 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 """suncast — Solar shadow visualization service."""
+
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("suncast")
+except PackageNotFoundError:  # pragma: no cover
+    # Fallback for editable installs without metadata
+    __version__ = "0.0.0+unknown"
+
+__all__ = ["__version__"]
