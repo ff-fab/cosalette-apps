@@ -4,5 +4,6 @@
   "apps/vito2mqtt": "0.1.1",
   "apps/velux2mqtt": "0.1.1",
   "apps/airthings2mqtt": "0.1.0",
-  "apps/caldates2mqtt": "0.1.0"
+  "apps/caldates2mqtt": "0.1.0",
+  "apps/suncast": "0.1.0"
 }

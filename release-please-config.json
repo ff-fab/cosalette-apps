@@ -29,6 +29,10 @@
     "apps/caldates2mqtt": {
       "component": "caldates2mqtt",
       "release-type": "python"
+    },
+    "apps/suncast": {
+      "component": "suncast",
+      "release-type": "python"
     }
   }
 }

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Example SVG geometry for suncast.
+     Draw your house footprint in Inkscape or any SVG editor.
+     Use <polygon> or <path> elements with straight lines only.
+     Give each shape an id attribute for easy mapping in the sidecar YAML. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <polygon id="home"
+           points="50.75,33.75 80,52.25 67.25,72.5 70.75,75 62,89 54.75,90.5 26.5,72.75"
+           fill="none" stroke="#333" stroke-width="0.5" />
+  <polygon id="neighbour_north"
+           points="4.75,59 10.5,49.75 6.75,47.5 18.25,29.25 22,31.5 32,15.25 54,28.75 26.75,72.75"
+           fill="none" stroke="#999" stroke-width="0.5" />
+  <polygon id="dining_room"
+           points="70.75,75 62,89 58.75,86.25 66,72 80,52.25 67.25,72.5"
+           fill="none" stroke="#666" stroke-width="0.5" />
+</svg>
