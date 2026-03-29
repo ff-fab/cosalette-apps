@@ -1982,6 +1982,7 @@ source = { editable = "apps/suncast" }
 dependencies = [
     { name = "astral" },
     { name = "cosalette" },
+    { name = "pydantic" },
     { name = "pyyaml" },
 ]
 
@@ -1999,6 +2000,7 @@ requires-dist = [
     { name = "astral", specifier = ">=3.2" },
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.7" },
     { name = "cosalette", specifier = ">=0.1.7" },
+    { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 provides-extras = ["png", "http"]
