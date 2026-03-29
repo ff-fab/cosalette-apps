@@ -236,7 +236,7 @@ wheels = [
 
 [[package]]
 name = "caldates2mqtt"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
