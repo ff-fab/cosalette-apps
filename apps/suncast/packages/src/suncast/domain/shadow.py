@@ -17,7 +17,7 @@
 # pmpkk (Patrick) on the OpenHAB community forum:
 # https://community.openhab.org/t/show-current-sun-position-and-shadow-of-house-generate-svg/34764
 
-"""Clean-room shadow projection geometry."""
+"""Shadow projection geometry."""
 
 from __future__ import annotations
 
