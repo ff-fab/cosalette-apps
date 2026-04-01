@@ -36,7 +36,7 @@ class Point(NamedTuple):
     y: float
 
 
-type Polygon = list[Point]
+type Polygon = tuple[Point, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,11 +66,15 @@ def compute_shadow_polygon(
     sun_elevation: float,
     canvas_size: int,
 ) -> Polygon:
-    """Compute the shadow polygon for a building footprint."""
+    """Compute the shadow polygon for a building footprint.
+
+    Note: assumes convex building footprints. Concave footprints (e.g. L-shaped
+    buildings) will produce self-intersecting polygons with distorted shadows.
+    """
     if sun_elevation <= 0 or sun_elevation >= 90:
-        return []
+        return ()
     if len(vertices) < 3:
-        return []
+        return ()
 
     shadow_azimuth = (sun_azimuth + 180) % 360
     shadow_length = (1.0 / math.tan(math.radians(sun_elevation))) * canvas_size * 0.5
@@ -81,14 +85,19 @@ def compute_shadow_polygon(
         for vx, vy in vertices
     ]
 
-    return base_points + list(reversed(projected))
+    return tuple(base_points) + tuple(reversed(projected))
 
 
-def clip_to_circle(polygon: Polygon, center: Point, radius: float) -> Polygon:
-    """Clamp polygon points that exceed the circle boundary."""
+def clamp_to_circle(polygon: Polygon, center: Point, radius: float) -> Polygon:
+    """Clamp polygon points that exceed the circle boundary.
+
+    Performs per-point radial clamping, not true geometric clipping. Points
+    outside the circle are moved to the boundary along their radial vector;
+    no new intersection vertices are introduced at the crossing edge.
+    """
     if not polygon:
-        return []
-    result: Polygon = []
+        return ()
+    result: list[Point] = []
     for p in polygon:
         dx = p.x - center.x
         dy = p.y - center.y
@@ -98,14 +107,14 @@ def clip_to_circle(polygon: Polygon, center: Point, radius: float) -> Polygon:
             result.append(Point(center.x + dx * scale, center.y + dy * scale))
         else:
             result.append(p)
-    return result
+    return tuple(result)
 
 
 def compute_building_shadows(
     geometry: GeometryConfig, sun: SunPosition
 ) -> list[ShadowResult]:
     """Compute shadow projections for all buildings in the geometry."""
-    if sun.elevation <= 0:
+    if sun.elevation <= 0 or sun.elevation >= 90:
         return []
 
     adjusted_azimuth = apply_north_rotation(sun.azimuth, geometry.canvas.north_rotation)
@@ -119,7 +128,7 @@ def compute_building_shadows(
         shadow = compute_shadow_polygon(
             building.vertices, adjusted_azimuth, sun.elevation, geometry.canvas.size
         )
-        shadow = clip_to_circle(shadow, center, radius)
+        shadow = clamp_to_circle(shadow, center, radius)
         if shadow:
             results.append(
                 ShadowResult(building_name=building.name, shadow_polygon=shadow)
