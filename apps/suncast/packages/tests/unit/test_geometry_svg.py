@@ -317,7 +317,7 @@ class TestCurveRejection:
     def test_curve_path_skipped(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """A path with cubic bezier commands should be skipped entirely."""
+        """A path with arc commands should be skipped entirely."""
         # Arrange
         svg = tmp_path / "curve.svg"
         svg.write_text(SVG_ONLY_CURVES)
@@ -616,3 +616,154 @@ class TestErrorConditions:
         # Act / Assert
         with pytest.raises(ValueError, match="no usable building shapes"):
             load_svg_geometry(svg)
+
+    def test_invalid_svg_raises_value_error(self, tmp_path: Path) -> None:
+        """Malformed SVG XML should raise ValueError with filename context."""
+        # Arrange
+        svg = tmp_path / "bad.svg"
+        svg.write_text("<svg><not-closed>")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid SVG file"):
+            load_svg_geometry(svg)
+
+    def test_invalid_sidecar_yaml_raises_value_error(self, tmp_path: Path) -> None:
+        """Malformed YAML sidecar should raise ValueError with filename context."""
+        # Arrange
+        svg = tmp_path / "scene.svg"
+        svg.write_text(SVG_WITH_POLYGON)
+        sidecar = tmp_path / "bad.yaml"
+        sidecar.write_text(":\n  :\n  - [invalid")
+
+        # Act / Assert
+        with pytest.raises(ValueError, match="Invalid sidecar YAML"):
+            load_svg_geometry(svg, sidecar)
+
+    def test_null_shape_roles_in_sidecar(self, tmp_path: Path) -> None:
+        """Sidecar with explicit ``shape_roles: null`` should not crash."""
+        # Arrange
+        svg = tmp_path / "scene.svg"
+        svg.write_text(SVG_WITH_POLYGON)
+        sidecar = tmp_path / "null_roles.yaml"
+        sidecar.write_text("canvas:\n  size: 100\nshape_roles: null\n")
+
+        # Act
+        config = load_svg_geometry(svg, sidecar)
+
+        # Assert
+        assert len(config.buildings) == 1
+
+    def test_zero_viewbox_skips_transform(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """viewBox with zero dimensions should skip transform with a warning."""
+        # Arrange — viewBox "0 0 0 0" has zero w/h; fallback uses width/height
+        svg_content = (
+            f"{SVG_HEADER}\n"
+            '<svg xmlns="http://www.w3.org/2000/svg"'
+            ' viewBox="0 0 0 0" width="100" height="100">\n'
+            '  <polygon id="house" points="10,10 50,10 50,50 10,50" />\n'
+            "</svg>"
+        )
+        svg = tmp_path / "zero_vb.svg"
+        svg.write_text(svg_content)
+
+        # Act
+        with caplog.at_level(logging.WARNING):
+            config = load_svg_geometry(svg)
+
+        # Assert — vertices should be untransformed
+        assert config.buildings[0].vertices[0] == (10.0, 10.0)
+        assert any("non-positive" in r.message for r in caplog.records)
+
+
+# ---------------------------------------------------------------------------
+# SVG polygon whitespace-separated coordinates
+# ---------------------------------------------------------------------------
+
+
+SVG_POLYGON_SPACE_SEPARATED = f"""{SVG_HEADER}
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <polygon id="spacey" points="10 20 30 40 50 60 70 80" />
+</svg>
+"""
+
+
+@pytest.mark.unit
+class TestPolygonWhitespaceSeparated:
+    """Specification-based: whitespace-separated polygon points per SVG spec."""
+
+    def test_space_separated_polygon_points(self, tmp_path: Path) -> None:
+        """Polygon points with spaces instead of commas should be parsed."""
+        # Arrange
+        svg = tmp_path / "spacey.svg"
+        svg.write_text(SVG_POLYGON_SPACE_SEPARATED)
+
+        # Act
+        config = load_svg_geometry(svg)
+
+        # Assert
+        assert len(config.buildings) == 1
+        verts = config.buildings[0].vertices
+        assert verts[0] == (10.0, 20.0)
+        assert verts[1] == (30.0, 40.0)
+        assert verts[2] == (50.0, 60.0)
+        assert verts[3] == (70.0, 80.0)
+
+
+# ---------------------------------------------------------------------------
+# SVG unit suffix handling
+# ---------------------------------------------------------------------------
+
+
+SVG_WITH_UNIT_SUFFIX = f"""{SVG_HEADER}
+<svg xmlns="http://www.w3.org/2000/svg" width="100px" height="80px">
+  <polygon id="house" points="10,10 50,10 50,50 10,50" />
+</svg>
+"""
+
+
+@pytest.mark.unit
+class TestSvgUnitSuffix:
+    """Boundary value analysis: width/height with unit suffixes."""
+
+    def test_px_unit_stripped(self, tmp_path: Path) -> None:
+        """Width/height values with 'px' suffix should parse correctly."""
+        # Arrange
+        svg = tmp_path / "units.svg"
+        svg.write_text(SVG_WITH_UNIT_SUFFIX)
+
+        # Act
+        config = load_svg_geometry(svg)
+
+        # Assert
+        assert config.canvas.size == 100
+
+
+# ---------------------------------------------------------------------------
+# Malformed path data
+# ---------------------------------------------------------------------------
+
+
+SVG_MALFORMED_PATH = f"""{SVG_HEADER}
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <path id="odd" d="M 10 20 30 L 40,50 L 60,70 L 80,90 Z" />
+</svg>
+"""
+
+
+@pytest.mark.unit
+class TestMalformedPathData:
+    """Error guessing: malformed path data with odd number of coords."""
+
+    def test_odd_number_coords_no_crash(self, tmp_path: Path) -> None:
+        """Path with odd number of coords for M command should not crash."""
+        # Arrange
+        svg = tmp_path / "odd.svg"
+        svg.write_text(SVG_MALFORMED_PATH)
+
+        # Act — should not raise IndexError
+        config = load_svg_geometry(svg)
+
+        # Assert — at least some vertices were parsed
+        assert len(config.buildings) == 1
