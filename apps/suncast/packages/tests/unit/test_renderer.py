@@ -313,12 +313,57 @@ class TestShadowRenderer:
         root = ET.fromstring(svg)
         assert root.tag == "{http://www.w3.org/2000/svg}svg" or root.tag == "svg"
 
-    def test_empty_shadows_no_shadow_polygons(
+    def test_north_rotation_applied_to_arc(
+        self,
+        renderer: ShadowRenderer,
+        settings: RenderSettings,
+    ) -> None:
+        """Day/night arc respects canvas north_rotation offset.
+
+        Technique: Condition Coverage — north_rotation arc alignment.
+        """
+        # Arrange — same sun, two geometries differing only in north_rotation
+        buildings = [
+            BuildingConfig(
+                name="b",
+                vertices=[(10, 10), (20, 10), (20, 20)],
+                style="default",
+            ),
+        ]
+        geo_0 = GeometryConfig(
+            canvas=CanvasConfig(size=100, north_rotation=0.0),
+            buildings=buildings,
+        )
+        geo_90 = GeometryConfig(
+            canvas=CanvasConfig(size=100, north_rotation=90.0),
+            buildings=buildings,
+        )
+        sun = SunPosition(
+            azimuth=180.0,
+            elevation=45.0,
+            sunrise_azimuth=90.0,
+            sunset_azimuth=270.0,
+            sunrise_time=None,
+            sunset_time=None,
+            hourly_azimuths=tuple(float(i * 15) for i in range(24)),
+            is_daylight=True,
+        )
+
+        # Act
+        svg_0 = renderer.render(sun, [], geo_0, settings)
+        svg_90 = renderer.render(sun, [], geo_90, settings)
+
+        # Assert — arc paths must differ when rotation differs
+        assert 'class="day-arc"' in svg_0
+        assert 'class="day-arc"' in svg_90
+        assert svg_0 != svg_90
+
+    def test_empty_shadows_list_no_shadow_group(
         self,
         renderer: ShadowRenderer,
         daylight_sun: SunPosition,
     ) -> None:
-        """Geometry with casts_shadow=False produces no shadow polygons.
+        """Empty shadows list produces no shadow polygon group in the SVG.
 
         Technique: Condition Coverage — casts_shadow=False path.
         """

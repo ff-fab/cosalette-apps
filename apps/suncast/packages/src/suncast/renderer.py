@@ -37,7 +37,6 @@ class RenderSettings:
     light_color: str = "#fc0"
     shadow_color: str = "rgba(0,0,0,0.3)"
     stroke_width: float = 1.5
-    canvas_size: int = 400
 
 
 def points_to_path(points: tuple[Point, ...]) -> str:
@@ -138,12 +137,19 @@ class ShadowRenderer:
             )
 
         # 8. Day/night arc
+        north_rot = geometry.canvas.north_rotation
         if sun.sunrise_azimuth is not None and sun.sunset_azimuth is not None:
             day_d = arc_path(
-                Point(cx, cy), radius, sun.sunrise_azimuth, sun.sunset_azimuth
+                Point(cx, cy),
+                radius,
+                (sun.sunrise_azimuth - north_rot) % 360,
+                (sun.sunset_azimuth - north_rot) % 360,
             )
             night_d = arc_path(
-                Point(cx, cy), radius, sun.sunset_azimuth, sun.sunrise_azimuth
+                Point(cx, cy),
+                radius,
+                (sun.sunset_azimuth - north_rot) % 360,
+                (sun.sunrise_azimuth - north_rot) % 360,
             )
             parts.append(
                 f'<path d="{day_d}" fill="none" stroke="{s.light_color}" '
@@ -156,7 +162,6 @@ class ShadowRenderer:
 
         # 9. Sundial (hourly azimuth lines)
         parts.append('<g class="sundial">')
-        north_rot = geometry.canvas.north_rotation
         for i, az in enumerate(sun.hourly_azimuths):
             adjusted = (az - north_rot) % 360
             end = degrees_to_cartesian(adjusted, radius, Point(cx, cy))
