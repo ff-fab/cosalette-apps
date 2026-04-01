@@ -32,7 +32,7 @@ from suncast.domain.shadow import (
     Point,
     ShadowResult,
     apply_north_rotation,
-    clip_to_circle,
+    clamp_to_circle,
     compute_building_shadows,
     compute_shadow_polygon,
     degrees_to_cartesian,
@@ -200,7 +200,7 @@ class TestComputeShadowPolygon:
         result = compute_shadow_polygon(vertices, 180, 0, 100)
 
         # Assert
-        assert result == []
+        assert result == ()
 
     def test_sun_at_zenith_returns_empty(self) -> None:
         """Elevation >= 90 should produce no shadow."""
@@ -211,7 +211,7 @@ class TestComputeShadowPolygon:
         result = compute_shadow_polygon(vertices, 180, 90, 100)
 
         # Assert
-        assert result == []
+        assert result == ()
 
     def test_sun_nearly_overhead_produces_short_shadow(self) -> None:
         """Elevation near 90° should produce a very short shadow."""
@@ -252,7 +252,7 @@ class TestComputeShadowPolygon:
         result = compute_shadow_polygon(vertices, 180, 45, 100)
 
         # Assert
-        assert result == []
+        assert result == ()
 
     def test_rectangle_produces_eight_point_polygon(self) -> None:
         """A rectangle (4 vertices) should produce an 8-point shadow polygon."""
@@ -272,17 +272,17 @@ class TestComputeShadowPolygon:
 
 
 @pytest.mark.unit
-class TestClipToCircle:
-    """Boundary Value Analysis: circle clipping of polygon points."""
+class TestClampToCircle:
+    """Boundary Value Analysis: circle clamping of polygon points."""
 
     def test_points_inside_circle_unchanged(self) -> None:
         """Points within the circle should not be modified."""
         # Arrange
         center = Point(50, 50)
-        polygon = [Point(50, 50), Point(55, 50), Point(50, 55)]
+        polygon = (Point(50, 50), Point(55, 50), Point(50, 55))
 
         # Act
-        result = clip_to_circle(polygon, center, 50)
+        result = clamp_to_circle(polygon, center, 50)
 
         # Assert
         assert result == polygon
@@ -291,34 +291,34 @@ class TestClipToCircle:
         """A point outside the circle should be clamped to the boundary."""
         # Arrange
         center = Point(50, 50)
-        polygon = [Point(150, 50)]  # 100 units to the right, radius is 50
+        polygon = (Point(150, 50),)  # 100 units to the right, radius is 50
 
         # Act
-        result = clip_to_circle(polygon, center, 50)
+        result = clamp_to_circle(polygon, center, 50)
 
         # Assert
         assert result[0].x == pytest.approx(100, abs=1e-10)
         assert result[0].y == pytest.approx(50, abs=1e-10)
 
     def test_empty_polygon_returns_empty(self) -> None:
-        """An empty polygon should return an empty list."""
+        """An empty polygon should return an empty tuple."""
         # Arrange
         center = Point(50, 50)
 
         # Act
-        result = clip_to_circle([], center, 50)
+        result = clamp_to_circle((), center, 50)
 
         # Assert
-        assert result == []
+        assert result == ()
 
     def test_point_on_boundary_unchanged(self) -> None:
         """A point exactly on the boundary should not be modified."""
         # Arrange
         center = Point(50, 50)
-        polygon = [Point(100, 50)]  # exactly radius=50 away
+        polygon = (Point(100, 50),)  # exactly radius=50 away
 
         # Act
-        result = clip_to_circle(polygon, center, 50)
+        result = clamp_to_circle(polygon, center, 50)
 
         # Assert
         assert result[0].x == pytest.approx(100, abs=1e-10)
@@ -329,10 +329,10 @@ class TestClipToCircle:
         # Arrange
         center = Point(0, 0)
         # Point at (100, 100), distance = sqrt(20000) ~ 141.4
-        polygon = [Point(100, 100)]
+        polygon = (Point(100, 100),)
 
         # Act
-        result = clip_to_circle(polygon, center, 50)
+        result = clamp_to_circle(polygon, center, 50)
 
         # Assert
         dist = math.hypot(result[0].x, result[0].y)
@@ -389,5 +389,6 @@ class TestComputeBuildingShadows:
         result = compute_building_shadows(sample_geometry, daylight_sun)
 
         # Assert
+        assert len(result) == 1
         assert isinstance(result[0], ShadowResult)
         assert all(isinstance(p, Point) for p in result[0].shadow_polygon)
