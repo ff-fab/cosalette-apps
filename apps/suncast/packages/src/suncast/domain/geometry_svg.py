@@ -78,13 +78,13 @@ def _shape_name(element: ET.Element, index: int) -> str:
 
 
 def _parse_polygon_points(points_attr: str) -> list[tuple[float, float]]:
-    """Parse the 'points' attribute of a <polygon> into vertex tuples."""
-    vertices: list[tuple[float, float]] = []
-    for pair in points_attr.strip().split():
-        parts = pair.split(",")
-        if len(parts) == 2:
-            vertices.append((float(parts[0]), float(parts[1])))
-    return vertices
+    """Parse the 'points' attribute of a <polygon> into vertex tuples.
+
+    Handles both comma-separated (``10,20 30,40``) and whitespace-separated
+    (``10 20 30 40``) coordinate formats as allowed by the SVG specification.
+    """
+    nums = [float(m) for _, m in _PATH_TOKEN_RE.findall(points_attr) if m]
+    return [(nums[i], nums[i + 1]) for i in range(0, len(nums) - 1, 2)]
 
 
 def _parse_path_d(d_attr: str) -> list[tuple[float, float]] | None:
@@ -115,6 +115,9 @@ def _parse_path_d(d_attr: str) -> list[tuple[float, float]] | None:
 
         i = 0
         while i < len(nums):
+            if cmd in ("M", "m", "L", "l"):
+                if i + 1 >= len(nums):
+                    break
             if cmd == "M":
                 cx, cy = nums[i], nums[i + 1]
                 vertices.append((cx, cy))
@@ -176,17 +179,26 @@ def _parse_viewbox(svg_root: ET.Element) -> tuple[float, float, float, float] | 
     return (float(parts[0]), float(parts[1]), float(parts[2]), float(parts[3]))
 
 
+# Units that may appear as suffixes on SVG width/height attributes.
+_SVG_UNIT_RE = re.compile(r"(px|mm|cm|in|pt|pc)\s*$")
+
+
+def _strip_svg_units(value: str) -> str:
+    """Remove trailing SVG unit suffixes (px, mm, cm, in, pt, pc)."""
+    return _SVG_UNIT_RE.sub("", value.strip())
+
+
 def _canvas_size_from_svg(svg_root: ET.Element) -> int:
     """Determine canvas size from SVG viewBox, width/height, or default 100."""
     vb = _parse_viewbox(svg_root)
-    if vb is not None:
+    if vb is not None and vb[2] > 0 and vb[3] > 0:
         return int(max(vb[2], vb[3]))
 
     w = svg_root.get("width")
     h = svg_root.get("height")
     if w is not None and h is not None:
         try:
-            return int(max(float(w), float(h)))
+            return int(max(float(_strip_svg_units(w)), float(_strip_svg_units(h))))
         except ValueError:
             pass
 
@@ -203,6 +215,14 @@ def _transform_vertices(
         return vertices
 
     min_x, min_y, vb_w, vb_h = viewbox
+    if vb_w <= 0 or vb_h <= 0:
+        logger.warning(
+            "viewBox has non-positive dimensions (%s x %s); skipping transform",
+            vb_w,
+            vb_h,
+        )
+        return vertices
+
     scale = canvas_size / max(vb_w, vb_h)
 
     return [((x - min_x) * scale, (y - min_y) * scale) for x, y in vertices]
@@ -218,7 +238,11 @@ def _load_sidecar(path: Path | None) -> dict[str, Any]:
     if path is None or not path.exists():
         return {}
     text = path.read_text(encoding="utf-8")
-    data = yaml.safe_load(text)
+    try:
+        data = yaml.safe_load(text)
+    except yaml.YAMLError as e:
+        msg = f"Invalid sidecar YAML '{path}': {e}"
+        raise ValueError(msg) from e
     return data if isinstance(data, dict) else {}
 
 
@@ -249,11 +273,15 @@ def load_svg_geometry(
         msg = f"SVG file not found: {svg_path}"
         raise FileNotFoundError(msg)
 
-    tree = ET.parse(svg_path)  # noqa: S314 — trusted local files only
+    try:
+        tree = ET.parse(svg_path)  # noqa: S314 — trusted local files only
+    except ET.ParseError as e:
+        msg = f"Invalid SVG file '{svg_path}': {e}"
+        raise ValueError(msg) from e
     root = tree.getroot()
 
     sidecar = _load_sidecar(sidecar_path)
-    shape_roles: dict[str, dict[str, Any]] = sidecar.get("shape_roles", {})
+    shape_roles: dict[str, dict[str, Any]] = sidecar.get("shape_roles") or {}
 
     # Canvas -----------------------------------------------------------
     sidecar_canvas = sidecar.get("canvas", {}) or {}
