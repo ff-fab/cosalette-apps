@@ -156,10 +156,11 @@ class ShadowRenderer:
 
         # 7. Illuminated edge highlight
         if sun.is_daylight:
+            edge_width = s.stroke_width * 2 / 3
             parts.append(
                 f'<circle cx="{cx}" cy="{cy}" r="{radius}" '
                 f'fill="none" stroke="{s.light_color}" '
-                f'stroke-width="{s.stroke_width}" class="illuminated-edge"/>'
+                f'stroke-width="{edge_width:.2f}" class="illuminated-edge"/>'
             )
 
         # 8. Day/night arc

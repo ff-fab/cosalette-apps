@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Any, Literal
 
@@ -130,3 +131,76 @@ def load_geometry(path: Path) -> GeometryConfig:
     except ValidationError as exc:
         msg = str(exc)
         raise ValueError(msg) from exc
+
+
+def fit_to_circle(
+    geometry: GeometryConfig,
+    *,
+    padding_fraction: float = 0.05,
+) -> GeometryConfig:
+    """Scale all vertices so every point fits within the canvas circle.
+
+    Computes the maximum distance of any vertex from the canvas center.
+    If that distance exceeds ``radius - padding``, all vertex coordinates
+    are uniformly scaled (relative to the center) to fit.
+
+    Args:
+        geometry: The original geometry configuration.
+        padding_fraction: Padding as a fraction of the radius (default 5%).
+
+    Returns:
+        A new GeometryConfig with scaled coordinates, or the original
+        if all vertices already fit.
+    """
+    canvas = geometry.canvas.size
+    cx, cy = canvas / 2, canvas / 2
+    radius = canvas / 2
+    fit_radius = radius * (1 - padding_fraction)
+
+    # Collect all vertices from buildings and highlighted regions.
+    all_vertices: list[tuple[float, float]] = []
+    for b in geometry.buildings:
+        all_vertices.extend(b.vertices)
+    for hr in geometry.highlighted_regions:
+        all_vertices.extend(hr.vertices)
+
+    if not all_vertices:
+        return geometry
+
+    # Find the maximum distance from center.
+    max_dist = max(math.hypot(x - cx, y - cy) for x, y in all_vertices)
+
+    if max_dist <= fit_radius:
+        return geometry  # Already fits, no scaling needed.
+
+    scale = fit_radius / max_dist
+
+    def _scale_vertices(
+        vertices: list[tuple[float, float]],
+    ) -> list[tuple[float, float]]:
+        return [(cx + (x - cx) * scale, cy + (y - cy) * scale) for x, y in vertices]
+
+    scaled_buildings = [
+        BuildingConfig(
+            name=b.name,
+            vertices=_scale_vertices(b.vertices),
+            casts_shadow=b.casts_shadow,
+            style=b.style,
+        )
+        for b in geometry.buildings
+    ]
+
+    scaled_regions = [
+        HighlightedRegion(
+            name=hr.name,
+            vertices=_scale_vertices(hr.vertices),
+            color=hr.color,
+        )
+        for hr in geometry.highlighted_regions
+    ]
+
+    return GeometryConfig(
+        canvas=geometry.canvas,
+        buildings=scaled_buildings,
+        highlighted_regions=scaled_regions,
+    )
