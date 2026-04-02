@@ -3,25 +3,43 @@ services:
     build:
       context: ../..
       dockerfile: apps/suncast/Dockerfile
+    image: ghcr.io/ff-fab/suncast:latest
     restart: unless-stopped
-    volumes:
-      - suncast-data:/app/data
+    env_file: .env
     environment:
       SUNCAST_MQTT__HOST: mosquitto
+    volumes:
+      - shadow-output:/output
+      - suncast-data:/app/data
+      - ./geometry.yaml:/app/geometry.yaml:ro
     depends_on:
       - mosquitto
+    healthcheck:
+      test: ['CMD', 'pgrep', '-f', 'suncast']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  shadow-web:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - '8080:80'
+    volumes:
+      - shadow-output:/usr/share/nginx/html:ro
 
   mosquitto:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - '127.0.0.1:1883:1883'
+      - '1883:1883'
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto-data:/mosquitto/data
       - mosquitto-log:/mosquitto/log
 
 volumes:
+  shadow-output:
   suncast-data:
   mosquitto-data:
   mosquitto-log:
