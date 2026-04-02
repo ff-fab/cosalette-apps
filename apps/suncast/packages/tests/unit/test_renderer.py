@@ -562,3 +562,54 @@ class TestShadowRenderer:
         assert 'class="sundial-arc"' not in svg
         assert 'class="midnight-bar"' not in svg
         assert 'class="noon-bar"' not in svg
+
+    def test_circle_marker_style_default(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Default marker_style='circle' renders circle elements for sunrise/sunset.
+
+        Technique: Specification-based — circle marker rendering.
+        """
+        # Act — default settings use marker_style="circle"
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        sunrise = root.findall(".//svg:circle[@class='sunrise-marker']", ns)
+        sunset = root.findall(".//svg:circle[@class='sunset-marker']", ns)
+        assert len(sunrise) == 1
+        assert len(sunset) == 1
+        # No line markers
+        assert root.findall(".//svg:line[@class='sunrise-marker']", ns) == []
+        assert root.findall(".//svg:line[@class='sunset-marker']", ns) == []
+
+    def test_bar_marker_style(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """marker_style='bar' renders line elements for sunrise/sunset.
+
+        Technique: Condition Coverage — marker_style branching.
+        """
+        # Arrange
+        settings = RenderSettings(marker_style="bar")
+
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        sunrise = root.findall(".//svg:line[@class='sunrise-marker']", ns)
+        sunset = root.findall(".//svg:line[@class='sunset-marker']", ns)
+        assert len(sunrise) == 1
+        assert len(sunset) == 1
+        # No circle markers
+        assert root.findall(".//svg:circle[@class='sunrise-marker']", ns) == []
+        assert root.findall(".//svg:circle[@class='sunset-marker']", ns) == []

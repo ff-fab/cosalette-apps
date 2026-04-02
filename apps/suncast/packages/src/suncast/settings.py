@@ -56,6 +56,7 @@ class SuncastSettings(cosalette.Settings):
     shadow_color: str = "#0A0A0A"
     stroke_width: float = 1.0
     sundial_ring: bool = True
+    marker_style: str = "circle"
 
     # -- Output -------------------------------------------------------------
 
