@@ -37,11 +37,11 @@ from suncast.domain.solar import SunPosition
 class RenderSettings:
     """Visual settings for the SVG renderer."""
 
-    primary_color: str = "#333"
-    secondary_color: str = "#c33"
-    light_color: str = "#fc0"
-    shadow_color: str = "rgba(0,0,0,0.3)"
-    stroke_width: float = 1.5
+    primary_color: str = "#614c1f"
+    secondary_color: str = "#b38c3a"
+    light_color: str = "#f1b023"
+    shadow_color: str = "#0A0A0A"
+    stroke_width: float = 1.0
 
 
 def points_to_path(points: tuple[Point, ...]) -> str:
