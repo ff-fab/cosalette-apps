@@ -108,6 +108,12 @@ async def _shadow_handler(
     return None
 
 
+def _poll_interval(s: cosalette.Settings) -> float:
+    """Deferred interval — resolved after settings are parsed."""
+    assert isinstance(s, SuncastSettings)
+    return s.poll_interval
+
+
 def create_app() -> cosalette.App:
     """Create and wire the suncast cosalette application."""
     app = cosalette.App(
@@ -121,7 +127,7 @@ def create_app() -> cosalette.App:
     app.add_telemetry(
         name="shadow",
         func=_shadow_handler,
-        interval=lambda s: s.poll_interval,
+        interval=_poll_interval,
         init=_build_pipeline,
     )
 
