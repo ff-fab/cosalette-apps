@@ -55,6 +55,7 @@ class SuncastSettings(cosalette.Settings):
     light_color: str = "#f1b023"
     shadow_color: str = "#0A0A0A"
     stroke_width: float = 1.0
+    sundial_ring: bool = True
 
     # -- Output -------------------------------------------------------------
 
