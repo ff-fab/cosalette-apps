@@ -40,6 +40,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
     Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.
 
+-   **[suncast](suncast/)** <span class="card-license">GPL-3.0-or-later</span>
+
+    ---
+
+    Computes solar positions and generates shadow visualizations of building footprints,
+    publishing SVG and PNG images via MQTT.
+
 -   **[velux2mqtt](velux2mqtt/)** <span class="card-license">MIT</span>
 
     ---
@@ -63,6 +70,6 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
 - **Build system:** [uv](https://docs.astral.sh/uv/) workspaces +
   [Taskfile](https://taskfile.dev/)
 - **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default, GPL-3.0-or-later
-  for vito2mqtt)
+  for suncast and vito2mqtt)
 - **CI:** Per-app change detection with reusable workflows
 - **Releases:** Release Please manifest mode (per-app versioning)
