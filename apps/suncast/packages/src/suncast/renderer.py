@@ -42,6 +42,7 @@ class RenderSettings:
     light_color: str = "#f1b023"
     shadow_color: str = "#0A0A0A"
     stroke_width: float = 1.0
+    show_sundial_ring: bool = True
 
 
 def points_to_path(points: tuple[Point, ...]) -> str:
@@ -51,6 +52,15 @@ def points_to_path(points: tuple[Point, ...]) -> str:
     parts = [f"M{points[0].x:.2f},{points[0].y:.2f}"]
     parts.extend(f"L{p.x:.2f},{p.y:.2f}" for p in points[1:])
     parts.append("Z")
+    return "".join(parts)
+
+
+def points_to_open_path(points: tuple[Point, ...]) -> str:
+    """Convert points to an open SVG polyline path (no closing ``Z``)."""
+    if not points:
+        return ""
+    parts = [f"M{points[0].x:.2f},{points[0].y:.2f}"]
+    parts.extend(f"L{p.x:.2f},{p.y:.2f}" for p in points[1:])
     return "".join(parts)
 
 
@@ -103,7 +113,20 @@ class ShadowRenderer:
         parts.append("</mask>")
         parts.append("</defs>")
 
-        # 3. Shadow polygons (daylight only)
+        # 3. Sun-facing edge outlines (rendered before shadows so shadows cover them)
+        if sun.is_daylight and shadows:
+            parts.append('<g class="sun-facing">')
+            for sr in shadows:
+                if sr.sun_facing_edges:
+                    d = points_to_open_path(sr.sun_facing_edges)
+                    parts.append(
+                        f'<path d="{d}" stroke="{s.light_color}" '
+                        f'stroke-width="{s.stroke_width * 2}" fill="none" '
+                        f'class="sun-facing-edge"/>'
+                    )
+            parts.append("</g>")
+
+        # 4. Shadow polygons (daylight only)
         if sun.is_daylight and shadows:
             parts.append('<g class="shadows" mask="url(#circle-mask)">')
             for sr in shadows:
@@ -111,7 +134,7 @@ class ShadowRenderer:
                 parts.append(f'<path d="{d}" fill="{s.shadow_color}"/>')
             parts.append("</g>")
 
-        # 4 & 5. Building outlines and home fill
+        # 5. Building outlines and home fill
         parts.append('<g class="buildings">')
         for b in geometry.buildings:
             pts = tuple(Point(x, y) for x, y in b.vertices)
@@ -161,8 +184,43 @@ class ShadowRenderer:
                 f'stroke-width="{s.stroke_width * 2}" class="night-arc"/>'
             )
 
-        # 9. Sundial (hourly azimuth lines)
+        # 9. Sundial
         parts.append('<g class="sundial">')
+        # Sundial outer ring: 24 alternating-opacity arcs
+        if s.show_sundial_ring:
+            ring_radius = radius + 8
+            for i in range(24):
+                start_az = apply_north_rotation(sun.hourly_azimuths[i], north_rot)
+                end_az = apply_north_rotation(
+                    sun.hourly_azimuths[(i + 1) % 24], north_rot
+                )
+                d = arc_path(Point(cx, cy), ring_radius, start_az, end_az)
+                opacity = 0.2 if i % 2 == 0 else 1.0
+                parts.append(
+                    f'<path d="{d}" stroke="{s.primary_color}" '
+                    f'stroke-width="3" fill="none" '
+                    f'stroke-opacity="{opacity}" class="sundial-arc"/>'
+                )
+            # Midnight bar (hour 0)
+            midnight_az = apply_north_rotation(sun.hourly_azimuths[0], north_rot)
+            mn_inner = degrees_to_cartesian(midnight_az, radius + 4, Point(cx, cy))
+            mn_outer = degrees_to_cartesian(midnight_az, radius + 12, Point(cx, cy))
+            parts.append(
+                f'<line x1="{mn_inner.x:.2f}" y1="{mn_inner.y:.2f}" '
+                f'x2="{mn_outer.x:.2f}" y2="{mn_outer.y:.2f}" '
+                f'stroke="{s.light_color}" stroke-width="2" '
+                f'class="midnight-bar"/>'
+            )
+            # Noon bar (hour 12)
+            noon_az = apply_north_rotation(sun.hourly_azimuths[12], north_rot)
+            nn_inner = degrees_to_cartesian(noon_az, radius + 4, Point(cx, cy))
+            nn_outer = degrees_to_cartesian(noon_az, radius + 12, Point(cx, cy))
+            parts.append(
+                f'<line x1="{nn_inner.x:.2f}" y1="{nn_inner.y:.2f}" '
+                f'x2="{nn_outer.x:.2f}" y2="{nn_outer.y:.2f}" '
+                f'stroke="{s.light_color}" stroke-width="2" '
+                f'class="noon-bar"/>'
+            )
         # Sunrise/sunset indicators
         if sun.sunrise_azimuth is not None:
             sr_pt = degrees_to_cartesian(
