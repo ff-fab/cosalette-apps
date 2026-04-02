@@ -22,6 +22,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from suncast.domain.geometry import GeometryConfig
 from suncast.domain.shadow import (
@@ -43,6 +44,7 @@ class RenderSettings:
     shadow_color: str = "#0A0A0A"
     stroke_width: float = 1.0
     show_sundial_ring: bool = True
+    marker_style: Literal["bar", "circle"] = "circle"
 
 
 def points_to_path(points: tuple[Point, ...]) -> str:
@@ -223,25 +225,39 @@ class ShadowRenderer:
             )
         # Sunrise/sunset indicators
         if sun.sunrise_azimuth is not None:
-            sr_pt = degrees_to_cartesian(
-                apply_north_rotation(sun.sunrise_azimuth, north_rot),
-                radius,
-                Point(cx, cy),
-            )
-            parts.append(
-                f'<circle cx="{sr_pt.x:.2f}" cy="{sr_pt.y:.2f}" r="3" '
-                f'fill="{s.light_color}" class="sunrise-marker"/>'
-            )
+            sr_az = apply_north_rotation(sun.sunrise_azimuth, north_rot)
+            if s.marker_style == "bar":
+                sr_inner = degrees_to_cartesian(sr_az, radius - 5, Point(cx, cy))
+                sr_outer = degrees_to_cartesian(sr_az, radius + 5, Point(cx, cy))
+                parts.append(
+                    f'<line x1="{sr_inner.x:.2f}" y1="{sr_inner.y:.2f}" '
+                    f'x2="{sr_outer.x:.2f}" y2="{sr_outer.y:.2f}" '
+                    f'stroke="{s.light_color}" stroke-width="2" '
+                    f'class="sunrise-marker"/>'
+                )
+            else:
+                sr_pt = degrees_to_cartesian(sr_az, radius, Point(cx, cy))
+                parts.append(
+                    f'<circle cx="{sr_pt.x:.2f}" cy="{sr_pt.y:.2f}" r="3" '
+                    f'fill="{s.light_color}" class="sunrise-marker"/>'
+                )
         if sun.sunset_azimuth is not None:
-            ss_pt = degrees_to_cartesian(
-                apply_north_rotation(sun.sunset_azimuth, north_rot),
-                radius,
-                Point(cx, cy),
-            )
-            parts.append(
-                f'<circle cx="{ss_pt.x:.2f}" cy="{ss_pt.y:.2f}" r="3" '
-                f'fill="{s.primary_color}" class="sunset-marker"/>'
-            )
+            ss_az = apply_north_rotation(sun.sunset_azimuth, north_rot)
+            if s.marker_style == "bar":
+                ss_inner = degrees_to_cartesian(ss_az, radius - 5, Point(cx, cy))
+                ss_outer = degrees_to_cartesian(ss_az, radius + 5, Point(cx, cy))
+                parts.append(
+                    f'<line x1="{ss_inner.x:.2f}" y1="{ss_inner.y:.2f}" '
+                    f'x2="{ss_outer.x:.2f}" y2="{ss_outer.y:.2f}" '
+                    f'stroke="{s.primary_color}" stroke-width="2" '
+                    f'class="sunset-marker"/>'
+                )
+            else:
+                ss_pt = degrees_to_cartesian(ss_az, radius, Point(cx, cy))
+                parts.append(
+                    f'<circle cx="{ss_pt.x:.2f}" cy="{ss_pt.y:.2f}" r="3" '
+                    f'fill="{s.primary_color}" class="sunset-marker"/>'
+                )
         parts.append("</g>")
 
         # 10. Sun position marker
