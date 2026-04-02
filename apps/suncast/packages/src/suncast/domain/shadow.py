@@ -92,6 +92,9 @@ def compute_shadow_polygon(
     sun_ref = degrees_to_cartesian(sun_azimuth, 10000.0, centroid)
 
     # 2. Compute angle from each vertex to the distant sun point.
+    # The ±180° atan2 discontinuity cannot cause wrap-around issues here:
+    # the sun reference is ~10 000 units away while buildings span ~20–40 units,
+    # giving an angular spread of ~0.2° — far too narrow to straddle the boundary.
     angles = [-math.degrees(math.atan2(p.y - sun_ref.y, p.x - sun_ref.x)) for p in pts]
 
     # 3. Find min-angle and max-angle vertex indices (silhouette extremes).
@@ -126,6 +129,9 @@ def compute_shadow_polygon(
             return empty
 
     # 6. Project the min and max vertices outward along their respective angles.
+    # Shadow length is intentionally fixed at canvas_size (not elevation-scaled):
+    # the renderer clips all output with a circular mask, so shadows always
+    # extend to the mask boundary regardless of sun height.
     min_angle_rad = math.radians(angles[min_idx])
     max_angle_rad = math.radians(angles[max_idx])
 
