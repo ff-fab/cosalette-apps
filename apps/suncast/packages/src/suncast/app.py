@@ -94,13 +94,7 @@ async def _shadow_handler(
     state: PipelineState,
     settings: SuncastSettings,
 ) -> dict[str, object] | None:
-    """Telemetry handler — compute shadows and deliver output.
-
-    Returns ``None`` to suppress the framework's automatic state
-    publication.  The app's value is the shadow image delivered via
-    MQTT channels and filesystem — sun position metadata is already
-    available in every smart-home system.
-    """
+    """Telemetry handler — compute shadows and deliver output."""
     now = datetime.now(tz=ZoneInfo(settings.timezone))
     sun = compute_solar_position(
         settings.latitude, settings.longitude, settings.timezone, now
