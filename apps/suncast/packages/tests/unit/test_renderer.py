@@ -181,9 +181,19 @@ class TestShadowRenderer:
         # Act
         svg = renderer.render(daylight_sun, [], geometry, settings)
 
-        # Assert — home gets secondary fill, neighbor gets primary stroke
-        assert f'fill="{settings.secondary_color}"' in svg
-        assert f'stroke="{settings.primary_color}"' in svg
+        # Assert — parse SVG and check attributes on the specific building paths
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        bldg_group = root.find(".//svg:g[@class='buildings']", ns)
+        assert bldg_group is not None
+        paths = bldg_group.findall("svg:path", ns)
+        assert len(paths) == 2
+        # First path = house (home style): fill and stroke both secondary_color
+        assert paths[0].get("fill") == settings.secondary_color
+        assert paths[0].get("stroke") == settings.secondary_color
+        # Second path = garage (neighbor style): fill none, stroke primary_color
+        assert paths[1].get("fill") == "none"
+        assert paths[1].get("stroke") == settings.primary_color
 
     def test_highlighted_regions_rendered(
         self,
@@ -267,15 +277,9 @@ class TestShadowRenderer:
         svg = renderer.render(daylight_sun, [], geometry)
 
         # Assert
-        assert 'class="sun-marker"' in svg
-        # Marker is a circle element
         root = ET.fromstring(svg)
-        markers = root.findall(
-            ".//{http://www.w3.org/2000/svg}circle[@class='sun-marker']"
-        )
-        # Fallback for no-namespace parsing
-        if not markers:
-            markers = root.findall(".//*[@class='sun-marker']")
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        markers = root.findall(".//svg:circle[@class='sun-marker']", ns)
         assert len(markers) == 1
 
     def test_circular_mask_present(
@@ -365,7 +369,7 @@ class TestShadowRenderer:
     ) -> None:
         """Empty shadows list produces no shadow polygon group in the SVG.
 
-        Technique: Condition Coverage — casts_shadow=False path.
+        Technique: Condition Coverage — daylight with empty shadows list.
         """
         # Arrange
         geo = GeometryConfig(
@@ -391,12 +395,13 @@ class TestShadowRenderer:
         renderer: ShadowRenderer,
         daylight_sun: SunPosition,
         geometry: GeometryConfig,
+        shadow_results: list[ShadowResult],
     ) -> None:
         """Custom RenderSettings colors appear in the SVG output.
 
-        Technique: Specification-based — settings propagation.
+        Technique: Specification-based — settings propagation for all color fields.
         """
-        # Arrange
+        # Arrange — pass shadows so shadow_color is rendered
         custom = RenderSettings(
             primary_color="#111",
             secondary_color="#222",
@@ -405,9 +410,38 @@ class TestShadowRenderer:
         )
 
         # Act
-        svg = renderer.render(daylight_sun, [], geometry, custom)
+        svg = renderer.render(daylight_sun, shadow_results, geometry, custom)
 
-        # Assert
+        # Assert all four color fields are present in output
         assert "#111" in svg
         assert "#222" in svg
         assert "#333" in svg
+        assert "#444" in svg
+
+    def test_no_arc_when_sunrise_sunset_unknown(
+        self,
+        renderer: ShadowRenderer,
+        geometry: GeometryConfig,
+    ) -> None:
+        """No day/night arc is rendered when sunrise/sunset azimuths are None.
+
+        Technique: Condition Coverage — sunrise_azimuth/sunset_azimuth None branch.
+        """
+        # Arrange
+        sun = SunPosition(
+            azimuth=180.0,
+            elevation=45.0,
+            sunrise_azimuth=None,
+            sunset_azimuth=None,
+            sunrise_time=None,
+            sunset_time=None,
+            hourly_azimuths=tuple(float(i * 15) for i in range(24)),
+            is_daylight=True,
+        )
+
+        # Act
+        svg = renderer.render(sun, [], geometry)
+
+        # Assert — no arc elements present
+        assert 'class="day-arc"' not in svg
+        assert 'class="night-arc"' not in svg
