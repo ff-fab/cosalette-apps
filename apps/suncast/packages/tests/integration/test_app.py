@@ -247,7 +247,7 @@ class TestMultipleBuildings:
             mock_dt.now.return_value = _DAYTIME
             await _shadow_handler(ctx, state, settings)
 
-        # Assert — shadow group has at least 2 path elements
+        # Assert — shadow group has at least 3 path elements
         svg_content = (tmp_path / "shadow.svg").read_text(encoding="utf-8")
         assert 'class="shadows"' in svg_content
         # Each shadow-casting building produces a <path> inside the shadows group

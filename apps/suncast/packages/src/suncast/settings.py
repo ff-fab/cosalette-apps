@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import cosalette
 from pydantic import Field
@@ -56,7 +57,7 @@ class SuncastSettings(cosalette.Settings):
     shadow_color: str = "#0A0A0A"
     stroke_width: float = 1.0
     sundial_ring: bool = True
-    marker_style: str = "circle"
+    marker_style: Literal["circle", "bar"] = "circle"
 
     # -- Output -------------------------------------------------------------
 
