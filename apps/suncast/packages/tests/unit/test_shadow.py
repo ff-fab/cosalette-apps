@@ -216,8 +216,8 @@ class TestComputeShadowPolygon:
         assert shadow == ()
         assert sun_facing == ()
 
-    def test_sun_nearly_overhead_produces_short_shadow(self) -> None:
-        """Elevation near 90° should produce a shadow with projected points close to base."""
+    def test_sun_nearly_overhead_produces_shadow(self) -> None:
+        """Elevation near 90° should still produce a valid shadow polygon."""
         # Arrange
         vertices = [(40, 40), (60, 40), (60, 60), (40, 60)]
 
