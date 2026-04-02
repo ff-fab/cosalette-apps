@@ -27,6 +27,7 @@ Supports three delivery channels:
 
 from __future__ import annotations
 
+import base64
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -58,7 +59,7 @@ class OutputSettings:
     """MQTT channel name for SVG payload."""
 
     mqtt_png_channel: str = "png"
-    """MQTT channel name for PNG payload."""
+    """MQTT channel name for PNG payload (base64-encoded)."""
 
 
 @dataclass(slots=True)
@@ -90,8 +91,8 @@ class OutputManager:
 
         1. Writes SVG (and optionally PNG) to the filesystem if configured.
         2. Publishes SVG (and optionally PNG) to MQTT channels via *ctx*.
-        3. Returns *sun_state* enriched with delivery metadata for the
-           framework's automatic state publication.
+        3. Returns *sun_state* unchanged for the framework's automatic
+           state publication.  Delivery status is logged internally.
 
         Args:
             svg_content: The rendered SVG string.
@@ -179,7 +180,9 @@ class OutputManager:
         if png_bytes is not None:
             try:
                 await ctx.publish(
-                    s.mqtt_png_channel, png_bytes.decode("latin-1"), retain=True
+                    s.mqtt_png_channel,
+                    base64.b64encode(png_bytes).decode("ascii"),
+                    retain=True,
                 )
                 result.mqtt_png_published = True
             except Exception as exc:

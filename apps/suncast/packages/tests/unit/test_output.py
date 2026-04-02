@@ -24,12 +24,14 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import base64
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
 from suncast.output import DeliveryResult, OutputManager, OutputSettings
+from suncast.rasterize import RasterizationError
 
 
 # =============================================================================
@@ -181,8 +183,10 @@ class TestOutputManagerMqtt:
         with patch("suncast.output.svg_to_png", return_value=FAKE_PNG):
             await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE, ctx=mock_ctx)
 
-        # Assert — PNG published as latin-1 decoded string
-        mock_ctx.publish.assert_any_call("png", FAKE_PNG.decode("latin-1"), retain=True)
+        # Assert — PNG published as base64-encoded string
+        mock_ctx.publish.assert_any_call(
+            "png", base64.b64encode(FAKE_PNG).decode("ascii"), retain=True
+        )
 
     async def test_no_mqtt_when_ctx_none(self) -> None:
         """deliver() skips MQTT when ctx is None.
@@ -224,14 +228,15 @@ class TestOutputManagerErrorHandling:
     Technique: Error Guessing — filesystem and MQTT failures.
     """
 
-    async def test_filesystem_error_does_not_raise(self) -> None:
+    async def test_filesystem_error_does_not_raise(self, tmp_path: Path) -> None:
         """deliver() handles filesystem write failures gracefully."""
-        # Arrange — use a path that can't be written to
-        settings = OutputSettings(output_path=Path("/nonexistent/readonly/path"))
+        # Arrange
+        settings = OutputSettings(output_path=tmp_path)
         manager = OutputManager(settings)
 
-        # Act — should not raise
-        result = await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
+        # Act — simulate filesystem write error, should not raise
+        with patch.object(Path, "write_text", side_effect=OSError("disk full")):
+            result = await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
 
         # Assert
         assert result is SAMPLE_SUN_STATE
@@ -259,14 +264,10 @@ class TestOutputManagerErrorHandling:
         settings = OutputSettings(output_path=tmp_path, png_enabled=True)
         manager = OutputManager(settings)
 
-        # Act — rasterization will fail because cairosvg is not installed
+        # Act — rasterization will fail
         with patch(
             "suncast.output.svg_to_png",
-            side_effect=MagicMock(
-                side_effect=__import__(
-                    "suncast.rasterize", fromlist=["RasterizationError"]
-                ).RasterizationError("no cairosvg")
-            ),
+            side_effect=RasterizationError("no cairosvg"),
         ):
             result = await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
 
