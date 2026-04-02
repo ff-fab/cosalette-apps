@@ -13,7 +13,12 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Unit tests for app.py — composition root and telemetry handler."""
+"""Unit tests for app.py — composition root and telemetry handler.
+
+Test Techniques Used:
+- Specification-based: factory returns correctly wired App instance
+- State Verification: pipeline state built from settings overrides
+"""
 
 from __future__ import annotations
 
