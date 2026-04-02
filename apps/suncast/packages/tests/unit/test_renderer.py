@@ -38,7 +38,6 @@ from suncast.domain.shadow import Point, ShadowResult
 from suncast.domain.solar import SunPosition
 from suncast.renderer import RenderSettings, ShadowRenderer
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
