@@ -167,6 +167,154 @@ class TestBuildApp:
         assert "/health" in routes
 
 
+def _build_with_mock_web(
+    provider: object, settings: HttpSettings
+) -> tuple[MagicMock, dict[str, object]]:
+    """Build app via _build_app with a mock web module.
+
+    Returns the mock_web and a dict mapping route paths to handler functions.
+    The mock_web stays patched in the caller's context so handlers can
+    reference ``web.Response``.
+    """
+    mock_web = MagicMock()
+    mock_app = MagicMock()
+    mock_web.Application.return_value = mock_app
+
+    with patch("suncast.http_server.web", mock_web):
+        from suncast.http_server import _build_app
+
+        _build_app(provider, settings)
+
+    handlers: dict[str, object] = {}
+    for call in mock_app.router.add_get.call_args_list:
+        handlers[call[0][0]] = call[0][1]
+    return mock_web, handlers
+
+
+@pytest.mark.unit
+class TestHandlerResponses:
+    """Tests for HTTP handler response contracts.
+
+    Technique: Specification-based — endpoint response status and content-type.
+    """
+
+    async def test_svg_returns_503_when_no_data(self) -> None:
+        """GET /shadow.svg returns 503 when provider returns None.
+
+        Technique: Equivalence Partitioning — SVG not yet available.
+        """
+        # Arrange
+        mock_web, handlers = _build_with_mock_web(lambda: None, HttpSettings())
+        handler = handlers["/shadow.svg"]
+
+        # Act
+        with patch("suncast.http_server.web", mock_web):
+            await handler(MagicMock())
+
+        # Assert
+        mock_web.Response.assert_called_once_with(
+            status=503, text="No shadow data available yet"
+        )
+
+    async def test_svg_returns_svg_content(self) -> None:
+        """GET /shadow.svg returns SVG with correct content type.
+
+        Technique: Specification-based — successful SVG response.
+        """
+        # Arrange
+        mock_web, handlers = _build_with_mock_web(lambda: SAMPLE_SVG, HttpSettings())
+        handler = handlers["/shadow.svg"]
+
+        # Act
+        with patch("suncast.http_server.web", mock_web):
+            await handler(MagicMock())
+
+        # Assert
+        mock_web.Response.assert_called_once_with(
+            text=SAMPLE_SVG, content_type="image/svg+xml"
+        )
+
+    async def test_png_returns_503_when_no_data(self) -> None:
+        """GET /shadow.png returns 503 when provider returns None.
+
+        Technique: Equivalence Partitioning — SVG not yet available for rasterization.
+        """
+        # Arrange
+        mock_web, handlers = _build_with_mock_web(lambda: None, HttpSettings())
+        handler = handlers["/shadow.png"]
+
+        # Act
+        with patch("suncast.http_server.web", mock_web):
+            await handler(MagicMock())
+
+        # Assert
+        mock_web.Response.assert_called_once_with(
+            status=503, text="No shadow data available yet"
+        )
+
+    async def test_png_returns_500_on_rasterization_error(self) -> None:
+        """GET /shadow.png returns 500 when rasterization fails.
+
+        Technique: Error Guessing — cairosvg failure during request.
+        """
+        # Arrange
+        from suncast.rasterize import RasterizationError
+
+        mock_web, handlers = _build_with_mock_web(lambda: SAMPLE_SVG, HttpSettings())
+        handler = handlers["/shadow.png"]
+
+        # Act
+        with (
+            patch("suncast.http_server.web", mock_web),
+            patch(
+                "suncast.http_server.svg_to_png",
+                side_effect=RasterizationError("no cairosvg"),
+            ),
+        ):
+            await handler(MagicMock())
+
+        # Assert
+        mock_web.Response.assert_called_once_with(status=500, text="no cairosvg")
+
+    async def test_png_returns_png_bytes(self) -> None:
+        """GET /shadow.png returns PNG with correct content type.
+
+        Technique: Specification-based — successful PNG response.
+        """
+        # Arrange
+        fake_png = b"\x89PNG\r\n\x1a\nfake"
+        mock_web, handlers = _build_with_mock_web(lambda: SAMPLE_SVG, HttpSettings())
+        handler = handlers["/shadow.png"]
+
+        # Act
+        with (
+            patch("suncast.http_server.web", mock_web),
+            patch("suncast.http_server.svg_to_png", return_value=fake_png),
+        ):
+            await handler(MagicMock())
+
+        # Assert
+        mock_web.Response.assert_called_once_with(
+            body=fake_png, content_type="image/png"
+        )
+
+    async def test_health_returns_ok(self) -> None:
+        """GET /health returns 200 with 'ok'.
+
+        Technique: Specification-based — health check contract.
+        """
+        # Arrange
+        mock_web, handlers = _build_with_mock_web(lambda: SAMPLE_SVG, HttpSettings())
+        handler = handlers["/health"]
+
+        # Act
+        with patch("suncast.http_server.web", mock_web):
+            await handler(MagicMock())
+
+        # Assert
+        mock_web.Response.assert_called_once_with(text="ok")
+
+
 # =============================================================================
 # Helpers
 # =============================================================================
