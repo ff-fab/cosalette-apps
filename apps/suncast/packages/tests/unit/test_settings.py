@@ -13,7 +13,13 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Unit tests for SuncastSettings."""
+"""Unit tests for SuncastSettings.
+
+Test Techniques Used:
+- Specification-based: defaults match documented specification
+- Boundary Value Analysis: latitude/longitude/port range limits
+- Error Guessing: missing required fields, zero/negative poll_interval
+"""
 
 from __future__ import annotations
 
