@@ -116,12 +116,8 @@ class ShadowRenderer:
         for b in geometry.buildings:
             pts = tuple(Point(x, y) for x, y in b.vertices)
             d = points_to_path(pts)
-            stroke = s.secondary_color if b.style == "home" else s.primary_color
-            fill_attr = s.secondary_color if b.style == "home" else "none"
-            parts.append(
-                f'<path d="{d}" stroke="{stroke}" '
-                f'stroke-width="{s.stroke_width}" fill="{fill_attr}"/>'
-            )
+            fill_attr = s.secondary_color if b.style == "home" else s.primary_color
+            parts.append(f'<path d="{d}" fill="{fill_attr}"/>')
         parts.append("</g>")
 
         # 6. Highlighted regions
@@ -167,15 +163,6 @@ class ShadowRenderer:
 
         # 9. Sundial (hourly azimuth lines)
         parts.append('<g class="sundial">')
-        for i, az in enumerate(sun.hourly_azimuths):
-            adjusted = apply_north_rotation(az, north_rot)
-            end = degrees_to_cartesian(adjusted, radius, Point(cx, cy))
-            opacity = 0.6 if i % 2 == 0 else 0.3
-            parts.append(
-                f'<line x1="{cx}" y1="{cy}" x2="{end.x:.2f}" y2="{end.y:.2f}" '
-                f'stroke="{s.primary_color}" stroke-width="0.5" '
-                f'opacity="{opacity}" class="sundial-line"/>'
-            )
         # Sunrise/sunset indicators
         if sun.sunrise_azimuth is not None:
             sr_pt = degrees_to_cartesian(

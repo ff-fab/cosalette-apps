@@ -122,6 +122,10 @@ def shadow_results() -> list[ShadowResult]:
                 Point(40, 10),
                 Point(60, 10),
             ),
+            sun_facing_edges=(
+                Point(40, 40),
+                Point(60, 40),
+            ),
         ),
     ]
 
@@ -174,7 +178,7 @@ class TestShadowRenderer:
         geometry: GeometryConfig,
         settings: RenderSettings,
     ) -> None:
-        """Home buildings get secondary_color fill; neighbors get primary_color stroke.
+        """Home buildings get secondary_color fill; neighbors get primary_color fill, no stroke.
 
         Technique: Condition Coverage — building style branching.
         """
@@ -188,12 +192,12 @@ class TestShadowRenderer:
         assert bldg_group is not None
         paths = bldg_group.findall("svg:path", ns)
         assert len(paths) == 2
-        # First path = house (home style): fill and stroke both secondary_color
+        # First path = house (home style): fill secondary_color, no stroke
         assert paths[0].get("fill") == settings.secondary_color
-        assert paths[0].get("stroke") == settings.secondary_color
-        # Second path = garage (neighbor style): fill none, stroke primary_color
-        assert paths[1].get("fill") == "none"
-        assert paths[1].get("stroke") == settings.primary_color
+        assert paths[0].get("stroke") is None
+        # Second path = garage (neighbor style): fill primary_color, no stroke
+        assert paths[1].get("fill") == settings.primary_color
+        assert paths[1].get("stroke") is None
 
     def test_highlighted_regions_rendered(
         self,
@@ -247,21 +251,21 @@ class TestShadowRenderer:
         assert 'class="day-arc"' in svg
         assert 'class="night-arc"' in svg
 
-    def test_sundial_has_24_hourly_lines(
+    def test_sundial_has_no_hourly_lines(
         self,
         renderer: ShadowRenderer,
         daylight_sun: SunPosition,
         geometry: GeometryConfig,
     ) -> None:
-        """Sundial contains 24 hourly radial lines.
+        """Sundial no longer contains hourly radial lines.
 
-        Technique: Specification-based — sundial completeness.
+        Technique: Specification-based — sundial line removal verified.
         """
         # Act
         svg = renderer.render(daylight_sun, [], geometry)
 
         # Assert
-        assert svg.count('class="sundial-line"') == 24
+        assert 'class="sundial-line"' not in svg
 
     def test_sun_position_marker_present(
         self,

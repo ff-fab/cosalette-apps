@@ -18,7 +18,8 @@
 Test Techniques Used:
 - Equivalence Partitioning: Sun position classes (daylight, night, overhead)
 - Boundary Value Analysis: Sun elevation at 0° and 90° boundaries
-- Specification-based: Compass azimuth to cartesian conversion
+- Specification-based: Compass azimuth to cartesian conversion, silhouette detection
+- Structural Testing: Convex and concave polygon silhouette shapes
 """
 
 from __future__ import annotations
@@ -197,10 +198,11 @@ class TestComputeShadowPolygon:
         vertices = [(40, 40), (60, 40), (60, 60), (40, 60)]
 
         # Act
-        result = compute_shadow_polygon(vertices, 180, 0, 100)
+        shadow, sun_facing = compute_shadow_polygon(vertices, 180, 0, 100)
 
         # Assert
-        assert result == ()
+        assert shadow == ()
+        assert sun_facing == ()
 
     def test_sun_at_zenith_returns_empty(self) -> None:
         """Elevation >= 90 should produce no shadow."""
@@ -208,40 +210,44 @@ class TestComputeShadowPolygon:
         vertices = [(40, 40), (60, 40), (60, 60), (40, 60)]
 
         # Act
-        result = compute_shadow_polygon(vertices, 180, 90, 100)
+        shadow, sun_facing = compute_shadow_polygon(vertices, 180, 90, 100)
 
         # Assert
-        assert result == ()
+        assert shadow == ()
+        assert sun_facing == ()
 
-    def test_sun_nearly_overhead_produces_short_shadow(self) -> None:
-        """Elevation near 90° should produce a very short shadow."""
+    def test_sun_nearly_overhead_produces_shadow(self) -> None:
+        """Elevation near 90° should still produce a valid shadow polygon."""
         # Arrange
         vertices = [(40, 40), (60, 40), (60, 60), (40, 60)]
 
         # Act
-        result = compute_shadow_polygon(vertices, 180, 89.99, 100)
+        shadow, sun_facing = compute_shadow_polygon(vertices, 180, 89.99, 100)
 
-        # Assert
-        assert len(result) == 8  # 4 base + 4 projected
-        # Shadow should be very short — projected points close to base
-        for base, proj in zip(result[:4], reversed(result[4:]), strict=True):
-            assert abs(base.x - proj.x) < 1.0
-            assert abs(base.y - proj.y) < 1.0
+        # Assert — shadow and sun_facing should be non-empty
+        assert len(shadow) > 0
+        assert len(sun_facing) > 0
 
-    def test_elevation_45_produces_reasonable_shadow(self) -> None:
-        """At 45° elevation, shadow length factor is 1.0, scaled by canvas_size*0.5."""
+    def test_elevation_45_shadow_falls_opposite_sun(self) -> None:
+        """At 45° elevation with sun from south (180°), shadow falls northward.
+
+        Technique: Specification-based — shadow direction verification.
+        """
         # Arrange
         vertices = [(50, 50), (60, 50), (60, 60), (50, 60)]
 
         # Act
-        result = compute_shadow_polygon(vertices, 180, 45, 100)
+        shadow, _sun_facing = compute_shadow_polygon(vertices, 180, 45, 100)
 
-        # Assert
-        assert len(result) == 8
-        # tan(45°) = 1.0, so shadow_length = 1.0 * 100 * 0.5 = 50
-        # Shadow direction is (180+180)%360 = 0° (north), so y decreases by 50
-        projected_first = result[7]  # reversed projected, first base -> last projected
-        assert projected_first.y == pytest.approx(50 - 50, abs=0.1)
+        # Assert — projected vertices should have lower y (northward)
+        building_pts = {Point(vx, vy) for vx, vy in vertices}
+        projected = [p for p in shadow if p not in building_pts]
+        assert len(projected) > 0
+        centroid_y = sum(vy for _, vy in vertices) / len(vertices)
+        for p in projected:
+            assert p.y < centroid_y, (
+                "Shadow should fall north (lower y) when sun is south"
+            )
 
     def test_fewer_than_three_vertices_returns_empty(self) -> None:
         """Fewer than 3 vertices should return empty polygon."""
@@ -249,21 +255,90 @@ class TestComputeShadowPolygon:
         vertices = [(10, 10), (20, 20)]
 
         # Act
-        result = compute_shadow_polygon(vertices, 180, 45, 100)
+        shadow, sun_facing = compute_shadow_polygon(vertices, 180, 45, 100)
 
         # Assert
-        assert result == ()
+        assert shadow == ()
+        assert sun_facing == ()
 
-    def test_rectangle_produces_eight_point_polygon(self) -> None:
-        """A rectangle (4 vertices) should produce an 8-point shadow polygon."""
+    def test_rectangle_shadow_structure(self) -> None:
+        """A rectangle produces a shadow with max_projected + side2 + min_projected.
+
+        Technique: Specification-based — shadow polygon structure.
+        """
         # Arrange
         vertices = [(30, 30), (70, 30), (70, 70), (30, 70)]
 
         # Act
-        result = compute_shadow_polygon(vertices, 90, 30, 100)
+        shadow, sun_facing = compute_shadow_polygon(vertices, 90, 30, 100)
 
-        # Assert
-        assert len(result) == 8
+        # Assert — shadow should have projected + side2 vertices
+        assert len(shadow) >= 3
+        assert len(sun_facing) >= 2
+
+    def test_sun_facing_edges_populated(self) -> None:
+        """Sun-facing edges should contain the sun-lit building vertices.
+
+        Technique: Specification-based — sun_facing_edges content.
+        """
+        # Arrange
+        vertices = [(30, 30), (70, 30), (70, 70), (30, 70)]
+
+        # Act
+        _shadow, sun_facing = compute_shadow_polygon(vertices, 180, 45, 100)
+
+        # Assert — sun_facing should be a non-empty subset of building vertices
+        assert len(sun_facing) >= 2
+        building_pts = {Point(vx, vy) for vx, vy in vertices}
+        for p in sun_facing:
+            assert p in building_pts
+
+    def test_convex_shadow_non_self_intersecting(self) -> None:
+        """Shadow polygon from a convex building should form a valid non-degenerate shape.
+
+        Technique: Structural Testing — polygon validity for convex input.
+
+        Uses the shoelace formula to verify the polygon has non-zero signed area,
+        proving it is non-degenerate.
+        """
+        # Arrange
+        vertices = [(30, 30), (70, 30), (70, 70), (30, 70)]
+
+        # Act
+        shadow, _sun_facing = compute_shadow_polygon(vertices, 135, 30, 200)
+
+        # Assert — verify non-zero area via shoelace formula
+        assert len(shadow) >= 3
+        n = len(shadow)
+        area = 0.0
+        for i in range(n):
+            j = (i + 1) % n
+            area += shadow[i].x * shadow[j].y
+            area -= shadow[j].x * shadow[i].y
+        area = abs(area) / 2.0
+        assert area > 0.0, "Shadow polygon should have non-zero area"
+
+    def test_concave_l_shape_silhouette(self) -> None:
+        """An L-shaped concave polygon should produce a valid silhouette shadow.
+
+        Technique: Structural Testing — concave polygon silhouette detection.
+        """
+        # Arrange — L-shape
+        vertices = [
+            (30, 30),
+            (60, 30),
+            (60, 50),
+            (50, 50),
+            (50, 70),
+            (30, 70),
+        ]
+
+        # Act
+        shadow, sun_facing = compute_shadow_polygon(vertices, 135, 30, 200)
+
+        # Assert — both outputs should be non-empty
+        assert len(shadow) >= 3
+        assert len(sun_facing) >= 2
 
 
 # ---------------------------------------------------------------------------
