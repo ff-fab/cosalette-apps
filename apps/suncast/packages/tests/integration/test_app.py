@@ -44,9 +44,9 @@ _LAT = 47.3769
 _LON = 8.5417
 _TZ = "Europe/Zurich"
 
-# -- Legacy building geometry adapted to GeometryConfig --------------------
+# -- Building geometry adapted to GeometryConfig ---------------------------
 
-LEGACY_GEOMETRY = GeometryConfig(
+TEST_GEOMETRY = GeometryConfig(
     canvas=CanvasConfig(size=100),
     buildings=[
         BuildingConfig(
@@ -78,6 +78,18 @@ LEGACY_GEOMETRY = GeometryConfig(
             casts_shadow=True,
             style="default",
         ),
+        BuildingConfig(
+            name="northeast",
+            vertices=[
+                (56.50, 37.40),
+                (70.00, 16.00),
+                (99.25, 34.25),
+                (93.00, 55.75),
+                (90.75, 59.00),
+            ],
+            casts_shadow=True,
+            style="neighbor",
+        ),
     ],
     highlighted_regions=[],
 )
@@ -97,7 +109,7 @@ def _make_settings(**overrides: object) -> SuncastSettings:
 def _make_pipeline(
     tmp_path: Path,
     *,
-    geometry: GeometryConfig = LEGACY_GEOMETRY,
+    geometry: GeometryConfig = TEST_GEOMETRY,
     png_enabled: bool = False,
 ) -> PipelineState:
     """Build a PipelineState with filesystem output routed to *tmp_path*."""
@@ -225,7 +237,7 @@ class TestMultipleBuildings:
     """Multiple buildings each cast a shadow path during daytime."""
 
     async def test_each_building_casts_shadow(self, tmp_path: Path) -> None:
-        # Arrange — LEGACY_GEOMETRY has 2 shadow-casting buildings
+        # Arrange — TEST_GEOMETRY has 3 shadow-casting buildings
         ctx = _make_ctx()
         state = _make_pipeline(tmp_path)
         settings = _make_settings()
@@ -235,7 +247,7 @@ class TestMultipleBuildings:
             mock_dt.now.return_value = _DAYTIME
             await _shadow_handler(ctx, state, settings)
 
-        # Assert — shadow group has at least 2 path elements
+        # Assert — shadow group has at least 3 path elements
         svg_content = (tmp_path / "shadow.svg").read_text(encoding="utf-8")
         assert 'class="shadows"' in svg_content
         # Each shadow-casting building produces a <path> inside the shadows group
@@ -244,7 +256,7 @@ class TestMultipleBuildings:
             shadow_start : svg_content.index("</g>", shadow_start)
         ]
         path_count = shadow_section.count("<path")
-        assert path_count >= 2, f"Expected ≥2 shadow paths, got {path_count}"
+        assert path_count >= 3, f"Expected ≥3 shadow paths, got {path_count}"
 
 
 @pytest.mark.integration
