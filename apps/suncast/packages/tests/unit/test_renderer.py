@@ -146,11 +146,12 @@ class TestShadowRenderer:
         shadow_results: list[ShadowResult],
         geometry: GeometryConfig,
     ) -> None:
-        """Daytime SVG contains shadow polygons, buildings, sundial, sun marker."""
+        """Daytime SVG contains sun-facing outlines, shadow polygons, buildings, sundial, sun marker."""
         # Act
         svg = renderer.render(daylight_sun, shadow_results, geometry)
 
         # Assert
+        assert 'class="sun-facing"' in svg
         assert 'class="shadows"' in svg
         assert 'class="buildings"' in svg
         assert 'class="sundial"' in svg
@@ -162,12 +163,13 @@ class TestShadowRenderer:
         night_sun: SunPosition,
         geometry: GeometryConfig,
     ) -> None:
-        """Nighttime SVG has no shadow polygons but still has sundial and sun marker."""
+        """Nighttime SVG has no shadow polygons or sun-facing outlines."""
         # Act
         svg = renderer.render(night_sun, [], geometry)
 
         # Assert
         assert 'class="shadows"' not in svg
+        assert 'class="sun-facing"' not in svg
         assert 'class="sundial"' in svg
         assert 'class="sun-marker"' in svg
 
@@ -449,3 +451,114 @@ class TestShadowRenderer:
         # Assert — no arc elements present
         assert 'class="day-arc"' not in svg
         assert 'class="night-arc"' not in svg
+
+    def test_sun_facing_edges_rendered_with_light_color(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        shadow_results: list[ShadowResult],
+        geometry: GeometryConfig,
+        settings: RenderSettings,
+    ) -> None:
+        """Sun-facing edges render as open strokes with light_color.
+
+        Technique: Specification-based — sun-facing edge rendering.
+        """
+        # Act
+        svg = renderer.render(daylight_sun, shadow_results, geometry, settings)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        group = root.find(".//svg:g[@class='sun-facing']", ns)
+        assert group is not None
+        paths = group.findall("svg:path", ns)
+        assert len(paths) == 1
+        assert paths[0].get("stroke") == settings.light_color
+        assert paths[0].get("fill") == "none"
+        # Open path — no Z closing command
+        d = paths[0].get("d", "")
+        assert d.startswith("M")
+        assert "Z" not in d
+
+    def test_sun_facing_absent_when_no_shadows(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """No sun-facing group when shadow list is empty.
+
+        Technique: Condition Coverage — empty shadows branch.
+        """
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        # Assert
+        assert 'class="sun-facing"' not in svg
+
+    def test_sundial_ring_has_24_arcs(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Sundial ring renders 24 arc segments with alternating opacity.
+
+        Technique: Specification-based — sundial ring arc count.
+        """
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        arcs = root.findall(".//svg:path[@class='sundial-arc']", ns)
+        assert len(arcs) == 24
+        # Alternating opacity: even indices 0.2, odd indices 1.0
+        opacities = [a.get("stroke-opacity") for a in arcs]
+        assert opacities[0] == "0.2"
+        assert opacities[1] == "1.0"
+        assert opacities[2] == "0.2"
+
+    def test_sundial_ring_has_noon_midnight_bars(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Sundial ring includes noon and midnight bar markers.
+
+        Technique: Specification-based — sundial bar markers.
+        """
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        midnight = root.findall(".//svg:line[@class='midnight-bar']", ns)
+        noon = root.findall(".//svg:line[@class='noon-bar']", ns)
+        assert len(midnight) == 1
+        assert len(noon) == 1
+
+    def test_sundial_ring_disabled(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """No sundial ring arcs when show_sundial_ring is False.
+
+        Technique: Condition Coverage — ring toggle.
+        """
+        # Arrange
+        settings = RenderSettings(show_sundial_ring=False)
+
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        # Assert
+        assert 'class="sundial-arc"' not in svg
+        assert 'class="midnight-bar"' not in svg
+        assert 'class="noon-bar"' not in svg
