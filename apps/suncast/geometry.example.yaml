@@ -34,6 +34,16 @@ buildings:
     casts_shadow: true
     style: neighbor
 
+  - name: northeast
+    vertices:
+      - [56.50, 37.40]
+      - [70.00, 16.00]
+      - [99.25, 34.25]
+      - [93.00, 55.75]
+      - [90.75, 59.00]
+    casts_shadow: true
+    style: neighbor
+
 highlighted_regions:
   - name: dining_room
     vertices:
