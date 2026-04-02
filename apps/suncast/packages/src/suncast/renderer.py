@@ -24,7 +24,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from suncast.domain.geometry import GeometryConfig
-from suncast.domain.shadow import Point, ShadowResult, degrees_to_cartesian
+from suncast.domain.shadow import (
+    Point,
+    ShadowResult,
+    apply_north_rotation,
+    degrees_to_cartesian,
+)
 from suncast.domain.solar import SunPosition
 
 
@@ -142,14 +147,14 @@ class ShadowRenderer:
             day_d = arc_path(
                 Point(cx, cy),
                 radius,
-                (sun.sunrise_azimuth - north_rot) % 360,
-                (sun.sunset_azimuth - north_rot) % 360,
+                apply_north_rotation(sun.sunrise_azimuth, north_rot),
+                apply_north_rotation(sun.sunset_azimuth, north_rot),
             )
             night_d = arc_path(
                 Point(cx, cy),
                 radius,
-                (sun.sunset_azimuth - north_rot) % 360,
-                (sun.sunrise_azimuth - north_rot) % 360,
+                apply_north_rotation(sun.sunset_azimuth, north_rot),
+                apply_north_rotation(sun.sunrise_azimuth, north_rot),
             )
             parts.append(
                 f'<path d="{day_d}" fill="none" stroke="{s.light_color}" '
@@ -163,7 +168,7 @@ class ShadowRenderer:
         # 9. Sundial (hourly azimuth lines)
         parts.append('<g class="sundial">')
         for i, az in enumerate(sun.hourly_azimuths):
-            adjusted = (az - north_rot) % 360
+            adjusted = apply_north_rotation(az, north_rot)
             end = degrees_to_cartesian(adjusted, radius, Point(cx, cy))
             opacity = 0.6 if i % 2 == 0 else 0.3
             parts.append(
@@ -173,15 +178,21 @@ class ShadowRenderer:
             )
         # Sunrise/sunset indicators
         if sun.sunrise_azimuth is not None:
-            sr_adj = (sun.sunrise_azimuth - north_rot) % 360
-            sr_pt = degrees_to_cartesian(sr_adj, radius, Point(cx, cy))
+            sr_pt = degrees_to_cartesian(
+                apply_north_rotation(sun.sunrise_azimuth, north_rot),
+                radius,
+                Point(cx, cy),
+            )
             parts.append(
                 f'<circle cx="{sr_pt.x:.2f}" cy="{sr_pt.y:.2f}" r="3" '
                 f'fill="{s.light_color}" class="sunrise-marker"/>'
             )
         if sun.sunset_azimuth is not None:
-            ss_adj = (sun.sunset_azimuth - north_rot) % 360
-            ss_pt = degrees_to_cartesian(ss_adj, radius, Point(cx, cy))
+            ss_pt = degrees_to_cartesian(
+                apply_north_rotation(sun.sunset_azimuth, north_rot),
+                radius,
+                Point(cx, cy),
+            )
             parts.append(
                 f'<circle cx="{ss_pt.x:.2f}" cy="{ss_pt.y:.2f}" r="3" '
                 f'fill="{s.primary_color}" class="sunset-marker"/>'
@@ -189,7 +200,7 @@ class ShadowRenderer:
         parts.append("</g>")
 
         # 10. Sun position marker
-        sun_adj = (sun.azimuth - north_rot) % 360
+        sun_adj = apply_north_rotation(sun.azimuth, north_rot)
         sun_pt = degrees_to_cartesian(sun_adj, radius, Point(cx, cy))
         parts.append(
             f'<circle cx="{sun_pt.x:.2f}" cy="{sun_pt.y:.2f}" r="5" '
