@@ -37,7 +37,6 @@ from suncast.domain.shadow import (
 )
 from suncast.domain.solar import SunPosition
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
