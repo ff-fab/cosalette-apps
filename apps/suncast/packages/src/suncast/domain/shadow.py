@@ -45,6 +45,7 @@ class ShadowResult:
 
     building_name: str
     shadow_polygon: Polygon
+    sun_facing_edges: Polygon
 
 
 def degrees_to_cartesian(azimuth_deg: float, distance: float, center: Point) -> Point:
@@ -65,27 +66,83 @@ def compute_shadow_polygon(
     sun_azimuth: float,
     sun_elevation: float,
     canvas_size: int,
-) -> Polygon:
-    """Compute the shadow polygon for a building footprint.
+) -> tuple[Polygon, Polygon]:
+    """Compute the shadow polygon for a building footprint via silhouette detection.
 
-    Note: assumes convex building footprints. Concave footprints (e.g. L-shaped
-    buildings) will produce self-intersecting polygons with distorted shadows.
+    Uses angle extrema from a distant sun reference point to identify the
+    silhouette edges of the polygon. Projects the silhouette boundary vertices
+    outward to form the shadow polygon.
+
+    Returns a tuple of (shadow_polygon, sun_facing_edges).
     """
+    empty: tuple[Polygon, Polygon] = ((), ())
     if sun_elevation <= 0 or sun_elevation >= 90:
-        return ()
+        return empty
     if len(vertices) < 3:
-        return ()
+        return empty
 
-    shadow_azimuth = (sun_azimuth + 180) % 360
-    shadow_length = (1.0 / math.tan(math.radians(sun_elevation))) * canvas_size * 0.5
+    pts = [Point(vx, vy) for vx, vy in vertices]
+    n = len(pts)
 
-    base_points = [Point(vx, vy) for vx, vy in vertices]
-    projected = [
-        degrees_to_cartesian(shadow_azimuth, shadow_length, Point(vx, vy))
-        for vx, vy in vertices
-    ]
+    # 1. Project the sun to a distant reference point along the sun azimuth.
+    centroid = Point(
+        sum(p.x for p in pts) / n,
+        sum(p.y for p in pts) / n,
+    )
+    sun_ref = degrees_to_cartesian(sun_azimuth, 10000.0, centroid)
 
-    return tuple(base_points) + tuple(reversed(projected))
+    # 2. Compute angle from each vertex to the distant sun point.
+    angles = [-math.degrees(math.atan2(p.y - sun_ref.y, p.x - sun_ref.x)) for p in pts]
+
+    # 3. Find min-angle and max-angle vertex indices (silhouette extremes).
+    min_idx = min(range(n), key=lambda i: angles[i])
+    max_idx = max(range(n), key=lambda i: angles[i])
+
+    # 4. Trace forward from min-angle vertex to max-angle vertex → side1 (sun-facing).
+    side1: list[Point] = []
+    idx = min_idx
+    max_iterations = n + 1
+    iterations = 0
+    while True:
+        side1.append(pts[idx])
+        if idx == max_idx:
+            break
+        idx = (idx + 1) % n
+        iterations += 1
+        if iterations > max_iterations:
+            return empty
+
+    # 5. Continue from max-angle vertex back to min-angle vertex → side2 (shadow-casting).
+    side2: list[Point] = []
+    idx = max_idx
+    iterations = 0
+    while True:
+        side2.append(pts[idx])
+        if idx == min_idx:
+            break
+        idx = (idx + 1) % n
+        iterations += 1
+        if iterations > max_iterations:
+            return empty
+
+    # 6. Project the min and max vertices outward along their respective angles.
+    min_angle_rad = math.radians(angles[min_idx])
+    max_angle_rad = math.radians(angles[max_idx])
+
+    min_projected = Point(
+        pts[min_idx].x + canvas_size * math.cos(min_angle_rad),
+        pts[min_idx].y - canvas_size * math.sin(min_angle_rad),
+    )
+    max_projected = Point(
+        pts[max_idx].x + canvas_size * math.cos(max_angle_rad),
+        pts[max_idx].y - canvas_size * math.sin(max_angle_rad),
+    )
+
+    # 7. Assemble: shadow = [max_projected] + side2 + [min_projected]
+    shadow = tuple([max_projected, *side2, min_projected])
+    sun_facing = tuple(side1)
+
+    return shadow, sun_facing
 
 
 def clamp_to_circle(polygon: Polygon, center: Point, radius: float) -> Polygon:
@@ -125,12 +182,16 @@ def compute_building_shadows(
     for building in geometry.buildings:
         if not building.casts_shadow:
             continue
-        shadow = compute_shadow_polygon(
+        shadow, sun_facing = compute_shadow_polygon(
             building.vertices, adjusted_azimuth, sun.elevation, geometry.canvas.size
         )
         shadow = clamp_to_circle(shadow, center, radius)
         if shadow:
             results.append(
-                ShadowResult(building_name=building.name, shadow_polygon=shadow)
+                ShadowResult(
+                    building_name=building.name,
+                    shadow_polygon=shadow,
+                    sun_facing_edges=sun_facing,
+                )
             )
     return results
