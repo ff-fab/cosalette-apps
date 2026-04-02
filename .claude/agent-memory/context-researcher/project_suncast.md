@@ -86,4 +86,4 @@ Note: ADR-000 requires attribution to pmpkk specifically in shadow.py header.
 ## Task commands
 
 `task suncast:test:unit` — run unit tests `task suncast:lint`, `task suncast:typecheck`,
-`task suncast:check:` — quality gates `task suncast:test:` — all tests with coverage
+`task suncast:check` — quality gates `task suncast:test` — all tests with coverage

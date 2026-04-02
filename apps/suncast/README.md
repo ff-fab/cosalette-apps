@@ -108,7 +108,8 @@ CLI flags. See [.env.example](.env.example) for a ready-to-copy template.
 ### Geometry
 
 Buildings are defined in a YAML file (default: `geometry.yaml`). Each building is a
-named polygon with vertices on a 0–100 coordinate grid:
+named polygon with vertices on a `0..canvas.size` coordinate grid (default `0..100` when
+`canvas.size: 100`):
 
 ```yaml
 canvas:
@@ -130,12 +131,13 @@ buildings and highlighted regions.
 
 ## MQTT Topics
 
-| Topic                           | Direction | Description                                |
-| ------------------------------- | --------- | ------------------------------------------ |
-| `suncast/status`                | Publish   | Heartbeat with app status, uptime, version |
-| `suncast/{device}/state`        | Publish   | Device state (if using named devices)      |
-| `suncast/{device}/availability` | Publish   | `online` / `offline`                       |
-| `suncast/error`                 | Publish   | Structured error reports                   |
+| Topic                         | Direction | Description                                      |
+| ----------------------------- | --------- | ------------------------------------------------ |
+| `suncast/status`              | Publish   | Heartbeat with app status, uptime, version       |
+| `suncast/shadow/state`        | Publish   | Primary `shadow` device state (shadow telemetry) |
+| `suncast/shadow/availability` | Publish   | `online` / `offline` for the `shadow` device     |
+| `suncast/shadow/error`        | Publish   | Errors scoped to the `shadow` device             |
+| `suncast/error`               | Publish   | Global structured error reports for the app      |
 
 ## Development
 
