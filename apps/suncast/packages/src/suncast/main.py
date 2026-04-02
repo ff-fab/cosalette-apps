@@ -17,7 +17,10 @@
 
 from __future__ import annotations
 
+from suncast.app import create_app
+
 
 def main() -> None:
     """Start the application."""
-    raise SystemExit("Not yet implemented. See docs/index.md for next steps.")
+    app = create_app()
+    app.cli()
