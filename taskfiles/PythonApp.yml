@@ -122,6 +122,15 @@ tasks:
           exit 1
         fi
 
+  docs:pre-build:
+    desc: 'Run pre-build script for {{.APP_NAME}} docs (if it exists)'
+    internal: true
+    cmds:
+      - |
+        if [ -f docs/_scripts/pre_build.py ]; then
+          uv run --package {{.APP_NAME}} python docs/_scripts/pre_build.py
+        fi
+
   docs:copy-shared:
     desc: 'Copy shared doc assets into {{.APP_NAME}} docs dir'
     internal: true
@@ -135,12 +144,14 @@ tasks:
   docs:serve:
     desc: 'Preview docs for {{.APP_NAME}}'
     cmds:
+      - task: docs:pre-build
       - task: docs:copy-shared
       - uv run --project {{.ROOT_DIR}} --group docs zensical serve --dev-addr 0.0.0.0:8001
 
   docs:build:
     desc: 'Build docs for {{.APP_NAME}}'
     cmds:
+      - task: docs:pre-build
       - task: docs:copy-shared
       - uv run --project {{.ROOT_DIR}} --group docs zensical build --clean
 

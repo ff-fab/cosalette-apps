@@ -177,6 +177,7 @@ apps/*/docs/stylesheets/extra.css
 apps/*/docs/javascripts/version-fetch.js
 apps/*/docs/javascripts/header-breadcrumb.js
 apps/*/docs/javascripts/palette-sync.js
+apps/*/docs/images/generated/
 docs/javascripts/palette-sync.js
 
 # mypy
