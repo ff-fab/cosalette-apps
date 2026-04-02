@@ -128,20 +128,20 @@ def compute_shadow_polygon(
         if iterations > max_iterations:
             return empty
 
-    # 6. Project the min and max vertices outward along their respective angles.
-    # Shadow length is intentionally fixed at canvas_size (not elevation-scaled):
-    # the renderer clips all output with a circular mask, so shadows always
-    # extend to the mask boundary regardless of sun height.
-    min_angle_rad = math.radians(angles[min_idx])
-    max_angle_rad = math.radians(angles[max_idx])
+    # 6. Project silhouette vertices using parallel projection.
+    # All shadow edges share the same direction vector (opposite sun azimuth),
+    # producing physically accurate parallel shadows.  The renderer's
+    # circular mask clips the result visually.
+    dir_x = -math.sin(math.radians(sun_azimuth))
+    dir_y = math.cos(math.radians(sun_azimuth))
 
     min_projected = Point(
-        pts[min_idx].x + canvas_size * math.cos(min_angle_rad),
-        pts[min_idx].y - canvas_size * math.sin(min_angle_rad),
+        pts[min_idx].x + canvas_size * dir_x,
+        pts[min_idx].y + canvas_size * dir_y,
     )
     max_projected = Point(
-        pts[max_idx].x + canvas_size * math.cos(max_angle_rad),
-        pts[max_idx].y - canvas_size * math.sin(max_angle_rad),
+        pts[max_idx].x + canvas_size * dir_x,
+        pts[max_idx].y + canvas_size * dir_y,
     )
 
     # 7. Assemble: shadow = [max_projected] + side2 + [min_projected]
@@ -149,28 +149,6 @@ def compute_shadow_polygon(
     sun_facing = tuple(side1)
 
     return shadow, sun_facing
-
-
-def clamp_to_circle(polygon: Polygon, center: Point, radius: float) -> Polygon:
-    """Clamp polygon points that exceed the circle boundary.
-
-    Performs per-point radial clamping, not true geometric clipping. Points
-    outside the circle are moved to the boundary along their radial vector;
-    no new intersection vertices are introduced at the crossing edge.
-    """
-    if not polygon:
-        return ()
-    result: list[Point] = []
-    for p in polygon:
-        dx = p.x - center.x
-        dy = p.y - center.y
-        dist = math.hypot(dx, dy)
-        if dist > radius:
-            scale = radius / dist
-            result.append(Point(center.x + dx * scale, center.y + dy * scale))
-        else:
-            result.append(p)
-    return tuple(result)
 
 
 def compute_building_shadows(
@@ -181,8 +159,6 @@ def compute_building_shadows(
         return []
 
     adjusted_azimuth = apply_north_rotation(sun.azimuth, geometry.canvas.north_rotation)
-    center = Point(geometry.canvas.size / 2, geometry.canvas.size / 2)
-    radius = geometry.canvas.size / 2
 
     results: list[ShadowResult] = []
     for building in geometry.buildings:
@@ -191,7 +167,6 @@ def compute_building_shadows(
         shadow, sun_facing = compute_shadow_polygon(
             building.vertices, adjusted_azimuth, sun.elevation, geometry.canvas.size
         )
-        shadow = clamp_to_circle(shadow, center, radius)
         if shadow:
             results.append(
                 ShadowResult(

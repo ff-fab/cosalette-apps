@@ -32,7 +32,9 @@ from pydantic import ValidationError
 from suncast.domain.geometry import (
     BuildingConfig,
     CanvasConfig,
+    GeometryConfig,
     HighlightedRegion,
+    fit_to_circle,
     load_geometry,
 )
 
@@ -584,3 +586,149 @@ buildings:
         # Act / Assert
         with pytest.raises(ValueError, match="outside canvas bounds"):
             load_geometry(f)
+
+
+# ---------------------------------------------------------------------------
+# fit_to_circle
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+class TestFitToCircle:
+    """Tests for auto-scaling geometry to fit within the canvas circle."""
+
+    def test_vertices_already_inside_returns_unchanged(self) -> None:
+        """When all vertices fit within the circle, geometry is returned as-is."""
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(
+                    name="a",
+                    vertices=[(45, 45), (55, 45), (55, 55), (45, 55)],
+                ),
+            ],
+        )
+
+        result = fit_to_circle(geometry)
+
+        assert result is geometry
+
+    def test_vertices_on_boundary_with_no_padding_unchanged(self) -> None:
+        """Vertices exactly on the circle boundary with no padding are not scaled."""
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(
+                    name="a",
+                    vertices=[(0, 50), (100, 50), (50, 0), (50, 100)],
+                ),
+            ],
+        )
+
+        result = fit_to_circle(geometry, padding_fraction=0.0)
+
+        assert result is geometry
+
+    def test_vertices_outside_circle_are_scaled_in(self) -> None:
+        """Corner vertices exceed the circle and are scaled inward."""
+        # Arrange — corners at distance hypot(50,50)≈70.7 from center
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(
+                    name="a",
+                    vertices=[(0, 0), (100, 0), (100, 100), (0, 100)],
+                ),
+            ],
+        )
+
+        # Act
+        result = fit_to_circle(geometry, padding_fraction=0.0)
+
+        # Assert — every vertex is now within the circle
+        import math
+
+        for x, y in result.buildings[0].vertices:
+            dist = math.hypot(x - 50, y - 50)
+            assert dist <= 50.0 + 1e-10
+
+    def test_padding_shrinks_further(self) -> None:
+        """With padding, vertices on the boundary are scaled inward."""
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(
+                    name="a",
+                    vertices=[(0, 50), (100, 50), (50, 0), (50, 100)],
+                ),
+            ],
+        )
+
+        result = fit_to_circle(geometry, padding_fraction=0.10)
+
+        # Original max distance = 50, fit_radius = 50*(1-0.1) = 45, scale = 0.9
+        v = result.buildings[0].vertices
+        assert v[0][0] == pytest.approx(5.0, abs=1e-10)
+        assert v[1][0] == pytest.approx(95.0, abs=1e-10)
+
+    def test_highlighted_regions_also_scaled(self) -> None:
+        """Highlighted regions are scaled along with buildings."""
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(name="a", vertices=[(0, 50), (100, 50), (50, 0)]),
+            ],
+            highlighted_regions=[
+                HighlightedRegion(
+                    name="r",
+                    vertices=[(40, 40), (60, 40), (60, 60)],
+                    color="#ff0",
+                ),
+            ],
+        )
+
+        result = fit_to_circle(geometry, padding_fraction=0.10)
+
+        rv = result.highlighted_regions[0].vertices
+        assert rv[0][0] == pytest.approx(50 + (40 - 50) * 0.9, abs=1e-10)
+        assert rv[0][1] == pytest.approx(50 + (40 - 50) * 0.9, abs=1e-10)
+
+    def test_uniform_scaling_preserves_shape(self) -> None:
+        """Scaling is uniform — relative proportions between vertices are preserved."""
+        # Arrange — corners at ~70.7 from center, triggers scaling
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(
+                    name="a",
+                    vertices=[(0, 0), (100, 0), (50, 100)],
+                ),
+            ],
+        )
+        orig = geometry.buildings[0].vertices
+
+        # Act
+        result = fit_to_circle(geometry, padding_fraction=0.10)
+
+        # Assert — width/height ratio preserved
+        scaled = result.buildings[0].vertices
+        orig_width = orig[1][0] - orig[0][0]
+        scaled_width = scaled[1][0] - scaled[0][0]
+        orig_height = orig[2][1] - orig[0][1]
+        scaled_height = scaled[2][1] - scaled[0][1]
+        assert (scaled_width / scaled_height) == pytest.approx(
+            orig_width / orig_height, abs=1e-10
+        )
+
+    def test_no_displacement_returns_unchanged(self) -> None:
+        """Vertices all at center have max_dist=0, so geometry is returned as-is."""
+        geometry = GeometryConfig(
+            canvas=CanvasConfig(size=100),
+            buildings=[
+                BuildingConfig(name="a", vertices=[(50, 50), (50, 50), (50, 50)]),
+            ],
+        )
+
+        result = fit_to_circle(geometry)
+
+        assert result is geometry

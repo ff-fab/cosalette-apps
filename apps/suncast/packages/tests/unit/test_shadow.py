@@ -24,8 +24,6 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import math
-
 import pytest
 
 from suncast.domain.geometry import BuildingConfig, CanvasConfig, GeometryConfig
@@ -33,7 +31,6 @@ from suncast.domain.shadow import (
     Point,
     ShadowResult,
     apply_north_rotation,
-    clamp_to_circle,
     compute_building_shadows,
     compute_shadow_polygon,
     degrees_to_cartesian,
@@ -339,79 +336,6 @@ class TestComputeShadowPolygon:
         # Assert — both outputs should be non-empty
         assert len(shadow) >= 3
         assert len(sun_facing) >= 2
-
-
-# ---------------------------------------------------------------------------
-# clip_to_circle
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.unit
-class TestClampToCircle:
-    """Boundary Value Analysis: circle clamping of polygon points."""
-
-    def test_points_inside_circle_unchanged(self) -> None:
-        """Points within the circle should not be modified."""
-        # Arrange
-        center = Point(50, 50)
-        polygon = (Point(50, 50), Point(55, 50), Point(50, 55))
-
-        # Act
-        result = clamp_to_circle(polygon, center, 50)
-
-        # Assert
-        assert result == polygon
-
-    def test_point_outside_circle_clamped(self) -> None:
-        """A point outside the circle should be clamped to the boundary."""
-        # Arrange
-        center = Point(50, 50)
-        polygon = (Point(150, 50),)  # 100 units to the right, radius is 50
-
-        # Act
-        result = clamp_to_circle(polygon, center, 50)
-
-        # Assert
-        assert result[0].x == pytest.approx(100, abs=1e-10)
-        assert result[0].y == pytest.approx(50, abs=1e-10)
-
-    def test_empty_polygon_returns_empty(self) -> None:
-        """An empty polygon should return an empty tuple."""
-        # Arrange
-        center = Point(50, 50)
-
-        # Act
-        result = clamp_to_circle((), center, 50)
-
-        # Assert
-        assert result == ()
-
-    def test_point_on_boundary_unchanged(self) -> None:
-        """A point exactly on the boundary should not be modified."""
-        # Arrange
-        center = Point(50, 50)
-        polygon = (Point(100, 50),)  # exactly radius=50 away
-
-        # Act
-        result = clamp_to_circle(polygon, center, 50)
-
-        # Assert
-        assert result[0].x == pytest.approx(100, abs=1e-10)
-        assert result[0].y == pytest.approx(50, abs=1e-10)
-
-    def test_diagonal_point_clamped_correctly(self) -> None:
-        """A point outside the circle diagonally should be clamped along the vector."""
-        # Arrange
-        center = Point(0, 0)
-        # Point at (100, 100), distance = sqrt(20000) ~ 141.4
-        polygon = (Point(100, 100),)
-
-        # Act
-        result = clamp_to_circle(polygon, center, 50)
-
-        # Assert
-        dist = math.hypot(result[0].x, result[0].y)
-        assert dist == pytest.approx(50, abs=1e-10)
 
 
 # ---------------------------------------------------------------------------
