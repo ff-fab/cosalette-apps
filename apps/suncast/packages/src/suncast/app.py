@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 import cosalette
 
 from suncast import __version__
-from suncast.domain.geometry import GeometryConfig, load_geometry
+from suncast.domain.geometry import GeometryConfig, fit_to_circle, load_geometry
 from suncast.domain.shadow import compute_building_shadows
 from suncast.domain.solar import compute_solar_position
 from suncast.http_server import HttpSettings, create_http_lifespan
@@ -53,6 +53,7 @@ class PipelineState:
 def _build_pipeline(settings: SuncastSettings) -> PipelineState:
     """Build pipeline state from settings (invoked as ``init=`` callback)."""
     geometry = load_geometry(settings.geometry_file)
+    geometry = fit_to_circle(geometry)
     render_settings = RenderSettings(
         primary_color=settings.primary_color,
         secondary_color=settings.secondary_color,
