@@ -5,19 +5,6 @@ This project uses **bd** (beads) for issue tracking. Run `bd prime` to get start
 ## GitHub Tooling Policy
 
 - Use **GitHub CLI (`gh`)** and **git CLI** directly for PR/issue workflows.
-- Do **not** rely on GitKraken MCP tools in this repository.
-- If an agent attempts GitKraken MCP and authentication is missing, switch immediately
-  to `gh` commands.
-
-Quick CLI equivalents:
-
-```bash
-gh pr view --json number,title,headRefName,baseRefName,state,url
-gh pr checks
-gh pr comment <number> --body "..."
-gh pr review <number> --comment --body "..."
-gh issue list --limit 50
-```
 
 ## Monorepo Layout
 
@@ -26,9 +13,10 @@ This is a **uv workspace monorepo**. Apps live under `apps/<name>/`, each with i
 
 ```
 apps/
-  gas2mqtt/        # MIT
-  jeelink2mqtt/    # MIT
-  vito2mqtt/       # GPL-3.0-or-later
+  gas2mqtt/
+  jeelink2mqtt/
+  vito2mqtt/
+  ...
 taskfiles/
   PythonApp.yml    # Reusable per-app task template
 ```
@@ -135,72 +123,6 @@ item. The gate task references the TODO doc but contains no decision logic itsel
 
 - Date-triggered TODOs stay markdown-only
 - When closing a gate task: create an ADR, update the TODO, or create new tasks
-
-## Showboat Demos (Proof of Work)
-
-**Showboat** creates executable demo documents that prove an agent's work. Consider
-creating a showboat demo for sessions that make significant code or configuration
-changes — especially when reviewers would benefit from reproducible proof.
-
-### What is a Showboat Demo?
-
-A markdown file that mixes commentary with executable code blocks and their captured
-output. The demo serves as both:
-
-- **Documentation** — what was changed and why
-- **Reproducible proof** — `showboat verify` re-runs all code blocks and confirms
-  outputs match
-
-### When to Create a Demo
-
-- **Recommended:** Sessions with significant code, configuration, or infrastructure
-  changes
-- **Skip:** Documentation-only changes, beads-only changes, trivial formatting fixes
-
-### How to Create a Demo
-
-```bash
-# 1. Initialize the demo (use the branch name as filename)
-showboat init docs/planning/demos/<branch-name>.md "<Title describing the work>"
-
-# 2. Add commentary explaining what was done
-showboat note docs/planning/demos/<branch-name>.md "Describe the change and its purpose."
-
-# 3. Run commands that prove it works (output is captured automatically)
-showboat exec docs/planning/demos/<branch-name>.md bash "<test or verification command>"
-
-# 4. If a command fails, remove it and redo
-showboat pop docs/planning/demos/<branch-name>.md
-showboat exec docs/planning/demos/<branch-name>.md bash "<corrected command>"
-
-# 5. Verify the demo is reproducible (MUST exit 0)
-showboat verify docs/planning/demos/<branch-name>.md
-```
-
-### Demo Content Guidelines
-
-The agent decides the scope based on work complexity:
-
-- **Simple fix:** Note explaining the fix + one `exec` proving the test passes
-- **New feature:** Notes on design choices + multiple `exec` blocks showing the feature
-  works (API responses, test runs, etc.)
-- **Refactoring:** Before/after notes + proof that tests still pass
-
-### Conventions
-
-| Convention    | Value                            |
-| ------------- | -------------------------------- |
-| **Location**  | `docs/planning/demos/`           |
-| **Filename**  | `<branch-name>.md`               |
-| **Committed** | Yes — part of the PR             |
-| **Zensical**  | Excluded (not published to site) |
-| **Verify**    | `showboat verify` must exit 0    |
-
-### Reference
-
-- [Showboat README](https://github.com/simonw/showboat)
-- Installed in devcontainer via `uv tool install showboat`
-- Key commands: `init`, `note`, `exec`, `pop`, `verify`, `extract`
 
 <!-- BEGIN BEADS INTEGRATION -->
 <!-- END BEADS INTEGRATION -->
