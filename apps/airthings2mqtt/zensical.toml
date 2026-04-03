@@ -22,8 +22,8 @@ site_url = "https://ff-fab.github.io/cosalette-apps/airthings2mqtt/"
 repo_url = "https://github.com/ff-fab/cosalette-apps"
 repo_name = "ff-fab/cosalette-apps"
 edit_uri = "edit/main/apps/airthings2mqtt/docs/"
-extra_css = ["stylesheets/extra.css"]
-extra_javascript = ["javascripts/version-fetch.js", "javascripts/header-breadcrumb.js", "javascripts/palette-sync.js"]
+extra_css = ["stylesheets/extra.css", "stylesheets/click-zoom.css"]
+extra_javascript = ["javascripts/click-zoom.js", "javascripts/version-fetch.js", "javascripts/header-breadcrumb.js", "javascripts/palette-sync.js"]
 
 # ---------------------------------------------------------------------------
 # Navigation
@@ -83,7 +83,6 @@ toggle.name = "Switch to dark mode"
 # ---------------------------------------------------------------------------
 
 [project.plugins.autorefs]
-[project.plugins.click-zoom]
 
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["packages/src"]
