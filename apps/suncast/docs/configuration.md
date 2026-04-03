@@ -50,8 +50,8 @@ for a complete template.
 | `light_color`     | `SUNCAST_LIGHT_COLOR`      | `#f1b023`   | Sun and daylight arc color                  |
 | `shadow_color`    | `SUNCAST_SHADOW_COLOR`     | `#2F3338`   | Shadow projection color                     |
 | `stroke_width`    | `SUNCAST_STROKE_WIDTH`     | `1.0`       | SVG stroke width for building outlines      |
-| `sundial_ring`    | `SUNCAST_SUNDIAL_RING`     | `true`      | Show hour markers around the compass dial   |
-| `marker_style`    | `SUNCAST_MARKER_STYLE`     | `circle`    | Hour marker style: `circle` or `bar`        |
+| `sundial_mode`    | `SUNCAST_SUNDIAL_MODE`     | `ring`      | Sundial display: `ring`, `compact`, or `off` |
+| `marker_style`    | `SUNCAST_MARKER_STYLE`     | `circle`    | Hour marker style: `circle` or `bar`         |
 
 #### Marker style comparison
 
@@ -72,21 +72,28 @@ for a complete template.
     </figure>
 </div>
 
-#### Sundial ring comparison
+#### Sundial mode comparison
 
 <div class="geometry-comparison">
     <figure>
-        <img src="../images/generated/sundial-on.svg" alt="Sundial ring enabled" width="250">
+        <img src="../images/generated/sundial-ring.svg" alt="Sundial mode: ring" width="250">
         <figcaption>
-            <strong>Sundial ring enabled</strong>
-            Default view with the 24-segment outer ring and noon and midnight bars.
+            <strong>Ring</strong>
+            Full 24-segment outer ring with hour markers and noon/midnight bars.
         </figcaption>
     </figure>
     <figure>
-        <img src="../images/generated/sundial-off.svg" alt="Sundial ring disabled" width="250">
+        <img src="../images/generated/sundial-compact.svg" alt="Sundial mode: compact" width="250">
         <figcaption>
-            <strong>Sundial ring disabled</strong>
-            Minimal view without the outer ring, keeping only the core shadow rendering.
+            <strong>Compact</strong>
+            Hour segments on the inner circle with a translucent daylight overlay.
+        </figcaption>
+    </figure>
+    <figure>
+        <img src="../images/generated/sundial-off.svg" alt="Sundial mode: off" width="250">
+        <figcaption>
+            <strong>Off</strong>
+            Minimal view without any sundial elements, keeping only the core shadow rendering.
         </figcaption>
     </figure>
 </div>
@@ -174,7 +181,7 @@ SUNCAST_TIMEZONE=Europe/Berlin
 # SUNCAST_LIGHT_COLOR=#f1b023
 # SUNCAST_SHADOW_COLOR=#2F3338
 # SUNCAST_STROKE_WIDTH=1.0
-# SUNCAST_SUNDIAL_RING=true
+# SUNCAST_SUNDIAL_MODE=ring
 # SUNCAST_MARKER_STYLE=circle
 
 # --- Output ---

@@ -92,8 +92,12 @@ def generate_config_comparison(geometry: GeometryConfig) -> list[Path]:
             _render(geometry, noon, RenderSettings(marker_style="bar")),
         ),
         _write(
-            "sundial-on.svg",
+            "sundial-ring.svg",
             _render(geometry, noon, RenderSettings(sundial_mode="ring")),
+        ),
+        _write(
+            "sundial-compact.svg",
+            _render(geometry, noon, RenderSettings(sundial_mode="compact")),
         ),
         _write(
             "sundial-off.svg",
