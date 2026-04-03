@@ -185,8 +185,8 @@ class ShadowRenderer:
                 parts.append(f'<path d="{d}" fill="{hr.color}" opacity="0.5"/>')
             parts.append("</g>")
 
-        # 7. Illuminated edge highlight
-        if sun.is_daylight:
+        # 7. Illuminated edge highlight (suppressed in compact — hour arcs replace it)
+        if sun.is_daylight and s.sundial_mode != "compact":
             edge_width = s.stroke_width * 2 / 3
             parts.append(
                 f'<circle cx="{cx}" cy="{cy}" r="{radius}" '
