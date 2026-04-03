@@ -4,6 +4,19 @@
 
 /* click-zoom — Overlay and cursor styles ---------------------------------- */
 
+/* Mermaid diagrams: opt-out — cursor shown by default, JS adds
+   .click-zoom-excluded when zoom would not enlarge the diagram. */
+.mermaid:not(.click-zoom-excluded),
+.mermaid:not(.click-zoom-excluded) svg {
+  cursor: zoom-in;
+}
+
+.mermaid:not(.click-zoom-excluded):hover {
+  opacity: 0.85;
+  transition: opacity 0.15s ease;
+}
+
+/* Images and inline SVGs: opt-in via [data-click-zoom] attribute. */
 [data-click-zoom] {
   cursor: zoom-in;
 }
