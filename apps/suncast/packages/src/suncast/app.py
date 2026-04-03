@@ -60,7 +60,7 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
         light_color=settings.light_color,
         shadow_color=settings.shadow_color,
         stroke_width=settings.stroke_width,
-        show_sundial_ring=settings.sundial_ring,
+        sundial_mode=settings.sundial_mode,
         marker_style=settings.marker_style,
     )
     output_settings = OutputSettings(
