@@ -541,18 +541,105 @@ class TestShadowRenderer:
         assert len(midnight) == 1
         assert len(noon) == 1
 
-    def test_sundial_ring_disabled(
+    def test_sundial_mode_ring_keeps_hour_segments_on_outer_ring(
         self,
         renderer: ShadowRenderer,
         daylight_sun: SunPosition,
         geometry: GeometryConfig,
     ) -> None:
-        """No sundial ring arcs when show_sundial_ring is False.
+        """Ring mode keeps the hour segments on the outer dial.
 
-        Technique: Condition Coverage — ring toggle.
+        Technique: Condition Coverage — explicit ring mode radius verification.
         """
         # Arrange
-        settings = RenderSettings(show_sundial_ring=False)
+        settings = RenderSettings(sundial_mode="ring")
+
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        arcs = root.findall(".//svg:path[@class='sundial-arc']", ns)
+        assert len(arcs) == 24
+        assert all("A58.00,58.00" in arc.get("d", "") for arc in arcs)
+        assert root.findall(".//svg:path[@class='day-arc']", ns) != []
+        assert root.findall(".//svg:path[@class='night-arc']", ns) != []
+
+    def test_sundial_mode_compact_merges_segments_and_day_overlay(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Compact mode moves hour segments onto the inner circle and hides the night path.
+
+        Technique: Condition Coverage — compact dial visibility and opacity rules.
+        """
+        # Arrange
+        settings = RenderSettings(sundial_mode="compact")
+
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        arcs = root.findall(".//svg:path[@class='sundial-arc']", ns)
+        assert len(arcs) == 24
+        assert all("A50.00,50.00" in arc.get("d", "") for arc in arcs)
+
+        day_arcs = root.findall(".//svg:path[@class='day-arc']", ns)
+        assert len(day_arcs) == 1
+        assert day_arcs[0].get("stroke-opacity") == "0.5"
+        assert "A50.00,50.00" in day_arcs[0].get("d", "")
+        assert root.findall(".//svg:path[@class='night-arc']", ns) == []
+
+    def test_sundial_mode_compact_layers_day_overlay_above_hour_segments(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Compact mode renders the day path after the hour segments.
+
+        Technique: Specification-based — compact overlay layer ordering.
+        """
+        # Arrange
+        settings = RenderSettings(sundial_mode="compact")
+
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        sundial = root.find(".//svg:g[@class='sundial']", ns)
+        assert sundial is not None
+
+        classes = [child.get("class") for child in list(sundial)]
+        last_hour_segment = max(
+            index
+            for index, class_name in enumerate(classes)
+            if class_name == "sundial-arc"
+        )
+        day_overlay = classes.index("day-arc")
+        assert day_overlay > last_hour_segment
+        assert day_overlay < classes.index("midnight-bar")
+        assert day_overlay < classes.index("noon-bar")
+
+    def test_sundial_mode_off_hides_ring(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Off mode omits the outer sundial ring.
+
+        Technique: Condition Coverage — non-ring mode branch.
+        """
+        # Arrange
+        settings = RenderSettings(sundial_mode="off")
 
         # Act
         svg = renderer.render(daylight_sun, [], geometry, settings)
@@ -561,6 +648,28 @@ class TestShadowRenderer:
         assert 'class="sundial-arc"' not in svg
         assert 'class="midnight-bar"' not in svg
         assert 'class="noon-bar"' not in svg
+        assert 'class="day-arc"' in svg
+        assert 'class="night-arc"' in svg
+
+    def test_sun_position_marker_uses_reduced_diameter(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Sun position marker diameter is reduced to 9 units.
+
+        Technique: Boundary Value Analysis — exact marker size regression check.
+        """
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        markers = root.findall(".//svg:circle[@class='sun-marker']", ns)
+        assert len(markers) == 1
+        assert markers[0].get("r") == "4.5"
 
     def test_circle_marker_style_default(
         self,

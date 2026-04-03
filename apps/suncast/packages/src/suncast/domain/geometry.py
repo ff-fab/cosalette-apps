@@ -136,7 +136,7 @@ def load_geometry(path: Path) -> GeometryConfig:
 def fit_to_circle(
     geometry: GeometryConfig,
     *,
-    padding_fraction: float = 0.05,
+    padding_fraction: float = 0.18,
 ) -> GeometryConfig:
     """Scale all vertices so every point fits within the canvas circle.
 
@@ -146,7 +146,7 @@ def fit_to_circle(
 
     Args:
         geometry: The original geometry configuration.
-        padding_fraction: Padding as a fraction of the radius (default 5%).
+        padding_fraction: Padding as a fraction of the radius (default 18%).
 
     Returns:
         A new GeometryConfig with scaled coordinates, or the original
