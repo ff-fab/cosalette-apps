@@ -81,27 +81,27 @@ def generate_showcase(geometry: GeometryConfig) -> list[Path]:
 
 def generate_config_comparison(geometry: GeometryConfig) -> list[Path]:
     """Marker style and sundial mode comparison images."""
-    noon = _make_dt(12)
+    dt = _make_dt(12, 45)
     return [
         _write(
             "marker-circle.svg",
-            _render(geometry, noon, RenderSettings(marker_style="circle")),
+            _render(geometry, dt, RenderSettings(marker_style="circle")),
         ),
         _write(
             "marker-bar.svg",
-            _render(geometry, noon, RenderSettings(marker_style="bar")),
+            _render(geometry, dt, RenderSettings(marker_style="bar")),
         ),
         _write(
             "sundial-ring.svg",
-            _render(geometry, noon, RenderSettings(sundial_mode="ring")),
+            _render(geometry, dt, RenderSettings(sundial_mode="ring")),
         ),
         _write(
             "sundial-compact.svg",
-            _render(geometry, noon, RenderSettings(sundial_mode="compact")),
+            _render(geometry, dt, RenderSettings(sundial_mode="compact")),
         ),
         _write(
             "sundial-off.svg",
-            _render(geometry, noon, RenderSettings(sundial_mode="off")),
+            _render(geometry, dt, RenderSettings(sundial_mode="off")),
         ),
     ]
 
