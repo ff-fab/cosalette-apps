@@ -9,11 +9,11 @@
 .mermaid:not(.click-zoom-excluded),
 .mermaid:not(.click-zoom-excluded) svg {
   cursor: zoom-in;
+  transition: opacity 0.15s ease;
 }
 
 .mermaid:not(.click-zoom-excluded):hover {
   opacity: 0.85;
-  transition: opacity 0.15s ease;
 }
 
 /* Images and inline SVGs: opt-in via [data-click-zoom] attribute. */

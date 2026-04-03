@@ -21,6 +21,7 @@
   var prevOverflow = "";
   var lastFocusedElement = null;
   var sourcesByPath = {};
+  var probeWidthBySource = {};
   var renderCounter = 0;
   var MERMAID_KW =
     /^(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram|erDiagram|journey|gantt|pie|gitgraph|mindmap|timeline|quadrantChart|sankey|xychart)\b/i;
@@ -348,6 +349,14 @@
     attempt();
   }
 
+  function applyMermaidZoomability(container, naturalWidth) {
+    if (naturalWidth <= container.clientWidth) {
+      container.classList.add("click-zoom-excluded");
+    } else {
+      container.classList.remove("click-zoom-excluded");
+    }
+  }
+
   function markMermaidZoomable() {
     var path = window.location.pathname;
     var containers = document.querySelectorAll(".mermaid");
@@ -357,9 +366,16 @@
     Array.prototype.forEach.call(containers, function (container, index) {
       if (index >= sources.length) return;
 
+      var source = sources[index];
+      var cachedNaturalWidth = probeWidthBySource[source];
+      if (cachedNaturalWidth) {
+        applyMermaidZoomability(container, cachedNaturalWidth);
+        return;
+      }
+
       var id = "__click_zoom_probe_" + renderCounter++;
       mermaid
-        .render(id, sources[index])
+        .render(id, source)
         .then(function (result) {
           if (window.location.pathname !== path) return;
 
@@ -383,11 +399,8 @@
           }
           if (naturalWidth <= 0) return;
 
-          if (naturalWidth <= container.clientWidth) {
-            container.classList.add("click-zoom-excluded");
-          } else {
-            container.classList.remove("click-zoom-excluded");
-          }
+          probeWidthBySource[source] = naturalWidth;
+          applyMermaidZoomability(container, naturalWidth);
         })
         .catch(function () {
           // Probe failed — leave zoom enabled (safe default)
