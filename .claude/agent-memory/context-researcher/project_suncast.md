@@ -45,7 +45,7 @@ below).
 - Optional: `cairosvg>=2.7` (PNG), `aiohttp>=3.9` (HTTP)
 - Python 3.14+ required
 
-## ADR decisions
+## Decisions
 
 - Licensing: GPL-3.0-or-later + clean-room reimplementation, attribution header required
   in all source files
@@ -82,7 +82,8 @@ below).
 # https://community.openhab.org/t/show-current-sun-position-and-shadow-of-house-generate-svg/34764
 ```
 
-Note: The license requires attribution to pmpkk specifically in shadow.py header.
+Note: Project policy requires preserving this credit line specifically in the
+`shadow.py` header; it is not a GPL license requirement.
 
 ## Task commands
 
