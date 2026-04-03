@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 ff-fab
+// SPDX-License-Identifier: MIT
+
 /* click-zoom — Click-to-fullscreen zoom for diagrams, SVGs, and images ---- */
 /*                                                                             */
 /* Strategies:                                                                 */
@@ -10,6 +13,7 @@
 
   var overlay = null;
   var prevOverflow = "";
+  var lastFocusedElement = null;
   var sourcesByPath = {};
   var probeGeneration = 0;
   var probeCache = {};
@@ -246,6 +250,7 @@
 
     overlay = document.createElement("div");
     overlay.className = "click-zoom-overlay";
+    overlay.tabIndex = -1;
     overlay.setAttribute("role", "dialog");
     overlay.setAttribute("aria-modal", "true");
     overlay.setAttribute(
@@ -253,9 +258,11 @@
       "Zoomed content — click or press Escape to close"
     );
 
-    var hint = document.createElement("span");
+    var hint = document.createElement("button");
+    hint.type = "button";
     hint.className = "click-zoom-close";
-    hint.textContent = "Click or press Esc to close";
+    hint.setAttribute("aria-label", "Close zoomed content");
+    hint.textContent = "Close (Esc)";
     overlay.appendChild(hint);
 
     overlay.addEventListener("click", function (event) {
@@ -278,28 +285,114 @@
     }
   }
 
-  function openOverlayWithContent(contentEl) {
+  function getFocusableElements(root) {
+    return Array.prototype.slice
+      .call(
+        root.querySelectorAll(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        )
+      )
+      .filter(function (el) {
+        return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+      });
+  }
+
+  function focusOverlay() {
+    if (!overlay) return;
+
+    var focusables = getFocusableElements(overlay);
+    var target = focusables[0] || overlay;
+    if (target && target.focus) {
+      target.focus();
+    }
+  }
+
+  function restoreFocus() {
+    if (!lastFocusedElement || !lastFocusedElement.focus) return;
+
+    try {
+      lastFocusedElement.focus({ preventScroll: true });
+    } catch (_) {
+      lastFocusedElement.focus();
+    }
+  }
+
+  function sanitizeSvgNode(svgEl) {
+    ["script", "foreignObject", "iframe", "object", "embed"].forEach(
+      function (selector) {
+        svgEl.querySelectorAll(selector).forEach(function (el) {
+          el.remove();
+        });
+      }
+    );
+
+    var all = [svgEl].concat(
+      Array.prototype.slice.call(svgEl.querySelectorAll("*"))
+    );
+
+    all.forEach(function (el) {
+      Array.prototype.slice.call(el.attributes).forEach(function (attr) {
+        var name = attr.name.toLowerCase();
+        var value = attr.value.trim();
+
+        if (name.indexOf("on") === 0) {
+          el.removeAttribute(attr.name);
+          return;
+        }
+
+        if (
+          (name === "href" || name === "xlink:href") &&
+          /^javascript:/i.test(value)
+        ) {
+          el.removeAttribute(attr.name);
+        }
+      });
+    });
+
+    return svgEl;
+  }
+
+  function parseSvgMarkup(svgText) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(svgText, "image/svg+xml");
+
+    if (doc.getElementsByTagName("parsererror").length > 0) {
+      return null;
+    }
+
+    var svgEl = doc.documentElement;
+    if (!svgEl || svgEl.nodeName.toLowerCase() !== "svg") {
+      return null;
+    }
+
+    sanitizeSvgNode(svgEl);
+    return document.importNode(svgEl, true);
+  }
+
+  function openOverlayWithContent(contentEl, triggerEl) {
     var el = getOverlay();
     var prev = el.querySelector(".click-zoom-content");
     if (prev) prev.remove();
 
     var container = document.createElement("div");
     container.className = "click-zoom-content";
-
-    if (typeof contentEl === "string") {
-      container.innerHTML = contentEl;
-    } else {
-      container.appendChild(contentEl);
-    }
+    container.appendChild(contentEl);
 
     fixSvgWidth(container);
 
     el.appendChild(container);
     document.body.appendChild(el);
+    lastFocusedElement =
+      triggerEl && triggerEl.focus
+        ? triggerEl
+        : document.activeElement && document.activeElement.focus
+          ? document.activeElement
+          : null;
     void el.offsetWidth;
     el.classList.add("active");
     prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    focusOverlay();
   }
 
   function closeOverlay() {
@@ -310,6 +403,7 @@
 
     function removeOverlay() {
       if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      restoreFocus();
     }
 
     var fallback = setTimeout(removeOverlay, 300);
@@ -324,12 +418,12 @@
     );
   }
 
-  function cloneAndDisplay(svgEl) {
+  function cloneAndDisplay(svgEl, triggerEl) {
     var clone = svgEl.cloneNode(true);
-    openOverlayWithContent(clone);
+    openOverlayWithContent(clone, triggerEl);
   }
 
-  function fetchAndDisplay(src) {
+  function fetchAndDisplay(src, triggerEl) {
     if (src.toLowerCase().endsWith(".svg") || src.indexOf(".svg") !== -1) {
       fetch(src)
         .then(function (response) {
@@ -337,22 +431,24 @@
           return response.text();
         })
         .then(function (svgText) {
-          openOverlayWithContent(svgText);
+          var svgEl = parseSvgMarkup(svgText);
+          if (!svgEl) throw new Error("Invalid SVG response");
+          openOverlayWithContent(svgEl, triggerEl);
         })
         .catch(function () {
-          displayAsImg(src);
+          displayAsImg(src, triggerEl);
         });
       return;
     }
 
-    displayAsImg(src);
+    displayAsImg(src, triggerEl);
   }
 
-  function displayAsImg(src) {
+  function displayAsImg(src, triggerEl) {
     var img = document.createElement("img");
     img.src = src;
     img.alt = "Zoomed image";
-    openOverlayWithContent(img);
+    openOverlayWithContent(img, triggerEl);
   }
 
   var renderCounter = 0;
@@ -372,7 +468,9 @@
     mermaid
       .render(id, source)
       .then(function (result) {
-        openOverlayWithContent(result.svg);
+        var svgEl = parseSvgMarkup(result.svg);
+        if (!svgEl) throw new Error("Mermaid returned invalid SVG");
+        openOverlayWithContent(svgEl, el);
       })
       .catch(function (err) {
         console.error("[click-zoom] Mermaid render failed:", err);
@@ -400,7 +498,14 @@
     function (event) {
       if (overlay && overlay.classList.contains("active")) return;
 
-      var matched = findMatchingAncestor(event.target, selectors);
+      var mermaidMatch =
+        event.target &&
+        event.target.closest &&
+        event.target.closest(".mermaid");
+      var matched =
+        mermaidMatch && mermaidMatch.hasAttribute("data-click-zoom")
+          ? mermaidMatch
+          : findMatchingAncestor(event.target, selectors);
       if (!matched) return;
       if (!matched.hasAttribute("data-click-zoom")) return;
 
@@ -416,22 +521,48 @@
       }
 
       if (matched.tagName === "IMG") {
-        fetchAndDisplay(matched.src);
+        fetchAndDisplay(matched.src, matched);
         return;
       }
 
       var svg =
         matched.tagName === "svg" ? matched : matched.querySelector("svg");
       if (svg) {
-        cloneAndDisplay(svg);
+        cloneAndDisplay(svg, matched);
       }
     },
     true
   );
 
   document.addEventListener("keydown", function (event) {
+    if (!overlay || !overlay.classList.contains("active")) return;
+
     if (event.key === "Escape" && overlay && overlay.classList.contains("active")) {
       closeOverlay();
+      return;
+    }
+
+    if (event.key !== "Tab") return;
+
+    var focusables = getFocusableElements(overlay);
+    if (focusables.length === 0) {
+      event.preventDefault();
+      overlay.focus();
+      return;
+    }
+
+    var first = focusables[0];
+    var last = focusables[focusables.length - 1];
+
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
     }
   });
 })();
