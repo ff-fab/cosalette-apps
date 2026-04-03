@@ -219,6 +219,30 @@
     return svgEl;
   }
 
+  /**
+   * Parse SVG from a trusted Mermaid re-render.
+   *
+   * Uses innerHTML (lenient HTML parser) instead of DOMParser with
+   * image/svg+xml.  Mermaid flowcharts emit <foreignObject> containing
+   * HTML elements like <br> (void, not self-closing) which is valid HTML
+   * but invalid XML — the strict XML parser would reject it.
+   *
+   * No sanitisation needed: mermaid.render() output is trusted
+   * (client-side renderer, not user-supplied markup).
+   */
+  function mermaidSvgToElement(svgText) {
+    var wrapper = document.createElement("div");
+    wrapper.innerHTML = svgText;
+    var svg = wrapper.querySelector("svg");
+    return svg || null;
+  }
+
+  /**
+   * Parse SVG from an external source (fetched URL).
+   *
+   * Uses strict XML parsing + sanitisation because the content is
+   * not under our control.
+   */
   function parseSvgMarkup(svgText) {
     var parser = new DOMParser();
     var doc = parser.parseFromString(svgText, "image/svg+xml");
@@ -346,9 +370,7 @@
           if (temp) temp.remove();
 
           // Parse the SVG to extract its natural (max-width) dimension
-          var parser = new DOMParser();
-          var doc = parser.parseFromString(result.svg, "image/svg+xml");
-          var svg = doc.querySelector("svg");
+          var svg = mermaidSvgToElement(result.svg);
           if (!svg) return;
 
           var naturalWidth = 0;
@@ -456,7 +478,13 @@
           mermaid
             .render(id, sources[mermaidIndex])
             .then(function (result) {
-              var svgEl = parseSvgMarkup(result.svg);
+              // Clean up temporary elements mermaid.render() leaves behind
+              var temp = document.getElementById(id);
+              if (temp) temp.remove();
+              temp = document.getElementById("d" + id);
+              if (temp) temp.remove();
+
+              var svgEl = mermaidSvgToElement(result.svg);
               if (!svgEl) throw new Error("Mermaid returned invalid SVG");
               openOverlayWithContent(svgEl, event.target);
             })
