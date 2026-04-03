@@ -33,8 +33,8 @@ site_url = "https://ff-fab.github.io/cosalette-apps/"
 repo_url = "https://github.com/ff-fab/cosalette-apps"
 repo_name = "ff-fab/cosalette-apps"
 edit_uri = "edit/main/docs/"
-extra_css = ["stylesheets/extra.css"]
-extra_javascript = ["javascripts/palette-sync.js"]
+extra_css = ["stylesheets/extra.css", "shared/stylesheets/click-zoom.css"]
+extra_javascript = ["shared/javascripts/click-zoom.js", "javascripts/palette-sync.js"]
 
 # ---------------------------------------------------------------------------
 # Navigation
@@ -87,7 +87,6 @@ toggle.name = "Switch to dark mode"
 # ---------------------------------------------------------------------------
 
 [project.plugins.autorefs]
-[project.plugins.click-zoom]
 
 # Note: mkdocstrings is NOT configured for the root site because it has no
 # Python API docs. Each app's own zensical.toml configures mkdocstrings with

@@ -48,28 +48,48 @@ for a complete template.
 | `primary_color`   | `SUNCAST_PRIMARY_COLOR`    | `#614c1f`   | Building fill color (dark/outline)          |
 | `secondary_color` | `SUNCAST_SECONDARY_COLOR`  | `#b38c3a`   | Building accent color                       |
 | `light_color`     | `SUNCAST_LIGHT_COLOR`      | `#f1b023`   | Sun and daylight arc color                  |
-| `shadow_color`    | `SUNCAST_SHADOW_COLOR`     | `#0A0A0A`   | Shadow projection color                     |
+| `shadow_color`    | `SUNCAST_SHADOW_COLOR`     | `#2F3338`   | Shadow projection color                     |
 | `stroke_width`    | `SUNCAST_STROKE_WIDTH`     | `1.0`       | SVG stroke width for building outlines      |
 | `sundial_ring`    | `SUNCAST_SUNDIAL_RING`     | `true`      | Show hour markers around the compass dial   |
 | `marker_style`    | `SUNCAST_MARKER_STYLE`     | `circle`    | Hour marker style: `circle` or `bar`        |
 
 #### Marker style comparison
 
-<div class="grid" markdown>
-![Circle markers](images/generated/marker-circle.svg){ width="250" }
-![Bar markers](images/generated/marker-bar.svg){ width="250" }
+<div class="geometry-comparison">
+    <figure>
+        <img src="../images/generated/marker-circle.svg" alt="Circle hour markers" width="250">
+        <figcaption>
+            <strong>Circle markers</strong>
+            Default marker style with round hour indicators on the sundial ring.
+        </figcaption>
+    </figure>
+    <figure>
+        <img src="../images/generated/marker-bar.svg" alt="Bar hour markers" width="250">
+        <figcaption>
+            <strong>Bar markers</strong>
+            Linear hour indicators for a more technical, gauge-like appearance.
+        </figcaption>
+    </figure>
 </div>
-
-Left: `circle` markers (default). Right: `bar` markers.
 
 #### Sundial ring comparison
 
-<div class="grid" markdown>
-![Sundial ring enabled](images/generated/sundial-on.svg){ width="250" }
-![Sundial ring disabled](images/generated/sundial-off.svg){ width="250" }
+<div class="geometry-comparison">
+    <figure>
+        <img src="../images/generated/sundial-on.svg" alt="Sundial ring enabled" width="250">
+        <figcaption>
+            <strong>Sundial ring enabled</strong>
+            Default view with the 24-segment outer ring and noon and midnight bars.
+        </figcaption>
+    </figure>
+    <figure>
+        <img src="../images/generated/sundial-off.svg" alt="Sundial ring disabled" width="250">
+        <figcaption>
+            <strong>Sundial ring disabled</strong>
+            Minimal view without the outer ring, keeping only the core shadow rendering.
+        </figcaption>
+    </figure>
 </div>
-
-Left: sundial ring enabled (default). Right: sundial ring disabled.
 
 ### Output
 
@@ -152,7 +172,7 @@ SUNCAST_TIMEZONE=Europe/Berlin
 # SUNCAST_PRIMARY_COLOR=#614c1f
 # SUNCAST_SECONDARY_COLOR=#b38c3a
 # SUNCAST_LIGHT_COLOR=#f1b023
-# SUNCAST_SHADOW_COLOR=#0A0A0A
+# SUNCAST_SHADOW_COLOR=#2F3338
 # SUNCAST_STROKE_WIDTH=1.0
 # SUNCAST_SUNDIAL_RING=true
 # SUNCAST_MARKER_STYLE=circle

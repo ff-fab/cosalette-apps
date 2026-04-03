@@ -1,5 +1,6 @@
 ---
 agent: agent
+model: 'GPT-5.4'
 description: 'Review a pull request — fetches ALL reviewer feedback (inline comments, reviews, conversation) and CI status, then provides actionable analysis with teaching context.'
 ---
 

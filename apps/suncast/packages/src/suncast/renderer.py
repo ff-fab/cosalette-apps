@@ -41,7 +41,7 @@ class RenderSettings:
     primary_color: str = "#614c1f"
     secondary_color: str = "#b38c3a"
     light_color: str = "#f1b023"
-    shadow_color: str = "#0A0A0A"
+    shadow_color: str = "#2F3338"
     stroke_width: float = 1.0
     show_sundial_ring: bool = True
     marker_style: Literal["bar", "circle"] = "circle"

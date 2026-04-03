@@ -186,16 +186,22 @@ Shapes not listed in `shape_roles` get default properties (`casts_shadow: true`,
     **Concave shapes** (L-shaped, U-shaped, courtyards) will produce distorted shadows
     because the silhouette detection identifies the wrong boundary edges.
 
-<div class="grid" markdown>
-
-![Convex building — correct shadow](images/generated/convex-ok.svg){ width="250" }
-
-![Concave building — distorted shadow](images/generated/concave-distorted.svg){ width="250" }
-
+<div class="geometry-comparison">
+  <figure>
+    <img src="../images/generated/convex-ok.svg" alt="Convex building - correct shadow" width="250">
+    <figcaption>
+      <strong>Convex footprint</strong>
+      Convex rectangle - shadow projects correctly.
+    </figcaption>
+  </figure>
+  <figure>
+    <img src="../images/generated/concave-distorted.svg" alt="Concave building - distorted shadow" width="250">
+    <figcaption>
+      <strong>Concave footprint</strong>
+      L-shaped building - shadow distortion from incorrect silhouette detection.
+    </figcaption>
+  </figure>
 </div>
-
-Left: convex rectangle — shadow projects correctly. Right: L-shaped (concave) building
-— shadow distortion from incorrect silhouette detection.
 
 **Workaround:** Split concave buildings into multiple convex shapes. For example, model
 an L-shaped building as two overlapping rectangles.
