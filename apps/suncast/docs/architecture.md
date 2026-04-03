@@ -142,65 +142,57 @@ HTTP cache) in a single call.
 Each poll cycle follows this path through the pipeline:
 
 <script type="text/plain" class="click-zoom-mermaid-source">
-flowchart TD
-  COS[cosalette scheduler trigger]
-  H[_shadow_handler]
-  SOL[compute_solar_position]
-  SH[compute_building_shadows]
-  R[ShadowRenderer.render]
-  O[OutputManager.deliver]
-  FS[write shadow.svg]
-  MQTT[publish svg channel]
-  PNG[svg_to_png]
-  FSPNG[write shadow.png]
-  MQTTPNG[publish png channel]
-  DONE[return None]
+sequenceDiagram
+  participant COS as cosalette scheduler
+  participant H as _shadow_handler
+  participant SOL as compute_solar_position
+  participant SH as compute_building_shadows
+  participant R as ShadowRenderer.render
+  participant O as OutputManager.deliver
 
-  COS --> H
-  H -->|lat lon tz now| SOL
-  SOL -->|SunPosition| H
-  H -->|geometry + sun| SH
-  SH -->|list of ShadowResult| H
-  H -->|sun shadows geometry settings| R
-  R -->|SVG string| H
-  H -->|svg ctx| O
-  O --> FS
-  O --> MQTT
-  O --> PNG
-  PNG --> FSPNG
-  PNG --> MQTTPNG
-  O --> DONE
+  COS->>H: trigger poll cycle
+  H->>SOL: latitude, longitude, timezone, now
+  SOL-->>H: SunPosition
+  H->>SH: geometry, sun
+  SH-->>H: list[ShadowResult]
+  H->>R: sun, shadows, geometry, settings
+  R-->>H: SVG string
+  H->>O: svg, output context
+  O->>O: write shadow.svg
+  O->>O: publish svg channel
+  opt png_enabled
+    O->>O: svg_to_png
+    O->>O: write shadow.png
+    O->>O: publish png channel
+  end
+  H-->>COS: return None
 </script>
 
 ```mermaid
-flowchart TD
-  COS[cosalette scheduler trigger]
-  H[_shadow_handler]
-  SOL[compute_solar_position]
-  SH[compute_building_shadows]
-  R[ShadowRenderer.render]
-  O[OutputManager.deliver]
-  FS[write shadow.svg]
-  MQTT[publish svg channel]
-  PNG[svg_to_png]
-  FSPNG[write shadow.png]
-  MQTTPNG[publish png channel]
-  DONE[return None]
+sequenceDiagram
+  participant COS as cosalette scheduler
+  participant H as _shadow_handler
+  participant SOL as compute_solar_position
+  participant SH as compute_building_shadows
+  participant R as ShadowRenderer.render
+  participant O as OutputManager.deliver
 
-  COS --> H
-  H -->|lat lon tz now| SOL
-  SOL -->|SunPosition| H
-  H -->|geometry + sun| SH
-  SH -->|list of ShadowResult| H
-  H -->|sun shadows geometry settings| R
-  R -->|SVG string| H
-  H -->|svg ctx| O
-  O --> FS
-  O --> MQTT
-  O --> PNG
-  PNG --> FSPNG
-  PNG --> MQTTPNG
-  O --> DONE
+  COS->>H: trigger poll cycle
+  H->>SOL: latitude, longitude, timezone, now
+  SOL-->>H: SunPosition
+  H->>SH: geometry, sun
+  SH-->>H: list[ShadowResult]
+  H->>R: sun, shadows, geometry, settings
+  R-->>H: SVG string
+  H->>O: svg, output context
+  O->>O: write shadow.svg
+  O->>O: publish svg channel
+  opt png_enabled
+    O->>O: svg_to_png
+    O->>O: write shadow.png
+    O->>O: publish png channel
+  end
+  H-->>COS: return None
 ```
 
 The handler returns `None` — suncast publishes visual output through dedicated MQTT

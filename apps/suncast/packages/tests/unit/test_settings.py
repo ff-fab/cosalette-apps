@@ -59,7 +59,7 @@ class TestDefaults:
         assert s.primary_color == "#614c1f"
         assert s.secondary_color == "#b38c3a"
         assert s.light_color == "#f1b023"
-        assert s.shadow_color == "#0A0A0A"
+        assert s.shadow_color == "#2F3338"
         assert s.stroke_width == 1.0
 
     def test_output_defaults(self) -> None:
