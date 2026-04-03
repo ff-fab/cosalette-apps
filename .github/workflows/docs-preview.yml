@@ -94,17 +94,21 @@ jobs:
           path: merged
 
       - name: Install and deploy to Surge
+        id: surge
         env:
           SURGE_TOKEN: ${{ secrets.SURGE_TOKEN }}
         run: |
           if [ -z "$SURGE_TOKEN" ]; then
             echo "::warning::SURGE_TOKEN not set — skipping preview deploy (expected for fork PRs)"
+            echo "deployed=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           npm install -g surge
           surge merged/ "$SURGE_DOMAIN" --token "$SURGE_TOKEN"
+          echo "deployed=true" >> "$GITHUB_OUTPUT"
 
       - name: Build changed-pages list
+        if: steps.surge.outputs.deployed == 'true'
         id: changed
         env:
           GH_TOKEN: ${{ github.token }}
@@ -114,18 +118,23 @@ jobs:
           while IFS= read -r file; do
             url=""
             case "$file" in
-              docs/*.md)
+              docs/*.md|docs/**/*.md)
                 # docs/adr/ADR-002.md → /adr/ADR-002/
                 slug="${file#docs/}"
                 slug="${slug%.md}"
-                [[ "$slug" == "index" ]] && url="/" || url="/${slug}/"
+                [[ "$slug" == "index" ]] && url="/"
+                [[ "$slug" == */index ]] && url="/${slug%/index}/"
+                [[ -z "$url" ]] && url="/${slug}/"
                 ;;
-              apps/*/docs/*.md)
+              apps/*/docs/*.md|apps/*/docs/**/*.md)
                 # apps/gas2mqtt/docs/index.md → /gas2mqtt/
-                app=$(echo "$file" | cut -d/ -f2)
-                slug="${file#apps/*/docs/}"
+                app="${file#apps/}"
+                app="${app%%/*}"
+                slug="${file#apps/${app}/docs/}"
                 slug="${slug%.md}"
-                [[ "$slug" == "index" ]] && url="/${app}/" || url="/${app}/${slug}/"
+                [[ "$slug" == "index" ]] && url="/${app}/"
+                [[ "$slug" == */index ]] && url="/${app}/${slug%/index}/"
+                [[ -z "$url" ]] && url="/${app}/${slug}/"
                 ;;
             esac
             if [ -n "$url" ]; then
@@ -143,6 +152,7 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Find existing comment
+        if: steps.surge.outputs.deployed == 'true'
         uses: peter-evans/find-comment@v3
         id: find
         with:
@@ -151,6 +161,7 @@ jobs:
           body-includes: Documentation Preview
 
       - name: Post or update preview comment
+        if: steps.surge.outputs.deployed == 'true'
         uses: peter-evans/create-or-update-comment@v4
         with:
           issue-number: ${{ github.event.pull_request.number }}
