@@ -591,7 +591,7 @@ class TestShadowRenderer:
 
         day_arcs = root.findall(".//svg:path[@class='day-arc']", ns)
         assert len(day_arcs) == 1
-        assert day_arcs[0].get("stroke-opacity") == "0.3"
+        assert day_arcs[0].get("stroke-opacity") == "0.5"
         assert "A50.00,50.00" in day_arcs[0].get("d", "")
         assert root.findall(".//svg:path[@class='night-arc']", ns) == []
 

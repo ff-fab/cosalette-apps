@@ -104,14 +104,13 @@ class ShadowRenderer:
         parts: list[str] = []
 
         def append_sundial_arcs(dial_radius: float) -> None:
-            bright = 0.6 if s.sundial_mode == "compact" else 1.0
             for i in range(24):
                 start_az = apply_north_rotation(sun.hourly_azimuths[i], north_rot)
                 end_az = apply_north_rotation(
                     sun.hourly_azimuths[(i + 1) % 24], north_rot
                 )
                 d = arc_path(Point(cx, cy), dial_radius, start_az, end_az)
-                opacity = 0.2 if i % 2 == 0 else bright
+                opacity = 0.2 if i % 2 == 0 else 1.0
                 parts.append(
                     f'<path d="{d}" stroke="{s.primary_color}" '
                     f'stroke-width="3" fill="none" '
@@ -234,7 +233,7 @@ class ShadowRenderer:
             if s.sundial_mode == "compact" and day_d is not None:
                 parts.append(
                     f'<path d="{day_d}" fill="none" stroke="{s.light_color}" '
-                    f'stroke-width="3" stroke-opacity="0.3" class="day-arc"/>'
+                    f'stroke-width="3" stroke-opacity="0.5" class="day-arc"/>'
                 )
 
             append_hour_bar(0, "midnight-bar", bar_inner_radius, bar_outer_radius)
