@@ -188,14 +188,14 @@ Shapes not listed in `shape_roles` get default properties (`casts_shadow: true`,
 
 <div class="geometry-comparison">
   <figure>
-    <img src="images/generated/convex-ok.svg" alt="Convex building - correct shadow" width="250">
+    <img src="../images/generated/convex-ok.svg" alt="Convex building - correct shadow" width="250">
     <figcaption>
       <strong>Convex footprint</strong>
       Convex rectangle - shadow projects correctly.
     </figcaption>
   </figure>
   <figure>
-    <img src="images/generated/concave-distorted.svg" alt="Concave building - distorted shadow" width="250">
+    <img src="../images/generated/concave-distorted.svg" alt="Concave building - distorted shadow" width="250">
     <figcaption>
       <strong>Concave footprint</strong>
       L-shaped building - shadow distortion from incorrect silhouette detection.

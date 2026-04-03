@@ -33,6 +33,17 @@
 
     var sources = [];
     var preElems = document.querySelectorAll("pre.mermaid");
+    var preservedSources = document.querySelectorAll(
+      "script.click-zoom-mermaid-source[type='text/plain']"
+    );
+
+    if (preservedSources.length > 0) {
+      preservedSources.forEach(function (el) {
+        sources.push(el.textContent.trim());
+      });
+      sourcesByPath[key] = sources;
+      return;
+    }
 
     if (preElems.length === 0) {
       var candidates = [];

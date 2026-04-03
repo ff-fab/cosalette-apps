@@ -9,6 +9,49 @@ handles MQTT connectivity, health reporting, error isolation, and graceful shutd
 
 ## Overview
 
+<script type="text/plain" class="click-zoom-mermaid-source">
+graph TD
+  subgraph External Inputs
+    YAML[geometry.yaml]
+    ASTRAL[astral library]
+  end
+
+  subgraph Domain
+    GEOM["GeometryConfig / fit_to_circle"]
+    SOLAR[compute_solar_position]
+    SHADOW[compute_building_shadows]
+  end
+
+  subgraph Rendering
+    RENDERER[ShadowRenderer]
+    RASTER["svg_to_png (optional)"]
+  end
+
+  subgraph Delivery
+    OUTPUT[OutputManager]
+    HTTP["HttpServer (optional)"]
+  end
+
+  subgraph cosalette
+    APP[App]
+    MQTT[MqttClient]
+    HR[HealthReporter]
+  end
+
+  YAML --> GEOM
+  ASTRAL --> SOLAR
+  GEOM --> SHADOW
+  SOLAR --> SHADOW
+  GEOM --> RENDERER
+  SHADOW --> RENDERER
+  RENDERER --> OUTPUT
+  RASTER --> OUTPUT
+  HTTP --> OUTPUT
+  OUTPUT --> APP
+  APP --> MQTT
+  APP --> HR
+</script>
+
 ```mermaid
 graph TD
   subgraph External Inputs
@@ -98,33 +141,66 @@ HTTP cache) in a single call.
 
 Each poll cycle follows this path through the pipeline:
 
-```mermaid
-sequenceDiagram
-    participant COS as cosalette Scheduler
-    participant H as _shadow_handler
-    participant SOL as compute_solar_position
-    participant SH as compute_building_shadows
-    participant R as ShadowRenderer
-    participant O as OutputManager
-    participant M as MQTT Broker
-    participant FS as Filesystem
+<script type="text/plain" class="click-zoom-mermaid-source">
+flowchart TD
+  COS[cosalette scheduler trigger]
+  H[_shadow_handler]
+  SOL[compute_solar_position]
+  SH[compute_building_shadows]
+  R[ShadowRenderer.render]
+  O[OutputManager.deliver]
+  FS[write shadow.svg]
+  MQTT[publish svg channel]
+  PNG[svg_to_png]
+  FSPNG[write shadow.png]
+  MQTTPNG[publish png channel]
+  DONE[return None]
 
-    COS->>H: trigger (every poll_interval)
-    H->>SOL: compute_solar_position(lat, lon, tz, now)
-    SOL-->>H: SunPosition
-    H->>SH: compute_building_shadows(geometry, sun)
-    SH-->>H: list[ShadowResult]
-    H->>R: render(sun, shadows, geometry, settings)
-    R-->>H: SVG string
-    H->>O: deliver(svg, {}, ctx)
-    O->>FS: write shadow.svg (if output_path set)
-    O->>M: publish svg channel
-    opt PNG enabled
-        O->>O: svg_to_png()
-        O->>FS: write shadow.png
-        O->>M: publish png channel (base64)
-    end
-    H-->>COS: None (no state JSON)
+  COS --> H
+  H -->|lat lon tz now| SOL
+  SOL -->|SunPosition| H
+  H -->|geometry + sun| SH
+  SH -->|list of ShadowResult| H
+  H -->|sun shadows geometry settings| R
+  R -->|SVG string| H
+  H -->|svg ctx| O
+  O --> FS
+  O --> MQTT
+  O --> PNG
+  PNG --> FSPNG
+  PNG --> MQTTPNG
+  O --> DONE
+</script>
+
+```mermaid
+flowchart TD
+  COS[cosalette scheduler trigger]
+  H[_shadow_handler]
+  SOL[compute_solar_position]
+  SH[compute_building_shadows]
+  R[ShadowRenderer.render]
+  O[OutputManager.deliver]
+  FS[write shadow.svg]
+  MQTT[publish svg channel]
+  PNG[svg_to_png]
+  FSPNG[write shadow.png]
+  MQTTPNG[publish png channel]
+  DONE[return None]
+
+  COS --> H
+  H -->|lat lon tz now| SOL
+  SOL -->|SunPosition| H
+  H -->|geometry + sun| SH
+  SH -->|list of ShadowResult| H
+  H -->|sun shadows geometry settings| R
+  R -->|SVG string| H
+  H -->|svg ctx| O
+  O --> FS
+  O --> MQTT
+  O --> PNG
+  PNG --> FSPNG
+  PNG --> MQTTPNG
+  O --> DONE
 ```
 
 The handler returns `None` — suncast publishes visual output through dedicated MQTT
