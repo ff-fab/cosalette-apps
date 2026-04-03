@@ -13,7 +13,6 @@ Home Assistant dashboards to display real-time shadow maps.
 
 <div class="grid" markdown>
 
-![Morning shadows](images/generated/showcase-morning.svg){ width="220" }
 ![Noon shadows](images/generated/showcase-noon.svg){ width="220" }
 ![Afternoon shadows](images/generated/showcase-afternoon.svg){ width="220" }
 ![Night — no shadows](images/generated/showcase-night.svg){ width="220" }
