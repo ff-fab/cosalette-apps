@@ -32,6 +32,7 @@ from suncast.domain.shadow import (
     degrees_to_cartesian,
 )
 from suncast.domain.solar import SunPosition
+from suncast.settings import SundialMode
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,7 +44,7 @@ class RenderSettings:
     light_color: str = "#f1b023"
     shadow_color: str = "#2F3338"
     stroke_width: float = 1.0
-    show_sundial_ring: bool = True
+    sundial_mode: SundialMode = "ring"
     marker_style: Literal["bar", "circle"] = "circle"
 
 
@@ -190,7 +191,7 @@ class ShadowRenderer:
         # 9. Sundial
         parts.append('<g class="sundial">')
         # Sundial outer ring: 24 alternating-opacity arcs
-        if s.show_sundial_ring:
+        if s.sundial_mode == "ring":
             ring_radius = radius + 8
             for i in range(24):
                 start_az = apply_north_rotation(sun.hourly_azimuths[i], north_rot)
@@ -265,7 +266,7 @@ class ShadowRenderer:
         sun_adj = apply_north_rotation(sun.azimuth, north_rot)
         sun_pt = degrees_to_cartesian(sun_adj, radius, Point(cx, cy))
         parts.append(
-            f'<circle cx="{sun_pt.x:.2f}" cy="{sun_pt.y:.2f}" r="5" '
+            f'<circle cx="{sun_pt.x:.2f}" cy="{sun_pt.y:.2f}" r="4.5" '
             f'fill="{s.light_color}" stroke="{s.primary_color}" '
             f'stroke-width="1" class="sun-marker"/>'
         )
