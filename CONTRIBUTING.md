@@ -107,6 +107,30 @@ This project follows **GitHub Flow**:
 3. Run `task pre-pr` to pass all quality gates
 4. Open a pull request -- never push directly to `main`
 
+## Documentation Preview
+
+PRs that change files under `docs/` or `apps/*/docs/` automatically get a live
+documentation preview deployed to Surge.sh. A bot comments on the PR with the preview
+URL and links to changed pages.
+
+**How it works:**
+
+- On PR open/update: all doc sites are built and deployed to
+  `https://cosalette-apps-pr-<N>.surge.sh`
+- On PR close/merge: the preview is torn down automatically
+
+**Setup (repository maintainers only):**
+
+The workflow requires a `SURGE_TOKEN` repository secret. One-time setup:
+
+1. Install Surge CLI: `npm install -g surge`
+2. Create an account: `surge login` (follow prompts — email + password)
+3. Get your token: `surge token`
+4. Add the token to the repository: Settings → Secrets and variables → Actions → New
+   repository secret → Name: `SURGE_TOKEN`, Value: (paste token)
+
+Fork PRs skip the preview deploy gracefully (secrets are not available to forks).
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the
