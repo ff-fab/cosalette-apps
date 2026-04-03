@@ -104,7 +104,7 @@ def generate_config_comparison(geometry: GeometryConfig) -> list[Path]:
 
 def generate_geometry_guide() -> list[Path]:
     """Convex vs concave building comparison."""
-    noon = _make_dt(12)
+    afternoon = _make_dt(15)
     canvas = CanvasConfig(size=100)
 
     convex = GeometryConfig(
@@ -141,8 +141,8 @@ def generate_geometry_guide() -> list[Path]:
     concave = fit_to_circle(concave)
 
     return [
-        _write("convex-ok.svg", _render(convex, noon)),
-        _write("concave-distorted.svg", _render(concave, noon)),
+        _write("convex-ok.svg", _render(convex, afternoon)),
+        _write("concave-distorted.svg", _render(concave, afternoon)),
     ]
 
 

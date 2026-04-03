@@ -10,46 +10,46 @@ handles MQTT connectivity, health reporting, error isolation, and graceful shutd
 ## Overview
 
 ```mermaid
-graph LR
-    subgraph External
-        ASTRAL[astral library]
-        YAML[geometry.yaml]
-    end
+graph TD
+  subgraph External Inputs
+    YAML[geometry.yaml]
+    ASTRAL[astral library]
+  end
 
-    subgraph Domain
-        SOLAR[compute_solar_position]
-        SHADOW[compute_building_shadows]
-        GEOM["GeometryConfig / fit_to_circle"]
-    end
+  subgraph Domain
+    GEOM["GeometryConfig / fit_to_circle"]
+    SOLAR[compute_solar_position]
+    SHADOW[compute_building_shadows]
+  end
 
-    subgraph Rendering
-        RENDERER[ShadowRenderer]
-        RASTER["svg_to_png (optional)"]
-    end
+  subgraph Rendering
+    RENDERER[ShadowRenderer]
+    RASTER["svg_to_png (optional)"]
+  end
 
-    subgraph Output
-        OUTPUT[OutputManager]
-        HTTP["HttpServer (optional)"]
-    end
+  subgraph Delivery
+    OUTPUT[OutputManager]
+    HTTP["HttpServer (optional)"]
+  end
 
-    subgraph cosalette
-        APP[App]
-        MQTT[MqttClient]
-        HR[HealthReporter]
-    end
+  subgraph cosalette
+    APP[App]
+    MQTT[MqttClient]
+    HR[HealthReporter]
+  end
 
-    YAML --> GEOM
-    ASTRAL --> SOLAR
-    SOLAR --> SHADOW
-    GEOM --> SHADOW
-    SHADOW --> RENDERER
-    GEOM --> RENDERER
-    RENDERER --> OUTPUT
-    RASTER --> OUTPUT
-    OUTPUT --> APP
-    APP --> MQTT
-    APP --> HR
-    HTTP --> OUTPUT
+  YAML --> GEOM
+  ASTRAL --> SOLAR
+  GEOM --> SHADOW
+  SOLAR --> SHADOW
+  GEOM --> RENDERER
+  SHADOW --> RENDERER
+  RENDERER --> OUTPUT
+  RASTER --> OUTPUT
+  HTTP --> OUTPUT
+  OUTPUT --> APP
+  APP --> MQTT
+  APP --> HR
 ```
 
 ---
