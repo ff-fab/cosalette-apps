@@ -14,7 +14,8 @@ SVGs for MQTT delivery.
 default. Legacy code in `jl4services/shadow/image.py` must NOT be referenced.
 
 **How to apply:** Every shadow geometry implementation must derive from first principles
-only. Attribution credit must appear in file headers (see ADR-000 wording).
+only. Attribution credit must appear in file headers (see license header template
+below).
 
 ## Module structure
 
@@ -46,7 +47,7 @@ only. Attribution credit must appear in file headers (see ADR-000 wording).
 
 ## ADR decisions
 
-- ADR-000: GPL-3.0-or-later + clean-room reimplementation, attribution header required
+- Licensing: GPL-3.0-or-later + clean-room reimplementation, attribution header required
   in all source files
 - ADR-001: Cosalette telemetry app, `@app.telemetry()` with `Every(seconds=360)`
 - ADR-002: `astral` library for solar position computation
@@ -81,7 +82,7 @@ only. Attribution credit must appear in file headers (see ADR-000 wording).
 # https://community.openhab.org/t/show-current-sun-position-and-shadow-of-house-generate-svg/34764
 ```
 
-Note: ADR-000 requires attribution to pmpkk specifically in shadow.py header.
+Note: The license requires attribution to pmpkk specifically in shadow.py header.
 
 ## Task commands
 
