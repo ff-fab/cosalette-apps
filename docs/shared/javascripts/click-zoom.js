@@ -139,12 +139,12 @@
           return;
         }
 
+        // Mermaid diagrams stay more usable when zoom is always available.
+        // Width probing can under-detect sequence diagrams whose rendered width
+        // is constrained by the layout even though the content remains dense.
+        el.setAttribute("data-click-zoom", "");
+
         if (Object.prototype.hasOwnProperty.call(probeCache, source)) {
-          var cached = probeCache[source];
-          var renderedWidth = el.getBoundingClientRect().width;
-          if (cached === 0 || cached > renderedWidth + ZOOM_THRESHOLD) {
-            el.setAttribute("data-click-zoom", "");
-          }
           return;
         }
 
@@ -170,11 +170,6 @@
             }
 
             probeCache[source] = naturalWidth;
-
-            var renderedWidth = el.getBoundingClientRect().width;
-            if (naturalWidth === 0 || naturalWidth > renderedWidth + ZOOM_THRESHOLD) {
-              el.setAttribute("data-click-zoom", "");
-            }
           })
           .catch(function () {
             if (generation !== probeGeneration) return;
