@@ -541,18 +541,18 @@ class TestShadowRenderer:
         assert len(midnight) == 1
         assert len(noon) == 1
 
-    def test_sundial_ring_disabled(
+    def test_sundial_mode_off_hides_ring(
         self,
         renderer: ShadowRenderer,
         daylight_sun: SunPosition,
         geometry: GeometryConfig,
     ) -> None:
-        """No sundial ring arcs when show_sundial_ring is False.
+        """Off mode omits the outer sundial ring.
 
-        Technique: Condition Coverage — ring toggle.
+        Technique: Condition Coverage — non-ring mode branch.
         """
         # Arrange
-        settings = RenderSettings(show_sundial_ring=False)
+        settings = RenderSettings(sundial_mode="off")
 
         # Act
         svg = renderer.render(daylight_sun, [], geometry, settings)
@@ -561,6 +561,26 @@ class TestShadowRenderer:
         assert 'class="sundial-arc"' not in svg
         assert 'class="midnight-bar"' not in svg
         assert 'class="noon-bar"' not in svg
+
+    def test_sun_position_marker_uses_reduced_diameter(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Sun position marker diameter is reduced to 9 units.
+
+        Technique: Boundary Value Analysis — exact marker size regression check.
+        """
+        # Act
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        # Assert
+        root = ET.fromstring(svg)
+        ns = {"svg": "http://www.w3.org/2000/svg"}
+        markers = root.findall(".//svg:circle[@class='sun-marker']", ns)
+        assert len(markers) == 1
+        assert markers[0].get("r") == "4.5"
 
     def test_circle_marker_style_default(
         self,

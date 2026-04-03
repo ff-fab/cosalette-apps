@@ -93,9 +93,11 @@ class TestBuildPipeline:
             geometry_file=Path("unused.yaml"),
             primary_color="#aaa",
             stroke_width=3.0,
+            sundial_mode="compact",
         )
         with patch("suncast.app.load_geometry", return_value=_TEST_GEOMETRY):
             state = _build_pipeline(settings)
 
         assert state.render_settings.primary_color == "#aaa"
         assert state.render_settings.stroke_width == 3.0
+        assert state.render_settings.sundial_mode == "compact"

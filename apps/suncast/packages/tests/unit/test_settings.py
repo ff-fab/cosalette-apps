@@ -61,6 +61,7 @@ class TestDefaults:
         assert s.light_color == "#f1b023"
         assert s.shadow_color == "#2F3338"
         assert s.stroke_width == 1.0
+        assert s.sundial_mode == "ring"
 
     def test_output_defaults(self) -> None:
         s = _make_settings()
@@ -104,9 +105,23 @@ class TestCustomValues:
         assert s.timezone == "Australia/Sydney"
 
     def test_rendering_overrides(self) -> None:
-        s = _make_settings(primary_color="#000", stroke_width=2.5)
+        s = _make_settings(
+            primary_color="#000",
+            stroke_width=2.5,
+            sundial_mode="compact",
+        )
         assert s.primary_color == "#000"
         assert s.stroke_width == 2.5
+        assert s.sundial_mode == "compact"
+
+    @pytest.mark.parametrize("mode", ["ring", "compact", "off"])
+    def test_sundial_mode_accepts_supported_values(self, mode: str) -> None:
+        """Supported sundial modes are accepted.
+
+        Technique: Equivalence Partitioning — one case per allowed mode.
+        """
+        s = _make_settings(sundial_mode=mode)
+        assert s.sundial_mode == mode
 
     def test_output_path_none_disables(self) -> None:
         s = _make_settings(output_path=None)
@@ -141,3 +156,7 @@ class TestValidation:
     def test_http_port_out_of_range(self) -> None:
         with pytest.raises(ValidationError, match="http_port"):
             _make_settings(http_port=70000)
+
+    def test_sundial_mode_rejects_unknown_value(self) -> None:
+        with pytest.raises(ValidationError, match="sundial_mode"):
+            _make_settings(sundial_mode="legacy")

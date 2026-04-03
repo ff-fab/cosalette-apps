@@ -25,6 +25,9 @@ from pydantic import Field
 from pydantic_settings import SettingsConfigDict
 
 
+type SundialMode = Literal["ring", "compact", "off"]
+
+
 class SuncastSettings(cosalette.Settings):
     """Root settings for the suncast application."""
 
@@ -56,7 +59,7 @@ class SuncastSettings(cosalette.Settings):
     light_color: str = "#f1b023"
     shadow_color: str = "#2F3338"
     stroke_width: float = 1.0
-    sundial_ring: bool = True
+    sundial_mode: SundialMode = "ring"
     marker_style: Literal["circle", "bar"] = "circle"
 
     # -- Output -------------------------------------------------------------
