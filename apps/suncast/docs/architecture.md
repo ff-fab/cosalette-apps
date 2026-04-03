@@ -9,47 +9,90 @@ handles MQTT connectivity, health reporting, error isolation, and graceful shutd
 
 ## Overview
 
+<script type="text/plain" class="click-zoom-mermaid-source">
+graph TD
+  subgraph External Inputs
+    YAML[geometry.yaml]
+    ASTRAL[astral library]
+  end
+
+  subgraph Domain
+    GEOM["GeometryConfig / fit_to_circle"]
+    SOLAR[compute_solar_position]
+    SHADOW[compute_building_shadows]
+  end
+
+  subgraph Rendering
+    RENDERER[ShadowRenderer]
+    RASTER["svg_to_png (optional)"]
+  end
+
+  subgraph Delivery
+    OUTPUT[OutputManager]
+    HTTP["HttpServer (optional)"]
+  end
+
+  subgraph cosalette
+    APP[App]
+    MQTT[MqttClient]
+    HR[HealthReporter]
+  end
+
+  YAML --> GEOM
+  ASTRAL --> SOLAR
+  GEOM --> SHADOW
+  SOLAR --> SHADOW
+  GEOM --> RENDERER
+  SHADOW --> RENDERER
+  RENDERER --> OUTPUT
+  RASTER --> OUTPUT
+  HTTP --> OUTPUT
+  OUTPUT --> APP
+  APP --> MQTT
+  APP --> HR
+</script>
+
 ```mermaid
-graph LR
-    subgraph External
-        ASTRAL[astral library]
-        YAML[geometry.yaml]
-    end
+graph TD
+  subgraph External Inputs
+    YAML[geometry.yaml]
+    ASTRAL[astral library]
+  end
 
-    subgraph Domain
-        SOLAR[compute_solar_position]
-        SHADOW[compute_building_shadows]
-        GEOM["GeometryConfig / fit_to_circle"]
-    end
+  subgraph Domain
+    GEOM["GeometryConfig / fit_to_circle"]
+    SOLAR[compute_solar_position]
+    SHADOW[compute_building_shadows]
+  end
 
-    subgraph Rendering
-        RENDERER[ShadowRenderer]
-        RASTER["svg_to_png (optional)"]
-    end
+  subgraph Rendering
+    RENDERER[ShadowRenderer]
+    RASTER["svg_to_png (optional)"]
+  end
 
-    subgraph Output
-        OUTPUT[OutputManager]
-        HTTP["HttpServer (optional)"]
-    end
+  subgraph Delivery
+    OUTPUT[OutputManager]
+    HTTP["HttpServer (optional)"]
+  end
 
-    subgraph cosalette
-        APP[App]
-        MQTT[MqttClient]
-        HR[HealthReporter]
-    end
+  subgraph cosalette
+    APP[App]
+    MQTT[MqttClient]
+    HR[HealthReporter]
+  end
 
-    YAML --> GEOM
-    ASTRAL --> SOLAR
-    SOLAR --> SHADOW
-    GEOM --> SHADOW
-    SHADOW --> RENDERER
-    GEOM --> RENDERER
-    RENDERER --> OUTPUT
-    RASTER --> OUTPUT
-    OUTPUT --> APP
-    APP --> MQTT
-    APP --> HR
-    HTTP --> OUTPUT
+  YAML --> GEOM
+  ASTRAL --> SOLAR
+  GEOM --> SHADOW
+  SOLAR --> SHADOW
+  GEOM --> RENDERER
+  SHADOW --> RENDERER
+  RENDERER --> OUTPUT
+  RASTER --> OUTPUT
+  HTTP --> OUTPUT
+  OUTPUT --> APP
+  APP --> MQTT
+  APP --> HR
 ```
 
 ---
@@ -98,33 +141,58 @@ HTTP cache) in a single call.
 
 Each poll cycle follows this path through the pipeline:
 
+<script type="text/plain" class="click-zoom-mermaid-source">
+sequenceDiagram
+  participant COS as cosalette scheduler
+  participant H as _shadow_handler
+  participant SOL as compute_solar_position
+  participant SH as compute_building_shadows
+  participant R as ShadowRenderer.render
+  participant O as OutputManager.deliver
+
+  COS->>H: trigger poll cycle
+  H->>SOL: latitude, longitude, timezone, now
+  SOL-->>H: SunPosition
+  H->>SH: geometry, sun
+  SH-->>H: list[ShadowResult]
+  H->>R: sun, shadows, geometry, settings
+  R-->>H: SVG string
+  H->>O: svg, output context
+  O->>O: write shadow.svg
+  O->>O: publish svg channel
+  opt png_enabled
+    O->>O: svg_to_png
+    O->>O: write shadow.png
+    O->>O: publish png channel
+  end
+  H-->>COS: return None
+</script>
+
 ```mermaid
 sequenceDiagram
-    participant COS as cosalette Scheduler
-    participant H as _shadow_handler
-    participant SOL as compute_solar_position
-    participant SH as compute_building_shadows
-    participant R as ShadowRenderer
-    participant O as OutputManager
-    participant M as MQTT Broker
-    participant FS as Filesystem
+  participant COS as cosalette scheduler
+  participant H as _shadow_handler
+  participant SOL as compute_solar_position
+  participant SH as compute_building_shadows
+  participant R as ShadowRenderer.render
+  participant O as OutputManager.deliver
 
-    COS->>H: trigger (every poll_interval)
-    H->>SOL: compute_solar_position(lat, lon, tz, now)
-    SOL-->>H: SunPosition
-    H->>SH: compute_building_shadows(geometry, sun)
-    SH-->>H: list[ShadowResult]
-    H->>R: render(sun, shadows, geometry, settings)
-    R-->>H: SVG string
-    H->>O: deliver(svg, {}, ctx)
-    O->>FS: write shadow.svg (if output_path set)
-    O->>M: publish svg channel
-    opt PNG enabled
-        O->>O: svg_to_png()
-        O->>FS: write shadow.png
-        O->>M: publish png channel (base64)
-    end
-    H-->>COS: None (no state JSON)
+  COS->>H: trigger poll cycle
+  H->>SOL: latitude, longitude, timezone, now
+  SOL-->>H: SunPosition
+  H->>SH: geometry, sun
+  SH-->>H: list[ShadowResult]
+  H->>R: sun, shadows, geometry, settings
+  R-->>H: SVG string
+  H->>O: svg, output context
+  O->>O: write shadow.svg
+  O->>O: publish svg channel
+  opt png_enabled
+    O->>O: svg_to_png
+    O->>O: write shadow.png
+    O->>O: publish png channel
+  end
+  H-->>COS: return None
 ```
 
 The handler returns `None` — suncast publishes visual output through dedicated MQTT

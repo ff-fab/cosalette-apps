@@ -46,3 +46,46 @@
   left: 8rem;
   margin: 0;
 }
+
+/* Geometry guide comparison figures. Keep the side-by-side layout on larger
+ * screens while making the captions read like figure captions instead of
+ * generic table text.
+ */
+.geometry-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1.5rem;
+  align-items: start;
+  margin: 1.5rem 0;
+}
+
+.geometry-comparison figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.geometry-comparison img {
+  display: block;
+  width: min(100%, 15.625rem);
+  height: auto;
+}
+
+.geometry-comparison figcaption {
+  margin-top: 0.75rem;
+  max-width: 15.625rem;
+  color: var(--md-default-fg-color--light);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.geometry-comparison figcaption strong {
+  display: block;
+  margin-bottom: 0.2rem;
+  color: var(--md-default-fg-color);
+  font-size: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+}
