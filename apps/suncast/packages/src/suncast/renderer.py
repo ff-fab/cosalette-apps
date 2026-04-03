@@ -103,6 +103,36 @@ class ShadowRenderer:
 
         parts: list[str] = []
 
+        def append_sundial_arcs(dial_radius: float) -> None:
+            for i in range(24):
+                start_az = apply_north_rotation(sun.hourly_azimuths[i], north_rot)
+                end_az = apply_north_rotation(
+                    sun.hourly_azimuths[(i + 1) % 24], north_rot
+                )
+                d = arc_path(Point(cx, cy), dial_radius, start_az, end_az)
+                opacity = 0.2 if i % 2 == 0 else 1.0
+                parts.append(
+                    f'<path d="{d}" stroke="{s.primary_color}" '
+                    f'stroke-width="3" fill="none" '
+                    f'stroke-opacity="{opacity}" class="sundial-arc"/>'
+                )
+
+        def append_hour_bar(
+            hour_index: int,
+            line_class: str,
+            inner_radius: float,
+            outer_radius: float,
+        ) -> None:
+            azimuth = apply_north_rotation(sun.hourly_azimuths[hour_index], north_rot)
+            inner = degrees_to_cartesian(azimuth, inner_radius, Point(cx, cy))
+            outer = degrees_to_cartesian(azimuth, outer_radius, Point(cx, cy))
+            parts.append(
+                f'<line x1="{inner.x:.2f}" y1="{inner.y:.2f}" '
+                f'x2="{outer.x:.2f}" y2="{outer.y:.2f}" '
+                f'stroke="{s.light_color}" stroke-width="2" '
+                f'class="{line_class}"/>'
+            )
+
         # 1. SVG root
         parts.append(
             f'<svg xmlns="http://www.w3.org/2000/svg" '
@@ -166,6 +196,8 @@ class ShadowRenderer:
 
         # 8. Day/night arc
         north_rot = geometry.canvas.north_rotation
+        day_d: str | None = None
+        night_d: str | None = None
         if sun.sunrise_azimuth is not None and sun.sunset_azimuth is not None:
             day_d = arc_path(
                 Point(cx, cy),
@@ -179,6 +211,7 @@ class ShadowRenderer:
                 apply_north_rotation(sun.sunset_azimuth, north_rot),
                 apply_north_rotation(sun.sunrise_azimuth, north_rot),
             )
+        if day_d is not None and night_d is not None and s.sundial_mode != "compact":
             parts.append(
                 f'<path d="{day_d}" fill="none" stroke="{s.light_color}" '
                 f'stroke-width="{s.stroke_width * 2}" class="day-arc"/>'
@@ -190,41 +223,21 @@ class ShadowRenderer:
 
         # 9. Sundial
         parts.append('<g class="sundial">')
-        # Sundial outer ring: 24 alternating-opacity arcs
-        if s.sundial_mode == "ring":
-            ring_radius = radius + 8
-            for i in range(24):
-                start_az = apply_north_rotation(sun.hourly_azimuths[i], north_rot)
-                end_az = apply_north_rotation(
-                    sun.hourly_azimuths[(i + 1) % 24], north_rot
-                )
-                d = arc_path(Point(cx, cy), ring_radius, start_az, end_az)
-                opacity = 0.2 if i % 2 == 0 else 1.0
+        if s.sundial_mode in {"ring", "compact"}:
+            dial_radius = radius + 8 if s.sundial_mode == "ring" else radius
+            bar_inner_radius = radius + 4 if s.sundial_mode == "ring" else radius - 4
+            bar_outer_radius = radius + 12 if s.sundial_mode == "ring" else radius + 4
+
+            append_sundial_arcs(dial_radius)
+
+            if s.sundial_mode == "compact" and day_d is not None:
                 parts.append(
-                    f'<path d="{d}" stroke="{s.primary_color}" '
-                    f'stroke-width="3" fill="none" '
-                    f'stroke-opacity="{opacity}" class="sundial-arc"/>'
+                    f'<path d="{day_d}" fill="none" stroke="{s.light_color}" '
+                    f'stroke-width="3" stroke-opacity="0.3" class="day-arc"/>'
                 )
-            # Midnight bar (hour 0)
-            midnight_az = apply_north_rotation(sun.hourly_azimuths[0], north_rot)
-            mn_inner = degrees_to_cartesian(midnight_az, radius + 4, Point(cx, cy))
-            mn_outer = degrees_to_cartesian(midnight_az, radius + 12, Point(cx, cy))
-            parts.append(
-                f'<line x1="{mn_inner.x:.2f}" y1="{mn_inner.y:.2f}" '
-                f'x2="{mn_outer.x:.2f}" y2="{mn_outer.y:.2f}" '
-                f'stroke="{s.light_color}" stroke-width="2" '
-                f'class="midnight-bar"/>'
-            )
-            # Noon bar (hour 12)
-            noon_az = apply_north_rotation(sun.hourly_azimuths[12], north_rot)
-            nn_inner = degrees_to_cartesian(noon_az, radius + 4, Point(cx, cy))
-            nn_outer = degrees_to_cartesian(noon_az, radius + 12, Point(cx, cy))
-            parts.append(
-                f'<line x1="{nn_inner.x:.2f}" y1="{nn_inner.y:.2f}" '
-                f'x2="{nn_outer.x:.2f}" y2="{nn_outer.y:.2f}" '
-                f'stroke="{s.light_color}" stroke-width="2" '
-                f'class="noon-bar"/>'
-            )
+
+            append_hour_bar(0, "midnight-bar", bar_inner_radius, bar_outer_radius)
+            append_hour_bar(12, "noon-bar", bar_inner_radius, bar_outer_radius)
         # Sunrise/sunset indicators
         if sun.sunrise_azimuth is not None:
             sr_az = apply_north_rotation(sun.sunrise_azimuth, north_rot)
