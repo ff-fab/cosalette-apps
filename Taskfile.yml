@@ -6,7 +6,7 @@ vars:
   # Add apps here as they are migrated. Order doesn't matter.
   APPS:
     [
-      wallpanel-switch,
+      wallpanel-cntrl,
       suncast,
       caldates2mqtt,
       airthings2mqtt,
@@ -63,12 +63,12 @@ includes:
       APP_NAME: suncast
       MODULE_NAME: suncast
 
-  wallpanel-switch:
+  wallpanel-cntrl:
     taskfile: ./taskfiles/PythonApp.yml
-    dir: ./apps/wallpanel-switch
+    dir: ./apps/wallpanel-cntrl
     vars:
-      APP_NAME: wallpanel-switch
-      MODULE_NAME: wallpanel_switch
+      APP_NAME: wallpanel-cntrl
+      MODULE_NAME: wallpanel_cntrl
 
 tasks:
   default:

@@ -1,6 +1,6 @@
-# wallpanel-switch
+# wallpanel-cntrl
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ff-fab/cosalette-apps/blob/main/apps/wallpanel-switch/LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://github.com/ff-fab/cosalette-apps/blob/main/apps/wallpanel-cntrl/LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 [![cosalette](https://img.shields.io/badge/framework-cosalette-orange)](https://github.com/ff-fab/cosalette)
 
@@ -16,7 +16,7 @@
 
     ---
 
-    Install wallpanel-switch and see your first MQTT messages.
+    Install wallpanel-cntrl and see your first MQTT messages.
 
     [:octicons-arrow-right-24: Get started](getting-started.md)
 

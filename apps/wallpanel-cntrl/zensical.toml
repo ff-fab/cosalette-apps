@@ -4,8 +4,8 @@
 # This file replaces mkdocs.yml with native TOML configuration.
 #
 # Usage (via Taskfile — single source of truth for tool commands):
-#   task wallpanel-switch:docs:serve   # Local preview with hot reload
-#   task wallpanel-switch:docs:build   # Build static site to site/
+#   task wallpanel-cntrl:docs:serve   # Local preview with hot reload
+#   task wallpanel-cntrl:docs:build   # Build static site to site/
 
 
 # ---------------------------------------------------------------------------
@@ -13,15 +13,15 @@
 # ---------------------------------------------------------------------------
 
 [project]
-site_name = "wallpanel-switch"
+site_name = "wallpanel-cntrl"
 site_description = "Wall panel brightness, screen and power control via SSH"
 
 # Canonical URL for the deployed site. Used for sitemap and social cards.
-site_url = "https://ff-fab.github.io/cosalette-apps/wallpanel-switch/"
+site_url = "https://ff-fab.github.io/cosalette-apps/wallpanel-cntrl/"
 
 repo_url = "https://github.com/ff-fab/cosalette-apps"
 repo_name = "ff-fab/cosalette-apps"
-edit_uri = "edit/main/apps/wallpanel-switch/docs/"
+edit_uri = "edit/main/apps/wallpanel-cntrl/docs/"
 extra_css = ["stylesheets/extra.css", "stylesheets/click-zoom.css"]
 extra_javascript = ["javascripts/click-zoom.js", "javascripts/version-fetch.js", "javascripts/header-breadcrumb.js", "javascripts/palette-sync.js"]
 
