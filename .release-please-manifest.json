@@ -5,5 +5,6 @@
   "apps/velux2mqtt": "0.1.1",
   "apps/airthings2mqtt": "0.1.1",
   "apps/caldates2mqtt": "0.1.1",
-  "apps/suncast": "0.1.0"
+  "apps/suncast": "0.1.0",
+  "apps/wallpanel-control": "0.1.0"
 }

@@ -37,6 +37,10 @@ flags:
     paths:
       - apps/suncast/packages/src/
     carryforward: true
+  wallpanel-control:
+    paths:
+      - apps/wallpanel-control/packages/src/
+    carryforward: true
 
 comment:
   layout: 'condensed_header, condensed_files, condensed_footer, components'

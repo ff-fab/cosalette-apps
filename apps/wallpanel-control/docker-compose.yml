@@ -1,0 +1,27 @@
+services:
+  wallpanel-control:
+    build:
+      context: ../..
+      dockerfile: apps/wallpanel-control/Dockerfile
+    restart: unless-stopped
+    volumes:
+      - wallpanel_control-data:/app/data
+    environment:
+      WALLPANEL_CONTROL_MQTT__HOST: mosquitto
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:1883:1883'
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  wallpanel_control-data:
+  mosquitto-data:
+  mosquitto-log:
