@@ -33,6 +33,10 @@
     "apps/suncast": {
       "component": "suncast",
       "release-type": "python"
+    },
+    "apps/wallpanel-control": {
+      "component": "wallpanel-control",
+      "release-type": "python"
     }
   }
 }

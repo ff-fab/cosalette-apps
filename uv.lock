@@ -12,6 +12,7 @@ members = [
     "suncast",
     "velux2mqtt",
     "vito2mqtt",
+    "wallpanel-control",
 ]
 
 [[package]]
@@ -2166,6 +2167,17 @@ requires-dist = [
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pyserial-asyncio", specifier = ">=0.6" },
 ]
+
+[[package]]
+name = "wallpanel-control"
+version = "0.1.0"
+source = { editable = "apps/wallpanel-control" }
+dependencies = [
+    { name = "cosalette" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "cosalette", specifier = ">=0.1.7" }]
 
 [[package]]
 name = "wassima"
