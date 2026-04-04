@@ -1,7 +1,7 @@
 version = 1
 
 [[annotations]]
-path = ["apps/caldates2mqtt/**", "apps/airthings2mqtt/**", "apps/velux2mqtt/**", "apps/gas2mqtt/**", "apps/jeelink2mqtt/**"]
+path = ["apps/wallpanel-switch/**", "apps/caldates2mqtt/**", "apps/airthings2mqtt/**", "apps/velux2mqtt/**", "apps/gas2mqtt/**", "apps/jeelink2mqtt/**"]
 SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
 SPDX-License-Identifier = "MIT"
 
