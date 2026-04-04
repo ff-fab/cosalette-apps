@@ -1,13 +1,13 @@
 services:
-  wallpanel-switch:
+  wallpanel-cntrl:
     build:
       context: ../..
-      dockerfile: apps/wallpanel-switch/Dockerfile
+      dockerfile: apps/wallpanel-cntrl/Dockerfile
     restart: unless-stopped
     volumes:
-      - wallpanel_switch-data:/app/data
+      - wallpanel_cntrl-data:/app/data
     environment:
-      WALLPANEL_SWITCH_MQTT__HOST: mosquitto
+      WALLPANEL_CNTRL_MQTT__HOST: mosquitto
     depends_on:
       - mosquitto
 
@@ -21,6 +21,6 @@ services:
       - mosquitto-config:/mosquitto/config
 
 volumes:
-  wallpanel_switch-data:
+  wallpanel_cntrl-data:
   mosquitto-data:
   mosquitto-config:

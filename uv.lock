@@ -12,7 +12,7 @@ members = [
     "suncast",
     "velux2mqtt",
     "vito2mqtt",
-    "wallpanel-switch",
+    "wallpanel-cntrl",
 ]
 
 [[package]]
@@ -2169,9 +2169,9 @@ requires-dist = [
 ]
 
 [[package]]
-name = "wallpanel-switch"
+name = "wallpanel-cntrl"
 version = "0.1.0"
-source = { editable = "apps/wallpanel-switch" }
+source = { editable = "apps/wallpanel-cntrl" }
 dependencies = [
     { name = "cosalette" },
 ]
