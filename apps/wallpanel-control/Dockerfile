@@ -6,14 +6,14 @@ COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
 WORKDIR /app
 
 # Copy monorepo root lockfile and workspace config for reproducible builds.
-# Build context must be the repository root (docker build -f apps/wallpanel-cntrl/Dockerfile .)
+# Build context must be the repository root (docker build -f apps/wallpanel-control/Dockerfile .)
 COPY pyproject.toml uv.lock ./
-COPY apps/wallpanel-cntrl/pyproject.toml apps/wallpanel-cntrl/
-COPY apps/wallpanel-cntrl/README.md apps/wallpanel-cntrl/
-COPY apps/wallpanel-cntrl/packages/src/ apps/wallpanel-cntrl/packages/src/
+COPY apps/wallpanel-control/pyproject.toml apps/wallpanel-control/
+COPY apps/wallpanel-control/README.md apps/wallpanel-control/
+COPY apps/wallpanel-control/packages/src/ apps/wallpanel-control/packages/src/
 
 # Install the application using locked dependencies (no cache to keep image small)
-RUN uv pip install --system --no-cache ./apps/wallpanel-cntrl
+RUN uv pip install --system --no-cache ./apps/wallpanel-control
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \
@@ -22,4 +22,4 @@ USER appuser
 
 VOLUME /app/data
 
-ENTRYPOINT ["wallpanel-cntrl"]
+ENTRYPOINT ["wallpanel-control"]

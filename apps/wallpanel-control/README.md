@@ -1,4 +1,4 @@
-# wallpanel-cntrl
+# wallpanel-control
 
 Wall panel brightness, screen and power control via SSH
 

@@ -34,8 +34,8 @@
       "component": "suncast",
       "release-type": "python"
     },
-    "apps/wallpanel-cntrl": {
-      "component": "wallpanel-cntrl",
+    "apps/wallpanel-control": {
+      "component": "wallpanel-control",
       "release-type": "python"
     }
   }

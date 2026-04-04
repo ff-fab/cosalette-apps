@@ -1,4 +1,4 @@
-"""Entry point for wallpanel-cntrl."""
+"""Entry point for wallpanel-control."""
 
 from __future__ import annotations
 
