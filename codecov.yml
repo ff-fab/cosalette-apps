@@ -37,9 +37,9 @@ flags:
     paths:
       - apps/suncast/packages/src/
     carryforward: true
-  wallpanel-cntrl:
+  wallpanel-control:
     paths:
-      - apps/wallpanel-cntrl/packages/src/
+      - apps/wallpanel-control/packages/src/
     carryforward: true
 
 comment:
