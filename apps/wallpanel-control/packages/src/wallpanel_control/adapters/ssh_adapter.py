@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import shlex
 from types import TracebackType
 from typing import Self
 
@@ -80,15 +81,20 @@ class SshWallpanel:
 
         Raises:
             asyncssh.ProcessError: If the command exits non-zero.
-            Unreachable errors propagate to caller.
+            Unreachable errors propagate to caller (connection is
+            cleared so the next call triggers a fresh connect).
         """
-        conn = await self._connect()
-        result = await asyncio.wait_for(
-            conn.run(command, check=True),
-            timeout=self._settings.ssh_timeout,
-        )
-        stdout = result.stdout or ""
-        return str(stdout).strip()
+        try:
+            conn = await self._connect()
+            result = await asyncio.wait_for(
+                conn.run(command, check=True),
+                timeout=self._settings.ssh_timeout,
+            )
+            stdout = result.stdout or ""
+            return str(stdout).strip()
+        except _UNREACHABLE_ERRORS:
+            self._conn = None
+            raise
 
     async def _run_or_none(self, command: str) -> str | None:
         """Execute a command, returning None if unreachable.
@@ -116,21 +122,21 @@ class SshWallpanel:
 
     async def set_brightness(self, value: int) -> None:
         """Set backlight brightness via sysfs echo."""
-        path = self._brightness_path()
-        await self._run(f"echo {value} | sudo /usr/bin/tee '{path}'")
+        path = shlex.quote(self._brightness_path())
+        await self._run(f"echo {value} | sudo /usr/bin/tee {path}")
 
     async def get_brightness(self) -> int | None:
         """Read backlight brightness from sysfs."""
-        path = self._brightness_path()
-        output = await self._run_or_none(f"cat '{path}'")
+        path = shlex.quote(self._brightness_path())
+        output = await self._run_or_none(f"cat {path}")
         if output is None:
             return None
         return int(output)
 
     async def get_max_brightness(self) -> int:
         """Read max backlight brightness from sysfs."""
-        path = self._max_brightness_path()
-        output = await self._run(f"cat '{path}'")
+        path = shlex.quote(self._max_brightness_path())
+        output = await self._run(f"cat {path}")
         return int(output)
 
     async def screen_on(self) -> None:
