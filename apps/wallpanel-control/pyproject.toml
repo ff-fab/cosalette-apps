@@ -10,6 +10,7 @@ authors = [
 ]
 
 dependencies = [
+    "asyncssh>=2.20.0",
     "cosalette>=0.1.7",
 ]
 
