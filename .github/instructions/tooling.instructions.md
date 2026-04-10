@@ -16,26 +16,23 @@ applyTo: '**'
 
 Run `task --list` to see all available tasks. Key tasks for development:
 
-| Need                          | Command                                              |
-| ----------------------------- | ---------------------------------------------------- |
-| Run all unit tests            | `task test:unit`                                     |
-| Run a specific test file      | `task test:file -- packages/tests/unit/test_foo.py`  |
-| Run tests matching a pattern  | `task test:file -- -k test_my_function`              |
-| Run tests with coverage       | `task test:cov`                                      |
-| Lint (ruff check + format)    | `task lint`                                          |
-| Fix lint issues               | `task lint:fix`                                      |
-| Type check (ty)               | `task typecheck`                                     |
-| All checks (lint+type+test)   | `task check`                                         |
-| Complexity (radon + cognitive) | `task complexity`                                   |
-| Duplication detection          | `task similarity`                                   |
-| Per-app tests                 | `task <app>:test:unit`                               |
-| Run all apps' tests           | `task test:all`                                      |
-| Lint all apps                 | `task lint:all`                                      |
-| Pre-PR quality gate           | `task pre-pr`                                        |
-| Wait for CI on a PR           | `task ci:wait -- <pr-number>`                        |
-| Preview docs                  | `task docs:serve`                                    |
-| Preview app docs              | `task <app>:docs:serve`                              |
-| Sync dependencies             | `task sync`                                          |
+| Need                           | Command                                      |
+| ------------------------------ | -------------------------------------------- |
+| Run all unit tests             | `task test:unit`                             |
+| Run a specific test file       | `task test:file -- packages/tests/unit/test_foo.py`   |
+| Run tests matching a pattern   | `task test:file -- -k test_my_function`      |
+| Run tests with coverage        | `task test:cov`                              |
+| Lint (ruff check + format)     | `task lint`                                  |
+| Fix lint issues                | `task lint:fix`                              |
+| Type check (ty)                | `task typecheck`                             |
+| All checks (lint+type+test)    | `task check`                                 |
+| Complexity (radon + cognitive) | `task complexity`                            |
+| Duplication detection          | `task similarity`                            |
+| Pre-PR quality gate            | `task pre-pr`                                |
+| Wait for CI on a PR            | `task ci:wait -- <pr-number>`                |
+| Preview docs                   | `task docs:serve`                            |
+| Sync dependencies              | `task sync`                                  |
+| Export beads DB to JSONL       | `task beads:sync`                            |
 
 ## When no task exists
 
