@@ -24,8 +24,19 @@ This is a **uv workspace monorepo**. Apps live under `apps/<name>/`.
 
 - Per-app tasks: `task <app>:test:unit`, `task <app>:lint`, `task <app>:typecheck`
 - Cross-app: `task test:all`, `task lint:all`, `task check:all`
+- Root-level: `task test:unit`, `task lint`, `task typecheck`, `task check`
 - Use `uv run --package <name>` when no task exists
 - Commit scoping: `feat(gas2mqtt): ...`, `fix(jeelink2mqtt): ...`
+
+## Available Skills
+
+- **pr-review** — Fetch all PR feedback via
+  [fetch-pr-feedback.sh](.github/skills/pr-review/fetch-pr-feedback.sh), then analyze
+  CI, review comments, and code quality
+- **pre-pr-gate** — End-of-session workflow: `task pre-pr`, close beads, push, create PR
+- **showboat-demo** — Create reproducible proof-of-work demos with `showboat`
+- **adr-create** — Create or amend ADRs via schema-conforming JSON
+  (`task adr:create -- input.json`)
 
 ## Key Rules
 

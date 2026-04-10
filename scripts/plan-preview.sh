@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Format epic children for the fzf preview pane in plan-interactive.sh.
 #
-# Called with: bash plan-preview.sh <epic-id> <orphan-cache> [<cache-file>]
+# Called with: bash plan-preview.sh <epic-id> [<orphan-cache>] [<cache-file>]
 #
 # Transforms:
 #   - Shows children with status icons and priorities
@@ -23,9 +23,11 @@ if [ "$EPIC_ID" = "_orphan" ]; then
     # Use cached orphan IDs from plan-interactive.sh if available
     if [ -n "$ORPHAN_CACHE" ] && [ -s "$ORPHAN_CACHE" ]; then
         ORPHANS=$(cat "$ORPHAN_CACHE")
+    elif [ -n "$CACHE_FILE" ] && [ -s "$CACHE_FILE" ]; then
+        ORPHANS=$(jq -r '.[] | select(.issue_type != "epic") | select(.parent == null or .parent == "") | .id' "$CACHE_FILE")
     else
-        echo "No orphaned tasks."
-        exit 0
+        ORPHANS=$(bd list --all --json --limit 0 2>/dev/null \
+            | jq -r '.[] | select(.issue_type != "epic") | select(.parent == null or .parent == "") | .id')
     fi
 
     if [ -z "$ORPHANS" ]; then

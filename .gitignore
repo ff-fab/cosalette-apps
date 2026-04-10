@@ -180,10 +180,8 @@ apps/*/docs/javascripts/palette-sync.js
 apps/*/docs/images/generated/
 docs/javascripts/palette-sync.js
 
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
+# ty (type checker)
+.ty_cache/
 
 # Pyre type checker
 .pyre/
@@ -238,6 +236,7 @@ __marimo__/
 .beads/dolt/dolt-server.activity
 .beads/dolt/dolt-server.log
 .beads/dolt/dolt-monitor.pid
+.beads/dolt-monitor.pid
 
 # Dolt database files (added by bd init)
 .dolt/

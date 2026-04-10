@@ -71,6 +71,8 @@ if [ -n "$DESIGN" ] && [ "$DESIGN" != "null" ]; then
 fi
 
 # Dependencies (excluding parent epic link)
+# Cache path: bd list uses .type / .depends_on_id for dependency fields
+# Direct path: bd show uses .dependency_type / .id
 # When using cache, dependencies have raw IDs — resolve titles from cache
 if [ -n "$CACHE_FILE" ] && [ -s "$CACHE_FILE" ]; then
     DEPS=$(jq -r --arg task "$TASK_ID" --arg epic "${EPIC_ID}" '

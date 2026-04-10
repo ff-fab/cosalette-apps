@@ -1,4 +1,4 @@
-_commit: v1.8.2
+_commit: v1.10.0
 _src_path: https://github.com/ff-fab/tmpl_python_project_kickstart
 author_email: mail@fabiankoerner.com
 author_name: Fabian Koerner
@@ -11,8 +11,9 @@ github_org: ff-fab
 include_sbom: false
 init_git_on_copy: true
 license: MIT
-module_name: cosalette-apps
+module_name: cosalette_apps
 project_name: cosalette-apps
 release_please: true
 repo_name: cosalette-apps
 robot_framework: false
+surge_token: false
