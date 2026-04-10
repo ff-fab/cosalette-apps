@@ -1,6 +1,6 @@
 #!/bin/bash
 # Update pre-commit hooks to their latest versions
-# Run this periodically to keep linting tools (ruff, mypy, etc.) current
+# Run this periodically to keep linting tools (ruff, ty, etc.) current
 
 set -e
 cd /workspace

@@ -98,6 +98,11 @@ build_epic_lines() {
         total=$(jq -r --arg id "$id" '.[$id].total // 0' "$CHILD_STATS_CACHE")
         closed=$(jq -r --arg id "$id" '.[$id].closed // 0' "$CHILD_STATS_CACHE")
 
+        # A closed epic is 100% by definition — regardless of child state
+        if [ "$status" = "closed" ] && [ "$total" -gt 0 ] 2>/dev/null; then
+            closed=$total
+        fi
+
         # Normalize empty/null to 0
         total=${total:-0}; [ "$total" = "null" ] && total=0
         closed=${closed:-0}; [ "$closed" = "null" ] && closed=0

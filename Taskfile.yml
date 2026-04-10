@@ -1,5 +1,10 @@
 # Taskfile.yml — root orchestrator
 # https://taskfile.dev
+#
+# Usage:
+#   task                  # List available tasks
+#   task --list           # List available tasks
+
 version: '3'
 
 vars:
@@ -15,6 +20,17 @@ vars:
       jeelink2mqtt,
       vito2mqtt,
     ]
+  # Root package vars (used by top-level test/lint/typecheck tasks)
+  PKG: packages
+  MODULE_NAME: cosalette_apps
+  HAS_UNIT_TESTS:
+    sh: >-
+      find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \)
+      2>/dev/null | grep -qm1 . && echo true || echo false
+  HAS_INTEGRATION_TESTS:
+    sh: >-
+      find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \)
+      2>/dev/null | grep -qm1 . && echo true || echo false
 
 # ── Per-app includes ─────────────────────────────────────────
 # Each app is included from the reusable template with its own
@@ -110,13 +126,15 @@ tasks:
       - uv run reuse lint
 
   pre-pr:
-    desc: Run all pre-PR quality gates
+    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity)
     cmds:
       - pre-commit run --all-files
       - task: reuse:lint
       - task: lint:all
       - task: typecheck:all
       - task: test:all
+      - task: complexity
+      - task: similarity
 
   app:new:
     desc: 'Scaffold a new app (e.g.: task app:new -- myapp "My app description")'
@@ -189,6 +207,125 @@ tasks:
         if [ -z "$TASK_ID" ]; then echo "No task matching '$SEARCH'." >&2; exit 1; fi
         bd show "$TASK_ID"
 
+  # ===========================================================================
+  # Beads Sync — Export Dolt DB state to git-tracked JSONL
+  # ===========================================================================
+  # bd close updates the local Dolt DB but does NOT update .beads/issues.jsonl.
+  # Always run this task after closing beads tasks and before committing.
+
+  beads:sync:
+    desc: Export beads DB to .beads/issues.jsonl (run after bd close)
+    silent: true
+    preconditions:
+      - sh: command -v bd >/dev/null 2>&1
+        msg: bd is not installed
+      - sh: test -d .beads
+        msg: .beads/ directory not found
+    cmds:
+      - bd export -o .beads/issues.jsonl
+      - echo "✓ Exported beads state to .beads/issues.jsonl"
+
+  # ===========================================================================
+  # Test Tasks - Top Level
+  # ===========================================================================
+
+  test:
+    desc: Run all tests (unit + integration) with summary
+    vars:
+      MODULE_NAME: cosalette_apps
+    cmds:
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml
+
+  test:unit:
+    desc: Run unit tests only (fast, every change)
+    cmds:
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml
+
+  test:file:
+    desc: 'Run specific test file or pattern (e.g.: task test:file -- packages/tests/unit/test_errors.py)'
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task test:file -- packages/tests/unit/test_foo.py" >&2
+          echo "   or: task test:file -- -k test_my_function" >&2
+          exit 1
+        fi
+        uv run pytest {{.CLI_ARGS}} -v --tb=short
+
+  test:integration:
+    desc: Run integration tests (pytest)
+    cmds:
+      - |
+        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No integration tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration
+
+  test:cov:
+    desc: Run tests with coverage (terminal + XML for IDE)
+    vars:
+      MODULE_NAME: cosalette_apps
+    cmds:
+      - uv run pytest {{.PKG}}/tests/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=term-missing --cov-report=xml
+
+  test:cov:html:
+    desc: Run tests with HTML coverage report
+    vars:
+      MODULE_NAME: cosalette_apps
+    cmds:
+      - uv run pytest {{.PKG}}/tests/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=html --cov-report=term
+      - cmd: '{{if eq OS "darwin"}}open{{else}}xdg-open{{end}} htmlcov/index.html'
+        ignore_error: true
+
+  test:watch:
+    desc: Run unit tests in watch mode
+    cmds:
+      - uv run pytest-watch {{.PKG}}/tests/unit/ -- -v --tb=short
+
+  # ===========================================================================
+  # Lint & Typecheck
+  # ===========================================================================
+
+  lint:
+    desc: Run linting (ruff check + format check)
+    cmds:
+      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
+
+  lint:fix:
+    desc: Fix linting issues automatically
+    cmds:
+      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/
+
+  typecheck:
+    desc: Run type checking (ty)
+    cmds:
+      - uv run ty check {{.PKG}}/src/
+
+  check:
+    desc: Run all checks (lint + typecheck + test)
+    cmds:
+      - task: lint
+      - task: typecheck
+      - task: test
+
+  quality:summary:
+    desc: Run lint, typecheck, and unit tests, then output a JSON summary
+    cmds:
+      - bash scripts/quality-summary.sh
+
   # ── Documentation ──────────────────────────────────────────
 
   docs:copy-shared:
@@ -210,6 +347,11 @@ tasks:
       - task: docs:copy-shared
       - uv run --group docs zensical build --clean
 
+  adr:create:
+    desc: Create or amend an ADR from a validated JSON input file
+    cmds:
+      - uv run scripts/render_adr.py {{.CLI_ARGS}}
+
   # ── Dependencies ───────────────────────────────────────────
 
   sync:
@@ -217,9 +359,65 @@ tasks:
     cmds:
       - uv sync --group dev --group docs
 
+  complexity:
+    desc: Run cyclomatic and cognitive complexity analysis
+    vars:
+      MODULE_NAME: cosalette_apps
+    cmds:
+      - uv run radon cc {{.PKG}}/src/{{.MODULE_NAME}} --average --show-complexity
+      - uv run xenon {{.PKG}}/src/{{.MODULE_NAME}} --max-absolute B --max-modules A --max-average A
+      - uv run flake8 {{.PKG}}/src/{{.MODULE_NAME}}
+
+  similarity:
+    desc: Check for code duplication (symilar — ships with pylint)
+    vars:
+      MODULE_NAME: cosalette_apps
+    cmds:
+      - |
+        OUTPUT=$(find {{.PKG}}/src/{{.MODULE_NAME}} -name '*.py' -print0 \
+          | xargs -0 -x uv run symilar -d 4 --ignore-imports --ignore-signatures)
+        echo "$OUTPUT"
+        DUPES=$(printf '%s\n' "$OUTPUT" | sed -n 's/.*duplicates=\([0-9][0-9]*\).*/\1/p' | head -n1)
+        if [ "${DUPES:-0}" -gt 0 ]; then
+          echo "❌ Found $DUPES duplicate lines"
+          exit 1
+        fi
+
   # ── CI Helpers ─────────────────────────────────────────────
 
   ci:wait:
     desc: 'Wait for CI checks to pass (e.g.: task ci:wait -- 5)'
     cmds:
       - bash scripts/ci-wait.sh {{.CLI_ARGS}}
+
+  # ── CI Tasks (used in GitHub Actions) ─────────────────────
+
+  ci:test:unit:
+    desc: CI unit tests with coverage summary
+    vars:
+      MODULE_NAME: cosalette_apps
+    cmds:
+      - |
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/unit/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
+        uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=80
+
+  ci:test:integration:
+    desc: CI integration tests (pytest)
+    cmds:
+      - |
+        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No integration tests found — skipping"
+          exit 0
+        fi
+        uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration --junitxml=results-integration.xml
+
+  ci:lint:
+    desc: CI lint task (strict)
+    cmds:
+      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ty check {{.PKG}}/src/

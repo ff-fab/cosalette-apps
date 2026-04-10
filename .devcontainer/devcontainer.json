@@ -96,7 +96,7 @@
         // Python linting
         "python.linting.enabled": true,
         "python.linting.pylintEnabled": false,
-        "python.linting.mypyEnabled": true,
+        "python.linting.mypyEnabled": false,
         "python.analysis.typeCheckingMode": "strict",
         "python.analysis.extraPaths": ["packages/src", "packages"],
 
@@ -128,7 +128,7 @@
           "**/node_modules": true,
           "**/dist": true,
           "**/.venv": true,
-          "**/.mypy_cache": true,
+          "**/.ty_cache": true,
           "**/build": true
         },
 
@@ -145,7 +145,7 @@
         "github.gitAuthentication": true,
         "githubPullRequests.remotes": ["cosalette-apps", "origin", "upstream"],
 
-        // Beads: daemon was removed in bd ≥0.50; all ops use direct mode now
+        // Beads: no daemon needed; bd uses direct (embedded) mode
         "beads.autoStartDaemon": false,
 
         // Window title
@@ -166,6 +166,7 @@
         "ryanluker.vscode-coverage-gutters",
         "task.vscode-task",
         "planet57.vscode-beads",
+        "fail-safe.copilot-premium-usage-monitor",
         "github.vscode-pull-request-github"
       ]
     }

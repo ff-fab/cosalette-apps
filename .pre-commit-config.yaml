@@ -5,7 +5,7 @@
 repos:
   # EditorConfig: Validate all files match .editorconfig settings
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.2.1
+    rev: 3.6.1
     hooks:
       - id: editorconfig-checker
         name: EditorConfig (whitespace & encoding)
@@ -34,7 +34,7 @@ repos:
 
   # Codespell: Catch common misspellings across the entire repo
   - repo: https://github.com/codespell-project/codespell
-    rev: v2.4.1
+    rev: v2.4.2
     hooks:
       - id: codespell
         name: Codespell (spell check)
@@ -47,7 +47,7 @@ repos:
 
   # Prettier: Format JavaScript, TypeScript, JSON, Markdown, YAML
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0 # Keep v3 stable; v4 is alpha
+    rev: v3.1.0 # Pinned to stable; v4 alpha exits non-zero on no-file matches
     hooks:
       - id: prettier
         name: Prettier (JS, TS, JSON, MD, YAML)
@@ -70,7 +70,7 @@ repos:
 
   # Ruff: Lint and format Python
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.0
+    rev: v0.15.10
     hooks:
       - id: ruff
         name: Ruff (lint Python)
@@ -78,10 +78,18 @@ repos:
       - id: ruff-format
         name: Ruff (format Python)
 
-  # mypy: Runs per-app via Taskfile (needs per-app dependencies).
-  # Use: task <app>:typecheck
-  # Global pre-commit mypy is disabled because workspace apps have
-  # different dependencies that can't be satisfied in a single hook.
+  # ty: Type checking for Python (Astral)
+  # Config lives in [tool.ty] in pyproject.toml.
+  # Per-app type checking runs via task <app>:typecheck (needs per-app dependencies).
+  # Global pre-commit ty is scoped to root packages only.
+  - repo: local
+    hooks:
+      - id: ty
+        name: ty (type check Python)
+        entry: uv run ty check packages/src/
+        language: system
+        types: [python]
+        pass_filenames: false
 
   # GPL headers: Ensure GPL-licensed files have copyright headers
   # Reads REUSE.toml to discover GPL paths — scales to any future GPL app.
@@ -96,17 +104,17 @@ repos:
 
   # REUSE: Verify license annotations cover all files
   - repo: https://github.com/fsfe/reuse-tool
-    rev: v5.0.2
+    rev: v6.2.0
     hooks:
       - id: reuse
         name: REUSE (license compliance)
 
-  # Beads (bd): Export issue tracker JSONL and keep git in sync
+  # Beads (bd): Guard pushes and keep git in sync
   # pre-push: FAILS if .beads/ has uncommitted changes (forces commit-before-push)
   # post-merge: pulls upstream Dolt changes after git pull
   - repo: local
     hooks:
-      - id: bd-export-pre-push
+      - id: bd-check-pre-push
         name: Beads state check (pre-push)
         entry: bash -c 'if [ ! -d .beads ] || ! command -v bd >/dev/null 2>&1; then exit 0; fi; if [ -n "$(git status --porcelain -- .beads/ 2>/dev/null)" ]; then echo "Uncommitted beads changes detected. Run git add .beads/ && git commit before pushing."; exit 1; fi'
         language: system

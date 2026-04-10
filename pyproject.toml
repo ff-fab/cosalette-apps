@@ -13,9 +13,56 @@ dependencies = []
 
 # No [build-system] — root is a virtual workspace, not a distributable package
 
+[tool.setuptools_scm]
+version_scheme = "guess-next-dev"
+write_to = "packages/src/cosalette_apps/_version.py"
+fallback_version = "0.0.0"
+
 # ── uv workspace ──────────────────────────────────────────────
 [tool.uv.workspace]
 members = ["apps/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (require mock servers)",
+    "slow: Tests that take > 1 second",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["packages/src/cosalette_apps"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "def __repr__",
+    'if __name__ == "__main__":',
+    "^\\s*\\.\\.\\.$",  # Protocol ellipsis stubs
+]
+fail_under = 80
+show_missing = true
+skip_covered = false
 
 # ── Shared tool configuration ────────────────────────────────
 # Per-app overrides live in apps/<name>/pyproject.toml.
@@ -27,23 +74,60 @@ target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "B", "I", "C4", "UP", "SIM", "ARG"]
+# Linting rules: What code issues to catch
+select = [
+    # Error classes (pycodestyle)
+    "E",      # pycodestyle errors (indentation, whitespace, etc.)
+    "W",      # pycodestyle warnings
+
+    # Correctness
+    "F",      # Pyflakes (undefined names, unused imports, etc.)
+    "B",      # flake8-bugbear (common bugs and design problems)
+
+    # Code quality
+    "I",      # isort (import sorting and organization)
+    "C4",     # flake8-comprehensions (simplify list/dict/set comprehensions)
+    "UP",     # pyupgrade (modernize Python syntax)
+    "SIM",    # flake8-simplify (simplify complex code)
+    "ARG",    # flake8-unused-arguments (catch unused function parameters)
+]
+# External linter codes: suppress Ruff warnings for noqa directives from
+# flake8-cognitive-complexity (CCR001), which Ruff doesn't natively support.
+external = ["CCR001"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["ARG", "F841"]
-"**/adapters/protocol.py" = ["ARG001"]
-"**/__init__.py" = ["F401", "E402"]
+"packages/tests/**" = [
+    "ARG",    # Test fixtures intentionally have unused arguments (e.g., pytest 'request' fixture)
+    "F841",   # Local variables may be intentionally unused in tests
+]
+"**/adapters/protocol.py" = [
+    "ARG001", # Protocol methods define signatures with intentionally unused parameters
+]
+"**/__init__.py" = [
+    "F401",   # Imported but unused (common in __init__.py for re-exporting public API)
+    "E402",   # Module-level import not at top (re-exports need to come after docstring)
+]
 
-[tool.mypy]
-python_version = "3.14"
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
+# Import sorting configuration (isort integration)
+[tool.ruff.lint.isort]
+known-first-party = ["cosalette_apps"]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
 
-[[tool.mypy.overrides]]
-module = ["*._version"]
-ignore_missing_imports = true
+[tool.ty.environment]
+python-version = "3.14"
+
+[tool.ty.rules]
+all = "error"
+
+[tool.ty.terminal]
+error-on-warning = true
 
 [tool.pyright]
 pythonVersion = "3.14"
@@ -56,25 +140,30 @@ extraPaths = ["apps/wallpanel-control/packages/src", "apps/suncast/packages/src"
 docs = [
     "mkdocs-autorefs>=1.4.4",
     "mkdocs-click-zoom @ git+https://github.com/ff-fab/mkdocs-click-zoom.git@v0.2.0",
-    "mkdocstrings[python]>=0.29",
-    "zensical>=0.0.23",
+    "mkdocstrings[python]>=1.0.3",
+    "zensical>=0.0.32",
 ]
 dev = [
-    "coverage>=7.13.2",
-    "pytest>=9.0.2",
+    # Testing
+    "coverage>=7.13.5",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
-    "pytest-cov>=7.0.0",
-    "pytest-httpx>=0.35.0",
-    "mypy>=1.8.0",
-    "ruff>=0.1.0",
+    "pytest-cov>=7.1.0",
+    "pytest-httpx>=0.36.2",
+    # Linting & Type Checking
+    "ty>=0.0.29",
+    "ruff>=0.15.10",
     "flake8>=7.3.0",
     "flake8-cognitive-complexity>=0.1.0",
-    "pylint>=3.0.0",
+    # Code Similarity
+    "pylint>=4.0.5",
+    # Complexity Analysis
     "radon>=6.0.1",
     "xenon>=0.9.3",
-    "types-PyYAML>=6.0.0",
-    "types-pyserial>=3.5.0",
-    "pre-commit>=4.5.0",
-    "setuptools-scm[toml]>=8.0.0",
+    # Type Stubs
+    "types-PyYAML>=6.0.12.20260408",
+    # Development Tools
+    "pre-commit>=4.5.1",
+    "setuptools-scm[toml]>=10.0.5",
     "reuse>=5.0.2",
 ]

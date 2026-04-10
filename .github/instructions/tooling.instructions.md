@@ -16,25 +16,27 @@ applyTo: '**'
 
 Run `task --list` to see all available tasks. Key tasks for development:
 
-| Need                          | Command                                              |
-| ----------------------------- | ---------------------------------------------------- |
-| Run all unit tests (one app)  | `task gas2mqtt:test:unit`                            |
-| Run a specific test file      | `task gas2mqtt:test:file -- packages/tests/unit/test_foo.py` |
-| Run tests matching a pattern  | `task gas2mqtt:test:file -- -k test_my_function`     |
-| Run tests with coverage       | `task gas2mqtt:test:cov`                             |
-| Lint (ruff check + format)    | `task gas2mqtt:lint`                                 |
-| Fix lint issues               | `task gas2mqtt:lint:fix`                             |
-| Type check (mypy)             | `task gas2mqtt:typecheck`                            |
-| All checks (lint+type+test)   | `task gas2mqtt:check`                                |
-| Complexity (radon + cognitive) | `task gas2mqtt:complexity`                           |
-| Duplication detection          | `task gas2mqtt:similarity`                           |
-| Run all apps' tests           | `task test:all`                                      |
-| Lint all apps                 | `task lint:all`                                      |
-| Pre-PR quality gate           | `task pre-pr`                                        |
-| Wait for CI on a PR           | `task ci:wait -- <pr-number>`                        |
-| Preview root docs             | `task docs:serve`                                    |
-| Preview app docs              | `task <app>:docs:serve`                              |
-| Sync dependencies             | `task sync`                                          |
+| Need                           | Command                                             |
+| ------------------------------ | --------------------------------------------------- |
+| Run all unit tests             | `task test:unit`                                    |
+| Run a specific test file       | `task test:file -- packages/tests/unit/test_foo.py` |
+| Run tests matching a pattern   | `task test:file -- -k test_my_function`             |
+| Run tests with coverage        | `task test:cov`                                     |
+| Lint (ruff check + format)     | `task lint`                                         |
+| Fix lint issues                | `task lint:fix`                                     |
+| Type check (ty)                | `task typecheck`                                    |
+| All checks (lint+type+test)    | `task check`                                        |
+| Complexity (radon + cognitive) | `task complexity`                                   |
+| Duplication detection          | `task similarity`                                   |
+| Per-app tests                  | `task <app>:test:unit`                              |
+| Run all apps' tests            | `task test:all`                                     |
+| Lint all apps                  | `task lint:all`                                     |
+| Pre-PR quality gate            | `task pre-pr`                                       |
+| Wait for CI on a PR            | `task ci:wait -- <pr-number>`                       |
+| Preview docs                   | `task docs:serve`                                   |
+| Preview app docs               | `task <app>:docs:serve`                             |
+| Sync dependencies              | `task sync`                                         |
+| Export beads DB to JSONL       | `task beads:sync`                                   |
 
 ## When no task exists
 
@@ -42,8 +44,9 @@ For one-off commands not covered by the Taskfile, use `uv run --package <name>` 
 the repo root:
 
 ```bash
-uv run --package gas2mqtt pytest apps/gas2mqtt/packages/tests/unit/test_foo.py -v
-uv run mypy apps/gas2mqtt/packages/src/
+uv run pytest packages/tests/unit/test_foo.py -v
+uv run ty check packages/src/cosalette_apps/_health.py
+uv run ruff check packages/src/
 
 # WRONG — never do this
 python -m pytest apps/gas2mqtt/packages/tests/unit/test_foo.py -v
