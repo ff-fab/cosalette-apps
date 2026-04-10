@@ -32,7 +32,10 @@ install_dolt() {
     local attempts=3
     local n=1
     while [ "$n" -le "$attempts" ]; do
-        if curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash; then
+        # TODO: pin dolt version + checksum for supply-chain hardening
+        # Subshell scopes pipefail so curl failures propagate without
+        # leaking the option to the rest of the script (see BashFAQ #105).
+        if ( set -o pipefail; curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash ); then
             return 0
         fi
         echo "⚠️  dolt install attempt ${n}/${attempts} failed"
@@ -72,11 +75,11 @@ install_bd() {
     # Resolve latest version tag from GitHub redirect
     local latest_url
     latest_url="$(curl -fsSL -o /dev/null -w '%{url_effective}' \
-        https://github.com/steveyegge/beads/releases/latest)"
+        https://github.com/gastownhall/beads/releases/latest)"
     local version="${latest_url##*/}"          # e.g. "v0.60.0"
     local ver_no_v="${version#v}"              # e.g. "0.60.0"
     local tarball="beads_${ver_no_v}_linux_${arch}.tar.gz"
-    local url="https://github.com/steveyegge/beads/releases/download/${version}/${tarball}"
+    local url="https://github.com/gastownhall/beads/releases/download/${version}/${tarball}"
 
     while [ "$n" -le "$attempts" ]; do
         if curl -fsSL "$url" -o "/tmp/${tarball}" \
@@ -163,6 +166,12 @@ uv tool install beads-mcp 2>/dev/null || echo "⚠️  beads-mcp install had iss
 # Install showboat — executable demo documents for agent work verification
 echo "🚢 Installing showboat..."
 uv tool install showboat 2>/dev/null || echo "⚠️  showboat install had issues, continuing..."
+
+# Ensure beads.role is set BEFORE init so bd doesn't prompt for sole-maintainer
+if ! git config beads.role >/dev/null 2>&1; then
+    git config beads.role maintainer
+    echo "✅ Set beads.role = maintainer"
+fi
 
 # Initialize beads issue tracker if not already done
 cd /workspace

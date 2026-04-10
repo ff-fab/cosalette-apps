@@ -11,6 +11,11 @@ SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
 SPDX-License-Identifier = "GPL-3.0-or-later"
 
 [[annotations]]
+path = ["packages/**"]
+SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
+SPDX-License-Identifier = "MIT"
+
+[[annotations]]
 path = [
     "*.toml",
     "*.yml",
@@ -21,6 +26,7 @@ path = [
     "*.txt",
     "*.lock",
     "*.sh",
+    "*.ini",
     "Taskfile.yml",
     "taskfiles/**",
     "docs/**",
@@ -40,6 +46,7 @@ path = [
     ".copier-answers.yml",
     ".env",
     ".editorconfig-checker.json",
+    ".flake8",
     "LICENSE",
     "LICENSES/**",
 ]
