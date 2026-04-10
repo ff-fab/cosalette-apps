@@ -22,7 +22,15 @@ vars:
     ]
   # Root package vars (used by top-level test/lint/typecheck tasks)
   PKG: packages
-  MODULE_NAME: 'cosalette_apps'
+  MODULE_NAME: cosalette_apps
+  HAS_UNIT_TESTS:
+    sh: >-
+      find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \)
+      2>/dev/null | grep -qm1 . && echo true || echo false
+  HAS_INTEGRATION_TESTS:
+    sh: >-
+      find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \)
+      2>/dev/null | grep -qm1 . && echo true || echo false
 
 # ── Per-app includes ─────────────────────────────────────────
 # Each app is included from the reusable template with its own
@@ -222,24 +230,16 @@ tasks:
   # ===========================================================================
 
   test:
-    desc: Run all tests (unit + integration) with coverage and summary
+    desc: Run all tests (unit + integration) with summary
+    vars:
+      MODULE_NAME: cosalette_apps
     cmds:
-      # Run all tests with coverage to enable threshold validation.
-      - cmd: |
-          if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
-            echo "ℹ No unit tests found — skipping"
-            exit 0
-          fi
-          uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml --cov={{.MODULE_NAME}} --cov-branch --cov-report=json
-        ignore_error: true
-
       - |
-        # Only run the summary when pytest actually produced results.
-        if [ -f results-unit.xml ]; then
-          uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json
-        else
-          echo "ℹ No test results — skipping summary"
+        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+          echo "ℹ No unit tests found — skipping"
+          exit 0
         fi
+        uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml
 
   test:unit:
     desc: Run unit tests only (fast, every change)
@@ -274,13 +274,17 @@ tasks:
 
   test:cov:
     desc: Run tests with coverage (terminal + XML for IDE)
+    vars:
+      MODULE_NAME: cosalette_apps
     cmds:
-      - uv run pytest {{.PKG}}/tests/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=term-missing --cov-report=xml
+      - uv run pytest {{.PKG}}/tests/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=term-missing --cov-report=xml
 
   test:cov:html:
     desc: Run tests with HTML coverage report
+    vars:
+      MODULE_NAME: cosalette_apps
     cmds:
-      - uv run pytest {{.PKG}}/tests/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=html --cov-report=term
+      - uv run pytest {{.PKG}}/tests/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=html --cov-report=term
       - cmd: '{{if eq OS "darwin"}}open{{else}}xdg-open{{end}} htmlcov/index.html'
         ignore_error: true
 
@@ -357,6 +361,8 @@ tasks:
 
   complexity:
     desc: Run cyclomatic and cognitive complexity analysis
+    vars:
+      MODULE_NAME: cosalette_apps
     cmds:
       - uv run radon cc {{.PKG}}/src/{{.MODULE_NAME}} --average --show-complexity
       - uv run xenon {{.PKG}}/src/{{.MODULE_NAME}} --max-absolute B --max-modules A --max-average A
@@ -364,6 +370,8 @@ tasks:
 
   similarity:
     desc: Check for code duplication (symilar — ships with pylint)
+    vars:
+      MODULE_NAME: cosalette_apps
     cmds:
       - |
         OUTPUT=$(find {{.PKG}}/src/{{.MODULE_NAME}} -name '*.py' -print0 \
@@ -386,13 +394,15 @@ tasks:
 
   ci:test:unit:
     desc: CI unit tests with coverage summary
+    vars:
+      MODULE_NAME: cosalette_apps
     cmds:
       - |
         if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
           echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
           exit 0
         fi
-        uv run pytest {{.PKG}}/tests/unit/ --cov={{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
+        uv run pytest {{.PKG}}/tests/unit/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
         uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=80
 
   ci:test:integration:

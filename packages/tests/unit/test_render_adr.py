@@ -52,7 +52,7 @@ def test_validate_new_rejects_malformed_option() -> None:
     try:
         module.validate(payload)
     except ValueError as exc:
-        assert "considered_options[0].description" in str(exc)
+        assert "'description'" in str(exc) and "considered_options[0]" in str(exc)
     else:
         raise AssertionError("Expected ValueError for missing option description")
 

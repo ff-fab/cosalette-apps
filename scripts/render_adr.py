@@ -143,6 +143,35 @@ def _validate_new_or_supersede(data: dict[str, Any]) -> None:
 
     impact = _expect_str(data["impact"], "impact")
 
+    # Validate status enum.
+    status = _expect_str(data["status"], "status")
+    if status not in ("Proposed", "Accepted"):
+        msg = f"'status' must be 'Proposed' or 'Accepted', got {status!r}"
+        raise ValueError(msg)
+
+    # Validate impact enum.
+    if impact not in ("low", "moderate", "high"):
+        msg = f"'impact' must be 'low', 'moderate', or 'high', got {impact!r}"
+        raise ValueError(msg)
+
+    # Validate list-of-string fields.
+    for field in ("decision_drivers", "consequences_positive", "consequences_negative"):
+        items = _expect_list(data[field], field)
+        if not items:
+            msg = f"'{field}' must contain at least one item"
+            raise ValueError(msg)
+        for i, item in enumerate(items):
+            _expect_str(item, f"{field}[{i}]")
+
+    # Validate frontmatter structure.
+    fm = _expect_dict(data["frontmatter"], "frontmatter")
+    tags = _expect_list(_require(fm, "tags", "frontmatter"), "frontmatter.tags")
+    if not tags:
+        msg = "'frontmatter.tags' must contain at least one item"
+        raise ValueError(msg)
+    for i, tag in enumerate(tags):
+        _expect_str(tag, f"frontmatter.tags[{i}]")
+
     raw_options = _expect_list(data["considered_options"], "considered_options")
     if len(raw_options) < 2:
         msg = "At least two considered options are required"
@@ -568,7 +597,7 @@ def update_superseded_status(adr_path: Path, new_adr_ref: str) -> None:
     # Pattern: line starting with "Accepted" or "Proposed" after "## Status"
     pattern = re.compile(
         r"(## Status\s*\n\s*\n)"
-        r"(Accepted|Proposed)(.*)",
+        r"(Accepted|Proposed|Deprecated)(.*)",
         re.MULTILINE,
     )
     replacement = rf"\1Superseded by {new_adr_ref}\3"
@@ -579,7 +608,7 @@ def update_superseded_status(adr_path: Path, new_adr_ref: str) -> None:
 
     # Also update frontmatter status if present.
     new_text = re.sub(
-        r"^status:\s*(Accepted|Proposed)",
+        r"^status:\s*(Accepted|Proposed|Deprecated)",
         f"status: Superseded by {new_adr_ref}",
         new_text,
         count=1,
