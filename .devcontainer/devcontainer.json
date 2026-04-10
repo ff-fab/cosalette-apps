@@ -166,6 +166,7 @@
         "ryanluker.vscode-coverage-gutters",
         "task.vscode-task",
         "planet57.vscode-beads",
+        "fail-safe.copilot-premium-usage-monitor",
         "github.vscode-pull-request-github"
       ]
     }
