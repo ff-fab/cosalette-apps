@@ -141,18 +141,18 @@ docs = [
     "mkdocs-autorefs>=1.4.4",
     "mkdocs-click-zoom @ git+https://github.com/ff-fab/mkdocs-click-zoom.git@v0.2.0",
     "mkdocstrings[python]>=1.0.3",
-    "zensical>=0.0.31",
+    "zensical>=0.0.32",
 ]
 dev = [
     # Testing
     "coverage>=7.13.5",
-    "pytest>=9.0.2",
+    "pytest>=9.0.3",
     "pytest-asyncio>=1.3.0",
     "pytest-cov>=7.1.0",
-    "pytest-httpx>=0.35.0",
+    "pytest-httpx>=0.36.2",
     # Linting & Type Checking
-    "ty>=0.0.28",
-    "ruff>=0.15.9",
+    "ty>=0.0.29",
+    "ruff>=0.15.10",
     "flake8>=7.3.0",
     "flake8-cognitive-complexity>=0.1.0",
     # Code Similarity
@@ -161,7 +161,7 @@ dev = [
     "radon>=6.0.1",
     "xenon>=0.9.3",
     # Type Stubs
-    "types-PyYAML>=6.0.12.20250516",
+    "types-PyYAML>=6.0.12.20260408",
     # Development Tools
     "pre-commit>=4.5.1",
     "setuptools-scm[toml]>=10.0.5",
