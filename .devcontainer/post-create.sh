@@ -25,35 +25,6 @@ ensure_git_repo() {
 
 echo "🏠 Setting up cosalette-apps development environment..."
 
-# Install dolt — versioned SQL database used by beads (bd) as its backing store.
-# Installed at runtime (not in Dockerfile) to avoid Docker layer cache staleness
-# and to support retry logic for network flakiness.
-install_dolt() {
-    local attempts=3
-    local n=1
-    while [ "$n" -le "$attempts" ]; do
-        # TODO: pin dolt version + checksum for supply-chain hardening
-        # Subshell scopes pipefail so curl failures propagate without
-        # leaking the option to the rest of the script (see BashFAQ #105).
-        if ( set -o pipefail; curl -fsSL https://github.com/dolthub/dolt/releases/latest/download/install.sh | sudo bash ); then
-            return 0
-        fi
-        echo "⚠️  dolt install attempt ${n}/${attempts} failed"
-        n=$((n + 1))
-        sleep 2
-    done
-    return 1
-}
-
-echo "🗃️  Installing/updating dolt (beads database backend)..."
-if install_dolt; then
-    hash -r
-    echo "✅ dolt $(dolt version 2>/dev/null | head -1)"
-else
-    echo "❌ Failed to install dolt after multiple attempts"
-    exit 1
-fi
-
 # Install beads (bd) — git-backed issue tracker for AI agents
 # Installed at runtime (not in Dockerfile) to avoid Docker layer cache staleness
 # and to support retry logic for network flakiness.
@@ -103,7 +74,7 @@ if install_bd; then
     # than what the container provides (e.g., ICU 74 vs Trixie's ICU 76).
     # Create compatibility symlinks so the binary can load.
     if ! bd version &>/dev/null; then
-        echo "⚠️  bd binary has ICU mismatch, creating compatibility symlinks..."
+        echo "ℹ️  bd binary has ICU mismatch, creating compatibility symlinks..."
         multiarch="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo x86_64-linux-gnu)"
         local_icu=$(ldconfig -p | grep -oP 'libicui18n\.so\.\K[0-9]+' | head -1)
         needed_icu=$(ldd "$(which bd)" 2>/dev/null | grep -oP 'libicui18n\.so\.\K[0-9]+' || true)

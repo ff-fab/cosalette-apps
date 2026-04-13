@@ -13,6 +13,12 @@ if [ ! -d ".beads" ]; then
     exit 0
 fi
 
+# Fix permissions: Docker bind-mounts (especially on WSL/NTFS) may set group-
+# readable bits that bd warns about. Silently enforce the recommended mode.
+if [ "$(stat -c '%a' .beads)" != "700" ]; then
+    chmod 700 .beads
+fi
+
 removed=0
 if [ -S ".beads/bd.sock" ]; then
     rm -f .beads/bd.sock
