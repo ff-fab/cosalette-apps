@@ -14,9 +14,13 @@ if [ ! -d ".beads" ]; then
 fi
 
 # Fix permissions: Docker bind-mounts (especially on WSL/NTFS) may set group-
-# readable bits that bd warns about. Silently enforce the recommended mode.
-if [ "$(stat -c '%a' .beads)" != "700" ]; then
-    chmod 700 .beads
+# readable bits that bd warns about. Best effort only: startup must continue
+# even when stat/chmod is unsupported or the directory is not writable.
+beads_mode=""
+if beads_mode="$(stat -c '%a' .beads 2>/dev/null)"; then
+    if [ "$beads_mode" != "700" ]; then
+        chmod 700 .beads 2>/dev/null || true
+    fi
 fi
 
 removed=0
