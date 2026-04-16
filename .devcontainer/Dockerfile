@@ -21,6 +21,21 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 # Install go-task (task runner - https://taskfile.dev)
 RUN sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
 
+# Install dolt (versioned SQL database backend for the beads/bd issue tracker).
+# Baked into the image so the container starts reliably without a runtime download.
+# bd on Linux requires an external dolt binary; the embedded dolt in the bd binary
+# is macOS-only as of beads v1.0.0.
+# renovate: datasource=github-releases depName=dolthub/dolt
+ARG DOLT_VERSION=v1.86.2
+RUN set -eux; \
+    ARCH=$(dpkg --print-architecture); \
+    curl -fsSL \
+      "https://github.com/dolthub/dolt/releases/download/${DOLT_VERSION}/dolt-linux-${ARCH}.tar.gz" \
+      | tar -xzf - -C /tmp; \
+    install "/tmp/dolt-linux-${ARCH}/bin/dolt" /usr/local/bin/; \
+    rm -rf "/tmp/dolt-linux-${ARCH}"; \
+    dolt version
+
 
 
 # Configure uv to use project-local virtual environments

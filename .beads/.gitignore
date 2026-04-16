@@ -44,12 +44,18 @@ dolt-server.pid
 dolt-server.log
 dolt-server.lock
 dolt-server.port
+dolt-server.activity
 
 # Corrupt backup directories (created by bd doctor --fix recovery)
 *.corrupt.backup/
 
 # Backup data (auto-exported JSONL, local-only)
 backup/
+
+# Sensitive runtime files (auto-generated credentials / local state)
+.beads-credential-key
+.env
+export-state.json
 
 # Legacy files (from pre-Dolt versions)
 *.db

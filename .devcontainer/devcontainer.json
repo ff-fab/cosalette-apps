@@ -146,7 +146,7 @@
         "githubPullRequests.remotes": ["cosalette-apps", "origin", "upstream"],
 
         // Beads: no daemon needed; bd uses direct (embedded) mode
-        "beads.autoStartDaemon": false,
+        "beads.autoStartDaemon": true,
 
         // Window title
         "window.title": "cosalette-apps [devcontainer]"
