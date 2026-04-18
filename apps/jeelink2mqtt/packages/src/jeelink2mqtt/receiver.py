@@ -189,7 +189,7 @@ def _restore_registry(
 
     configs = list(state.sensor_configs.values())
     state.registry = SensorRegistry.from_dict(
-        registry_data,
+        registry_data,  # type: ignore
         sensors=configs,
         staleness_timeout=settings.staleness_timeout_seconds,
     )

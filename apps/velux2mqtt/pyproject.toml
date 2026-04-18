@@ -79,10 +79,5 @@ directory = "htmlcov"
 [tool.coverage.xml]
 output = "coverage.xml"
 
-# App-specific mypy overrides — root mypy config handles common settings
-[[tool.mypy.overrides]]
-module = ["gpiozero.*"]
-ignore_missing_imports = true
-
 [tool.ruff.lint.isort]
 known-first-party = ["velux2mqtt"]

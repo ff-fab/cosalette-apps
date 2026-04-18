@@ -78,18 +78,6 @@ directory = "htmlcov"
 [tool.coverage.xml]
 output = "coverage.xml"
 
-# mypy needs a base section to apply overrides from this file
-[tool.mypy]
-python_version = "3.14"
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = ["vito2mqtt._version", "serial_asyncio", "serial_asyncio.*"]
-ignore_missing_imports = true
-
 # App-specific isort config — root ruff config handles everything else
 [tool.ruff.lint.isort]
 known-first-party = ["vito2mqtt"]

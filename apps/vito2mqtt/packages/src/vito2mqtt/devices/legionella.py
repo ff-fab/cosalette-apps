@@ -111,10 +111,10 @@ def is_within_heating_window(
             continue
 
         # At this point all values are confirmed int — narrow for mypy
-        start_h: int = start_slot[0]  # type: ignore[assignment]
-        start_m: int = start_slot[1]  # type: ignore[assignment]
-        end_h: int = end_slot[0]  # type: ignore[assignment]
-        end_m: int = end_slot[1]  # type: ignore[assignment]
+        start_h: int = start_slot[0]  # type: ignore
+        start_m: int = start_slot[1]  # type: ignore
+        end_h: int = end_slot[0]  # type: ignore
+        end_m: int = end_slot[1]  # type: ignore
 
         slot_start = time(start_h, start_m)
 
@@ -167,7 +167,7 @@ async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
         store: Per-device persistent store (injected by framework).
     """
     port = ctx.adapter(OptolinkPort)  # type: ignore[type-abstract]
-    settings: Vito2MqttSettings = ctx.settings  # type: ignore[assignment]
+    settings: Vito2MqttSettings = ctx.settings  # type: ignore
 
     # -- Queue for command → loop communication -----------------------------
     command_queue: asyncio.Queue[str] = asyncio.Queue()

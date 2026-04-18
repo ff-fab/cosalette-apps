@@ -79,11 +79,6 @@ directory = "htmlcov"
 [tool.coverage.xml]
 output = "coverage.xml"
 
-# App-specific mypy overrides — root mypy config handles common settings
-[[tool.mypy.overrides]]
-module = ["pylacrosse", "pylacrosse.*"]
-ignore_missing_imports = true
-
 # App-specific isort config — root ruff config handles everything else
 [tool.ruff.lint.isort]
 known-first-party = ["jeelink2mqtt"]

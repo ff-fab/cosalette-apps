@@ -454,7 +454,7 @@ async def _handle_calibration(
     try:
         if action == "start":
             runs_raw = params.get("runs", settings.calibration_runs)
-            runs = int(runs_raw)  # type: ignore[call-overload]
+            runs = int(runs_raw)  # type: ignore
             measure_off = bool(params.get("measure_offset", cover_cfg.measure_offset))
             measure_db = bool(params.get("measure_dead_band", False))
             starting_st = str(params.get("starting_state", "closed"))
@@ -496,6 +496,7 @@ async def _handle_calibration(
             "avg_close": round(calibration.average_close, 2),
             "avg_open": round(calibration.average_open, 2),
         }
+        db_pct = 0.0
         if calibration.has_offset:
             result_data["avg_offset"] = round(calibration.average_offset, 2)
         if calibration.has_dead_band:

@@ -80,7 +80,7 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
 @asynccontextmanager
 async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
     """Application lifespan — starts HTTP server if enabled."""
-    settings: SuncastSettings = ctx.settings  # type: ignore[assignment]
+    settings: SuncastSettings = ctx.settings  # type: ignore
     http_settings = HttpSettings(
         http_enabled=settings.http_enabled,
         http_host=settings.http_host,

@@ -71,13 +71,13 @@ class CalDavReader:
         days: int,
     ) -> list[CalendarEvent]:
         """Synchronous CalDAV fetch — called via asyncio.to_thread."""
-        client = caldav.DAVClient(  # type: ignore[operator]
+        client = caldav.DAVClient(  # type: ignore
             url=url,
             username=username,
             password=password,
             timeout=self._timeout,
         )
-        calendar = caldav.Calendar(  # type: ignore[operator]
+        calendar = caldav.Calendar(  # type: ignore
             client=client,
             url=f"{url}{calendar_name}",
         )

@@ -29,18 +29,20 @@ import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
+from typing import Any
 
 from suncast.rasterize import RasterizationError, svg_to_png
 
 logger = logging.getLogger(__name__)
 
+web: Any = None
 _aiohttp_available = False
 try:
-    from aiohttp import web  # type: ignore[import-not-found]
+    from aiohttp import web  # type: ignore
 
     _aiohttp_available = True
 except ImportError:
-    web = None
+    pass
 
 
 class HttpServerError(Exception):

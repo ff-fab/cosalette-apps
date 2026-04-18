@@ -120,7 +120,7 @@ async def gas_counter(
         store: Per-device persistent store injected by cosalette.
             Already loaded on entry; saved by framework on shutdown.
     """
-    settings: Gas2MqttSettings = ctx.settings  # type: ignore[assignment]
+    settings: Gas2MqttSettings = ctx.settings  # type: ignore
     magnetometer = ctx.adapter(MagnetometerPort)  # type: ignore[type-abstract]
     logger = logging.getLogger(f"cosalette.{ctx.name}")
 
