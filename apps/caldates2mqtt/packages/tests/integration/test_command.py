@@ -22,7 +22,6 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 
 from .conftest import TOPIC_PREFIX, build_integration_app
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -85,7 +84,7 @@ class TestReReadCommand:
         Technique: Integration — verify command wiring through full stack.
         """
         # Arrange
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act — send empty command after initial poll has published
         await _run_with_command(
@@ -120,7 +119,7 @@ class TestReReadCommand:
         Technique: Specification-based — command payload contract.
         """
         # Arrange
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await _run_with_command(
@@ -157,7 +156,7 @@ class TestReReadCommand:
         Technique: Error Guessing — malformed payload does not crash device.
         """
         # Arrange
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await _run_with_command(

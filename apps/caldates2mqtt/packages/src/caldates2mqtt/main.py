@@ -15,10 +15,6 @@ from caldates2mqtt.devices.calendar import make_calendar_handler
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings
 
-# Eagerly construct settings so device registration can iterate calendars.
-# This means --help/--version will crash if required env vars are absent.
-_settings = CalDates2MqttSettings()  # type: ignore
-
 app = cosalette.App(
     name="caldates2mqtt",
     settings_class=CalDates2MqttSettings,
@@ -27,9 +23,17 @@ app = cosalette.App(
     },
 )
 
-# Dynamic device registration — one device per configured calendar.
-for _cal in _settings.calendars:
-    app.add_device(_cal.key, make_calendar_handler(_cal))
+
+@app.on_configure
+def register_devices(settings: CalDates2MqttSettings) -> None:
+    """Register one device per configured calendar.
+
+    Runs after settings resolution, before device startup.
+    Replaces the eager module-level Settings() construction
+    that crashed --help/--version.
+    """
+    for cal in settings.calendars:
+        app.add_device(cal.key, make_calendar_handler(cal))
 
 
 def main() -> None:

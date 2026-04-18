@@ -22,7 +22,6 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 
 from .conftest import TOPIC_PREFIX, build_integration_app, run_app_briefly
 
-
 # ---------------------------------------------------------------------------
 # Startup and health
 # ---------------------------------------------------------------------------
@@ -231,7 +230,7 @@ class TestMultiCalendar:
         Technique: Integration — verify dynamic multi-device registration.
         """
         # Arrange
-        app = build_integration_app(fake_reader, multi_calendar_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, multi_calendar_settings)

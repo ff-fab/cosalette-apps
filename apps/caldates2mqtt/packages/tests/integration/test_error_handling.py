@@ -31,7 +31,6 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 
 from .conftest import TOPIC_PREFIX, build_integration_app, run_app_briefly
 
-
 # ---------------------------------------------------------------------------
 # Error publishing
 # ---------------------------------------------------------------------------
@@ -54,7 +53,7 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, test_settings)
@@ -81,7 +80,7 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, test_settings)
@@ -107,7 +106,7 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavAuthError("invalid credentials")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, test_settings)
@@ -131,7 +130,7 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavTimeoutError("request timed out")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, test_settings)
@@ -155,7 +154,7 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, test_settings)
@@ -191,7 +190,7 @@ class TestAppSurvivesDeviceCrash:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        app = build_integration_app(fake_reader)
 
         # Act
         await run_app_briefly(app, mock_mqtt, test_settings)

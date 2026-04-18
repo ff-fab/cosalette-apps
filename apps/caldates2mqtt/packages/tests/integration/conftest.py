@@ -17,7 +17,7 @@ from pydantic_settings import PydanticBaseSettingsSource
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.devices.calendar import make_calendar_handler
 from caldates2mqtt.ports import CalDavPort
-from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
+from caldates2mqtt.settings import CalDates2MqttSettings
 
 TOPIC_PREFIX = "caldates2mqtt"
 """Default MQTT topic prefix used by integration tests."""
@@ -66,25 +66,26 @@ class _FastPollSettings(CalDates2MqttSettings):
 
 def build_integration_app(
     fake_reader: FakeCalDavReader,
-    calendars: list[CalendarConfig],
 ) -> App:
     """Construct a fully-wired App with FakeCalDavReader.
 
     Mirrors the wiring in ``caldates2mqtt.main`` but substitutes the
-    adapter and constructs settings independently so we avoid the
-    eager ``_settings`` construction at module level.
+    adapter. Uses @app.on_configure for device registration like production.
 
     Args:
         fake_reader: FakeCalDavReader instance to inject.
-        calendars: Calendar configurations to register as devices.
     """
     app = App(
         name="caldates2mqtt",
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
     )
-    for cal in calendars:
-        app.add_device(cal.key, make_calendar_handler(cal))
+
+    @app.on_configure
+    def register_devices(settings: _FastPollSettings) -> None:
+        for cal in settings.calendars:
+            app.add_device(cal.key, make_calendar_handler(cal))
+
     return app
 
 
@@ -141,8 +142,6 @@ def multi_calendar_settings() -> CalDates2MqttSettings:
 
 
 @pytest.fixture
-def integration_app(
-    fake_reader: FakeCalDavReader, test_settings: CalDates2MqttSettings
-) -> App:
+def integration_app(fake_reader: FakeCalDavReader) -> App:
     """Fully-wired App with FakeCalDavReader for single-calendar tests."""
-    return build_integration_app(fake_reader, test_settings.calendars)
+    return build_integration_app(fake_reader)
