@@ -81,11 +81,45 @@ async def _run_handler_once(
     task = asyncio.create_task(
         handler(ctx=ctx, reader=reader, logger=_logger)  # type: ignore[operator]
     )
-    # Yield to let the handler run its first iteration
+    # Yield to let the handler do its initial read
     for _ in range(10):
         await asyncio.sleep(0)
     ctx._shutdown_event.set()
-    # Yield again so the handler exits its loop
+    # Yield again so the handler exits its command loop
+    await asyncio.sleep(0)
+    await task
+
+
+async def _run_handler_with_command(
+    handler: object,
+    ctx: cosalette.DeviceContext,
+    reader: FakeCalDavReader,
+    command_topic: str,
+    command_payload: str,
+) -> None:
+    """Run handler, deliver a command, then trigger shutdown."""
+    task = asyncio.create_task(
+        handler(ctx=ctx, reader=reader, logger=_logger)  # type: ignore[operator]
+    )
+    # Yield to let the handler do its initial read
+    for _ in range(10):
+        await asyncio.sleep(0)
+
+    # Deliver command via the internal command queue
+    cmd = cosalette.Command(
+        topic=command_topic,
+        payload=command_payload,
+        sub_topic=None,
+        timestamp=0.0,
+    )
+    ctx._command_queue.put_nowait(cmd)
+
+    # Yield to let the command be processed
+    for _ in range(10):
+        await asyncio.sleep(0)
+
+    ctx._shutdown_event.set()
+    # Yield again so the handler exits its command loop
     await asyncio.sleep(0)
     await task
 
@@ -235,11 +269,9 @@ class TestCalendarDeviceCommand:
         ctx = _make_context(mock_mqtt, fake_clock, fake_reader)
         handler = make_calendar_handler(cal)
 
-        await _run_handler_once(handler, ctx, fake_reader)
-
-        # Trigger command
-        assert ctx.command_handler is not None
-        await ctx.command_handler("caldates2mqtt/garbage/set", "")
+        await _run_handler_with_command(
+            handler, ctx, fake_reader, "caldates2mqtt/garbage/set", ""
+        )
 
         # Verify reader was called with configured days
         assert fake_reader.calls[-1][4] == 14
@@ -255,10 +287,12 @@ class TestCalendarDeviceCommand:
         ctx = _make_context(mock_mqtt, fake_clock, fake_reader)
         handler = make_calendar_handler(cal)
 
-        await _run_handler_once(handler, ctx, fake_reader)
-
-        await ctx.command_handler(
-            "caldates2mqtt/garbage/set", '{"entries": 10, "days": 30}'
+        await _run_handler_with_command(
+            handler,
+            ctx,
+            fake_reader,
+            "caldates2mqtt/garbage/set",
+            '{"entries": 10, "days": 30}',
         )
 
         assert fake_reader.calls[-1][4] == 30
@@ -274,9 +308,9 @@ class TestCalendarDeviceCommand:
         ctx = _make_context(mock_mqtt, fake_clock, fake_reader)
         handler = make_calendar_handler(cal)
 
-        await _run_handler_once(handler, ctx, fake_reader)
-
-        await ctx.command_handler("caldates2mqtt/garbage/set", "not-json")
+        await _run_handler_with_command(
+            handler, ctx, fake_reader, "caldates2mqtt/garbage/set", "not-json"
+        )
 
         assert fake_reader.calls[-1][4] == 14
 
@@ -291,10 +325,12 @@ class TestCalendarDeviceCommand:
         ctx = _make_context(mock_mqtt, fake_clock, fake_reader)
         handler = make_calendar_handler(cal)
 
-        await _run_handler_once(handler, ctx, fake_reader)
-
-        await ctx.command_handler(
-            "caldates2mqtt/garbage/set", '{"entries": "ten", "days": -1}'
+        await _run_handler_with_command(
+            handler,
+            ctx,
+            fake_reader,
+            "caldates2mqtt/garbage/set",
+            '{"entries": "ten", "days": -1}',
         )
 
         assert fake_reader.calls[-1][4] == 14
@@ -310,9 +346,9 @@ class TestCalendarDeviceCommand:
         ctx = _make_context(mock_mqtt, fake_clock, fake_reader)
         handler = make_calendar_handler(cal)
 
-        await _run_handler_once(handler, ctx, fake_reader)
-
-        await ctx.command_handler("caldates2mqtt/garbage/set", '"just a string"')
+        await _run_handler_with_command(
+            handler, ctx, fake_reader, "caldates2mqtt/garbage/set", '"just a string"'
+        )
 
         assert fake_reader.calls[-1][4] == 14
 

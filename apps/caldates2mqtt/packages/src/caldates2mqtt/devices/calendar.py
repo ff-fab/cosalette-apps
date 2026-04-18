@@ -56,6 +56,34 @@ async def _read_and_publish(
     await ctx.publish_state(payload)
 
 
+def _parse_command_overrides(payload: str) -> tuple[int | None, int | None]:
+    """Parse JSON command payload for entries and days overrides.
+
+    Args:
+        payload: JSON string that may contain {"entries": int, "days": int}.
+
+    Returns:
+        Tuple of (entries, days) where None means use config default.
+    """
+    override_entries: int | None = None
+    override_days: int | None = None
+
+    if payload:
+        try:
+            data = json.loads(payload)
+            if isinstance(data, dict):
+                raw_entries = data.get("entries")
+                if isinstance(raw_entries, int) and raw_entries > 0:
+                    override_entries = raw_entries
+                raw_days = data.get("days")
+                if isinstance(raw_days, int) and raw_days > 0:
+                    override_days = raw_days
+        except json.JSONDecodeError:
+            pass
+
+    return override_entries, override_days
+
+
 def make_calendar_handler(
     cal: CalendarConfig,
 ) -> Callable[..., Coroutine[Any, Any, None]]:
@@ -74,31 +102,22 @@ def make_calendar_handler(
         logger: logging.Logger,
     ) -> None:
         """Device loop for a single CalDAV calendar."""
+        # Initial read
+        logger.debug("Reading calendar %s", cal.key)
+        await _read_and_publish(ctx, reader, cal)
 
-        @ctx.on_command
-        async def _handle_command(topic: str, payload: str) -> None:  # noqa: ARG001
-            override_entries: int | None = None
-            override_days: int | None = None
-            if payload:
-                try:
-                    data = json.loads(payload)
-                    if isinstance(data, dict):
-                        raw_entries = data.get("entries")
-                        if isinstance(raw_entries, int) and raw_entries > 0:
-                            override_entries = raw_entries
-                        raw_days = data.get("days")
-                        if isinstance(raw_days, int) and raw_days > 0:
-                            override_days = raw_days
-                except json.JSONDecodeError:
-                    pass
-            logger.info("Re-read command received for calendar %s", cal.key)
-            await _read_and_publish(
-                ctx, reader, cal, entries=override_entries, days=override_days
-            )
-
-        while not ctx.shutdown_requested:
-            logger.debug("Reading calendar %s", cal.key)
-            await _read_and_publish(ctx, reader, cal)
-            await ctx.sleep(cal.poll_interval)
+        # Command processing loop
+        async for cmd in ctx.commands(timeout=cal.poll_interval):
+            if cmd is None:
+                # Timeout = periodic re-read
+                logger.debug("Reading calendar %s", cal.key)
+                await _read_and_publish(ctx, reader, cal)
+            else:
+                # Command received = re-read with optional overrides
+                override_entries, override_days = _parse_command_overrides(cmd.payload)
+                logger.info("Re-read command received for calendar %s", cal.key)
+                await _read_and_publish(
+                    ctx, reader, cal, entries=override_entries, days=override_days
+                )
 
     return calendar_device
