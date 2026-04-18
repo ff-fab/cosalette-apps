@@ -16,22 +16,7 @@ applyTo: '**'
    git checkout -b feature/description  # or fix/, docs/, chore/, etc.
    ```
 
-2. **Make commits with clear messages** (conventional commits)
-
-   ```bash
-   git commit -m "feat: clear description of changes"
-   # Prefixes: feat:, fix:, docs:, refactor:, chore:, test:
-   ```
-
-   **Conventional Commits are required.** They drive release automation:
-
-   | Prefix   | SemVer effect | Example                           |
-   | -------- | ------------- | --------------------------------- |
-   | `feat:`  | MINOR bump    | `feat: add signal routing`        |
-   | `fix:`   | PATCH bump    | `fix: correct timeout handling`   |
-   | `feat!:` | MAJOR bump    | `feat!: redesign config schema`   |
-   | `docs:`  | no release    | `docs: update setup guide`        |
-   | `chore:` | no release    | `chore: bump dependencies`        |
+2. **Make commits using caveman-commit skill**
 
 3. **Ensure quality gates pass** before pushing — run `task pre-pr` or see
    [Pre-PR Quality Gate](#pre-pr-quality-gate) for details.

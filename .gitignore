@@ -238,6 +238,9 @@ __marimo__/
 .beads/dolt/dolt-monitor.pid
 .beads/dolt-monitor.pid
 
+# Beads sensitive runtime files
+.beads/.beads-credential-key
+
 # Dolt database files (added by bd init)
 .dolt/
 *.db

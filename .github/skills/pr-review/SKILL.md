@@ -109,12 +109,11 @@ by number where applicable.
 
 ## Step 5 — Teach alongside findings
 
-For significant findings (not every nitpick), weave in brief educational context:
+For security findings, weave in brief educational context:
 
 1. **What** the pattern or issue is
 2. **Why** the recommended approach is better
-3. **Which principle** applies — name the design pattern (Strategy, Factory, Observer …)
-   or SOLID principle (SRP, OCP …) if one fits naturally
+3. **Which principle** applies
 4. **One gotcha** — a common pitfall related to the fix
 
 Keep this lightweight. A sentence or two per point, integrated into the finding — not a

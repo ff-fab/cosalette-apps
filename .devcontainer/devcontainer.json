@@ -145,8 +145,9 @@
         "github.gitAuthentication": true,
         "githubPullRequests.remotes": ["cosalette-apps", "origin", "upstream"],
 
-        // Beads: no daemon needed; bd uses direct (embedded) mode
-        "beads.autoStartDaemon": false,
+        // Beads: bd is baked into the image so the extension can discover
+        // the project on first startup before post-create finishes.
+        "beads.autoStartDaemon": true,
 
         // Window title
         "window.title": "cosalette-apps [devcontainer]"
