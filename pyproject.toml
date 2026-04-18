@@ -152,6 +152,7 @@ dev = [
     "pytest-httpx>=0.36.2",
     # Linting & Type Checking
     "ty>=0.0.29",
+    "mypy>=1.0",
     "ruff>=0.15.10",
     "flake8>=7.3.0",
     "flake8-cognitive-complexity>=0.1.0",
@@ -166,4 +167,6 @@ dev = [
     "pre-commit>=4.5.1",
     "setuptools-scm[toml]>=10.0.5",
     "reuse>=5.0.2",
+    # AI/MCP tooling support (cosalette ai mcp serve)
+    "cosalette[mcp]>=0.3.2",
 ]

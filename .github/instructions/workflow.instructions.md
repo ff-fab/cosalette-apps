@@ -16,17 +16,11 @@ applyTo: '**'
    git checkout -b feature/description  # or fix/, docs/, chore/, etc.
    ```
 
-2. **Make commits using caveman-commit skill**
+2. **Commit** (skill `caveman-commit`)
 
-3. **Ensure quality gates pass** before pushing — run `task pre-pr` or see
-   [Pre-PR Quality Gate](#pre-pr-quality-gate) for details.
+3. **Quality gates** (skill `pre-pr-gate`)
 
-4. **Push and create pull request**
-
-   ```bash
-   git push -u origin feature/description
-   gh pr create
-   ```
+4. **Push and create PR** (skill `create-pr`)
 
 5. **Wait for CI**
 
@@ -34,14 +28,10 @@ applyTo: '**'
    task ci:wait -- <pr-number>   # polls until all checks complete
    ```
 
-   **Always use `task ci:wait`** to wait for CI. Do not use `gh pr checks --watch`
-   (opens alternate buffer, breaks agents) or ad-hoc polling loops.
-
-   **NEVER merge a PR unless the user explicitly requests it.** Do not approve-and-merge,
-   do not enable auto-merge, do not merge after CI passes. Your job ends at creating the
-   PR and waiting for CI — the human reviewer decides when to merge.
+   **NEVER merge PR unless user explicitly requests it.**
 
 **Key principle:** `main` is always deployable.
+
 
 ## Releases
 
