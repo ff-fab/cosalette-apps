@@ -10,6 +10,11 @@
       "headers": {
         "CONTEXT7_API_KEY": "${env:CONTEXT7_API_KEY}"
       }
+    },
+    "cosalette": {
+      "command": "/workspace/.venv/bin/python3",
+      "args": ["-m", "cosalette", "ai", "mcp", "serve"],
+      "env": {}
     }
   }
 }

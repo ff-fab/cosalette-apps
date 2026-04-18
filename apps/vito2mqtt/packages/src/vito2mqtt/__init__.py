@@ -22,7 +22,7 @@ from importlib.metadata import PackageNotFoundError, version
 
 try:
     # Prefer the generated version file (setuptools_scm at build time)
-    from ._version import __version__
+    from ._version import __version__  # type: ignore
 except ImportError:
     try:
         # Fallback to installed package metadata

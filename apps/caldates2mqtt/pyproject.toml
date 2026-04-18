@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.7",
+    "cosalette>=0.3.2",
     "caldav>=1.4",
 ]
 
@@ -76,11 +76,6 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
-
-[tool.mypy]
-[[tool.mypy.overrides]]
-module = ["caldav.*", "niquests.*"]
-ignore_missing_imports = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["caldates2mqtt"]

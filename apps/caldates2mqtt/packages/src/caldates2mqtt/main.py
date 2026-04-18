@@ -17,7 +17,7 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 
 # Eagerly construct settings so device registration can iterate calendars.
 # This means --help/--version will crash if required env vars are absent.
-_settings = CalDates2MqttSettings()  # type: ignore[call-arg]
+_settings = CalDates2MqttSettings()  # type: ignore
 
 app = cosalette.App(
     name="caldates2mqtt",

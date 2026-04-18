@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.7",
+    "cosalette>=0.3.2",
     "astral>=3.2",
     "pydantic>=2.10.0",
     "pyyaml>=6.0",
@@ -82,6 +82,13 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
+
+# suncast uses optional imports (aiohttp, cairosvg) guarded by _X_available flags
+# at runtime. ty cannot correlate the guard variable with the bound module name,
+# so unresolved-attribute errors on web.X / cairosvg.X are suppressed app-wide.
+[tool.ty.rules]
+all = "error"
+unresolved-attribute = "ignore"
 
 [tool.ruff.lint.isort]
 known-first-party = ["suncast"]

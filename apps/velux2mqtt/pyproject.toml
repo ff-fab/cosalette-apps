@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.7",
+    "cosalette>=0.3.2",
     "gpiozero>=2.0",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
@@ -78,11 +78,6 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
-
-# App-specific mypy overrides — root mypy config handles common settings
-[[tool.mypy.overrides]]
-module = ["gpiozero.*"]
-ignore_missing_imports = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["velux2mqtt"]

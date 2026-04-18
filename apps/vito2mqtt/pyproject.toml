@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.8",
+    "cosalette>=0.3.2",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "pyserial>=3.5",
@@ -77,18 +77,6 @@ directory = "htmlcov"
 
 [tool.coverage.xml]
 output = "coverage.xml"
-
-# mypy needs a base section to apply overrides from this file
-[tool.mypy]
-python_version = "3.14"
-strict = true
-warn_return_any = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = ["vito2mqtt._version", "serial_asyncio", "serial_asyncio.*"]
-ignore_missing_imports = true
 
 # App-specific isort config — root ruff config handles everything else
 [tool.ruff.lint.isort]

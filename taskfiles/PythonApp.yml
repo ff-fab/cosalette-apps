@@ -93,7 +93,7 @@ tasks:
   typecheck:
     desc: 'Type check {{.APP_NAME}}'
     cmds:
-      - uv run mypy {{.PKG}}/src/
+      - uv run ty check {{.PKG}}/src/
 
   check:
     desc: 'Run all checks for {{.APP_NAME}}'

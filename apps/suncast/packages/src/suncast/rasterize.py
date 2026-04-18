@@ -23,16 +23,18 @@ instead of crashing with an opaque ``ImportError``.
 from __future__ import annotations
 
 import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
+cairosvg: Any = None
 _cairosvg_available = False
 try:
-    import cairosvg  # type: ignore[import-not-found]
+    import cairosvg  # type: ignore
 
     _cairosvg_available = True
 except ImportError:
-    cairosvg = None
+    pass
 
 
 class RasterizationError(Exception):

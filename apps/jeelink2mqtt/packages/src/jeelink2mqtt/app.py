@@ -111,7 +111,7 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
     ideal hook for one-time domain initialisation.
     """
     global _state  # noqa: PLW0603
-    settings: Jeelink2MqttSettings = ctx.settings  # type: ignore[assignment]
+    settings: Jeelink2MqttSettings = ctx.settings  # type: ignore
 
     configs = _build_sensor_configs(settings)
     _state = SharedState(
