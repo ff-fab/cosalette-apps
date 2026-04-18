@@ -126,3 +126,15 @@ item. The gate task references the TODO doc but contains no decision logic itsel
 
 <!-- BEGIN BEADS INTEGRATION -->
 <!-- END BEADS INTEGRATION -->
+
+<!-- BEGIN COSALETTE AI SUPPORT v:1 -->
+
+## cosalette Framework Support
+
+Framework guidance is maintained in
+[.github/instructions/cosalette.instructions.md](.github/instructions/cosalette.instructions.md).
+
+**Refresh guidance:** `cosalette ai init --force` **Framework overview:**
+`cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
+
+<!-- END COSALETTE AI SUPPORT -->

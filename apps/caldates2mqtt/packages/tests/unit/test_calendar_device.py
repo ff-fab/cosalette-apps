@@ -238,8 +238,8 @@ class TestCalendarDeviceCommand:
         await _run_handler_once(handler, ctx, fake_reader)
 
         # Trigger command
-        assert ctx._command_handler is not None
-        await ctx._command_handler("caldates2mqtt/garbage/set", "")
+        assert ctx.command_handler is not None
+        await ctx.command_handler("caldates2mqtt/garbage/set", "")
 
         # Verify reader was called with configured days
         assert fake_reader.calls[-1][4] == 14
@@ -257,7 +257,7 @@ class TestCalendarDeviceCommand:
 
         await _run_handler_once(handler, ctx, fake_reader)
 
-        await ctx._command_handler(
+        await ctx.command_handler(
             "caldates2mqtt/garbage/set", '{"entries": 10, "days": 30}'
         )
 
@@ -276,7 +276,7 @@ class TestCalendarDeviceCommand:
 
         await _run_handler_once(handler, ctx, fake_reader)
 
-        await ctx._command_handler("caldates2mqtt/garbage/set", "not-json")
+        await ctx.command_handler("caldates2mqtt/garbage/set", "not-json")
 
         assert fake_reader.calls[-1][4] == 14
 
@@ -293,7 +293,7 @@ class TestCalendarDeviceCommand:
 
         await _run_handler_once(handler, ctx, fake_reader)
 
-        await ctx._command_handler(
+        await ctx.command_handler(
             "caldates2mqtt/garbage/set", '{"entries": "ten", "days": -1}'
         )
 
@@ -312,7 +312,7 @@ class TestCalendarDeviceCommand:
 
         await _run_handler_once(handler, ctx, fake_reader)
 
-        await ctx._command_handler("caldates2mqtt/garbage/set", '"just a string"')
+        await ctx.command_handler("caldates2mqtt/garbage/set", '"just a string"')
 
         assert fake_reader.calls[-1][4] == 14
 

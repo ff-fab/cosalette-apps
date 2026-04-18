@@ -14,9 +14,7 @@ follow them.
 - [.github/instructions/testing-python.instructions.md](.github/instructions/testing-python.instructions.md)
   — pytest patterns, AAA, ISTQB techniques
 - [.github/instructions/documentation.instructions.md](.github/instructions/documentation.instructions.md)
-  — Zensical site generator, ADR format —
-- [.github/instructions/cosalette-framework-reference.instructions.md](.github/instructions/cosalette-framework-reference.instructions.md)
-  — Cosalette framework reference
+  — Zensical site generator, ADR format
 
 ## Monorepo Layout
 
@@ -49,3 +47,15 @@ This is a **uv workspace monorepo**. Apps live under `apps/<name>/`.
 - **ADRs** live in `docs/adr/` (monorepo-wide) and `apps/<name>/docs/adr/`
   (app-specific). Follow existing decisions; create new ADRs at the appropriate scope.
 - **Beads (`bd`)** for issue tracking. Run `bd prime` for full context.
+
+<!-- BEGIN COSALETTE AI SUPPORT v:1 -->
+
+## cosalette Framework Support
+
+Framework guidance is maintained in
+[.github/instructions/cosalette.instructions.md](.github/instructions/cosalette.instructions.md).
+
+**Refresh guidance:** `cosalette ai init --force` **Framework overview:**
+`cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
+
+<!-- END COSALETTE AI SUPPORT -->

@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.1.7",
+    "cosalette>=0.3.2",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "pylacrosse>=0.3.7",
