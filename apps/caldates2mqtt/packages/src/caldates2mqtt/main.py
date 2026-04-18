@@ -1,7 +1,7 @@
 """caldates2mqtt application entry point.
 
-Wires the cosalette App with calendar devices, CalDAV adapter,
-and settings. One device per configured calendar, registered
+Wires the cosalette App with calendar telemetry handlers, CalDAV adapter,
+and settings. One telemetry handler per configured calendar, registered
 imperatively from settings.
 """
 
@@ -11,7 +11,12 @@ import cosalette
 
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.devices.calendar import make_calendar_handler
+from caldates2mqtt.devices.calendar import make_calendar_telemetry
+from caldates2mqtt.errors import (
+    CalDavConnectionError,
+    CalDavReadError,
+    CalDavTimeoutError,
+)
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings
 
@@ -23,17 +28,25 @@ app = cosalette.App(
     },
 )
 
+_RETRY_ON = (CalDavConnectionError, CalDavTimeoutError, CalDavReadError)
+
 
 @app.on_configure
 def register_devices(settings: CalDates2MqttSettings) -> None:
-    """Register one device per configured calendar.
+    """Register one telemetry handler per configured calendar.
 
     Runs after settings resolution, before device startup.
     Replaces the eager module-level Settings() construction
     that crashed --help/--version.
     """
     for cal in settings.calendars:
-        app.add_device(cal.key, make_calendar_handler(cal))
+        handler = make_calendar_telemetry(cal)
+        app.telemetry(
+            cal.key,
+            interval=cal.poll_interval,
+            retry=3,
+            retry_on=_RETRY_ON,
+        )(handler)
 
 
 def main() -> None:

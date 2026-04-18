@@ -15,7 +15,7 @@ from cosalette import App, MockMqttClient
 from pydantic_settings import PydanticBaseSettingsSource
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.devices.calendar import make_calendar_handler
+from caldates2mqtt.devices.calendar import make_calendar_telemetry
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings
 
@@ -84,7 +84,8 @@ def build_integration_app(
     @app.on_configure
     def register_devices(settings: _FastPollSettings) -> None:
         for cal in settings.calendars:
-            app.add_device(cal.key, make_calendar_handler(cal))
+            handler = make_calendar_telemetry(cal)
+            app.telemetry(cal.key, interval=cal.poll_interval)(handler)
 
     return app
 

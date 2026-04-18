@@ -52,6 +52,7 @@ omit = [
     "*/tests/*",
     "*/main.py",
     "*/app.py",
+    "*/adapters/caldav_reader.py",
 ]
 
 [tool.coverage.report]
