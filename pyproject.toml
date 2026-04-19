@@ -167,5 +167,5 @@ dev = [
     "setuptools-scm[toml]>=10.0.5",
     "reuse>=5.0.2",
     # AI/MCP tooling support (cosalette ai mcp serve)
-    "cosalette[mcp]>=0.3.2",
+    "cosalette[mcp]>=0.3.3",
 ]
