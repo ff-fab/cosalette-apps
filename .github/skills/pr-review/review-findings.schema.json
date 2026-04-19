@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "review-findings.schema.json",
+  "title": "ReviewFindings",
+  "description": "Output schema for PR review perspective sub-agents (security, maintainability, performance, quality). Each agent returns an object matching this schema.",
+  "type": "object",
+  "required": ["findings"],
+  "additionalProperties": false,
+  "properties": {
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Finding" }
+    }
+  },
+  "$defs": {
+    "Finding": {
+      "type": "object",
+      "required": ["severity", "source", "finding", "recommendation", "effort"],
+      "additionalProperties": false,
+      "properties": {
+        "severity": {
+          "type": "string",
+          "enum": ["CRITICAL", "MAJOR", "MINOR", "INFO"],
+          "description": "Impact level: CRITICAL=blocking, MAJOR=important, MINOR=polish, INFO=FYI"
+        },
+        "source": {
+          "type": "string",
+          "description": "Sub-agent perspective (e.g. 'security-reviewer') or GitHub reviewer login"
+        },
+        "file": {
+          "type": "string",
+          "description": "Workspace-relative file path, or null when finding is not file-specific"
+        },
+        "line": {
+          "type": ["integer", "null"],
+          "description": "1-based line number in the file, or null"
+        },
+        "finding": {
+          "type": "string",
+          "description": "Concise description of the issue found"
+        },
+        "recommendation": {
+          "type": "string",
+          "description": "Concrete action to resolve the finding"
+        },
+        "effort": {
+          "type": "string",
+          "enum": ["trivial", "small", "medium", "large"],
+          "description": "Implementation effort estimate"
+        }
+      }
+    }
+  }
+}

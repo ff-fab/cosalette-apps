@@ -383,6 +383,42 @@ tasks:
           exit 1
         fi
 
+  # ── PR Helpers ─────────────────────────────────────────────
+
+  pr:list:
+    desc: 'List open PRs excluding release-please (e.g.: task pr:list)'
+    cmds:
+      - |
+        gh pr list --state open --json number,title,author,headRefName \
+          --jq '.[] | select(
+            (.author.login | test("please-release|release-please") | not) and
+            (.author.login != "app/github-actions" or (.headRefName | test("release-please|please-release") | not))
+          )'
+
+  pr:create:
+    desc: 'Create a PR. Pass TITLE and BODY as task vars (not CLI args).'
+    preconditions:
+      - sh: '[ -n "{{.TITLE}}" ]'
+        msg: 'Usage: task pr:create TITLE="feat: title" BODY="## Summary ..."'
+    env:
+      PR_TITLE: '{{.TITLE}}'
+      PR_BODY: '{{.BODY}}'
+    cmds:
+      - gh pr create --title "$PR_TITLE" --body "$PR_BODY"
+
+  pr:diff:
+    desc: 'Show PR diff (e.g.: task pr:diff -- 42, or task pr:diff -- 42 --name-only)'
+    preconditions:
+      - sh: '[ -n "{{.CLI_ARGS}}" ]'
+        msg: 'Usage: task pr:diff -- <pr-number> [--name-only]'
+    cmds:
+      - gh pr diff {{.CLI_ARGS}}
+
+  pr:feedback:
+    desc: 'Fetch all PR feedback as JSON (e.g.: task pr:feedback -- 42, or task pr:feedback to auto-detect from current branch)'
+    cmds:
+      - bash .github/skills/pr-review/fetch-pr-feedback.sh {{.CLI_ARGS}}
+
   # ── CI Helpers ─────────────────────────────────────────────
 
   ci:wait:
