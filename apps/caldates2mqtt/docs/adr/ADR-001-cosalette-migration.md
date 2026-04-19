@@ -44,13 +44,13 @@ cosalette provides:
 
 ### Key Design Choices
 
-- **`@app.device()` over `@app.telemetry()`**: caldates2mqtt needs both periodic polling
-  and on-demand re-read via MQTT command. `@app.device()` provides full loop control with
-  `@ctx.on_command`, while `@app.telemetry()` only supports periodic return-dict semantics
-  with no command handling.
+- **`app.add_telemetry()` with `triggerable=True`**: caldates2mqtt uses
+  `app.add_telemetry()` for dynamic registration of one telemetry device per configured
+  calendar. `TriggerPayload` provides on-demand re-read via MQTT with optional parameter
+  overrides. Supersedes the original `@app.device()` choice (see Addendum).
 - **Dynamic registration from settings**: calendars are configured as a JSON list in
-  environment variables. `app.add_device()` is called in a loop at module level, one
-  device per calendar. This requires eager settings construction (see Consequences).
+  environment variables. `app.add_telemetry()` is called in a loop from `@app.on_configure`,
+  one device per calendar.
 - **Stateless CalDAV adapter**: each `read_events()` call creates a fresh `DAVClient`.
   CalDAV connections are infrequent (every 2 hours) and short-lived, making connection
   pooling unnecessary.
@@ -101,10 +101,10 @@ _Scale: 1 (poor) to 5 (excellent)_
   calls to domain types.
 - **Comprehensive test suite** --- unit tests cover the device handler, adapter error
   translation, settings validation, and command dispatch without a CalDAV server.
-- **Multi-calendar from config** --- `app.add_device()` in a loop creates one device per
-  configured calendar, all managed by a single process.
-- **On-demand re-read** --- `@ctx.on_command` registers a command handler per calendar
-  device, enabling consumers to trigger immediate reads with optional parameter overrides.
+- **Multi-calendar from config** --- `app.add_telemetry()` in `@app.on_configure` creates
+  one telemetry device per configured calendar, all managed by a single process.
+- **On-demand re-read** --- `TriggerPayload` enables consumers to trigger immediate
+  reads with optional parameter overrides via MQTT on `{prefix}/{device}/set`.
 - **Automatic health reporting** --- heartbeats, per-device availability, and LWT come
   free from cosalette.
 - **Docker-ready** --- no special hardware access required. Simple `docker compose up`
@@ -116,9 +116,9 @@ _Scale: 1 (poor) to 5 (excellent)_
   conventions. API changes in cosalette require migration work.
 - **Python 3.14+ requirement** --- cosalette requires Python 3.14+, limiting deployment
   to systems with recent Python.
-- **Eager settings construction** --- dynamic device registration requires settings at
-  module level. This means `--help` and `--version` crash when required env vars are
-  absent. This is a known framework limitation (documented in framework-opportunities.md).
+- **~~Eager settings construction~~** --- **Fixed.** Dynamic device registration now
+  uses `@app.on_configure`, which defers settings access until after CLI parsing.
+  `--help` and `--version` work without env vars.
 
 _2026-03-27_
 
@@ -138,5 +138,9 @@ with no command handling" — no longer holds. Triggerable telemetry provides ex
 on-demand re-read capability that drove the `@app.device()` choice, while the framework
 handles retry, scheduling, and publishing automatically.
 
-**Recommendation:** Convert calendar devices to `@app.telemetry(triggerable=True)` with
-`TriggerPayload` for optional parameter overrides. See task workspace-61q.2.
+**Completed.** Calendar devices were converted to `app.add_telemetry()` with
+`triggerable=True`, registered dynamically via `@app.on_configure` (device count is
+determined by settings). A factory function `make_calendar_handler()` produces each
+handler. `TriggerPayload` replaced the old `@ctx.on_command` pattern for on-demand
+re-reads with optional parameter overrides. The `devices/` directory was removed — all
+code now lives in a single `main.py`.
