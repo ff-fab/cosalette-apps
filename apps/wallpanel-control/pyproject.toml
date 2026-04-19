@@ -1,6 +1,6 @@
 [project]
 name = "wallpanel-control"
-version = "0.1.0"
+version = "0.1.1"
 description = "Wall panel brightness, screen and power control via SSH"
 readme = "README.md"
 requires-python = ">=3.14"
