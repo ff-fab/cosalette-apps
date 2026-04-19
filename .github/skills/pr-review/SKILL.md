@@ -1,13 +1,7 @@
 ---
 name: pr-review
 user-invocable: false
-disable-model-invocation: true
-description:
-  Review open pull requests — fetch all reviewer feedback, CI results, and code changes,
-  then provide actionable analysis. With a PR number, reviews that single PR. Without
-  arguments, reviews ALL open PRs (excluding release-please). Use when the user says
-  "review this PR", "check PR feedback", "what did reviewers say", "review all PRs",
-  "address review comments", or any variation involving pull request review.
+description: Review open pull requests — fetch all reviewer feedback, CI results, and code changes, then provide actionable analysis. With a PR number, reviews that single PR. Without arguments, reviews ALL open PRs (excluding please-release).
 ---
 
 # PR Review
@@ -27,12 +21,10 @@ below.
 If `$ARGUMENTS` is empty, list every open PR and filter:
 
 ```bash
-gh pr list --state open --json number,title,author,headRefName \
-  --jq '.[] | select((.author.login == "release-please" | not) and (.headRefName | startswith("release-please") | not))'
+task pr:list
 ```
 
-This excludes PRs authored by `release-please` AND PRs from branches starting with
-`release-please` (covers both bot-authored PRs and release branches).
+This runs `gh pr list` with the release-please exclusion filter built in.
 
 If the list is empty, say "No open PRs to review (excluding release-please)" and stop.
 
@@ -48,13 +40,13 @@ comments, conversation comments, and CI status) in a single deterministic pass w
 pagination.
 
 ```bash
-bash .github/skills/pr-review/fetch-pr-feedback.sh <PR_NUMBER>
+task pr:feedback -- <PR_NUMBER>
 ```
 
-**This step is mandatory for every PR.** Do not skip it. Do not substitute ad-hoc `gh`
-calls. GitHub splits review feedback across 3 separate API resources and agents
-routinely miss inline review comments — the most actionable kind — when they only query
-one endpoint.
+**This step is mandatory for every PR.** Do not skip it. Do not substitute ad-hoc
+`gh` calls — always use the `task pr:feedback` wrapper. GitHub splits review feedback
+across 3 separate API resources and agents routinely miss inline review comments — the
+most actionable kind — when they only query one endpoint.
 
 The script returns a single JSON object. Confirm you received all keys: `metadata`,
 `changed_files`, `reviews`, `review_comments`, `conversation_comments`, `ci_status`. If
@@ -66,46 +58,20 @@ For every file listed in `changed_files`, read the full current file (not just t
 hunks). You need surrounding context to judge patterns, architecture, and whether tests
 cover the change.
 
-## Step 4 — Analyze
+## Step 4 — Analyze via parallel sub-agent fan-out
 
-Work through these in order. Be concrete — reference exact files and line numbers.
-Propose actual fixes, not vague suggestions.
+Pass the collected PR data to all 4 perspective reviewer sub-agents **in parallel**:
 
-### CI & status checks
+1. **security-reviewer** — injection surface, secrets, input validation
+2. **maintainability-reviewer** — complexity, coupling, naming, conventions
+3. **performance-reviewer** — allocations, N+1, blocking I/O, hot paths
+4. **quality-reviewer** — correctness, edge cases, test coverage, idioms
 
-Identify failing checks and their root cause. Flag coverage regressions with the
-specific modules affected. Note flaky-test patterns if visible.
+Each returns JSON conforming to `review-findings.schema.json`.
 
-### Review comments
-
-Triage ALL comments from all three sources (`reviews`, `review_comments`,
-`conversation_comments`) into:
-
-- **Blocking** — must resolve before merge
-- **Suggestion** — optional improvement
-- **Question** — needs a reply or clarification
-
-For each, propose a concrete fix or response.
-
-Pay special attention to `review_comments` (inline findings on specific diff lines).
-Group them by file.
-
-### Code quality
-
-Review the diff for:
-
-- **Correctness** — logic errors, edge cases, missing error handling
-- **Consistency** — adherence to the project's existing conventions (check
-  `.github/instructions/`, linter configs, existing patterns)
-- **Performance** — unnecessary allocations, N+1 queries, blocking I/O
-- **Security** — input validation, secrets exposure, injection surface
-- **Test coverage** — missing or insufficient tests for new behavior
-
-### Language idioms
-
-Spot opportunities to use idiomatic constructs even in correct code. Mention when an
-idiom helps and when it would hurt readability. Reference PEPs, RFCs, or official docs
-by number where applicable.
+Merge all findings into a unified list. Then convert GitHub reviewer comments (from
+`reviews`, `review_comments`, `conversation_comments`) into the same findings format
+with `source` set to the reviewer's GitHub login.
 
 ## Step 5 — Teach alongside findings
 
@@ -116,43 +82,66 @@ For security findings, weave in brief educational context:
 3. **Which principle** applies
 4. **One gotcha** — a common pitfall related to the fix
 
-Keep this lightweight. A sentence or two per point, integrated into the finding — not a
-separate lecture section. If the code is already good, say so and briefly explain why it
-works well.
+## Step 6 — Output: structured tabular format
 
-## Step 6 — Output
 
 ### Per-PR review
 
-Structure each PR review clearly. Use this as a guide, not a rigid template — adapt
-section depth to what the PR actually warrants:
+**1. PR Summary** (2-3 lines max) — what the PR does, branch, author.
 
-1. **PR summary** — one-paragraph description of what the PR does
-2. **Data collected** — counts of files changed, reviews, inline comments, conversation
-   comments (confirms nothing was missed)
-3. **CI status** — pass/fail per check, failure details if any
-4. **Review comment triage** — blocking → suggestions → questions, each with proposed
-   fix or response
-5. **Code quality findings** — grouped by category, each with file:line, finding, fix,
-   and teaching note where warranted
-6. **Recommended actions** — prioritized list; note which changes can be batched
-   together vs. need sequential work
+**2. CI Status Table**
+
+| Check | Status | Details |
+|-------|--------|---------|
+| {name} | ✅/❌/⬜ | {detail} |
+
+Use ✅ for passed, ❌ for failed, ⬜ for skipped/neutral.
+
+For checks that include a `target_url` (particularly **Deploy Preview**), render the
+Details value as a clickable markdown link: `[Preview](url)` or `[Details](url)`.
+
+**3. Perspective Summaries** — 4 mini-cards:
+
+> **{Perspective}**: {verdict: clean / N findings} — {key finding or "no issues"}
+
+**4. Findings Table** (sorted CRITICAL → MAJOR → MINOR → INFO)
+
+| # | Sev | Source | File:Line | Finding | Recommendation | Effort |
+|---|-----|--------|-----------|---------|----------------|--------|
+
+All findings from all sources (sub-agents + GitHub reviewers) merged and sorted.
+
+**5. Implementation Options**
+
+Present options as interactive quick-pick buttons so the user can select with one
+click. Include your recommendation. The options are:
+
+> **[A]** Fix all findings (full sweep) — implement everything in current PR
+> **[B]** Fix CRITICAL + MAJOR only, create beads for MINOR + INFO
+> **[C]** Fix CRITICAL + MAJOR + MINOR, ignore INFO
+> **[E]** Custom selection (user specifies which findings to fix)
 
 ### Cross-PR summary (multi-PR mode only)
 
-When reviewing multiple PRs, end with a summary section:
-
 - **Overview table** — PR number, title, author, verdict (ready / needs-work / blocked),
   count of blocking findings
-- **Cross-cutting issues** — patterns that appear in more than one PR (e.g. same linting
-  violation, repeated missing test coverage, shared security concern)
-- **Suggested review order** — which PRs to tackle first, considering dependencies
-  between them and severity of findings
+- **Cross-cutting issues** — patterns appearing in more than one PR
+- **Suggested review order** — which PRs to tackle first by dependency and severity
+
+## Step 7 — Implementation flow
+
+After user selects an implementation option:
+
+1. **Fix findings**: invoke the **implementation-subagent** with the specific findings to fix
+2. **Defer findings**: present beads task creation list, ask user to confirm
+3. **Push**: push changes to remote
+4. **Wait for CI**: `task ci:wait -- <pr-number>`
+5. **Present CI results**
+6. **Ask user**: "CI passed. Ready to merge?" — only merge on explicit confirmation, **never auto-merge**
 
 ### Tone
 
-- Be direct and specific. No filler.
+- Direct and specific. No filler.
 - Acknowledge trade-offs when recommending changes.
-- When something is already well done, say so — reinforce good patterns.
-- Never silently omit a section. If there are no findings for a category, state that
-  explicitly.
+- Reinforce good patterns — when something is well done, say so.
+- Never silently omit a section. If no findings for a category, state that explicitly.
