@@ -201,16 +201,27 @@ async def sensor() -> dict[str, object]:
     return {"temperature": await read_sensor()}
 ```
 
-Opt into `TriggerPayload` to distinguish triggered vs scheduled runs:
+Opt into `TriggerPayload` to distinguish triggered vs scheduled runs. Always coerce
+and validate payload fields before passing them to I/O — the `/set` topic is
+broker-controlled and the values are untrusted:
 
 ```python
 from cosalette import TriggerPayload
 
+_DAYS_MIN, _DAYS_MAX = 1, 90
+
 @app.telemetry("sensor", interval=300, triggerable=True)
 async def sensor(trigger: TriggerPayload) -> dict[str, object]:
-    days = trigger.get("days", 7) if trigger.is_triggered else 7
+    if trigger.is_triggered:
+        raw = trigger.get("days", 7)
+        days = max(_DAYS_MIN, min(_DAYS_MAX, int(raw)))  # coerce + clamp
+    else:
+        days = 7
     return {"data": await read_sensor(days=days)}
 ```
+
+Security note: protect `/set` topics with MQTT broker ACLs so only authorised clients
+can trigger a read. Without ACLs, any broker participant can issue arbitrary payloads.
 
 Constraints: root (unnamed) devices cannot be triggerable; `triggerable=` and `group=`
 are mutually exclusive. Refer to `cosalette ai help triggerable` for details.
