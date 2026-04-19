@@ -1,7 +1,7 @@
 {
   "apps/gas2mqtt": "0.1.1",
   "apps/jeelink2mqtt": "0.1.1",
-  "apps/vito2mqtt": "0.1.1",
+  "apps/vito2mqtt": "0.1.2",
   "apps/velux2mqtt": "0.1.1",
   "apps/airthings2mqtt": "0.1.1",
   "apps/caldates2mqtt": "0.1.1",
