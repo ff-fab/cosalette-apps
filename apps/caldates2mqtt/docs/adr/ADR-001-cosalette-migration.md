@@ -121,3 +121,22 @@ _Scale: 1 (poor) to 5 (excellent)_
   absent. This is a known framework limitation (documented in framework-opportunities.md).
 
 _2026-03-27_
+
+## Addendum: cosalette 0.3.3 — Triggerable Telemetry
+
+_2026-04-19_
+
+cosalette 0.3.3 introduces `triggerable=True` on `@app.telemetry`, which allows a
+telemetry device to respond to inbound MQTT messages on `{prefix}/{device}/set` in
+addition to its normal polling interval. The `TriggerPayload` injectable lets handlers
+distinguish triggered from scheduled runs and access parsed payload data.
+
+This partially invalidates the original rationale for choosing `@app.device()` over
+`@app.telemetry()`. The key decision driver — "caldates2mqtt needs on-demand re-read
+via MQTT command, and `@app.telemetry()` only supports periodic return-dict semantics
+with no command handling" — no longer holds. Triggerable telemetry provides exactly the
+on-demand re-read capability that drove the `@app.device()` choice, while the framework
+handles retry, scheduling, and publishing automatically.
+
+**Recommendation:** Convert calendar devices to `@app.telemetry(triggerable=True)` with
+`TriggerPayload` for optional parameter overrides. See task workspace-61q.2.
