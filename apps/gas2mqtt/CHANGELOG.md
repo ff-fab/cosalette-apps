@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.1.2](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.1.1...gas2mqtt-v0.1.2) (2026-04-19)
+
+
+### Features
+
+* **docs:** add header breadcrumb linking app docs to monorepo root ([d62851d](https://github.com/ff-fab/cosalette-apps/commit/d62851db69839bd2830b629d5a72ef09cd9519c3))
+* **docs:** add mkdocs-click-zoom plugin to all documentation sites ([#70](https://github.com/ff-fab/cosalette-apps/issues/70)) ([21c85ec](https://github.com/ff-fab/cosalette-apps/commit/21c85ece8667ba3a7a46d738c1c24847e985a8a9))
+* **docs:** add per-app version display to docs sites ([#34](https://github.com/ff-fab/cosalette-apps/issues/34)) ([d355c0e](https://github.com/ff-fab/cosalette-apps/commit/d355c0e8dbe440af2bdcb0f242859a4f2ea02e3b))
+* **docs:** shared doc assets + header breadcrumb for app sites ([4e57caf](https://github.com/ff-fab/cosalette-apps/commit/4e57caf09f8db1de4d891536c8f62905c9c10b29))
+* **docs:** sync light/dark palette across all documentation sites ([#42](https://github.com/ff-fab/cosalette-apps/issues/42)) ([ad7daeb](https://github.com/ff-fab/cosalette-apps/commit/ad7daeb8e2ff1d02e29590ac33d6e4db33b332e4))
+* **velux2mqtt:** add calibration state machine ([#46](https://github.com/ff-fab/cosalette-apps/issues/46)) ([3fc11f1](https://github.com/ff-fab/cosalette-apps/commit/3fc11f1ad59450983eda6dd5f61002c9348595c0))
+* **wallpanel-control:** implement adapters and test fixtures ([f337856](https://github.com/ff-fab/cosalette-apps/commit/f3378569fe7eba58107f17d407657da3c65eb54c))
+
+
+### Bug Fixes
+
+* address PR review — restore thread-safety and loop resilience ([b9b3d41](https://github.com/ff-fab/cosalette-apps/commit/b9b3d4120bba307c223e18c9d1b2cac152819e6b))
+* **docs:** replace symlinks with pre-build copy for shared assets ([a0b8243](https://github.com/ff-fab/cosalette-apps/commit/a0b82436d55f63f650892d7163d2ecc0b7400c73))
+* **docs:** replace symlinks with pre-build copy for shared assets ([#40](https://github.com/ff-fab/cosalette-apps/issues/40)) ([483e35f](https://github.com/ff-fab/cosalette-apps/commit/483e35f40ee684e4726df38e2e9752e48a211160))
+* **gas2mqtt:** remove error-swallowing in gas counter device ([0d798ec](https://github.com/ff-fab/cosalette-apps/commit/0d798ec4095d491701755774f8ecf08efcc1c03e))
+* remove error-swallowing in device handlers ([ee46221](https://github.com/ff-fab/cosalette-apps/commit/ee46221a44c8ea4a0b060066a40dd3ef37bfc5e8))
+
+
+### Documentation
+
+* add zoomable docs images ([#92](https://github.com/ff-fab/cosalette-apps/issues/92)) ([0b14b99](https://github.com/ff-fab/cosalette-apps/commit/0b14b9975b1504fb52e2af1819d1de8ebf0ac9c9))
+* update cosalette badge with custom icon and fix click-zoom assets ([faa3724](https://github.com/ff-fab/cosalette-apps/commit/faa37245bd384edb3579b42433bac4b387de4fd5))
+
 ## [0.1.1](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.1.0...gas2mqtt-v0.1.1) (2026-03-21)
 
 
