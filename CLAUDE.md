@@ -28,9 +28,8 @@ This is a **uv workspace monorepo**. Apps live under `apps/<name>/`.
 
 ## Available Skills
 
-- **pr-review** — Fetch all PR feedback via
-  [fetch-pr-feedback.sh](.github/skills/pr-review/fetch-pr-feedback.sh), then analyze
-  CI, review comments, and code quality
+- **pr-review** — Fetch all PR feedback via `task pr:feedback -- <PR>`, then analyze CI,
+  review comments, and code quality
 - **pre-pr-gate** — End-of-session workflow: `task pre-pr`, close beads, push, create PR
 - **showboat-demo** — Create reproducible proof-of-work demos with `showboat`
 - **adr-create** — Create or amend ADRs via schema-conforming JSON
