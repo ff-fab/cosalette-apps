@@ -3,6 +3,7 @@
 Test Techniques Used:
 - Specification-based: Verify payload structure, event slicing, credentials
 - Equivalence Partitioning: Trigger payload variants (valid, invalid, empty)
+- Boundary Value Analysis: Trigger override limits for entries and days
 - Error Guessing: Invalid JSON payloads, CalDavError propagation
 """
 
@@ -37,6 +38,17 @@ def _make_cal_config(**overrides: object) -> CalendarConfig:
     }
     defaults.update(overrides)
     return CalendarConfig(**defaults)  # type: ignore[arg-type]
+
+
+def _make_events(count: int) -> list[CalendarEvent]:
+    """Create a sequence of deterministic CalendarEvent objects."""
+    start = datetime.date(2026, 4, 1)
+    return [
+        CalendarEvent(
+            title=f"Event {index}", date=start + datetime.timedelta(days=index)
+        )
+        for index in range(count)
+    ]
 
 
 @pytest.fixture
@@ -74,11 +86,7 @@ class TestCalendarHandlerHappyPath:
         self, fake_reader: FakeCalDavReader
     ) -> None:
         """Events are sliced to configured entries count."""
-        events = [
-            CalendarEvent(title=f"Event {i}", date=datetime.date(2026, 4, i + 1))
-            for i in range(10)
-        ]
-        fake_reader.readings = [events]
+        fake_reader.readings = [_make_events(10)]
         handler = make_calendar_handler(_make_cal_config(entries=3))
 
         result = await handler(
@@ -167,11 +175,7 @@ class TestCalendarHandlerTrigger:
 
     async def test_trigger_with_overrides(self, fake_reader: FakeCalDavReader) -> None:
         """Trigger with JSON payload overrides entries and days."""
-        events = [
-            CalendarEvent(title=f"E{i}", date=datetime.date(2026, 4, i + 1))
-            for i in range(15)
-        ]
-        fake_reader.readings = [events]
+        fake_reader.readings = [_make_events(15)]
         handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
 
         result = await handler(
@@ -182,6 +186,58 @@ class TestCalendarHandlerTrigger:
 
         assert fake_reader.calls[-1][4] == 30
         assert len(result["events"]) == 10  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("raw_entries", "expected_count"),
+        [(50, 50), (51, 50)],
+    )
+    async def test_trigger_entries_override_respects_upper_boundary(
+        self,
+        fake_reader: FakeCalDavReader,
+        raw_entries: int,
+        expected_count: int,
+    ) -> None:
+        """Trigger entries override respects the upper boundary.
+
+        Technique: Boundary Value Analysis — exact max and just-above-max input.
+        """
+        fake_reader.readings = [_make_events(60)]
+        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
+
+        result = await handler(
+            trigger=cosalette.TriggerPayload.from_mqtt(
+                f'{{"entries": {raw_entries}, "days": 30}}'
+            ),
+            reader=fake_reader,
+            logger=_logger,
+        )
+
+        assert fake_reader.calls[-1][4] == 30
+        assert len(result["events"]) == expected_count  # type: ignore[arg-type]
+
+    @pytest.mark.parametrize(
+        ("raw_days", "expected_days"),
+        [(365, 365), (366, 365)],
+    )
+    async def test_trigger_days_override_respects_upper_boundary(
+        self,
+        fake_reader: FakeCalDavReader,
+        raw_days: int,
+        expected_days: int,
+    ) -> None:
+        """Trigger days override respects the upper boundary.
+
+        Technique: Boundary Value Analysis — exact max and just-above-max input.
+        """
+        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
+
+        await handler(
+            trigger=cosalette.TriggerPayload.from_mqtt(f'{{"days": {raw_days}}}'),
+            reader=fake_reader,
+            logger=_logger,
+        )
+
+        assert fake_reader.calls[-1][4] == expected_days
 
     async def test_trigger_with_invalid_json(
         self, fake_reader: FakeCalDavReader

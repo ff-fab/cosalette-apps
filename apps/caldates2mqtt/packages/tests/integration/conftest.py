@@ -70,13 +70,13 @@ def build_integration_app(
 ) -> App:
     """Construct a fully-wired App with FakeCalDavReader.
 
-    Mirrors the wiring in ``caldates2mqtt.main`` but substitutes the
-    adapter and constructs settings independently so we avoid the
-    eager ``_settings`` construction at module level.
+    Mirrors the telemetry wiring in ``caldates2mqtt.main`` while
+    substituting the adapter and passing settings explicitly so tests
+    stay isolated from the host environment.
 
     Args:
         fake_reader: FakeCalDavReader instance to inject.
-        calendars: Calendar configurations to register as devices.
+        calendars: Calendar configurations to register as telemetries.
     """
     app = App(
         name="caldates2mqtt",
