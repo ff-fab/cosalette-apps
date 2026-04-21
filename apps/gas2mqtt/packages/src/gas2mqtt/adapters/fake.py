@@ -35,6 +35,7 @@ class FakeMagnetometer:
         self.temperature_raw: int = 0
         self.initialized: bool = False
         self.closed: bool = False
+        self.error_on_read: Exception | None = None
 
     def initialize(self) -> None:
         """Mark the fake sensor as initialized."""
@@ -42,6 +43,8 @@ class FakeMagnetometer:
 
     def read(self) -> MagneticReading:
         """Return a MagneticReading with the current configured values."""
+        if self.error_on_read is not None:
+            raise self.error_on_read
         return MagneticReading(
             bx=self.bx,
             by=self.by,

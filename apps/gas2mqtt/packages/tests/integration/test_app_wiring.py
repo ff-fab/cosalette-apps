@@ -103,10 +103,16 @@ class TestTemperatureRegistration:
     """Verify temperature is registered as telemetry with PT1 filter."""
 
     def test_temperature_registered_as_telemetry(self) -> None:
-        """Module-level app registers temperature as a telemetry device.
+        """Module-level app registers temperature as a telemetry device after configure.
 
         Technique: Specification-based — verifying registration contract.
         """
+        # Need to trigger configure to register telemetry devices
+        from tests.fixtures.config import make_gas2mqtt_settings
+
+        settings = make_gas2mqtt_settings()
+        app._configure_hooks[0](settings)  # Call setup() function  # noqa: SLF001
+
         # Assert
         telemetry_names = [t.name for t in app._telemetry]  # noqa: SLF001
         assert "temperature" in telemetry_names
@@ -177,9 +183,9 @@ class TestStoreWiring:
         """
         assert app._store is not None  # noqa: SLF001
 
-    def test_app_has_null_store_by_default(self) -> None:
-        """App uses NullStore when state_file is not configured (default).
+    def test_app_has_json_file_store_by_default(self) -> None:
+        """App uses JsonFileStore with XDG path by default.
 
-        Technique: Specification-based — default state_file is None.
+        Technique: Specification-based — default uses XDG path resolution.
         """
-        assert isinstance(app._store, cosalette.NullStore)  # noqa: SLF001
+        assert isinstance(app._store, cosalette.JsonFileStore)  # noqa: SLF001
