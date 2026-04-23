@@ -30,7 +30,7 @@ _DEFAULT_CALENDAR: dict[str, Any] = {
     "password": "testpass",
     "entries": 5,
     "days": 14,
-    "poll_interval": 0.05,
+    "schedule": "*/3 * * * * ?",
 }
 
 _SECOND_CALENDAR: dict[str, Any] = {
@@ -41,7 +41,7 @@ _SECOND_CALENDAR: dict[str, Any] = {
     "password": "testpass",
     "entries": 3,
     "days": 30,
-    "poll_interval": 0.05,
+    "schedule": "*/3 * * * * ?",
 }
 
 
@@ -87,7 +87,7 @@ def build_integration_app(
         app.add_telemetry(
             cal.key,
             make_calendar_handler(cal),
-            interval=cal.poll_interval,
+            schedule=cal.schedule,
             triggerable=True,
         )
     return app

@@ -29,10 +29,13 @@ class CalendarConfig(BaseModel):
         default=5, gt=0, description="Number of upcoming events to fetch"
     )
     days: int = Field(default=14, gt=0, description="Lookahead window in days")
-    poll_interval: float = Field(
-        default=7200.0,
-        gt=0,
-        description="Seconds between reads (default 2h)",
+    schedule: str = Field(
+        default="0 0 6,12,18 * * ?",
+        description=(
+            "Quartz cron expression for polling schedule "
+            "(default: 06:00, 12:00, 18:00 daily). "
+            "Format: second minute hour day-of-month month day-of-week"
+        ),
     )
 
 

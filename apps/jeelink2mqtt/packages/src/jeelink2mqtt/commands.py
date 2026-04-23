@@ -35,7 +35,7 @@ from typing import Any
 import cosalette
 from cosalette import DeviceStore
 
-from jeelink2mqtt.app import SharedState, get_state
+from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.errors import MappingConflictError
 
 logger = logging.getLogger(__name__)
@@ -56,6 +56,7 @@ def register_commands(app: cosalette.App) -> None:
     async def handle_mapping(
         payload: str,
         store: DeviceStore,
+        state: SharedState,
     ) -> dict[str, object] | None:
         """Route an incoming mapping command to the correct handler.
 
@@ -66,7 +67,6 @@ def register_commands(app: cosalette.App) -> None:
         Returns a response ``dict`` that cosalette auto-publishes
         to ``jeelink2mqtt/mapping/state``, or ``None`` on no-op.
         """
-        state = get_state()
 
         try:
             data: dict[str, Any] = json.loads(payload)

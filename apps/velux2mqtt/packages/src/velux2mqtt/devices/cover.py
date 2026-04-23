@@ -10,9 +10,11 @@ button presses, and publishes position state.
 Startup homing (optional) moves the cover to a known endpoint on
 boot so the position tracker starts from a reliable reference.
 
-Calibration commands (``{"calibrate": "start|go|mark|cancel"}``) are
-intercepted before normal command parsing.  During active calibration
-normal cover commands are blocked.
+Calibration commands arrive on the ``calibrate`` sub-topic
+(``velux2mqtt/{device}/calibrate/set``) with payload ``{"phase": "start|go|mark|cancel"}``.
+A background task manages calibration lifecycle inside ``ctx.sub_entity("calibrate")``
+so that ``calibrate/availability`` goes online/offline automatically.
+During active calibration normal cover commands are blocked.
 
 Command flow:
     MQTT payload -> parse_command() -> DriftCompensator.plan_move()
@@ -26,6 +28,7 @@ and skip the explicit STOP press.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from collections.abc import Awaitable, Callable
@@ -80,87 +83,106 @@ def make_cover(
         drift = DriftCompensator(threshold=settings.drift_recalibration_threshold)
         calibration = CalibrationStateMachine()
 
-        # --- Startup homing ---
-        if settings.enable_startup_homing:
-            await _run_homing(
+        # Internal queue: calibrate sub-topic commands → calibration background task
+        _cal_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+        @ctx.on_command("calibrate")
+        async def _route_calibrate(sub_topic: str | None, payload: str) -> None:
+            params = _parse_calibrate(
+                payload
+            )  # Now looks for {"phase": "start/go/mark/cancel"}
+            if params is not None:
+                await _cal_queue.put(params)
+            else:
+                logger.warning("Invalid calibration payload: %s", payload)
+
+        # Background task manages calibration sub_entity lifecycle
+        cal_task = asyncio.create_task(
+            _run_calibration_task(
                 ctx=ctx,
                 gpio=gpio,
                 cover_cfg=cover_cfg,
                 settings=settings,
-                tracker=tracker,
+                calibration=calibration,
+                cal_queue=_cal_queue,
                 logger=logger,
             )
+        )
 
-        # Publish initial state
-        await _publish_position(ctx, tracker)
-
-        # --- Command loop ---
-        @ctx.on_command
-        async def handle_command(topic: str, payload: str) -> None:  # noqa: ARG001
-            # Intercept calibration commands before normal parsing
-            cal_params = _parse_calibrate(payload)
-            if cal_params is not None:
-                await _handle_calibration(
-                    ctx=ctx,
-                    gpio=gpio,
-                    cover_cfg=cover_cfg,
-                    settings=settings,
-                    calibration=calibration,
-                    params=cal_params,
-                    logger=logger,
-                )
-                return
-
-            # Block normal commands during active calibration
-            if calibration.state in (
-                CalibrationState.READY,
-                CalibrationState.TIMING_OFFSET,
-                CalibrationState.TIMING_DEAD_BAND,
-                CalibrationState.TIMING,
-            ):
-                logger.warning(
-                    "Calibration active (%s), ignoring command: %s",
-                    calibration.state.name,
-                    payload,
-                )
-                return
-
-            try:
-                command = parse_command(payload)
-            except InvalidCommandError as exc:
-                logger.warning("Invalid command: %s", exc)
-                return
-
-            if command.direction is Direction.STOP:
-                await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
-                tracker.stop()
-                drift.reset()
-                await _publish_position(ctx, tracker)
-                return
-
-            target = command.position
-            if target is None:
-                logger.warning("Command has no target position, ignoring")
-                return
-
-            steps = drift.plan_move(tracker.position, target)
-            for step in steps:
-                if ctx.shutdown_requested:
-                    break
-                await _execute_step(
+        try:
+            # --- Startup homing ---
+            if settings.enable_startup_homing:
+                await _run_homing(
                     ctx=ctx,
                     gpio=gpio,
                     cover_cfg=cover_cfg,
                     settings=settings,
                     tracker=tracker,
-                    step=step,
                     logger=logger,
                 )
-                await _publish_position(ctx, tracker)
 
-        # Keep device alive until shutdown
-        while not ctx.shutdown_requested:
-            await ctx.sleep(1.0)
+            # Publish initial state
+            await _publish_position(ctx, tracker)
+
+            # --- Command loop ---
+            async for cmd in ctx.commands():
+                if cmd is None:  # Type guard for safety
+                    continue
+                payload = cmd.payload
+
+                # Block normal commands during active calibration (no intercept anymore)
+                if calibration.state in (
+                    CalibrationState.READY,
+                    CalibrationState.TIMING_OFFSET,
+                    CalibrationState.TIMING_DEAD_BAND,
+                    CalibrationState.TIMING,
+                ):
+                    logger.warning(
+                        "Calibration active (%s), ignoring command: %s",
+                        calibration.state.name,
+                        payload,
+                    )
+                    continue
+
+                try:
+                    command = parse_command(payload)
+                except InvalidCommandError as exc:
+                    logger.warning("Invalid command: %s", exc)
+                    continue
+
+                if command.direction is Direction.STOP:
+                    await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+                    tracker.stop()
+                    drift.reset()
+                    await _publish_position(ctx, tracker)
+                    continue
+
+                target = command.position
+                if target is None:
+                    logger.warning("Command has no target position, ignoring")
+                    continue
+
+                steps = drift.plan_move(tracker.position, target)
+                for step in steps:
+                    if ctx.shutdown_requested:
+                        break
+                    await _execute_step(
+                        ctx=ctx,
+                        gpio=gpio,
+                        cover_cfg=cover_cfg,
+                        settings=settings,
+                        tracker=tracker,
+                        step=step,
+                        logger=logger,
+                    )
+                    await _publish_position(ctx, tracker)
+
+        finally:
+            cal_task.cancel()
+            try:
+                await cal_task
+            except asyncio.CancelledError:
+                pass
 
     return cover_device
 
@@ -400,8 +422,9 @@ _CALIBRATE_ACTIONS = frozenset({"start", "go", "mark", "cancel"})
 
 
 def _parse_calibrate(payload: str) -> dict[str, object] | None:
-    """Extract calibration parameters from a JSON payload, or None.
+    """Extract calibration parameters from a JSON payload from the calibrate sub-topic.
 
+    Expects format: {"phase": "start|go|mark|cancel", ...extra}
     Returns a dict with at least ``{"action": "<action>"}`` on success,
     plus any extra fields (e.g. ``runs``).
     """
@@ -414,7 +437,7 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
         return None
     if not isinstance(data, dict):
         return None
-    action = data.get("calibrate")
+    action = data.get("phase")
     if isinstance(action, str) and action in _CALIBRATE_ACTIONS:
         result: dict[str, object] = {"action": action}
         if "runs" in data:
@@ -429,110 +452,149 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
     return None
 
 
-async def _handle_calibration(
+async def _run_calibration_task(
     *,
     ctx: cosalette.DeviceContext,
     gpio: GpioSwitchPort,
     cover_cfg: CoverConfig,
     settings: Velux2MqttSettings,
     calibration: CalibrationStateMachine,
-    params: dict[str, object],
+    cal_queue: asyncio.Queue[dict[str, object]],
     logger: logging.Logger,
 ) -> None:
-    """Dispatch a calibration action and publish status.
+    """Background task: manages calibration sub_entity lifecycle."""
+    while not ctx.shutdown_requested:
+        # Wait for a "start" command
+        try:
+            params = await asyncio.wait_for(cal_queue.get(), timeout=1.0)
+        except asyncio.TimeoutError:
+            continue
 
-    Args:
-        ctx: Device context for publishing.
-        gpio: GPIO adapter for button presses.
-        cover_cfg: Cover pin and travel configuration.
-        settings: Application settings (button press duration).
-        calibration: The calibration state machine instance.
-        params: Parsed calibration parameters (action, optional runs).
-        logger: Logger for status messages.
-    """
-    action = params["action"]
-    try:
-        if action == "start":
-            runs_raw = params.get("runs", settings.calibration_runs)
-            runs = int(runs_raw)  # type: ignore
-            measure_off = bool(params.get("measure_offset", cover_cfg.measure_offset))
-            measure_db = bool(params.get("measure_dead_band", False))
-            starting_st = str(params.get("starting_state", "closed"))
-            calibration.start(
-                runs=runs,
-                measure_offset=measure_off,
-                measure_dead_band=measure_db,
-                starting_state=starting_st,
+        if params.get("action") != "start":
+            logger.warning(
+                "Expected 'start' calibration action, got: %r", params.get("action")
             )
-        elif action == "go":
-            event = calibration.go()
-            if event.press_button and event.direction is not None:
-                pin = (
-                    cover_cfg.pin_down
-                    if event.direction is CalibrationDirection.CLOSE
-                    else cover_cfg.pin_up
+            continue
+
+        # === Calibration active: manage sub_entity lifecycle ===
+        async with ctx.sub_entity("calibrate") as cal:
+            try:
+                runs_raw = params.get("runs", settings.calibration_runs)
+                runs = (
+                    int(runs_raw)
+                    if isinstance(runs_raw, (int, str))
+                    else settings.calibration_runs
                 )
-                await gpio.press(pin, settings.button_press_duration)
-        elif action == "mark":
-            event = calibration.mark()
-            if event.press_button and event.direction is not None:
-                pin = (
-                    cover_cfg.pin_down
-                    if event.direction is CalibrationDirection.CLOSE
-                    else cover_cfg.pin_up
+                measure_off_raw = params.get("measure_offset", cover_cfg.measure_offset)
+                measure_off = (
+                    bool(measure_off_raw)
+                    if isinstance(measure_off_raw, bool)
+                    else cover_cfg.measure_offset
                 )
-                await gpio.press(pin, settings.button_press_duration)
-        elif action == "cancel":
-            calibration.cancel()
-    except (CalibrationError, ValueError, TypeError) as exc:
-        logger.warning("Calibration error: %s", exc)
-        await _publish_calibration_state(ctx, calibration)
-        return
+                measure_db_raw = params.get("measure_dead_band", False)
+                measure_db = (
+                    bool(measure_db_raw) if isinstance(measure_db_raw, bool) else False
+                )
+                starting_st_raw = params.get("starting_state", "closed")
+                starting_st = (
+                    str(starting_st_raw)
+                    if isinstance(starting_st_raw, str)
+                    else "closed"
+                )
+                calibration.start(
+                    runs=runs,
+                    measure_offset=measure_off,
+                    measure_dead_band=measure_db,
+                    starting_state=starting_st,
+                )
+            except (ValueError, CalibrationError) as exc:
+                logger.warning("Calibration start error: %s", exc)
+                await _publish_calibration_state(cal, calibration)
+                continue
 
-    await _publish_calibration_state(ctx, calibration)
+            await _publish_calibration_state(cal, calibration)
 
-    if calibration.state is CalibrationState.COMPLETE:
-        result_data: dict[str, object] = {
-            "avg_close": round(calibration.average_close, 2),
-            "avg_open": round(calibration.average_open, 2),
-        }
-        db_pct = 0.0
-        if calibration.has_offset:
-            result_data["avg_offset"] = round(calibration.average_offset, 2)
-        if calibration.has_dead_band:
-            db_pct = calibration.dead_band_pct(
-                calibration.average_close, calibration.average_open
-            )
-            result_data["avg_dead_band"] = round(calibration.average_dead_band, 2)
-            result_data["dead_band_pct"] = round(db_pct, 1)
+            # Process subsequent commands until complete or cancelled
+            while calibration.state is not CalibrationState.IDLE:
+                try:
+                    params = await asyncio.wait_for(cal_queue.get(), timeout=120.0)
+                except asyncio.TimeoutError:
+                    logger.warning("Calibration timed out, cancelling")
+                    calibration.cancel()
+                    break
 
-        # Build log message with measured components
-        parts = [
-            f"avg_close={calibration.average_close:.2f}s",
-            f"avg_open={calibration.average_open:.2f}s",
-        ]
-        if calibration.has_offset:
-            parts.append(f"avg_offset={calibration.average_offset:.2f}s")
-        if calibration.has_dead_band:
-            parts.append(
-                f"avg_dead_band={calibration.average_dead_band:.2f}s ({db_pct:.1f}%)"
-            )
-        logger.info("Calibration complete: %s", ", ".join(parts))
-        await ctx.publish(
-            "calibrate/result",
-            json.dumps(result_data),
-            retain=True,
-        )
+                action = params.get("action")
+                try:
+                    if action == "go":
+                        event = calibration.go()
+                        if event.press_button and event.direction is not None:
+                            pin = (
+                                cover_cfg.pin_down
+                                if event.direction is CalibrationDirection.CLOSE
+                                else cover_cfg.pin_up
+                            )
+                            await gpio.press(pin, settings.button_press_duration)
+                    elif action == "mark":
+                        event = calibration.mark()
+                        if event.press_button and event.direction is not None:
+                            pin = (
+                                cover_cfg.pin_down
+                                if event.direction is CalibrationDirection.CLOSE
+                                else cover_cfg.pin_up
+                            )
+                            await gpio.press(pin, settings.button_press_duration)
+                    elif action == "cancel":
+                        calibration.cancel()
+                    else:
+                        logger.warning("Unknown calibration action: %r", action)
+                except (CalibrationError, ValueError, TypeError) as exc:
+                    logger.warning("Calibration error: %s", exc)
+
+                await _publish_calibration_state(cal, calibration)
+
+                if calibration.state is CalibrationState.COMPLETE:
+                    # Publish result
+                    result_data: dict[str, object] = {
+                        "avg_close": round(calibration.average_close, 2),
+                        "avg_open": round(calibration.average_open, 2),
+                    }
+                    db_pct = 0.0
+                    if calibration.has_offset:
+                        result_data["avg_offset"] = round(calibration.average_offset, 2)
+                    if calibration.has_dead_band:
+                        db_pct = calibration.dead_band_pct(
+                            calibration.average_close, calibration.average_open
+                        )
+                        result_data["avg_dead_band"] = round(
+                            calibration.average_dead_band, 2
+                        )
+                        result_data["dead_band_pct"] = round(db_pct, 1)
+                    parts = [
+                        f"avg_close={calibration.average_close:.2f}s",
+                        f"avg_open={calibration.average_open:.2f}s",
+                    ]
+                    if calibration.has_offset:
+                        parts.append(f"avg_offset={calibration.average_offset:.2f}s")
+                    if calibration.has_dead_band:
+                        parts.append(
+                            f"avg_dead_band={calibration.average_dead_band:.2f}s ({db_pct:.1f}%)"
+                        )
+                    logger.info("Calibration complete: %s", ", ".join(parts))
+                    await ctx.publish(
+                        "calibrate/result", json.dumps(result_data), retain=True
+                    )
+                    break
+        # sub_entity exits → calibrate/availability = "offline"
 
 
 async def _publish_calibration_state(
-    ctx: cosalette.DeviceContext,
+    cal: cosalette.SubEntityContext,
     calibration: CalibrationStateMachine,
 ) -> None:
-    """Publish current calibration state to MQTT."""
+    """Publish current calibration state to MQTT via sub-entity context."""
     payload: dict[str, object] = {"state": calibration.state.name}
     if calibration.state is not CalibrationState.IDLE:
         payload["run"] = calibration.current_run
         payload["total_runs"] = calibration.total_runs
         payload["direction"] = calibration.direction.name
-    await ctx.publish("calibrate/state", json.dumps(payload), retain=True)
+    await cal.publish_state(payload)

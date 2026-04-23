@@ -440,6 +440,8 @@ class _FakeContext:
 
         # on_command stores the handler so tests can invoke it
         self._command_handler: Any = None
+        # Command queue for ctx.commands() API
+        self._command_queue: asyncio.Queue[str | None] = asyncio.Queue()
 
     @property
     def shutdown_requested(self) -> bool:
@@ -455,6 +457,28 @@ class _FakeContext:
     def on_command(self, handler: Any) -> Any:
         self._command_handler = handler
         return handler
+
+    async def commands(self, timeout: float = 5):
+        """Simulate ctx.commands() for tests."""
+        while not self.shutdown_requested:
+            try:
+                payload = await asyncio.wait_for(
+                    self._command_queue.get(), timeout=timeout
+                )
+                if payload is None:
+                    yield None  # timeout signal
+                else:
+                    # Create a mock command object
+                    cmd = MagicMock()
+                    cmd.payload = payload
+                    yield cmd
+            except asyncio.TimeoutError:
+                self.record_timeout()
+                yield None
+
+    async def inject_command(self, payload: str) -> None:
+        """Inject a command for testing."""
+        await self._command_queue.put(payload)
 
     def record_timeout(self) -> None:
         """Called by ``_instant_wait_for`` on each TimeoutError."""
@@ -516,10 +540,10 @@ def _make_inject_start(
         nonlocal _started, _cancelled
         if state == {"status": "idle"} and not _started:
             _started = True
-            await ctx._command_handler(_CMD_TOPIC, _CMD_START)
+            await ctx.inject_command(_CMD_START)
         elif cancel_on_heating and state.get("status") == "heating" and not _cancelled:
             _cancelled = True
-            await ctx._command_handler(_CMD_TOPIC, _CMD_CANCEL)
+            await ctx.inject_command(_CMD_CANCEL)
 
     return _inject
 
@@ -942,17 +966,20 @@ class TestLegionellaDevice:
         """
         # Arrange
         store = _FakeDeviceStore()
-        ctx = _FakeContext(shutdown_after_waits=1)
+        ctx = _FakeContext(shutdown_after_waits=5)  # Enough time for injections
 
-        with _instant_wait_for(ctx):
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+        async def _run_device():
+            with _instant_wait_for(ctx):
+                await _legionella_device(ctx, store)  # type: ignore[arg-type]
 
-        # Now invoke the handler with non-dict JSON — should not raise
-        assert ctx._command_handler is not None
-        await ctx._command_handler(_CMD_TOPIC, "[]")
-        await ctx._command_handler(_CMD_TOPIC, '"just a string"')
-        await ctx._command_handler(_CMD_TOPIC, "42")
-        await ctx._command_handler(_CMD_TOPIC, "null")
+        # Inject non-dict JSON commands
+        task = asyncio.create_task(_run_device())
+        await ctx.inject_command("[]")
+        await ctx.inject_command('"just a string"')
+        await ctx.inject_command("42")
+        await ctx.inject_command("null")
+
+        await task
 
         # No exception means the guard works.  Also verify no state
         # change — only idle was published (no checking/heating/etc.)

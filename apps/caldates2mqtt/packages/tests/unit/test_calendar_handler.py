@@ -34,7 +34,7 @@ def _make_cal_config(**overrides: object) -> CalendarConfig:
         "password": "pass",
         "entries": 5,
         "days": 14,
-        "poll_interval": 0.01,
+        "schedule": "*/10 * * * * ?",
     }
     defaults.update(overrides)
     return CalendarConfig(**defaults)  # type: ignore[arg-type]

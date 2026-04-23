@@ -90,7 +90,7 @@ def setup_calendars(settings: CalDates2MqttSettings) -> None:
         app.add_telemetry(
             cal.key,
             make_calendar_handler(cal),
-            interval=cal.poll_interval,
+            schedule=cal.schedule,
             triggerable=True,
             summary=f"Calendar event telemetry for {cal.key}",
             payload_model=cosalette.TriggerPayload,
