@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import cast
 
 import cosalette
 from cosalette import DeviceStore, OnChange, setting_ref
@@ -40,7 +41,7 @@ async def _gas_lifespan(
     the same GasCounterState instance, ensuring consistent in-process
     state. Explicit save() in stage_state() handles persistence.
     """
-    settings: Gas2MqttSettings = ctx.settings
+    settings = cast(Gas2MqttSettings, ctx.settings)
     logger = logging.getLogger("gas2mqtt.lifespan")
     store_backend = _make_store(settings)
     device_store = DeviceStore(store_backend, "gas_counter")
