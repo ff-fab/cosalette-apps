@@ -83,7 +83,7 @@ def create_app() -> cosalette.App:
     )(gas_counter)
 
     app.command(
-        "gas_counter/consumption",
+        "consumption",
         # No init= — GasCounterState injected from lifespan (same instance as telemetry)
         summary="Override the accumulated consumption_m3 value for the gas counter",
         payload_model=dict,
@@ -96,14 +96,14 @@ def create_app() -> cosalette.App:
 
     app.telemetry(
         "temperature",
-        interval=lambda s: s.temperature_interval,
+        interval=setting_ref("temperature_interval"),
         publish=OnChange(threshold={"temperature": 0.05}),
         init=make_pt1,
     )(temperature)
 
     app.telemetry(
         "magnetometer",
-        interval=lambda s: s.poll_interval,
+        interval=setting_ref("poll_interval"),
         enabled=lambda s: s.enable_debug_device,
     )(magnetometer)
 

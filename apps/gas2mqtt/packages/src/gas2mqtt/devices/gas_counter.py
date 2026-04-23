@@ -17,7 +17,7 @@ MQTT state payload:
     or with consumption:
     {"counter": 42, "trigger": "CLOSED", "consumption_m3": 123.45}
 
-MQTT command payload (on gas2mqtt/gas_counter/consumption/set):
+MQTT command payload (on gas2mqtt/consumption/set):
     {"consumption_m3": 123.45}
 """
 

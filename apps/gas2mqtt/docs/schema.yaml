@@ -1,0 +1,55 @@
+asyncapi: 3.0.0
+info:
+  title: gas2mqtt
+  version: 0.1.1
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false
+channels:
+  gas_counterState:
+    address: gas2mqtt/gas_counter/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: telemetry
+  temperatureState:
+    address: gas2mqtt/temperature/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: telemetry
+  magnetometerState:
+    address: gas2mqtt/magnetometer/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: telemetry
+  consumptionCommand:
+    address: gas2mqtt/consumption/set
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: command
+operations:
+  publishGasCounterState:
+    action: send
+    channel:
+      $ref: '#/channels/gas_counterState'
+  publishTemperatureState:
+    action: send
+    channel:
+      $ref: '#/channels/temperatureState'
+  publishMagnetometerState:
+    action: send
+    channel:
+      $ref: '#/channels/magnetometerState'
+  receiveConsumptionCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/consumptionCommand'
