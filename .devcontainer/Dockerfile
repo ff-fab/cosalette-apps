@@ -1,7 +1,7 @@
 # cosalette-apps development container
 # Python 3.14 + uv + common dev tools
 
-FROM mcr.microsoft.com/devcontainers/python:3.14
+FROM mcr.microsoft.com/devcontainers/python:3.14-bookworm
 
 # Install uv (fast Python package manager)
 # renovate: datasource=docker depName=ghcr.io/astral-sh/uv

@@ -1,21 +1,19 @@
-"""Gas counter device — stateful trigger detection and counting.
+"""Gas counter telemetry — stateful trigger detection and counting.
 
-Uses an @app.device handler with a manual polling loop:
-1. Reads Bz from the magnetometer at poll_interval
-2. Feeds Bz into a SchmittTrigger
-3. On rising edge: increments counter, optionally tracks consumption
-4. Publishes state on every trigger event (not every poll)
-5. Accepts inbound commands to set consumption value
+Uses triggerable telemetry with an init= factory for stateful domain objects.
+The handler is called periodically (poll_interval) AND on inbound MQTT commands.
+
+Scheduled runs: read magnetometer, detect trigger edges, count ticks.
+Triggered runs: set consumption value from MQTT command payload.
 
 State persistence:
-    When ``state_file`` is configured, counter and consumption values
-    are saved after every state-publishing event and on shutdown.
-    On startup, saved state is restored so values survive restarts.
-    The trigger state is transient and not persisted.
+    DeviceStore is injected into the init factory. The framework
+    auto-saves via persist=SaveOnChange() on every state-changing cycle.
+    Counter and consumption survive restarts.
 
 MQTT state payload:
     {"counter": 42, "trigger": "CLOSED"}
-    or with consumption tracking:
+    or with consumption:
     {"counter": 42, "trigger": "CLOSED", "consumption_m3": 123.45}
 
 MQTT command payload (on gas2mqtt/gas_counter/set):
@@ -24,10 +22,10 @@ MQTT command payload (on gas2mqtt/gas_counter/set):
 
 from __future__ import annotations
 
-import json
+import math
 import logging
 
-import cosalette
+from cosalette import DeviceStore, TriggerPayload
 
 from gas2mqtt.domain.consumption import ConsumptionTracker
 from gas2mqtt.domain.schmitt import SchmittTrigger, TriggerState
@@ -35,44 +33,45 @@ from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
 COUNTER_MODULUS = 0x10000
-"""Modulus for the tick counter (wraps at 2^16)."""
+MAX_CONSUMPTION_M3 = 1_000_000.0
 
 
-def _process_poll(
-    magnetometer: MagnetometerPort,
-    trigger: SchmittTrigger,
-    counter: int,
-    consumption: ConsumptionTracker | None,
-    logger: logging.Logger,
-) -> tuple[int, bool]:
-    """Read magnetometer and process trigger event.
+class GasCounterState:
+    """Mutable state container for the gas counter.
 
-    Returns:
-        Tuple of (updated counter, whether state should be published).
-
-    Raises:
-        OSError: If the I2C read fails.
+    Created once by make_gas_counter() init factory, persists across
+    all scheduled and triggered telemetry runs.
     """
-    reading = magnetometer.read()
-    event = trigger.update(reading.bz)
-    if event is None:
-        return counter, False
-    if event.is_rising_edge:
-        counter = (counter + 1) % COUNTER_MODULUS
-        if consumption is not None:
-            consumption.tick()
-        logger.debug("Gas tick: counter=%d", counter)
-    return counter, True
+
+    def __init__(
+        self,
+        trigger: SchmittTrigger,
+        counter: int,
+        consumption: ConsumptionTracker | None,
+        store: DeviceStore,
+    ) -> None:
+        self.trigger = trigger
+        self.counter = counter
+        self.consumption = consumption
+        self.store = store
+
+    def build_state(self) -> dict[str, object]:
+        state: dict[str, object] = {
+            "counter": self.counter,
+            "trigger": "CLOSED" if self.trigger.state is TriggerState.HIGH else "OPEN",
+        }
+        if self.consumption is not None:
+            state["consumption_m3"] = round(self.consumption.consumption_m3, 3)
+        return state
+
+    def stage_state(self) -> None:
+        state = self.build_state()
+        state.pop("trigger", None)
+        self.store.update(state)
 
 
-def _restore_counter(
-    store: cosalette.DeviceStore,
-    logger: logging.Logger,
-) -> int:
-    """Restore the tick counter from saved state.
-
-    Returns 0 if the store has no counter value.
-    """
+def _restore_counter(store: DeviceStore, logger: logging.Logger) -> int:
+    """Restore tick counter from saved state. Returns 0 if absent."""
     raw = store.get("counter", 0)
     counter = int(raw) if isinstance(raw, (int, float, str)) else 0
     if counter != 0:
@@ -81,105 +80,122 @@ def _restore_counter(
 
 
 def _restore_consumption(
-    store: cosalette.DeviceStore,
+    store: DeviceStore,
     settings: Gas2MqttSettings,
     logger: logging.Logger,
 ) -> ConsumptionTracker | None:
-    """Restore consumption tracker from saved state.
-
-    Returns None if consumption tracking is disabled.
-    """
+    """Restore consumption tracker from saved state. None if disabled."""
     if not settings.enable_consumption_tracking:
         return None
     initial_m3 = 0.0
     raw = store.get("consumption_m3")
     if raw is not None:
         initial_m3 = float(raw) if isinstance(raw, (int, float, str)) else 0.0
-        logger.info(
-            "Restored consumption=%.3f m³ from saved state",
-            initial_m3,
-        )
+        logger.info("Restored consumption=%.3f m³ from saved state", initial_m3)
     return ConsumptionTracker(settings.liters_per_tick, initial_m3=initial_m3)
 
 
-async def gas_counter(
-    ctx: cosalette.DeviceContext,
-    store: cosalette.DeviceStore,
-) -> None:
-    """Gas counter device — polls magnetometer, detects ticks.
+def _parse_consumption_m3(
+    raw_value: object,
+    logger: logging.Logger,
+) -> float | None:
+    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float, str)):
+        logger.warning("Ignoring invalid consumption_m3 payload: %r", raw_value)
+        return None
 
-    This is a long-running device coroutine intended for registration
-    with ``@app.device("gas_counter")``. It owns its polling loop,
-    manages a SchmittTrigger for edge detection, and optionally tracks
-    cumulative gas consumption.
+    try:
+        value = float(raw_value)
+    except TypeError, ValueError:
+        logger.warning("Ignoring invalid consumption_m3 payload: %r", raw_value)
+        return None
 
-    Args:
-        ctx: Per-device context injected by cosalette. Provides MQTT
-            publishing, shutdown-aware sleep, adapter resolution,
-            and settings access.
-        store: Per-device persistent store injected by cosalette.
-            Already loaded on entry; saved by framework on shutdown.
+    if not math.isfinite(value):
+        logger.warning("Ignoring non-finite consumption_m3 payload: %r", raw_value)
+        return None
+    if value < 0:
+        logger.warning("Ignoring negative consumption_m3 payload: %r", raw_value)
+        return None
+    if value > MAX_CONSUMPTION_M3:
+        logger.warning(
+            "Ignoring out-of-range consumption_m3 payload: %r",
+            raw_value,
+        )
+        return None
+    return value
+
+
+def make_gas_counter(
+    settings: Gas2MqttSettings,
+    store: DeviceStore,
+    logger: logging.Logger,
+) -> GasCounterState:
+    """Init factory — creates stateful domain objects.
+
+    Called once before the telemetry loop. The returned GasCounterState
+    is injected into gas_counter() on every scheduled and triggered run.
     """
-    settings: Gas2MqttSettings = ctx.settings  # type: ignore
-    magnetometer = ctx.adapter(MagnetometerPort)  # type: ignore[type-abstract]
-    logger = logging.getLogger(f"cosalette.{ctx.name}")
-
-    # --- Domain object initialisation ---
+    store.load()
     trigger = SchmittTrigger(settings.trigger_level, settings.trigger_hysteresis)
-
-    # --- Restore persisted state ---
     counter = _restore_counter(store, logger)
     consumption = _restore_consumption(store, settings, logger)
+    return GasCounterState(trigger, counter, consumption, store)
 
-    def _build_state() -> dict[str, object]:
-        """Build the state payload dict."""
-        state: dict[str, object] = {
-            "counter": counter,
-            "trigger": "CLOSED" if trigger.state is TriggerState.HIGH else "OPEN",
-        }
-        if consumption is not None:
-            state["consumption_m3"] = round(consumption.consumption_m3, 3)
-        return state
 
-    @ctx.on_command
-    async def handle_command(topic: str, payload: str) -> None:  # noqa: ARG001
-        nonlocal consumption
-        if consumption is None:
-            logger.warning("Consumption command received but tracking is disabled")
-            return
-        data = json.loads(payload)
-        if "consumption_m3" in data:
-            consumption.set_consumption(float(data["consumption_m3"]))
-            logger.info("Consumption set to %.3f m³", consumption.consumption_m3)
-            await ctx.publish_state(_build_state())
-            _save_state()
+async def gas_counter(
+    state: GasCounterState,
+    trigger: TriggerPayload,
+    magnetometer: MagnetometerPort,
+    logger: logging.Logger,
+) -> dict[str, object] | None:
+    """Gas counter telemetry handler.
 
-    def _save_state() -> None:
-        """Persist current state to the device store."""
-        state = _build_state()
-        # Remove trigger — it's transient, not worth persisting
-        state.pop("trigger", None)
-        store.update(state)
-        store.save()
+    Called periodically (scheduled) and on MQTT command (triggered).
+    Returns dict to publish, or None to skip.
+    """
+    if trigger.is_triggered:
+        return _handle_command(state, trigger, logger)
+    return _poll(state, magnetometer, logger)
 
-    # Publish initial state
-    await ctx.publish_state(_build_state())
-    _save_state()
 
-    while not ctx.shutdown_requested:
-        try:
-            counter, should_publish = _process_poll(
-                magnetometer,
-                trigger,
-                counter,
-                consumption,
-                logger,
-            )
-        except OSError:
-            logger.warning("I2C read error — will retry next poll cycle", exc_info=True)
-            await ctx.sleep(settings.poll_interval)
-            continue
-        if should_publish:
-            await ctx.publish_state(_build_state())
-            _save_state()
-        await ctx.sleep(settings.poll_interval)
+def _handle_command(
+    state: GasCounterState,
+    trigger: TriggerPayload,
+    logger: logging.Logger,
+) -> dict[str, object] | None:
+    """Handle inbound MQTT command to set consumption."""
+    if state.consumption is None:
+        logger.warning("Consumption command received but tracking is disabled")
+        return None
+
+    data = trigger.data
+    if not data:
+        return None
+
+    if "consumption_m3" in data:
+        consumption_m3 = _parse_consumption_m3(data["consumption_m3"], logger)
+        if consumption_m3 is None:
+            return None
+        state.consumption.set_consumption(consumption_m3)
+        logger.info("Consumption set to %.3f m³", state.consumption.consumption_m3)
+        state.stage_state()
+        return state.build_state()
+    return None
+
+
+def _poll(
+    state: GasCounterState,
+    magnetometer: MagnetometerPort,
+    logger: logging.Logger,
+) -> dict[str, object] | None:
+    """Read magnetometer, process trigger, return state if changed."""
+    reading = magnetometer.read()
+    event = state.trigger.update(reading.bz)
+    if event is None:
+        return None  # No state change — framework skips publish
+    if event.is_rising_edge:
+        state.counter = (state.counter + 1) % COUNTER_MODULUS
+        if state.consumption is not None:
+            state.consumption.tick()
+        logger.debug("Gas tick: counter=%d", state.counter)
+    state.stage_state()
+    return state.build_state()

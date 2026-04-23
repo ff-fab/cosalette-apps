@@ -1,67 +1,63 @@
-"""gas2mqtt application entry point.
-
-Wires the cosalette App with all devices, adapters, and settings.
-The module-level ``app`` object is the entry point for the CLI:
-``gas2mqtt`` runs ``app.run()``.
-"""
+"""gas2mqtt application entry point."""
 
 from __future__ import annotations
 
 import cosalette
-from cosalette import OnChange
+from cosalette import OnChange, SaveOnChange
 
 from gas2mqtt import __version__
+from gas2mqtt._store_path import resolve_store_path
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.adapters.qmc5883l import Qmc5883lAdapter
-from gas2mqtt.devices.gas_counter import gas_counter
+from gas2mqtt.devices.gas_counter import gas_counter, make_gas_counter
 from gas2mqtt.devices.magnetometer import magnetometer
 from gas2mqtt.devices.temperature import make_pt1, temperature
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
-# --- Settings & store ---
-# Eagerly instantiated so registration calls below can use concrete values
-# (intervals, enabled flags, state_file). The same class is passed via
-# settings_class= so cosalette's DI injects an identical instance into
-# device handlers at runtime.
 
-settings = Gas2MqttSettings()
+def _make_store(settings: Gas2MqttSettings) -> cosalette.Store:
+    store_path = settings.state_file or resolve_store_path()
+    return cosalette.JsonFileStore(store_path)
 
-_store: cosalette.Store = (
-    cosalette.JsonFileStore(settings.state_file)
-    if settings.state_file is not None
-    else cosalette.NullStore()
-)
 
-# --- App creation ---
+def create_app() -> cosalette.App:
+    app = cosalette.App(
+        name="gas2mqtt",
+        version=__version__,
+        description="Domestic gas meter reader via QMC5883L magnetometer",
+        settings_class=Gas2MqttSettings,
+        store=_make_store,
+        adapters={
+            MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
+        },
+    )
 
-app = cosalette.App(
-    name="gas2mqtt",
-    version=__version__,
-    description="Domestic gas meter reader via QMC5883L magnetometer",
-    settings_class=Gas2MqttSettings,
-    store=_store,
-    adapters={
-        MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
-    },
-)
-"""Module-level app instance — entry point for the CLI."""
+    app.telemetry(
+        "gas_counter",
+        interval=lambda s: s.poll_interval,
+        triggerable=True,
+        publish=OnChange(),
+        persist=SaveOnChange(),
+        init=make_gas_counter,
+    )(gas_counter)
 
-# --- Device registration ---
+    app.telemetry(
+        "temperature",
+        interval=lambda s: s.temperature_interval,
+        publish=OnChange(threshold={"temperature": 0.05}),
+        init=make_pt1,
+    )(temperature)
 
-app.add_device("gas_counter", gas_counter)
+    app.telemetry(
+        "magnetometer",
+        interval=lambda s: s.poll_interval,
+        enabled=lambda s: s.enable_debug_device,
+    )(magnetometer)
 
-app.add_telemetry(
-    "temperature",
-    temperature,
-    interval=settings.temperature_interval,
-    publish=OnChange(threshold={"temperature": 0.05}),
-    init=make_pt1,
-)
+    return app
 
-app.add_telemetry(
-    "magnetometer",
-    magnetometer,
-    interval=settings.poll_interval,
-    enabled=settings.enable_debug_device,
-)
+
+app = create_app()
+
+cli = app.cli

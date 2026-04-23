@@ -111,13 +111,13 @@ of 300s, the effective smoothing factor is 0.2.
 
 ### State Persistence
 
-| Setting    | Env Variable          | Default | Description                                   |
-| ---------- | --------------------- | ------- | --------------------------------------------- |
-| State file | `GAS2MQTT_STATE_FILE` | —       | Path to JSON file for persisting device state |
+| Setting    | Env Variable          | Default    | Description                                    |
+| ---------- | --------------------- | ---------- | ---------------------------------------------- |
+| State file | `GAS2MQTT_STATE_FILE` | XDG path   | Optional path override for persisted device state |
 
-When set, gas2mqtt saves gas counter ticks and consumption data to this file and
-restores them on restart. Without it, both values reset to zero on every container
-recreate.
+By default, gas2mqtt saves gas counter ticks and consumption data to the XDG state path:
+`$XDG_STATE_HOME/gas2mqtt/state.json` or `~/.local/state/gas2mqtt/state.json`.
+Set `GAS2MQTT_STATE_FILE` to override that location explicitly.
 
 !!! tip "Docker deployments" The `docker-compose.yml` maps a `gas2mqtt-data` volume to
 `/app/data`. Set `GAS2MQTT_STATE_FILE=/app/data/state.json` in your `.env` to persist
@@ -171,7 +171,9 @@ GAS2MQTT_MQTT__PORT=1883
 # GAS2MQTT_LITERS_PER_TICK=10.0
 
 # --- State Persistence ---
-# Persist counter and consumption across restarts (Docker volume: /app/data)
+# Persist counter and consumption across restarts.
+# Default: $XDG_STATE_HOME/gas2mqtt/state.json or ~/.local/state/gas2mqtt/state.json
+# Override for Docker volume mounts:
 # GAS2MQTT_STATE_FILE=/app/data/state.json
 
 # --- Debug ---
