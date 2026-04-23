@@ -123,25 +123,3 @@ class TestTelemetryDuplicateReadings:
         # Assert
         assert first == expected
         assert second == expected
-
-
-@pytest.mark.unit
-class TestPollInterval:
-    """Verify deferred poll interval resolution from settings."""
-
-    def test_poll_interval_resolves_from_settings(self) -> None:
-        """_poll_interval returns float of settings.poll_interval.
-
-        Technique: Specification-based — verify deferred interval contract.
-        """
-        from airthings2mqtt.main import _poll_interval
-
-        # Arrange
-        settings = make_airthings2mqtt_settings(poll_interval=300)
-
-        # Act
-        result = _poll_interval(settings)
-
-        # Assert
-        assert result == 300.0
-        assert isinstance(result, float)

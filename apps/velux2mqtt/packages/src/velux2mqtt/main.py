@@ -32,7 +32,11 @@ app = cosalette.App(
 _settings = Velux2MqttSettings()
 
 for _cover_cfg in _settings.covers:
-    app.add_device(_cover_cfg.name, make_cover(_cover_cfg, _settings))
+    app.add_device(
+        _cover_cfg.name,
+        make_cover(_cover_cfg, _settings),
+        summary=f"Velux cover {_cover_cfg.name}: open/close/stop control",
+    )
 
 
 def main() -> None:

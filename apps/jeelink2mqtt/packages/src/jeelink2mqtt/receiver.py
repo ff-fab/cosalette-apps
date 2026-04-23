@@ -42,7 +42,9 @@ logger = logging.getLogger(__name__)
 def register_receiver(app: cosalette.App) -> None:
     """Register the receiver as the root device on *app*."""
 
-    @app.device()  # Root → topics at jeelink2mqtt/{channel}
+    @app.device(
+        summary="JeeLink LaCrosse serial receiver: read sensor frames and publish state"
+    )  # Root → topics at jeelink2mqtt/{channel}
     async def receiver(  # pragma: no cover — composition root, tested via integration
         ctx: cosalette.DeviceContext,
         jeelink: JeeLinkPort,

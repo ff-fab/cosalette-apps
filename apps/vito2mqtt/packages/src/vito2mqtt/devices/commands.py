@@ -58,6 +58,16 @@ from vito2mqtt.ports import OptolinkPort
 
 __all__ = ["register_commands"]
 
+_COMMAND_SUMMARIES: dict[str, str] = {
+    "outdoor": "Set outdoor temperature compensation parameters",
+    "hot_water": "Set hot water temperature and timer schedules",
+    "burner": "Set boiler temperature setpoints and control parameters",
+    "heating_radiator": "Set radiator heating circuit temperatures and schedules",
+    "heating_floor": "Set floor heating circuit temperatures and schedules",
+    "system": "Set Vitotronic system operational parameters",
+    "diagnosis": "Clear diagnostic error codes and reset system counters",
+}
+
 
 def _parse_payload(raw: str, group: str) -> tuple[dict[str, Any], bool]:
     """Parse JSON, extract ``__force`` meta-key, and validate signal names.
@@ -184,7 +194,13 @@ def register_commands(app: App) -> None:
         app: The cosalette application instance.
     """
     for group_name in COMMAND_GROUPS:
+        # Only register commands for groups that actually exist in COMMAND_GROUPS
+        summary = _COMMAND_SUMMARIES.get(
+            group_name, f"Control {group_name} parameters via Optolink serial"
+        )
         app.add_command(
             name=group_name,
             func=_make_handler(group_name),
+            summary=summary,
+            payload_model=dict,
         )

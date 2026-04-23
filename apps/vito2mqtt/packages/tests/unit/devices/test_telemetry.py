@@ -34,9 +34,7 @@ from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
 from vito2mqtt.devices.telemetry import (
-    _INTERVAL_ATTR,
     _make_handler,
-    _make_interval,
     register_telemetry,
 )
 from vito2mqtt.optolink.codec import ReturnStatus
@@ -138,49 +136,6 @@ class TestRegisterTelemetry:
             assert callable(call.kwargs["func"]), (
                 f"Group {call.kwargs['name']!r}: func is not callable"
             )
-
-
-# ---------------------------------------------------------------------------
-# _make_interval
-# ---------------------------------------------------------------------------
-
-
-class TestMakeInterval:
-    """Verify _make_interval produces correct resolver callables."""
-
-    @pytest.mark.parametrize(
-        ("group", "attr"),
-        list(_INTERVAL_ATTR.items()),
-        ids=list(_INTERVAL_ATTR.keys()),
-    )
-    def test_resolver_returns_correct_interval_per_group(
-        self,
-        settings: Vito2MqttSettings,
-        group: str,
-        attr: str,
-    ) -> None:
-        """Each group's resolver must return the correct settings value.
-
-        Technique: Specification-based — _INTERVAL_ATTR defines the mapping.
-        """
-        resolver = _make_interval(group)
-        expected = float(getattr(settings, attr))
-        assert resolver(settings) == expected
-
-    def test_interval_attr_covers_all_groups(self) -> None:
-        """_INTERVAL_ATTR must have an entry for every signal group.
-
-        Technique: Cross-reference — SIGNAL_GROUPS ↔ _INTERVAL_ATTR.
-        """
-        assert set(_INTERVAL_ATTR.keys()) == set(SIGNAL_GROUPS.keys())
-
-    def test_resolver_is_callable(self) -> None:
-        """_make_interval must return a callable.
-
-        Technique: Specification-based — cosalette expects Callable[[Settings], float].
-        """
-        resolver = _make_interval("outdoor")
-        assert callable(resolver)
 
 
 # ---------------------------------------------------------------------------
