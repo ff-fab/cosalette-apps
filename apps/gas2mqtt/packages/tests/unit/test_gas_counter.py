@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 
 import pytest
-from cosalette import DeviceStore, MemoryStore, TriggerPayload
+from cosalette import DeviceStore, MemoryStore
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.devices.gas_counter import (
@@ -20,6 +20,7 @@ from gas2mqtt.devices.gas_counter import (
     GasCounterState,
     gas_counter,
     make_gas_counter,
+    update_consumption,
 )
 from tests.fixtures.config import make_gas2mqtt_settings
 
@@ -114,9 +115,7 @@ class TestGasCounterTriggerDetection:
         fake_magnetometer.bz = BZ_NEUTRAL
         state = _make_test_state()
 
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result is None
 
@@ -127,9 +126,7 @@ class TestGasCounterTriggerDetection:
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state()
 
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result == {"counter": 1, "trigger": "CLOSED"}
 
@@ -140,13 +137,11 @@ class TestGasCounterTriggerDetection:
         # First trigger rising edge to get to HIGH state
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state()
-        await gas_counter(state, TriggerPayload.scheduled(), fake_magnetometer, _logger)
+        await gas_counter(state, fake_magnetometer, _logger)
 
         # Then trigger falling edge
         fake_magnetometer.bz = BZ_LOW
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result == {"counter": 1, "trigger": "OPEN"}
 
@@ -163,19 +158,15 @@ class TestGasCounterIncrement:
         state = _make_test_state()
 
         # First rising edge
-        result1 = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result1 = await gas_counter(state, fake_magnetometer, _logger)
 
         # Return to LOW
         fake_magnetometer.bz = BZ_LOW
-        await gas_counter(state, TriggerPayload.scheduled(), fake_magnetometer, _logger)
+        await gas_counter(state, fake_magnetometer, _logger)
 
         # Second rising edge
         fake_magnetometer.bz = BZ_HIGH
-        result2 = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result2 = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result1["counter"] == 1
         assert result2["counter"] == 2
@@ -187,9 +178,7 @@ class TestGasCounterIncrement:
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state(saved_counter=COUNTER_MODULUS - 1)
 
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result["counter"] == 0
 
@@ -200,12 +189,10 @@ class TestGasCounterIncrement:
         # Start HIGH, then go LOW (falling edge)
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state()
-        await gas_counter(state, TriggerPayload.scheduled(), fake_magnetometer, _logger)
+        await gas_counter(state, fake_magnetometer, _logger)
 
         fake_magnetometer.bz = BZ_LOW
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result["counter"] == 1  # Unchanged from rising edge
 
@@ -221,9 +208,7 @@ class TestGasCounterConsumption:
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state(enable_consumption=True, liters_per_tick=10.0)
 
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result["consumption_m3"] == 0.01  # 10 liters = 0.01 m3
 
@@ -235,75 +220,89 @@ class TestGasCounterConsumption:
         state = _make_test_state(enable_consumption=True, liters_per_tick=5.0)
 
         # First tick
-        await gas_counter(state, TriggerPayload.scheduled(), fake_magnetometer, _logger)
+        await gas_counter(state, fake_magnetometer, _logger)
         fake_magnetometer.bz = BZ_LOW
-        await gas_counter(state, TriggerPayload.scheduled(), fake_magnetometer, _logger)
+        await gas_counter(state, fake_magnetometer, _logger)
 
         # Second tick
         fake_magnetometer.bz = BZ_HIGH
-        result = await gas_counter(
-            state, TriggerPayload.scheduled(), fake_magnetometer, _logger
-        )
+        result = await gas_counter(state, fake_magnetometer, _logger)
 
         assert result["consumption_m3"] == 0.01  # 2 * 5L = 10L = 0.01 m3
 
 
 @pytest.mark.unit
-class TestGasCounterCommand:
-    """Verify MQTT command handling."""
+class TestUpdateConsumptionCommand:
+    """Verify MQTT consumption command handling."""
 
-    async def test_command_sets_consumption(
-        self, fake_magnetometer: FakeMagnetometer
-    ) -> None:
+    async def test_command_sets_consumption(self) -> None:
         """MQTT command sets consumption and publishes updated state."""
         state = _make_test_state(enable_consumption=True)
-        trigger = TriggerPayload.from_mqtt('{"consumption_m3": 123.456}')
+        payload = '{"consumption_m3": 123.456}'
 
-        result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+        result = await update_consumption(payload, state, _logger)
 
         assert result["consumption_m3"] == 123.456
 
-    async def test_command_ignored_when_consumption_disabled(
-        self, fake_magnetometer: FakeMagnetometer
-    ) -> None:
+    async def test_command_ignored_when_consumption_disabled(self) -> None:
         """Command ignored when consumption tracking disabled."""
         state = _make_test_state(enable_consumption=False)
-        trigger = TriggerPayload.from_mqtt('{"consumption_m3": 123.456}')
+        payload = '{"consumption_m3": 123.456}'
 
-        result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+        result = await update_consumption(payload, state, _logger)
 
         assert result is None
 
-    async def test_command_empty_payload_ignored(
-        self, fake_magnetometer: FakeMagnetometer
-    ) -> None:
+    async def test_command_empty_payload_ignored(self) -> None:
         """Empty command payload is ignored."""
         state = _make_test_state(enable_consumption=True)
-        trigger = TriggerPayload.from_mqtt("")
+        payload = ""
 
-        result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+        result = await update_consumption(payload, state, _logger)
+
+        assert result is None
+
+    async def test_command_whitespace_payload_ignored(self) -> None:
+        """Whitespace-only command payload is ignored."""
+        state = _make_test_state(enable_consumption=True)
+        payload = "   \t\n   "
+
+        result = await update_consumption(payload, state, _logger)
 
         assert result is None
 
     async def test_command_invalid_json_ignored(
-        self, fake_magnetometer: FakeMagnetometer
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Invalid JSON in command payload is silently ignored (framework parses JSON)."""
+        """Invalid JSON in command payload is ignored with warning."""
         state = _make_test_state(enable_consumption=True)
-        trigger = TriggerPayload.from_mqtt("not json")
+        payload = "not json"
 
-        result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+        with caplog.at_level(logging.WARNING):
+            result = await update_consumption(payload, state, _logger)
 
         assert result is None
+        assert "invalid JSON" in caplog.text
 
-    async def test_command_without_consumption_key_ignored(
-        self, fake_magnetometer: FakeMagnetometer
+    async def test_command_non_object_json_ignored(
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
+        """Non-object JSON in command payload is ignored with warning."""
+        state = _make_test_state(enable_consumption=True)
+        payload = "42"  # Valid JSON but not an object
+
+        with caplog.at_level(logging.WARNING):
+            result = await update_consumption(payload, state, _logger)
+
+        assert result is None
+        assert "non-object JSON" in caplog.text
+
+    async def test_command_without_consumption_key_ignored(self) -> None:
         """Command without consumption_m3 key is ignored."""
         state = _make_test_state(enable_consumption=True)
-        trigger = TriggerPayload.from_mqtt('{"other_key": 42}')
+        payload = '{"other_key": 42}'
 
-        result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+        result = await update_consumption(payload, state, _logger)
 
         assert result is None
 
@@ -320,7 +319,6 @@ class TestGasCounterCommand:
     )
     async def test_command_invalid_consumption_value_ignored(
         self,
-        fake_magnetometer: FakeMagnetometer,
         caplog: pytest.LogCaptureFixture,
         payload: str,
         warning_fragment: str,
@@ -331,14 +329,24 @@ class TestGasCounterCommand:
         negative, and out-of-range payload classes.
         """
         state = _make_test_state(enable_consumption=True)
-        trigger = TriggerPayload.from_mqtt(payload)
 
         with caplog.at_level(logging.WARNING):
-            result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+            result = await update_consumption(payload, state, _logger)
 
         assert result is None
         assert state.store.get("consumption_m3") is None
         assert warning_fragment in caplog.text
+
+    async def test_command_saves_state_after_update(self) -> None:
+        """State is saved after consumption update."""
+        state = _make_test_state(enable_consumption=True)
+        payload = '{"consumption_m3": 456.789}'
+
+        result = await update_consumption(payload, state, _logger)
+
+        # Verify store was updated
+        assert state.store.get("consumption_m3") == 456.789
+        assert result["consumption_m3"] == 456.789
 
 
 @pytest.mark.unit
@@ -353,7 +361,7 @@ class TestGasCounterErrorHandling:
         state = _make_test_state()
 
         with pytest.raises(OSError, match="I2C bus error"):
-            await gas_counter(state, TriggerPayload.scheduled(), error_mag, _logger)
+            await gas_counter(state, error_mag, _logger)
 
 
 @pytest.mark.unit
@@ -367,22 +375,10 @@ class TestGasCounterStatePersistence:
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state()
 
-        await gas_counter(state, TriggerPayload.scheduled(), fake_magnetometer, _logger)
+        await gas_counter(state, fake_magnetometer, _logger)
 
         # Verify store was updated
         assert state.store.get("counter") == 1
-
-    async def test_saves_state_after_command(
-        self, fake_magnetometer: FakeMagnetometer
-    ) -> None:
-        """State is saved after consumption command."""
-        state = _make_test_state(enable_consumption=True)
-        trigger = TriggerPayload.from_mqtt('{"consumption_m3": 100.5}')
-
-        await gas_counter(state, trigger, fake_magnetometer, _logger)
-
-        # Verify store was updated
-        assert state.store.get("consumption_m3") == 100.5
 
     def test_starts_fresh_with_empty_store(self) -> None:
         """Fresh store initializes with counter=0, no consumption."""
@@ -403,8 +399,7 @@ class TestGasCounterStatePersistence:
         state1 = make_gas_counter(settings, store1, _logger)
         state1.counter = 42
         state1.consumption.set_consumption(123.456)  # type: ignore[union-attr]
-        state1.stage_state()
-        store1.save()
+        state1.stage_state()  # stage_state() calls store.save() internally
 
         # Second session - new DeviceStore on same backend simulates restart
         store2 = DeviceStore(shared_backend, "gas_counter")

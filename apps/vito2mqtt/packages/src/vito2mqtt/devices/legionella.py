@@ -403,4 +403,7 @@ def register_legionella(app: App) -> None:
     Parameters:
         app: The cosalette application instance.
     """
-    app.add_device("legionella", _legionella_device)
+    app.add_device(
+        "legionella",
+        _legionella_device,
+    )

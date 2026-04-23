@@ -49,7 +49,10 @@ logger = logging.getLogger(__name__)
 def register_commands(app: cosalette.App) -> None:
     """Register the mapping command handler on *app*."""
 
-    @app.command("mapping")
+    @app.command(
+        "mapping",
+        summary="Map a raw sensor ID to a named sensor",
+    )
     async def handle_mapping(
         payload: str,
         store: DeviceStore,

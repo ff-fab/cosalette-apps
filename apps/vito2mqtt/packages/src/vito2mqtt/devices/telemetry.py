@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from cosalette import App, OnChange, Settings
+from cosalette import App, OnChange, setting_ref
 
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
@@ -58,35 +58,20 @@ _INTERVAL_ATTR: dict[str, str] = {
     "diagnosis": "polling_diagnosis",
 }
 
+_GROUP_SUMMARIES: dict[str, str] = {
+    "outdoor": "Read outdoor temperature sensors via Optolink serial",
+    "hot_water": "Read hot water temperature sensors via Optolink serial",
+    "burner": "Read burner temperature, modulation and runtime data via Optolink serial",
+    "heating_radiator": "Read radiator heating circuit temperatures and pump status via Optolink serial",
+    "heating_floor": "Read floor heating circuit temperatures and pump status via Optolink serial",
+    "system": "Read Vitotronic system status and operational parameters via Optolink serial",
+    "diagnosis": "Read diagnostic error codes and system health data via Optolink serial",
+}
+
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
-
-
-def _make_interval(group: str) -> Callable[[Settings], float]:
-    """Create a callable that extracts the polling interval from settings.
-
-    Uses the factory pattern (like ``_make_handler``) to capture
-    *group* at creation time, avoiding late-binding closure issues.
-
-    The callable is resolved by cosalette's ``_resolve_intervals()``
-    in ``_run_async()`` after settings are properly built — this
-    allows registration at module-import time without requiring
-    settings to be available.
-
-    Args:
-        group: Signal group name (key in ``_INTERVAL_ATTR``).
-
-    Returns:
-        Callable suitable for ``app.add_telemetry(interval=...)``.
-    """
-    attr = _INTERVAL_ATTR[group]
-
-    def resolver(settings: Settings) -> float:
-        return float(getattr(settings, attr))
-
-    return resolver
 
 
 def _make_handler(
@@ -128,11 +113,6 @@ def register_telemetry(app: App) -> None:
     intervals resolved from settings at runtime and an :class:`OnChange`
     publish strategy.
 
-    Intervals are provided as callables (see :func:`_make_interval`)
-    so that registration can happen at module-import time without
-    requiring settings to be available — this allows ``--help`` and
-    ``--version`` to work without environment variables.
-
     Args:
         app: The cosalette application instance.
     """
@@ -140,7 +120,8 @@ def register_telemetry(app: App) -> None:
         app.add_telemetry(
             name=group_name,
             func=_make_handler(group_name),
-            interval=_make_interval(group_name),
+            interval=setting_ref(_INTERVAL_ATTR[group_name]),
             publish=OnChange(),
             group="optolink",
+            summary=_GROUP_SUMMARIES[group_name],
         )

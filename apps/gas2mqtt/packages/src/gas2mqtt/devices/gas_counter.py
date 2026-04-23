@@ -1,14 +1,15 @@
 """Gas counter telemetry — stateful trigger detection and counting.
 
-Uses triggerable telemetry with an init= factory for stateful domain objects.
-The handler is called periodically (poll_interval) AND on inbound MQTT commands.
+Uses shared GasCounterState instance created in lifespan and injected via DI.
+Telemetry handler is called periodically (poll_interval).
+Command handler processes MQTT consumption updates.
 
 Scheduled runs: read magnetometer, detect trigger edges, count ticks.
-Triggered runs: set consumption value from MQTT command payload.
+Command runs: set consumption value from MQTT command payload.
 
 State persistence:
-    DeviceStore is injected into the init factory. The framework
-    auto-saves via persist=SaveOnChange() on every state-changing cycle.
+    GasCounterState wraps a DeviceStore. stage_state() explicitly
+    calls store.save() to persist counter and consumption on changes.
     Counter and consumption survive restarts.
 
 MQTT state payload:
@@ -16,16 +17,17 @@ MQTT state payload:
     or with consumption:
     {"counter": 42, "trigger": "CLOSED", "consumption_m3": 123.45}
 
-MQTT command payload (on gas2mqtt/gas_counter/set):
+MQTT command payload (on gas2mqtt/consumption/set):
     {"consumption_m3": 123.45}
 """
 
 from __future__ import annotations
 
 import math
+import json
 import logging
 
-from cosalette import DeviceStore, TriggerPayload
+from cosalette import DeviceStore
 
 from gas2mqtt.domain.consumption import ConsumptionTracker
 from gas2mqtt.domain.schmitt import SchmittTrigger, TriggerState
@@ -68,6 +70,7 @@ class GasCounterState:
         state = self.build_state()
         state.pop("trigger", None)
         self.store.update(state)
+        self.store.save()  # explicit save — not relying on SaveOnChange
 
 
 def _restore_counter(store: DeviceStore, logger: logging.Logger) -> int:
@@ -143,32 +146,42 @@ def make_gas_counter(
 
 async def gas_counter(
     state: GasCounterState,
-    trigger: TriggerPayload,
     magnetometer: MagnetometerPort,
     logger: logging.Logger,
 ) -> dict[str, object] | None:
-    """Gas counter telemetry handler.
+    """Gas counter telemetry handler (read-only).
 
-    Called periodically (scheduled) and on MQTT command (triggered).
+    Called periodically to read magnetometer and count ticks.
     Returns dict to publish, or None to skip.
     """
-    if trigger.is_triggered:
-        return _handle_command(state, trigger, logger)
     return _poll(state, magnetometer, logger)
 
 
-def _handle_command(
+async def update_consumption(
+    payload: str,
     state: GasCounterState,
-    trigger: TriggerPayload,
     logger: logging.Logger,
 ) -> dict[str, object] | None:
-    """Handle inbound MQTT command to set consumption."""
+    """Handle inbound MQTT command to set consumption value.
+
+    Expects JSON payload: {"consumption_m3": <float>}
+    Publishes updated state on success; returns None if disabled or invalid.
+    """
     if state.consumption is None:
         logger.warning("Consumption command received but tracking is disabled")
         return None
 
-    data = trigger.data
-    if not data:
+    if not payload.strip():
+        return None
+
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        logger.warning("Ignoring invalid JSON in consumption command")
+        return None
+
+    if not isinstance(data, dict):
+        logger.warning("Ignoring non-object JSON in consumption command")
         return None
 
     if "consumption_m3" in data:

@@ -7,10 +7,11 @@ adapter, and settings.  The ``main()`` function is the CLI entry point.
 from __future__ import annotations
 
 import cosalette
+from cosalette import setting_ref
 
 from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.ports import AirthingsReaderPort
+from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
 app = cosalette.App(
@@ -22,16 +23,12 @@ app = cosalette.App(
 )
 
 
-def _poll_interval(s: cosalette.Settings) -> float:
-    """Deferred interval — resolved after settings are parsed."""
-    if not isinstance(s, Airthings2MqttSettings):
-        raise TypeError(
-            f"_poll_interval expected Airthings2MqttSettings, got {type(s).__name__}"
-        )
-    return float(s.poll_interval)
-
-
-@app.telemetry("airthings", interval=_poll_interval)
+@app.telemetry(
+    "airthings",
+    interval=setting_ref("poll_interval"),
+    summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
+    state_model=AirthingsReading,
+)
 async def _telemetry(
     reader: AirthingsReaderPort,
     settings: Airthings2MqttSettings,
