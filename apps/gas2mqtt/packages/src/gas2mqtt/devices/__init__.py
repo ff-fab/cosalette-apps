@@ -8,7 +8,7 @@ Contains cosalette device implementations:
 
 from __future__ import annotations
 
-from gas2mqtt.devices.gas_counter import gas_counter
+from gas2mqtt.devices.gas_counter import gas_counter, update_consumption
 from gas2mqtt.devices.magnetometer import magnetometer
 from gas2mqtt.devices.temperature import temperature
 
@@ -16,4 +16,5 @@ __all__ = [
     "gas_counter",
     "magnetometer",
     "temperature",
+    "update_consumption",
 ]
