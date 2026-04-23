@@ -89,9 +89,10 @@ class Gas2MqttSettings(cosalette.Settings):
     # State persistence
     state_file: Path | None = Field(
         default=None,
-        description="Path to JSON file for persisting device state between "
-        "restarts. When None, state is not persisted (counter and "
-        "consumption reset to zero on restart).",
+        description="Optional path override for persisted device state. "
+        "When unset, gas2mqtt uses the XDG state path "
+        "($XDG_STATE_HOME/gas2mqtt/state.json or "
+        "~/.local/state/gas2mqtt/state.json).",
     )
 
     # Debug device

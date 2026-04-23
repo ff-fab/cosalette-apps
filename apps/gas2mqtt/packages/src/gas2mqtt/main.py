@@ -16,41 +16,48 @@ from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
 
-def _make_store() -> cosalette.Store:
-    return cosalette.JsonFileStore(resolve_store_path())
+def _make_store(settings: Gas2MqttSettings) -> cosalette.Store:
+    store_path = settings.state_file or resolve_store_path()
+    return cosalette.JsonFileStore(store_path)
 
 
-app = cosalette.App(
-    name="gas2mqtt",
-    version=__version__,
-    description="Domestic gas meter reader via QMC5883L magnetometer",
-    settings_class=Gas2MqttSettings,
-    store=_make_store,
-    adapters={
-        MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
-    },
-)
+def create_app() -> cosalette.App:
+    app = cosalette.App(
+        name="gas2mqtt",
+        version=__version__,
+        description="Domestic gas meter reader via QMC5883L magnetometer",
+        settings_class=Gas2MqttSettings,
+        store=_make_store,
+        adapters={
+            MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
+        },
+    )
 
-app.telemetry(
-    "gas_counter",
-    interval=lambda s: s.poll_interval,
-    triggerable=True,
-    publish=OnChange(),
-    persist=SaveOnChange(),
-    init=make_gas_counter,
-)(gas_counter)
+    app.telemetry(
+        "gas_counter",
+        interval=lambda s: s.poll_interval,
+        triggerable=True,
+        publish=OnChange(),
+        persist=SaveOnChange(),
+        init=make_gas_counter,
+    )(gas_counter)
 
-app.telemetry(
-    "temperature",
-    interval=lambda s: s.temperature_interval,
-    publish=OnChange(threshold={"temperature": 0.05}),
-    init=make_pt1,
-)(temperature)
+    app.telemetry(
+        "temperature",
+        interval=lambda s: s.temperature_interval,
+        publish=OnChange(threshold={"temperature": 0.05}),
+        init=make_pt1,
+    )(temperature)
 
-app.telemetry(
-    "magnetometer",
-    interval=lambda s: s.poll_interval,
-    enabled=lambda s: s.enable_debug_device,
-)(magnetometer)
+    app.telemetry(
+        "magnetometer",
+        interval=lambda s: s.poll_interval,
+        enabled=lambda s: s.enable_debug_device,
+    )(magnetometer)
+
+    return app
+
+
+app = create_app()
 
 cli = app.cli

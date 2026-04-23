@@ -217,7 +217,7 @@ class TestGasCounterConsumption:
     async def test_consumption_increments_on_rising_edge(
         self, fake_magnetometer: FakeMagnetometer
     ) -> None:
-        """Consumption increases by liters_per_tick on rising edge."""
+        """Consumption increases by liters_per_tick converted to m³ on rising edge."""
         fake_magnetometer.bz = BZ_HIGH
         state = _make_test_state(enable_consumption=True, liters_per_tick=10.0)
 
@@ -307,6 +307,39 @@ class TestGasCounterCommand:
 
         assert result is None
 
+    @pytest.mark.parametrize(
+        ("payload", "warning_fragment"),
+        [
+            ('{"consumption_m3": "not-a-number"}', "invalid consumption_m3"),
+            ('{"consumption_m3": null}', "invalid consumption_m3"),
+            ('{"consumption_m3": "nan"}', "non-finite consumption_m3"),
+            ('{"consumption_m3": "inf"}', "non-finite consumption_m3"),
+            ('{"consumption_m3": -1}', "negative consumption_m3"),
+            ('{"consumption_m3": 1000000.1}', "out-of-range consumption_m3"),
+        ],
+    )
+    async def test_command_invalid_consumption_value_ignored(
+        self,
+        fake_magnetometer: FakeMagnetometer,
+        caplog: pytest.LogCaptureFixture,
+        payload: str,
+        warning_fragment: str,
+    ) -> None:
+        """Invalid consumption values are rejected without mutating state.
+
+        Technique: Equivalence Partitioning — non-numeric, non-finite,
+        negative, and out-of-range payload classes.
+        """
+        state = _make_test_state(enable_consumption=True)
+        trigger = TriggerPayload.from_mqtt(payload)
+
+        with caplog.at_level(logging.WARNING):
+            result = await gas_counter(state, trigger, fake_magnetometer, _logger)
+
+        assert result is None
+        assert state.store.get("consumption_m3") is None
+        assert warning_fragment in caplog.text
+
 
 @pytest.mark.unit
 class TestGasCounterErrorHandling:
@@ -370,7 +403,8 @@ class TestGasCounterStatePersistence:
         state1 = make_gas_counter(settings, store1, _logger)
         state1.counter = 42
         state1.consumption.set_consumption(123.456)  # type: ignore[union-attr]
-        state1.save_state()
+        state1.stage_state()
+        store1.save()
 
         # Second session - new DeviceStore on same backend simulates restart
         store2 = DeviceStore(shared_backend, "gas_counter")

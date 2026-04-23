@@ -19,7 +19,8 @@ import cosalette
 import pytest
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
-from gas2mqtt.main import app
+from gas2mqtt.main import _make_store, app, create_app
+from tests.fixtures.config import make_gas2mqtt_settings
 
 # ---------------------------------------------------------------------------
 # App creation
@@ -103,18 +104,14 @@ class TestTemperatureRegistration:
     """Verify temperature is registered as telemetry with PT1 filter."""
 
     def test_temperature_registered_as_telemetry(self) -> None:
-        """Module-level app registers temperature as a telemetry device after configure.
+        """Fresh app instance registers temperature telemetry declaratively.
 
         Technique: Specification-based — verifying registration contract.
         """
-        # Need to trigger configure to register telemetry devices
-        from tests.fixtures.config import make_gas2mqtt_settings
-
-        settings = make_gas2mqtt_settings()
-        app._configure_hooks[0](settings)  # Call setup() function  # noqa: SLF001
+        fresh_app = create_app()
 
         # Assert
-        telemetry_names = [t.name for t in app._telemetry]  # noqa: SLF001
+        telemetry_names = [t.name for t in fresh_app.telemetry_registrations]
         assert "temperature" in telemetry_names
 
 
@@ -127,25 +124,31 @@ class TestTemperatureRegistration:
 class TestMagnetometerRegistration:
     """Verify magnetometer conditional registration via enabled= parameter.
 
-    The module-level app uses ``enabled=settings.enable_debug_device``
-    on the ``app.add_telemetry("magnetometer", ...)`` call.  Since the
-    default settings have ``enable_debug_device=False``, the magnetometer
-    is NOT registered in the singleton app.
-
-    The handler in ``gas2mqtt.devices.magnetometer`` can still be tested
-    directly to verify correctness independent of wiring.
+    The registration stays declarative in ``main.py`` while deferring the
+    enabled decision to resolved settings.
     """
 
-    def test_noop_when_disabled_by_default(self) -> None:
-        """Default settings disable magnetometer registration.
+    def test_enabled_spec_tracks_debug_setting(self) -> None:
+        """Magnetometer enabled spec follows enable_debug_device.
 
-        Technique: Branch Coverage — verifying enabled=False path.
-        Default ``enable_debug_device`` is False, so the magnetometer
-        telemetry is skipped during module-level registration.
+        Technique: Branch Coverage — verifying both enabled branches.
         """
-        # Assert
-        telemetry_names = [t.name for t in app._telemetry]  # noqa: SLF001
-        assert "magnetometer" not in telemetry_names
+        fresh_app = create_app()
+        registration = next(
+            telemetry
+            for telemetry in fresh_app.telemetry_registrations
+            if telemetry.name == "magnetometer"
+        )
+
+        assert callable(registration.enabled_spec)
+        assert (
+            registration.enabled_spec(make_gas2mqtt_settings(enable_debug_device=False))
+            is False
+        )
+        assert (
+            registration.enabled_spec(make_gas2mqtt_settings(enable_debug_device=True))
+            is True
+        )
 
     async def test_magnetometer_handler_returns_readings(self) -> None:
         """magnetometer handler returns correct reading dict.
@@ -174,18 +177,33 @@ class TestMagnetometerRegistration:
 
 @pytest.mark.integration
 class TestStoreWiring:
-    """Verify cosalette Store is wired via App constructor."""
+    """Verify store factory wiring without mutating the singleton app."""
 
-    def test_app_has_store_configured(self) -> None:
-        """Module-level app has a Store backend set.
+    def test_make_store_uses_explicit_state_file(self, tmp_path) -> None:
+        """Explicit state_file setting overrides the XDG fallback.
 
-        Technique: Specification-based — store is wired at module level.
+        Technique: Decision Table — explicit override branch.
         """
-        assert app._store is not None  # noqa: SLF001
+        state_file = tmp_path / "custom-state.json"
+        store = _make_store(make_gas2mqtt_settings(state_file=state_file))
 
-    def test_app_has_json_file_store_by_default(self) -> None:
-        """App uses JsonFileStore with XDG path by default.
+        store.save("gas_counter", {"counter": 1})
 
-        Technique: Specification-based — default uses XDG path resolution.
+        assert state_file.exists()
+
+    def test_make_store_uses_xdg_path_when_state_file_unset(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path,
+    ) -> None:
+        """Unset state_file falls back to the XDG state path.
+
+        Technique: Decision Table — fallback branch.
         """
-        assert isinstance(app._store, cosalette.JsonFileStore)  # noqa: SLF001
+        monkeypatch.delenv("GAS2MQTT_STATE_FILE", raising=False)
+        monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "xdg-state"))
+
+        store = _make_store(make_gas2mqtt_settings(state_file=None))
+        store.save("gas_counter", {"counter": 1})
+
+        assert (tmp_path / "xdg-state" / "gas2mqtt" / "state.json").exists()

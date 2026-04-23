@@ -22,6 +22,7 @@ MQTT command payload (on gas2mqtt/gas_counter/set):
 
 from __future__ import annotations
 
+import math
 import logging
 
 from cosalette import DeviceStore, TriggerPayload
@@ -32,6 +33,7 @@ from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
 COUNTER_MODULUS = 0x10000
+MAX_CONSUMPTION_M3 = 1_000_000.0
 
 
 class GasCounterState:
@@ -62,11 +64,10 @@ class GasCounterState:
             state["consumption_m3"] = round(self.consumption.consumption_m3, 3)
         return state
 
-    def save_state(self) -> None:
+    def stage_state(self) -> None:
         state = self.build_state()
         state.pop("trigger", None)
         self.store.update(state)
-        self.store.save()
 
 
 def _restore_counter(store: DeviceStore, logger: logging.Logger) -> int:
@@ -92,6 +93,35 @@ def _restore_consumption(
         initial_m3 = float(raw) if isinstance(raw, (int, float, str)) else 0.0
         logger.info("Restored consumption=%.3f m³ from saved state", initial_m3)
     return ConsumptionTracker(settings.liters_per_tick, initial_m3=initial_m3)
+
+
+def _parse_consumption_m3(
+    raw_value: object,
+    logger: logging.Logger,
+) -> float | None:
+    if isinstance(raw_value, bool) or not isinstance(raw_value, (int, float, str)):
+        logger.warning("Ignoring invalid consumption_m3 payload: %r", raw_value)
+        return None
+
+    try:
+        value = float(raw_value)
+    except TypeError, ValueError:
+        logger.warning("Ignoring invalid consumption_m3 payload: %r", raw_value)
+        return None
+
+    if not math.isfinite(value):
+        logger.warning("Ignoring non-finite consumption_m3 payload: %r", raw_value)
+        return None
+    if value < 0:
+        logger.warning("Ignoring negative consumption_m3 payload: %r", raw_value)
+        return None
+    if value > MAX_CONSUMPTION_M3:
+        logger.warning(
+            "Ignoring out-of-range consumption_m3 payload: %r",
+            raw_value,
+        )
+        return None
+    return value
 
 
 def make_gas_counter(
@@ -142,9 +172,12 @@ def _handle_command(
         return None
 
     if "consumption_m3" in data:
-        state.consumption.set_consumption(float(data["consumption_m3"]))
+        consumption_m3 = _parse_consumption_m3(data["consumption_m3"], logger)
+        if consumption_m3 is None:
+            return None
+        state.consumption.set_consumption(consumption_m3)
         logger.info("Consumption set to %.3f m³", state.consumption.consumption_m3)
-        state.save_state()
+        state.stage_state()
         return state.build_state()
     return None
 
@@ -164,5 +197,5 @@ def _poll(
         if state.consumption is not None:
             state.consumption.tick()
         logger.debug("Gas tick: counter=%d", state.counter)
-    state.save_state()
+    state.stage_state()
     return state.build_state()
