@@ -11,7 +11,7 @@ authors = [
 
 dependencies = [
     "asyncssh>=2.20.0",
-    "cosalette>=0.3.5",
+    "cosalette>=0.3.6",
 ]
 
 [project.scripts]

@@ -113,6 +113,22 @@ async def filtered_sensor(ctx: cosalette.DeviceContext) -> dict[str, object]:
     return {"value": raw_value + ctx.state["calibration"]}
 ```
 
+Store backends accept a concrete instance or a callable factory for
+settings-dependent paths:
+
+```python
+from cosalette import JsonFileStore, Store
+
+# Concrete store
+app = cosalette.App(name="myapp", store=JsonFileStore("./data/state.json"))
+
+# Factory — path resolved from settings at bootstrap
+def make_store(settings: MySettings) -> Store:
+    return JsonFileStore(settings.data_dir / "state.json")
+
+app = cosalette.App(name="myapp", settings_class=MySettings, store=make_store)
+```
+
 ## Configuration and Settings
 
 Extend `cosalette.Settings` for custom configuration:
@@ -146,7 +162,62 @@ async def sensor(ctx: cosalette.DeviceContext) -> dict[str, object]:
     return await read_sensor(port)
 ```
 
-## Dynamic Device Registration
+## Multi-Device Registration (Preferred)
+
+For multiple similar devices, pass a callable to `name=` instead of writing loops:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class SensorConfig:
+    mac: str
+    poll_seconds: float = 10.0
+
+@app.telemetry(
+    name=lambda s: {
+        "living_room": SensorConfig(mac="AA:BB:CC:DD:EE:01"),
+        "bedroom":     SensorConfig(mac="AA:BB:CC:DD:EE:02"),
+    },
+    interval=lambda cfg: cfg.poll_seconds,
+)
+async def sensor(
+    ctx: cosalette.DeviceContext, config: SensorConfig,
+) -> dict[str, object]:
+    return {"temperature": await read_ble(config.mac)}
+```
+
+The callable receives `Settings` and returns `dict[str, config]` (per-device config
+injected by type) or `list[str]` (names only). Works with `@app.telemetry`,
+`@app.device`, and `@app.command`. Prefer this over `@app.on_configure` loops for
+similar devices — reserve imperative registration for complex conditional logic.
+
+## Deferred enabled= (Callable)
+
+Pass a callable to `enabled=` to make a device conditional on settings at bootstrap:
+
+```python
+@app.telemetry(
+    "magnetometer",
+    interval=lambda s: s.poll_interval,
+    enabled=lambda s: s.enable_debug_device,  # resolved at bootstrap
+)
+async def magnetometer(mag: MagnetometerPort) -> dict[str, object]:
+    reading = mag.read()
+    return {"bx": reading.bx, "by": reading.by, "bz": reading.bz}
+```
+
+The callable receives the resolved `Settings` instance. If it returns `False`, the
+device is silently dropped before MQTT wiring. Literal `enabled=False` still works
+as before. Use `enabled=callable` to keep `main.py` fully declarative even when
+some devices are conditionally enabled. Note: `add_telemetry()` / `add_device()` /
+`add_command()` only accept `enabled: bool` (not callable).
+
+## Dynamic Device Registration (Imperative Fallback)
+
+> **Prefer `name=callable`** (above) for multiple similar devices. Use
+> `@app.on_configure` only when you need conditional logic, computed values,
+> or adapter access during registration.
 
 Use `@app.on_configure` for device registration based on runtime settings:
 
@@ -201,30 +272,19 @@ async def sensor() -> dict[str, object]:
     return {"temperature": await read_sensor()}
 ```
 
-Opt into `TriggerPayload` to distinguish triggered vs scheduled runs. Always coerce
-and validate payload fields before passing them to I/O — the `/set` topic is
-broker-controlled and the values are untrusted:
+Opt into `TriggerPayload` to distinguish triggered vs scheduled runs:
 
 ```python
 from cosalette import TriggerPayload
 
-_DAYS_MIN, _DAYS_MAX = 1, 90
-
 @app.telemetry("sensor", interval=300, triggerable=True)
 async def sensor(trigger: TriggerPayload) -> dict[str, object]:
-    if trigger.is_triggered:
-        raw = trigger.get("days", 7)
-        days = max(_DAYS_MIN, min(_DAYS_MAX, int(raw)))  # coerce + clamp
-    else:
-        days = 7
+    days = trigger.get("days", 7) if trigger.is_triggered else 7
     return {"data": await read_sensor(days=days)}
 ```
-
-Security note: protect `/set` topics with MQTT broker ACLs so only authorised clients
-can trigger a read. Without ACLs, any broker participant can issue arbitrary payloads.
 
 Constraints: root (unnamed) devices cannot be triggerable; `triggerable=` and `group=`
 are mutually exclusive. Refer to `cosalette ai help triggerable` for details.
 
 Install the instruction file via: `cosalette ai init`
-For comprehensive topic help: `cosalette ai help <topic>` (architecture, telemetry, testing, configuration, commands, health, scheduling, resilience, sub-entities, triggerable)
+For comprehensive topic help: `cosalette ai help <topic>` (architecture, telemetry, testing, configuration, commands, health, scheduling, resilience, sub-entities, triggerable, multi-device)
