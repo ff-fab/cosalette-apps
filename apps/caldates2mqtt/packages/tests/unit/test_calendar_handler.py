@@ -17,7 +17,7 @@ import pytest
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import CalDavConnectionError
-from caldates2mqtt.main import make_calendar_handler
+from caldates2mqtt.main import calendar
 from caldates2mqtt.ports import CalendarEvent
 from caldates2mqtt.settings import CalendarConfig
 
@@ -67,9 +67,9 @@ class TestCalendarHandlerHappyPath:
             CalendarEvent(title="Restmuell", date=datetime.date(2026, 3, 31)),
         ]
         fake_reader.readings = [events]
-        handler = make_calendar_handler(_make_cal_config())
 
-        result = await handler(
+        result = await calendar(
+            cal=_make_cal_config(),
             trigger=cosalette.TriggerPayload.scheduled(),
             reader=fake_reader,
             logger=_logger,
@@ -87,9 +87,9 @@ class TestCalendarHandlerHappyPath:
     ) -> None:
         """Events are sliced to configured entries count."""
         fake_reader.readings = [_make_events(10)]
-        handler = make_calendar_handler(_make_cal_config(entries=3))
 
-        result = await handler(
+        result = await calendar(
+            cal=_make_cal_config(entries=3),
             trigger=cosalette.TriggerPayload.scheduled(),
             reader=fake_reader,
             logger=_logger,
@@ -100,9 +100,9 @@ class TestCalendarHandlerHappyPath:
     async def test_empty_calendar(self, fake_reader: FakeCalDavReader) -> None:
         """Empty calendar returns {"events": []}."""
         fake_reader.readings = [[]]
-        handler = make_calendar_handler(_make_cal_config())
 
-        result = await handler(
+        result = await calendar(
+            cal=_make_cal_config(),
             trigger=cosalette.TriggerPayload.scheduled(),
             reader=fake_reader,
             logger=_logger,
@@ -116,9 +116,9 @@ class TestCalendarHandlerHappyPath:
         """Returns all available events when fewer than entries count."""
         events = [CalendarEvent(title="Only", date=datetime.date(2026, 4, 1))]
         fake_reader.readings = [events]
-        handler = make_calendar_handler(_make_cal_config(entries=5))
 
-        result = await handler(
+        result = await calendar(
+            cal=_make_cal_config(entries=5),
             trigger=cosalette.TriggerPayload.scheduled(),
             reader=fake_reader,
             logger=_logger,
@@ -130,17 +130,14 @@ class TestCalendarHandlerHappyPath:
         self, fake_reader: FakeCalDavReader
     ) -> None:
         """Handler passes url, calendar_name, username, password from config."""
-        handler = make_calendar_handler(
-            _make_cal_config(
+        await calendar(
+            cal=_make_cal_config(
                 url="https://cloud.test/dav/",
                 calendar_name="mytest",
                 username="testuser",
                 password="secret123",
                 days=7,
-            )
-        )
-
-        await handler(
+            ),
             trigger=cosalette.TriggerPayload.scheduled(),
             reader=fake_reader,
             logger=_logger,
@@ -163,9 +160,8 @@ class TestCalendarHandlerTrigger:
         self, fake_reader: FakeCalDavReader
     ) -> None:
         """Trigger with empty payload uses configured defaults."""
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
-
-        await handler(
+        await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt(""),
             reader=fake_reader,
             logger=_logger,
@@ -176,9 +172,9 @@ class TestCalendarHandlerTrigger:
     async def test_trigger_with_overrides(self, fake_reader: FakeCalDavReader) -> None:
         """Trigger with JSON payload overrides entries and days."""
         fake_reader.readings = [_make_events(15)]
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
 
-        result = await handler(
+        result = await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt('{"entries": 10, "days": 30}'),
             reader=fake_reader,
             logger=_logger,
@@ -202,9 +198,9 @@ class TestCalendarHandlerTrigger:
         Technique: Boundary Value Analysis — exact max and just-above-max input.
         """
         fake_reader.readings = [_make_events(60)]
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
 
-        result = await handler(
+        result = await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt(
                 f'{{"entries": {raw_entries}, "days": 30}}'
             ),
@@ -229,9 +225,8 @@ class TestCalendarHandlerTrigger:
 
         Technique: Boundary Value Analysis — exact max and just-above-max input.
         """
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
-
-        await handler(
+        await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt(f'{{"days": {raw_days}}}'),
             reader=fake_reader,
             logger=_logger,
@@ -243,9 +238,8 @@ class TestCalendarHandlerTrigger:
         self, fake_reader: FakeCalDavReader
     ) -> None:
         """Trigger with invalid JSON falls back to defaults."""
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
-
-        await handler(
+        await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt("not-json"),
             reader=fake_reader,
             logger=_logger,
@@ -257,9 +251,8 @@ class TestCalendarHandlerTrigger:
         self, fake_reader: FakeCalDavReader
     ) -> None:
         """Trigger with non-int or negative overrides uses defaults."""
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
-
-        await handler(
+        await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt(
                 '{"entries": "ten", "days": -1}'
             ),
@@ -273,9 +266,8 @@ class TestCalendarHandlerTrigger:
         self, fake_reader: FakeCalDavReader
     ) -> None:
         """Trigger with valid JSON but non-dict value falls back to defaults."""
-        handler = make_calendar_handler(_make_cal_config(entries=5, days=14))
-
-        await handler(
+        await calendar(
+            cal=_make_cal_config(entries=5, days=14),
             trigger=cosalette.TriggerPayload.from_mqtt('"just a string"'),
             reader=fake_reader,
             logger=_logger,
@@ -291,10 +283,10 @@ class TestCalendarHandlerErrorPropagation:
     async def test_caldav_error_propagates(self, fake_reader: FakeCalDavReader) -> None:
         """CalDavConnectionError from reader propagates to caller."""
         fake_reader.raise_on_next = CalDavConnectionError("server down")
-        handler = make_calendar_handler(_make_cal_config())
 
         with pytest.raises(CalDavConnectionError, match="server down"):
-            await handler(
+            await calendar(
+                cal=_make_cal_config(),
                 trigger=cosalette.TriggerPayload.scheduled(),
                 reader=fake_reader,
                 logger=_logger,

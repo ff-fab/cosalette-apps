@@ -164,10 +164,10 @@ events:
 }
 ```
 
-!!! info "Polling interval"
-    The default polling interval is 7200 seconds (2 hours). The first reading arrives
-    shortly after startup; subsequent readings follow the configured interval. See
-    [Configuration](configuration.md) to adjust.
+!!! info "Polling schedule"
+    By default, calendars are polled every 2 hours.
+    The first reading arrives shortly after startup; subsequent reads follow the
+    configured schedule. See [Configuration](configuration.md) to adjust.
 
 !!! warning "No messages?"
     - Confirm the broker is reachable:

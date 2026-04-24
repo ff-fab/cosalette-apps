@@ -29,9 +29,9 @@ class TestCalDates2MqttSettingsDefaults:
         assert settings.calendars[0].days == 14
 
     def test_default_schedule(self) -> None:
-        """Default schedule is '0 0 6,12,18 * * ?' (06:00, 12:00, 18:00 daily)."""
+        """Default schedule is '0 0 0/2 * * ?' (every 2 hours)."""
         settings = make_caldates2mqtt_settings()
-        assert settings.calendars[0].schedule == "0 0 6,12,18 * * ?"
+        assert settings.calendars[0].schedule == "0 0 0/2 * * ?"
 
     def test_default_caldav_timeout(self) -> None:
         """Default CalDAV timeout is 30 seconds."""

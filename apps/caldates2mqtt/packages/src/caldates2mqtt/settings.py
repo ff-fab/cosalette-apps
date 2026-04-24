@@ -30,10 +30,10 @@ class CalendarConfig(BaseModel):
     )
     days: int = Field(default=14, gt=0, description="Lookahead window in days")
     schedule: str = Field(
-        default="0 0 6,12,18 * * ?",
+        default="0 0 0/2 * * ?",
         description=(
             "Quartz cron expression for polling schedule "
-            "(default: 06:00, 12:00, 18:00 daily). "
+            "(default: every 2 hours). "
             "Format: second minute hour day-of-month month day-of-week"
         ),
     )
