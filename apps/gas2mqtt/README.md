@@ -14,7 +14,7 @@ Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework.
 
 ## Quick Start
 
-Create a directory on your Raspberry Pi and add this `docker-compose.yml`:
+Create a directory on your Raspberry Pi and add this `compose.yml`:
 
 ```yaml
 services:

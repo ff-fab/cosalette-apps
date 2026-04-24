@@ -9,23 +9,23 @@ Deployment, monitoring, persistence, and logging configuration.
 The Docker files live in `apps/jeelink2mqtt/`:
 
 - **Dockerfile** — multi-stage build using `uv` for fast dependency resolution
-- **docker-compose.yml** — full stack with Mosquitto MQTT broker
+- **compose.yml** — full stack with Mosquitto MQTT broker
 
 ### Build and Run
 
 ```bash
-docker compose -f apps/jeelink2mqtt/docker-compose.yml up -d
+docker compose -f apps/jeelink2mqtt/compose.yml up -d
 ```
 
 To run in dry-run mode (no hardware or MQTT required):
 
 ```bash
-docker compose -f apps/jeelink2mqtt/docker-compose.yml run --rm jeelink2mqtt --dry-run
+docker compose -f apps/jeelink2mqtt/compose.yml run --rm jeelink2mqtt --dry-run
 ```
 
 ### Configuration
 
-Environment variables are set in `docker-compose.yml`.  Edit them
+Environment variables are set in `compose.yml`.  Edit them
 directly or override with a `.env` file alongside the compose file.
 See [Reference](reference.md) for the full list of settings.
 

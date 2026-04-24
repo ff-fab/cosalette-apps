@@ -29,7 +29,7 @@ poll cycle.
 
 ## Quick Start
 
-Create a directory and add this `docker-compose.yml`:
+Create a directory and add this `compose.yml`:
 
 ```yaml
 services:

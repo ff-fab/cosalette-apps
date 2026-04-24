@@ -106,7 +106,7 @@ Resolution order:
 !!! tip "Docker deployments"
     In Docker, set `VITO2MQTT_STORE_PATH=/data/store.json` and mount a named volume
     at `/data` to persist state across container restarts. The provided
-    `docker-compose.yml` configures this automatically.
+    `compose.yml` configures this automatically.
 
 Parent directories are created automatically on first write.
 

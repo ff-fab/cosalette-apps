@@ -89,7 +89,7 @@ _Scale: 1 (poor) to 5 (excellent)_
   collisions with other applications in the same environment
 - Per-domain polling intervals allow users to tune the balance between data freshness
   and serial bus load for their specific use case
-- `.env` file support enables a simple `docker-compose.yml` workflow where all
+- `.env` file support enables a simple `compose.yml` workflow where all
   configuration lives in a single `.env` file alongside the compose file
 - Inheriting MQTT settings from the cosalette base class means broker configuration
   follows documented framework conventions, reducing project-specific documentation needs

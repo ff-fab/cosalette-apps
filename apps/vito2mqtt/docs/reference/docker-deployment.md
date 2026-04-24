@@ -43,7 +43,7 @@ minicom -D /dev/ttyUSB0  # Use Ctrl+A, Q to exit
 ```
 
 If using a different device path (e.g., `/dev/ttyUSB1`), update both:
-- `docker-compose.yml`: `devices:` section
+- `compose.yml`: `devices:` section
 - `.env`: `VITO2MQTT_SERIAL_PORT`
 
 ### 3. Start Services
@@ -138,7 +138,7 @@ docker-compose up -d
 
 ### Default: `--device` Flag (Recommended for Development)
 
-The `docker-compose.yml` uses:
+The `compose.yml` uses:
 
 ```yaml
 devices:
@@ -210,7 +210,7 @@ environment:
   VITO2MQTT_STORE_PATH: /app/data/store.json
 ```
 
-The `docker-compose.yml` configures this automatically. The state file survives
+The `compose.yml` configures this automatically. The state file survives
 container restarts and image upgrades.
 
 ### Inspecting or Resetting State
@@ -296,7 +296,7 @@ docker-compose logs mosquitto
 
 ## Resource Limits
 
-`docker-compose.yml` defines resource limits to prevent the app from consuming excessive CPU/memory:
+`compose.yml` defines resource limits to prevent the app from consuming excessive CPU/memory:
 
 ```yaml
 deploy:
@@ -317,7 +317,7 @@ deploy:
 Apply changes:
 
 ```bash
-nano docker-compose.yml
+nano compose.yml
 docker-compose up -d
 ```
 
@@ -381,7 +381,7 @@ docker run --rm -it eclipse-mosquitto:2 mosquitto_passwd -c /tmp/passwd user1
 docker cp <container>:/tmp/passwd ./mosquitto/passwd
 ```
 
-Update `docker-compose.yml`:
+Update `compose.yml`:
 
 ```yaml
 mosquitto:
@@ -444,7 +444,7 @@ docker system prune -a --volumes
 
 ## Docker Network Modes
 
-The default `docker-compose.yml` uses bridge networking (`networks.vito_network`).
+The default `compose.yml` uses bridge networking (`networks.vito_network`).
 
 **Service-to-service communication** uses internal DNS:
 - `mosquitto` (vito2mqtt connects to `mqtt://mosquitto:1883`)
@@ -473,7 +473,7 @@ Trade-offs:
 # Check device exists on host
 ls /dev/ttyUSB*
 
-# Verify docker-compose.yml devices section matches
+# Verify compose.yml devices section matches
 # Rebuild and restart
 docker-compose down
 docker-compose up -d --build
@@ -501,7 +501,7 @@ docker exec vito2mqtt env | grep VITO2MQTT
 
 ### Logs Fill Up
 
-Configure log rotation in `docker-compose.yml`:
+Configure log rotation in `compose.yml`:
 
 ```yaml
 logging:
@@ -557,7 +557,7 @@ VITO2MQTT_MQTT__USERNAME=api
 VITO2MQTT_MQTT__PASSWORD=secret
 ```
 
-Remove or comment out the `mosquitto` service from `docker-compose.yml`.
+Remove or comment out the `mosquitto` service from `compose.yml`.
 
 ### Build Arguments
 

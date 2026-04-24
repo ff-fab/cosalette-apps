@@ -22,9 +22,9 @@ calendars, and verifying that event data flows to your MQTT broker.
 === "Docker (recommended)"
 
     Docker is the simplest way to run caldates2mqtt. Create a directory, copy this
-    `docker-compose.yml` into it, and you're ready to go:
+    `compose.yml` into it, and you're ready to go:
 
-    ```yaml title="docker-compose.yml"
+    ```yaml title="compose.yml"
     services:
       caldates2mqtt:
         image: ghcr.io/ff-fab/caldates2mqtt:latest
@@ -68,7 +68,7 @@ calendars, and verifying that event data flows to your MQTT broker.
 
     !!! tip "Download everything at once"
         ```bash
-        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/caldates2mqtt/docker-compose.yml -o docker-compose.yml
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/caldates2mqtt/compose.yml -o compose.yml
         curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/caldates2mqtt/mosquitto.conf -o mosquitto.conf
         curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/caldates2mqtt/.env.example -o .env
         ```

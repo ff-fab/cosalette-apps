@@ -152,7 +152,7 @@ CALDATES2MQTT_CALENDARS='[
 !!! tip "JSON formatting"
     The `CALDATES2MQTT_CALENDARS` value must be valid JSON. For readability in `.env`
     files, you can use multi-line values with single quotes as shown above. In
-    `docker-compose.yml` environment sections, keep it on a single line.
+    `compose.yml` environment sections, keep it on a single line.
 
 ---
 

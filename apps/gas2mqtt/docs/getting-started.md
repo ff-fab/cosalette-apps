@@ -40,9 +40,9 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
 === "Docker (recommended)"
 
     Docker is the simplest way to run gas2mqtt. Create a directory on your Pi,
-    copy this `docker-compose.yml` into it, and you're ready to go:
+    copy this `compose.yml` into it, and you're ready to go:
 
-    ```yaml title="docker-compose.yml"
+    ```yaml title="compose.yml"
     services:
       gas2mqtt:
         image: ghcr.io/ff-fab/gas2mqtt:latest
@@ -95,7 +95,7 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
     !!! tip "Download everything at once"
         Prefer `curl` over copy-paste? Grab all three files in one go:
         ```bash
-        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/docker-compose.yml -o docker-compose.yml
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/compose.yml -o compose.yml
         curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/mosquitto.conf -o mosquitto.conf
         curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/gas2mqtt/.env.example -o .env
         ```
@@ -106,7 +106,7 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
 
     !!! note "Custom I2C bus"
         If your sensor is on a different bus (e.g., `/dev/i2c-0`), update both the
-        device mapping in `docker-compose.yml` and `GAS2MQTT_I2C_BUS` in `.env`.
+        device mapping in `compose.yml` and `GAS2MQTT_I2C_BUS` in `.env`.
 
 === "Manual (pip/uv)"
 
