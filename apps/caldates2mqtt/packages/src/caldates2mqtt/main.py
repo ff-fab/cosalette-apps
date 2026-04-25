@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import logging
 
+from typing import cast
+
 import cosalette
 
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
@@ -27,8 +29,12 @@ app = cosalette.App(
 )
 
 
+def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
+    return {cal.key: cal for cal in cast(CalDates2MqttSettings, s).calendars}
+
+
 @app.telemetry(
-    name=lambda s: {cal.key: cal for cal in s.calendars},
+    name=_calendar_map,
     schedule=lambda cal: cal.schedule,
     triggerable=True,
 )
