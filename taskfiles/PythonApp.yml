@@ -170,3 +170,15 @@ tasks:
           --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
           --cov-report=xml --cov-report=json --cov-report=term \
           --junitxml=results-unit.xml --cov-fail-under=80
+
+  ci:test:integration:
+    desc: 'CI integration tests for {{.APP_NAME}}'
+    cmds:
+      - |
+        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+          echo "ℹ No integration tests found in {{.PKG}}/tests/integration/ — skipping"
+          exit 0
+        fi
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/integration/ \
+          -v --tb=short -m integration \
+          --junitxml=results-integration.xml
