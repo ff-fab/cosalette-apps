@@ -35,7 +35,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time as time_module
 from datetime import datetime, time, timedelta
 
 from cosalette import App, DeviceContext, DeviceStore
@@ -259,10 +258,10 @@ async def _wait_for_legionella_action(
     log_context: str,
 ) -> str | None:
     """Wait for an allowed action without extending the original timeout budget."""
-    deadline = time_module.monotonic() + timeout
+    deadline = ctx.clock.now() + timeout
 
     while not ctx.shutdown_requested:
-        remaining = deadline - time_module.monotonic()
+        remaining = deadline - ctx.clock.now()
         if remaining <= 0:
             return None
 

@@ -21,6 +21,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
 import pytest
+from cosalette.testing import FakeClock
 
 from velux2mqtt.adapters.fake import FakeGpio, PressCall
 from velux2mqtt.devices.cover import (
@@ -36,7 +37,6 @@ from velux2mqtt.domain.calibration import CalibrationStateMachine
 from velux2mqtt.domain.drift import MoveStep
 from velux2mqtt.domain.position import PositionTracker
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -105,6 +105,7 @@ class FakeDeviceContext:
         self._root_handler = None
         self._sub_handlers: dict[str, object] = {}
         self._active_sub_entities: dict[str, object] = {}
+        self.clock: FakeClock = FakeClock()
 
     @property
     def name(self) -> str:
@@ -1111,63 +1112,46 @@ class TestCalibrationDispatch:
 
         Technique: Error Guessing — repeated no-op phases during active calibration.
 
-        Design note: we replace ``cover_module.time_module`` *directly* rather
-        than using ``patch("velux2mqtt.devices.cover.time_module.monotonic")``.
-        The reason is that ``time_module`` is an alias for the standard ``time``
-        module, so patching its ``monotonic`` attribute is equivalent to
-        patching ``time.monotonic`` globally — which also affects
-        ``asyncio``'s internal ``loop.time()`` calls (two of them are made by
-        ``asyncio.wait_for`` / ``asyncio.timeout`` setup before the session
-        even starts).  Those hidden calls would consume mock values intended
-        for the session's own deadline arithmetic, causing ``deadline`` to be
-        computed from a "future" timestamp (121.0) and producing a deadline of
-        241.0 s rather than 120.0 s.  The result is an infinite loop that can
-        only be killed by the OS, crashing the IDE test runner.
-
-        By swapping the module reference instead, only calls made through
-        ``cover_module.time_module.monotonic`` are intercepted; asyncio's
-        internal clock remains unaffected.
+        Uses a ``_SequenceClock`` assigned to ``ctx.clock`` to drive the deadline
+        arithmetic without touching ``time.monotonic`` or asyncio's internal clock.
+        The three clock reads in the production code are:
+          1. ``deadline = ctx.clock.now() + 120.0``  → 0.0  → deadline = 120.0
+          2. ``remaining = 120.0 - ctx.clock.now()`` → 0.0  → remaining = 120.0
+          3. ``remaining = 120.0 - ctx.clock.now()`` → 121.0 → remaining = -1.0 → exit
         """
         import logging
 
-        import velux2mqtt.devices.cover as cover_module
+        class _SequenceClock:
+            def __init__(self, values: list[float]) -> None:
+                self._values = iter(values)
+
+            def now(self) -> float:
+                return next(self._values, 121.0)
+
+            async def sleep(self, _: float) -> None:
+                await asyncio.sleep(0)
 
         # Arrange
         gpio = FakeGpio()
         settings = _make_settings(enable_homing=False)
         ctx = FakeDeviceContext(gpio)
+        ctx.clock = _SequenceClock([0.0, 0.0, 121.0])  # type: ignore[assignment]
         calibration = CalibrationStateMachine()
         calibration.start()
         cal_queue = RepeatingCalibrationQueue("start")
 
-        # Three calls happen in the production code:
-        #   1. deadline = time_module.monotonic() + 120.0  → 0.0
-        #   2. remaining = 120.0 - time_module.monotonic() → 0.0   (remaining = 120.0)
-        #   3. remaining = 120.0 - time_module.monotonic() → 121.0 (remaining = -1.0 → exit)
-        monotonic_values = iter([0.0, 0.0, 121.0])
-
-        class _FakeTimeModule:
-            @staticmethod
-            def monotonic() -> float:
-                return next(monotonic_values, 121.0)
-
-        original_time_module = cover_module.time_module
-        cover_module.time_module = _FakeTimeModule()  # type: ignore[assignment]
-        try:
-            async with ctx.sub_entity("calibrate") as cal:
-                # Act — no outer wait_for needed; the fake clock drives the exit
-                await _run_active_calibration_session(
-                    ctx=ctx,
-                    gpio=gpio,
-                    cover_cfg=_DEFAULT_COVER,
-                    settings=settings,
-                    calibration=calibration,
-                    cal=cal,
-                    cal_queue=cal_queue,  # type: ignore[arg-type]
-                    logger=logging.getLogger("test"),
-                )
-        finally:
-            cover_module.time_module = original_time_module  # type: ignore[assignment]
+        async with ctx.sub_entity("calibrate") as cal:
+            # Act — no outer wait_for needed; the sequence clock drives the exit
+            await _run_active_calibration_session(
+                ctx=ctx,
+                gpio=gpio,
+                cover_cfg=_DEFAULT_COVER,
+                settings=settings,
+                calibration=calibration,
+                cal=cal,
+                cal_queue=cal_queue,  # type: ignore[arg-type]
+                logger=logging.getLogger("test"),
+            )
 
         # Assert — the session cancelled due to deadline expiry, not a valid transition
         assert calibration.state.name == "IDLE"

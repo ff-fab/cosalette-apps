@@ -31,7 +31,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import time as time_module
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
@@ -654,10 +653,10 @@ async def _run_active_calibration_session(
     logger: logging.Logger,
 ) -> None:
     """Run one active calibration session with a fixed inactivity deadline."""
-    deadline = time_module.monotonic() + 120.0
+    deadline = ctx.clock.now() + 120.0
 
     while calibration.state is not CalibrationState.IDLE:
-        remaining = deadline - time_module.monotonic()
+        remaining = deadline - ctx.clock.now()
         if remaining <= 0:
             logger.warning("Calibration timed out, cancelling")
             calibration.cancel()
@@ -692,7 +691,7 @@ async def _run_active_calibration_session(
             return
 
         if advanced:
-            deadline = time_module.monotonic() + 120.0
+            deadline = ctx.clock.now() + 120.0
 
 
 async def _publish_calibration_state(
