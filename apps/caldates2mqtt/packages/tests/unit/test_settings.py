@@ -28,10 +28,10 @@ class TestCalDates2MqttSettingsDefaults:
         settings = make_caldates2mqtt_settings()
         assert settings.calendars[0].days == 14
 
-    def test_default_poll_interval(self) -> None:
-        """Default poll interval is 7200 seconds (2h)."""
+    def test_default_schedule(self) -> None:
+        """Default schedule is '0 0 0/2 * * ?' (every 2 hours)."""
         settings = make_caldates2mqtt_settings()
-        assert settings.calendars[0].poll_interval == 7200.0
+        assert settings.calendars[0].schedule == "0 0 0/2 * * ?"
 
     def test_default_caldav_timeout(self) -> None:
         """Default CalDAV timeout is 30 seconds."""
@@ -51,40 +51,8 @@ class TestCalDates2MqttSettingsValidation:
     Technique: Boundary Value Analysis — test at and beyond boundaries.
     """
 
-    def test_poll_interval_rejects_zero(self) -> None:
-        """Poll interval must be > 0."""
-        with pytest.raises(ValidationError):
-            make_caldates2mqtt_settings(
-                calendars=[
-                    {
-                        "key": "test",
-                        "url": "https://example.com/",
-                        "calendar_name": "cal",
-                        "username": "u",
-                        "password": "p",
-                        "poll_interval": 0,
-                    }
-                ]
-            )
-
-    def test_poll_interval_rejects_negative(self) -> None:
-        """Negative poll interval is rejected."""
-        with pytest.raises(ValidationError):
-            make_caldates2mqtt_settings(
-                calendars=[
-                    {
-                        "key": "test",
-                        "url": "https://example.com/",
-                        "calendar_name": "cal",
-                        "username": "u",
-                        "password": "p",
-                        "poll_interval": -1,
-                    }
-                ]
-            )
-
-    def test_poll_interval_accepts_small_positive(self) -> None:
-        """Poll interval of 0.1 is valid (gt=0)."""
+    def test_schedule_accepts_valid_cron(self) -> None:
+        """Schedule accepts valid Quartz cron expressions."""
         settings = make_caldates2mqtt_settings(
             calendars=[
                 {
@@ -93,11 +61,11 @@ class TestCalDates2MqttSettingsValidation:
                     "calendar_name": "cal",
                     "username": "u",
                     "password": "p",
-                    "poll_interval": 0.1,
+                    "schedule": "0 30 9-17 * * MON-FRI",
                 }
             ]
         )
-        assert settings.calendars[0].poll_interval == 0.1
+        assert settings.calendars[0].schedule == "0 30 9-17 * * MON-FRI"
 
     def test_entries_rejects_zero(self) -> None:
         """Entries must be > 0."""
@@ -173,6 +141,54 @@ class TestCalDates2MqttSettingsValidation:
         with pytest.raises(ValidationError):
             make_caldates2mqtt_settings(calendars=[])
 
+    def test_schedule_rejects_too_few_fields(self) -> None:
+        """Schedule with fewer than 6 fields is rejected."""
+        with pytest.raises(ValidationError, match="6 or 7"):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "schedule": "* * *",
+                    }
+                ]
+            )
+
+    def test_schedule_rejects_plain_text(self) -> None:
+        """A non-cron string like 'every 2 hours' is rejected."""
+        with pytest.raises(ValidationError, match="6 or 7"):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "schedule": "every 2 hours",
+                    }
+                ]
+            )
+
+    def test_schedule_accepts_seven_field_cron(self) -> None:
+        """Optional 7th year field is accepted."""
+        settings = make_caldates2mqtt_settings(
+            calendars=[
+                {
+                    "key": "test",
+                    "url": "https://example.com/",
+                    "calendar_name": "cal",
+                    "username": "u",
+                    "password": "p",
+                    "schedule": "0 0 12 * * ? 2025-2030",
+                }
+            ]
+        )
+        assert settings.calendars[0].schedule == "0 0 12 * * ? 2025-2030"
+
 
 @pytest.mark.unit
 class TestCalDates2MqttSettingsMultiCalendar:
@@ -218,14 +234,14 @@ class TestCalDates2MqttSettingsMultiCalendar:
                     "password": "p",
                     "entries": 3,
                     "days": 7,
-                    "poll_interval": 3600.0,
+                    "schedule": "0 0 8,20 * * ?",
                 }
             ]
         )
         cal = settings.calendars[0]
         assert cal.entries == 3
         assert cal.days == 7
-        assert cal.poll_interval == 3600.0
+        assert cal.schedule == "0 0 8,20 * * ?"
 
     def test_password_not_leaked_in_repr(self) -> None:
         """SecretStr password is masked in repr."""

@@ -13,11 +13,13 @@ Each cover (e.g. `blind`, `window`) gets its own set of topics. The table below 
 
 | Topic                                     | Dir      | Payload                          | Retain | QoS |
 | ----------------------------------------- | -------- | -------------------------------- | ------ | --- |
-| `velux2mqtt/blind/state`                  | outbound | Position JSON                    | yes    | 1   |
-| `velux2mqtt/blind/set`                    | inbound  | Cover command                    | ---    | --- |
-| `velux2mqtt/blind/calibrate/state`        | outbound | Calibration state JSON           | yes    | 1   |
-| `velux2mqtt/blind/calibrate/result`       | outbound | Calibration result JSON          | yes    | 1   |
-| `velux2mqtt/blind/availability`           | outbound | `"online"` / `"offline"`         | yes    | 1   |
+| `velux2mqtt/blind/state`                       | outbound | Position JSON                    | yes    | 1   |
+| `velux2mqtt/blind/set`                         | inbound  | Cover command                    | ---    | --- |
+| `velux2mqtt/blind/calibrate/set`               | inbound  | Calibration command              | ---    | --- |
+| `velux2mqtt/blind/calibrate/state`             | outbound | Calibration state JSON           | yes    | 1   |
+| `velux2mqtt/blind/calibrate/result`            | outbound | Calibration result JSON          | yes    | 1   |
+| `velux2mqtt/blind/calibrate/availability`      | outbound | `"online"` / `"offline"`         | yes    | 1   |
+| `velux2mqtt/blind/availability`                | outbound | `"online"` / `"offline"`         | yes    | 1   |
 | `velux2mqtt/blind/error`                  | outbound | Error JSON                       | no     | 1   |
 | `velux2mqtt/status`                       | outbound | Heartbeat JSON + LWT `"offline"` | yes    | 1   |
 | `velux2mqtt/error`                        | outbound | Error JSON                       | no     | 1   |
@@ -149,30 +151,31 @@ be transferred to the cover configuration.
 
 ### Calibration Commands
 
-**Topic:** `velux2mqtt/{cover}/set`
+**Topic:** `velux2mqtt/{cover}/calibrate/set`
 
-Calibration commands are JSON payloads with a `"calibrate"` key, sent to the same
-`/set` topic as normal cover commands. During active calibration, normal cover commands
-are blocked.
+Calibration commands are JSON payloads with a `"phase"` key, sent to the dedicated
+`/calibrate/set` sub-topic. During active calibration, normal cover commands (on
+`{cover}/set`) are blocked. The `calibrate/availability` topic is published `"online"`
+while calibration is active and `"offline"` otherwise.
 
 ```json title="Start calibration"
-{"calibrate": "start"}
+{"phase": "start"}
 ```
 
 ```json title="Start with options"
-{"calibrate": "start", "runs": 5, "measure_offset": true, "measure_dead_band": true, "starting_state": "closed"}
+{"phase": "start", "runs": 5, "measure_offset": true, "measure_dead_band": true, "starting_state": "closed"}
 ```
 
 ```json title="Trigger button press"
-{"calibrate": "go"}
+{"phase": "go"}
 ```
 
 ```json title="Mark timing event"
-{"calibrate": "mark"}
+{"phase": "mark"}
 ```
 
 ```json title="Cancel calibration"
-{"calibrate": "cancel"}
+{"phase": "cancel"}
 ```
 
 | Action   | Description                                                         |

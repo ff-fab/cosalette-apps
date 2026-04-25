@@ -36,16 +36,16 @@ Before calibrating:
 
 ### 1. Start Calibration
 
-Send to `velux2mqtt/{cover}/set`:
+Send to `velux2mqtt/{cover}/calibrate/set`:
 
 ```json
-{"calibrate": "start"}
+{"phase": "start"}
 ```
 
 Or with options:
 
 ```json
-{"calibrate": "start", "runs": 3, "measure_offset": true, "measure_dead_band": true, "starting_state": "closed"}
+{"phase": "start", "runs": 3, "measure_offset": true, "measure_dead_band": true, "starting_state": "closed"}
 ```
 
 | Option              | Default                          | Description                    |
@@ -66,7 +66,7 @@ cover is not in the declared starting position, the first measurement will be in
 When you are ready, send:
 
 ```json
-{"calibrate": "go"}
+{"phase": "go"}
 ```
 
 This presses the direction button on the KLF 050 remote and starts the timer. The state
@@ -88,22 +88,22 @@ body moves when opening, but *after* the body has travelled when closing.
 
     **Open direction** (closed → open) — dead band before travel:
 
-    1. **Mark 1 — motor starts** (records offset): Send `{"calibrate": "mark"}` when
+    1. **Mark 1 — motor starts** (records offset): Send `{"phase": "mark"}` when
        you first hear or see the motor engage.
     2. **Mark 2 — handle rotation complete** (records dead band): Send
-       `{"calibrate": "mark"}` when the handle finishes rotating from the
+       `{"phase": "mark"}` when the handle finishes rotating from the
        closed/locked position to the open position and the window body begins opening.
     3. **Mark 3 — endpoint reached** (records travel): Send
-       `{"calibrate": "mark"}` when the window reaches the fully open endpoint.
+       `{"phase": "mark"}` when the window reaches the fully open endpoint.
 
     **Close direction** (open → closed) — travel before dead band:
 
-    1. **Mark 1 — motor starts** (records offset): Send `{"calibrate": "mark"}` when
+    1. **Mark 1 — motor starts** (records offset): Send `{"phase": "mark"}` when
        you first hear or see the motor engage.
     2. **Mark 2 — endpoint reached** (records travel): Send
-       `{"calibrate": "mark"}` when the window body reaches the fully closed position.
+       `{"phase": "mark"}` when the window body reaches the fully closed position.
     3. **Mark 3 — handle rotation complete** (records dead band): Send
-       `{"calibrate": "mark"}` when the handle finishes rotating from the open
+       `{"phase": "mark"}` when the handle finishes rotating from the open
        position to the closed/locked position.
 
 === "With dead band only"
@@ -114,32 +114,32 @@ body moves when opening, but *after* the body has travelled when closing.
     **Open direction** (closed → open) — dead band before travel:
 
     1. **Mark 1 — handle rotation complete** (records dead band): Send
-       `{"calibrate": "mark"}` when the handle finishes rotating from the
+       `{"phase": "mark"}` when the handle finishes rotating from the
        closed/locked position to the open position and the window body begins opening.
     2. **Mark 2 — endpoint reached** (records travel): Send
-       `{"calibrate": "mark"}` when the window reaches the fully open endpoint.
+       `{"phase": "mark"}` when the window reaches the fully open endpoint.
 
     **Close direction** (open → closed) — travel before dead band:
 
     1. **Mark 1 — endpoint reached** (records travel): Send
-       `{"calibrate": "mark"}` when the window body reaches the fully closed position.
+       `{"phase": "mark"}` when the window body reaches the fully closed position.
     2. **Mark 2 — handle rotation complete** (records dead band): Send
-       `{"calibrate": "mark"}` when the handle finishes rotating from the open
+       `{"phase": "mark"}` when the handle finishes rotating from the open
        position to the closed/locked position.
 
 === "With offset only"
 
     Same for both directions (2 marks):
 
-    1. Send `{"calibrate": "mark"}` when the cover **starts moving** (records offset)
-    2. Send `{"calibrate": "mark"}` when the cover **reaches the endpoint** (records
+    1. Send `{"phase": "mark"}` when the cover **starts moving** (records offset)
+    2. Send `{"phase": "mark"}` when the cover **reaches the endpoint** (records
        travel duration)
 
 === "Travel only"
 
     Same for both directions (1 mark):
 
-    1. Send `{"calibrate": "mark"}` when the cover **reaches the endpoint** (records
+    1. Send `{"phase": "mark"}` when the cover **reaches the endpoint** (records
        travel duration)
 
 ### 4. Repeat
@@ -225,7 +225,7 @@ produce more accurate averages.
 At any point during calibration, send:
 
 ```json
-{"calibrate": "cancel"}
+{"phase": "cancel"}
 ```
 
 This immediately returns to `IDLE` state, discards all measurements, and re-enables

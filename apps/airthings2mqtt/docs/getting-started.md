@@ -40,9 +40,9 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
 === "Docker (recommended)"
 
     Docker is the simplest way to run airthings2mqtt. Create a directory on your Pi,
-    copy this `docker-compose.yml` into it, and you're ready to go:
+    copy this `compose.yml` into it, and you're ready to go:
 
-    ```yaml title="docker-compose.yml"
+    ```yaml title="compose.yml"
     services:
       airthings2mqtt:
         image: ghcr.io/ff-fab/airthings2mqtt:latest
@@ -94,7 +94,7 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
     !!! tip "Download everything at once"
         Prefer `curl` over copy-paste? Grab all three files in one go:
         ```bash
-        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/airthings2mqtt/docker-compose.yml -o docker-compose.yml
+        curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/airthings2mqtt/compose.yml -o compose.yml
         curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/airthings2mqtt/mosquitto.conf -o mosquitto.conf
         curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/airthings2mqtt/.env.example -o .env
         ```

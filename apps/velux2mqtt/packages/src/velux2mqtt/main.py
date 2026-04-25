@@ -26,17 +26,16 @@ app = cosalette.App(
     },
 )
 
-# Register one device per cover from settings.
-# Settings are read eagerly here so cover devices are registered at
-# import time — cosalette needs registrations before run().
-_settings = Velux2MqttSettings()
 
-for _cover_cfg in _settings.covers:
-    app.add_device(
-        _cover_cfg.name,
-        make_cover(_cover_cfg, _settings),
-        summary=f"Velux cover {_cover_cfg.name}: open/close/stop control",
-    )
+@app.on_configure
+def register_covers(settings: Velux2MqttSettings) -> None:
+    """Register one device per configured cover (deferred until settings resolved)."""
+    for cover_cfg in settings.covers:
+        app.add_device(
+            cover_cfg.name,
+            make_cover(cover_cfg, settings),
+            summary=f"Velux cover {cover_cfg.name}: open/close/stop control",
+        )
 
 
 def main() -> None:

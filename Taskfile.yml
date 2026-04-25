@@ -95,10 +95,12 @@ tasks:
   # ── Cross-app orchestration ────────────────────────────────
 
   test:all:
-    desc: Run tests for all apps
+    desc: Run tests for all apps (unit + integration)
     cmds:
       - for: { var: APPS }
         task: '{{.ITEM}}:test'
+      - for: { var: APPS }
+        task: '{{.ITEM}}:test:integration'
 
   lint:all:
     desc: Lint all apps

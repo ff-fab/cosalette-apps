@@ -5,7 +5,7 @@ Deploy vito2mqtt in Docker for isolation, reproducibility, and easier management
 ## Prerequisites
 
 - **Docker**: 20.10+ ([install](https://docs.docker.com/engine/install/))
-- **Docker Compose**: 2.0+ (included with Docker Desktop; on Linux, `pip install docker-compose`)
+- **Docker Compose**: 2.0+ (included with Docker Desktop; on Linux, `apt install docker-compose-plugin` or `docker compose version` (Docker v2 plugin, pre-installed with Docker Desktop))
 - **Serial device**: USB-to-serial adapter (CH340, FTDI, etc.) accessible via `/dev/ttyUSB0`
 - **MQTT broker endpoint**: Either Docker-hosted (this guide) or external
 
@@ -43,21 +43,21 @@ minicom -D /dev/ttyUSB0  # Use Ctrl+A, Q to exit
 ```
 
 If using a different device path (e.g., `/dev/ttyUSB1`), update both:
-- `docker-compose.yml`: `devices:` section
+- `compose.yml`: `devices:` section
 - `.env`: `VITO2MQTT_SERIAL_PORT`
 
 ### 3. Start Services
 
 ```bash
 # Build vito2mqtt image and start both services (Mosquitto + vito2mqtt)
-docker-compose up
+docker compose up
 
 # Detached mode (runs in background)
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f         # All services
-docker-compose logs -f vito2mqtt  # Just the app
+docker compose logs -f         # All services
+docker compose logs -f vito2mqtt  # Just the app
 ```
 
 The app will automatically attempt to connect to the heating device on startup. Check logs for any connection errors.
@@ -125,20 +125,20 @@ VITO2MQTT_POLLING_HEATING_RADIATOR=300
 
 ```bash
 # Stop services
-docker-compose down
+docker compose down
 
 # Modify .env
 nano .env
 
 # Restart
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Serial Device Access
 
 ### Default: `--device` Flag (Recommended for Development)
 
-The `docker-compose.yml` uses:
+The `compose.yml` uses:
 
 ```yaml
 devices:
@@ -210,7 +210,7 @@ environment:
   VITO2MQTT_STORE_PATH: /app/data/store.json
 ```
 
-The `docker-compose.yml` configures this automatically. The state file survives
+The `compose.yml` configures this automatically. The state file survives
 container restarts and image upgrades.
 
 ### Inspecting or Resetting State
@@ -252,20 +252,20 @@ docker volume rm vito2mqtt_mosquitto-data
 
 ```bash
 # Real-time logs for all services
-docker-compose logs -f
+docker compose logs -f
 
 # Just vito2mqtt (colorized, last 100 lines)
-docker-compose logs -f vito2mqtt --tail 100
+docker compose logs -f vito2mqtt --tail 100
 
 # With timestamps
-docker-compose logs -f vito2mqtt --timestamps
+docker compose logs -f vito2mqtt --timestamps
 ```
 
 ### Check Service Status
 
 ```bash
 # List running containers
-docker-compose ps
+docker compose ps
 
 # Show container resource usage (CPU, memory)
 docker stats vito2mqtt vito2mqtt-mosquitto
@@ -291,12 +291,12 @@ docker exec vito2mqtt-mosquitto mosquitto_sub -t '#' -v
 docker exec vito2mqtt-mosquitto mosquitto_pub -t 'test/hello' -m 'world'
 
 # Check broker logs
-docker-compose logs mosquitto
+docker compose logs mosquitto
 ```
 
 ## Resource Limits
 
-`docker-compose.yml` defines resource limits to prevent the app from consuming excessive CPU/memory:
+`compose.yml` defines resource limits to prevent the app from consuming excessive CPU/memory:
 
 ```yaml
 deploy:
@@ -317,8 +317,8 @@ deploy:
 Apply changes:
 
 ```bash
-nano docker-compose.yml
-docker-compose up -d
+nano compose.yml
+docker compose up -d
 ```
 
 ## Health Checks
@@ -381,7 +381,7 @@ docker run --rm -it eclipse-mosquitto:2 mosquitto_passwd -c /tmp/passwd user1
 docker cp <container>:/tmp/passwd ./mosquitto/passwd
 ```
 
-Update `docker-compose.yml`:
+Update `compose.yml`:
 
 ```yaml
 mosquitto:
@@ -412,14 +412,14 @@ git pull origin main
 ### Rebuild Image
 
 ```bash
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 If the image build fails, check:
 
 ```bash
-docker-compose build --no-cache --progress=plain
+docker compose build --no-cache --progress=plain
 ```
 
 ### Database/Migration
@@ -430,13 +430,13 @@ vito2mqtt does not use a database. Configuration is stateless MQTT pub/sub.
 
 ```bash
 # Stop services (containers persist)
-docker-compose stop
+docker compose stop
 
 # Stop and remove containers
-docker-compose down
+docker compose down
 
 # Stop, remove containers, and delete volumes (⚠️ deletes Mosquitto data)
-docker-compose down -v
+docker compose down -v
 
 # Remove unused images/volumes (cleanup)
 docker system prune -a --volumes
@@ -444,7 +444,7 @@ docker system prune -a --volumes
 
 ## Docker Network Modes
 
-The default `docker-compose.yml` uses bridge networking (`networks.vito_network`).
+The default `compose.yml` uses bridge networking (`networks.vito_network`).
 
 **Service-to-service communication** uses internal DNS:
 - `mosquitto` (vito2mqtt connects to `mqtt://mosquitto:1883`)
@@ -473,17 +473,17 @@ Trade-offs:
 # Check device exists on host
 ls /dev/ttyUSB*
 
-# Verify docker-compose.yml devices section matches
+# Verify compose.yml devices section matches
 # Rebuild and restart
-docker-compose down
-docker-compose up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ### "Cannot connect to MQTT broker"
 
 ```bash
 # Verify Mosquitto is running
-docker-compose ps
+docker compose ps
 docker logs vito2mqtt-mosquitto
 
 # Check network connectivity
@@ -501,7 +501,7 @@ docker exec vito2mqtt env | grep VITO2MQTT
 
 ### Logs Fill Up
 
-Configure log rotation in `docker-compose.yml`:
+Configure log rotation in `compose.yml`:
 
 ```yaml
 logging:
@@ -557,7 +557,7 @@ VITO2MQTT_MQTT__USERNAME=api
 VITO2MQTT_MQTT__PASSWORD=secret
 ```
 
-Remove or comment out the `mosquitto` service from `docker-compose.yml`.
+Remove or comment out the `mosquitto` service from `compose.yml`.
 
 ### Build Arguments
 

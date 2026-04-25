@@ -169,28 +169,7 @@ async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
     port = ctx.adapter(OptolinkPort)  # type: ignore[type-abstract]
     settings: Vito2MqttSettings = ctx.settings  # type: ignore
 
-    # -- Queue for command → loop communication -----------------------------
-    command_queue: asyncio.Queue[str] = asyncio.Queue()
-
-    @ctx.on_command
-    async def _handle_command(topic: str, payload: str) -> None:  # noqa: ARG001
-        """Parse incoming MQTT command and enqueue it for the main loop."""
-        try:
-            data = json.loads(payload)
-        except json.JSONDecodeError:
-            logger.warning("Ignoring malformed JSON on %s: %s", topic, payload)
-            return
-
-        if not isinstance(data, dict):
-            logger.warning("Ignoring non-object JSON on %s: %s", topic, payload)
-            return
-
-        action = data.get("action")
-        if action not in {"start", "cancel"}:
-            logger.warning("Unknown legionella action: %r", action)
-            return
-
-        await command_queue.put(action)
+    # -- Command handling (replaces queue + callback) ----------------------
 
     # -- Startup recovery ---------------------------------------------------
     if store.get(_STORE_KEY_ACTIVE):
@@ -209,27 +188,40 @@ async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
     await ctx.publish_state({"status": "idle"})
 
     # -- Main loop ----------------------------------------------------------
-    while not ctx.shutdown_requested:
-        # Wait for a command (wake every 5 s to check shutdown)
+    async for cmd in ctx.commands(timeout=5):
+        if cmd is None:
+            continue  # timeout — no command received, loop again
+
+        # Parse command payload (same logic as old _handle_command)
         try:
-            action = await asyncio.wait_for(command_queue.get(), timeout=5)
-        except TimeoutError:
+            data = json.loads(cmd.payload)
+        except json.JSONDecodeError:
+            logger.warning("Invalid legionella command payload: %r", cmd.payload)
             continue
 
+        if not isinstance(data, dict):
+            logger.warning(
+                "Ignoring non-object JSON in legionella command: %r", cmd.payload
+            )
+            continue
+
+        action = data.get("action")
         if action == "start":
             await _handle_start(
                 ctx,
                 store,
                 port,
                 settings,
-                command_queue,
             )
-        # "cancel" while idle is a no-op
+        elif action == "cancel":
+            # "cancel" while idle is a no-op
+            pass
+        else:
+            logger.warning("Unknown legionella action: %r", action)
 
 
 async def _heating_countdown(
     ctx: DeviceContext,
-    command_queue: asyncio.Queue[str],
     target_temp: object,
     original_setpoint: object,
     remaining_minutes: int,
@@ -237,16 +229,28 @@ async def _heating_countdown(
     """Count down minute-by-minute, publishing heating state updates.
 
     Exits early if the device shuts down or a ``cancel`` command arrives
-    via *command_queue*.  Uses ``asyncio.wait_for`` on the queue so that
-    cancel commands are acted on immediately rather than waiting for the
-    next 60-second tick.
+    via ctx.commands().  Uses 60-second timeout so that cancel commands
+    are acted on immediately rather than waiting for the next minute tick.
     """
     while remaining_minutes > 0 and not ctx.shutdown_requested:
         # Wait 60 s for a command; timeout means "one minute elapsed"
-        try:
-            action = await asyncio.wait_for(command_queue.get(), timeout=60)
-        except TimeoutError:
-            action = None
+        action = None
+        async for cmd in ctx.commands(timeout=60):
+            if cmd is None:
+                break  # timeout — one minute elapsed
+
+            # Parse command payload
+            try:
+                data = json.loads(cmd.payload)
+            except json.JSONDecodeError:
+                logger.warning(
+                    "Invalid legionella command payload during heating: %r", cmd.payload
+                )
+                continue
+
+            if isinstance(data, dict):
+                action = data.get("action")
+            break  # Got a command, process it
 
         # Check for cancel
         if action == "cancel":
@@ -314,7 +318,6 @@ async def _handle_start(
     store: DeviceStore,
     port: OptolinkPort,
     settings: Vito2MqttSettings,
-    command_queue: asyncio.Queue[str],
 ) -> None:
     """Execute a full start → heat → restore cycle.
 
@@ -377,7 +380,6 @@ async def _handle_start(
 
     await _heating_countdown(
         ctx,
-        command_queue,
         target_temp,
         original_setpoint,
         remaining_minutes,

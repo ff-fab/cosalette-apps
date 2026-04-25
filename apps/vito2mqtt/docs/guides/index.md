@@ -117,7 +117,7 @@ mqtt:
 
 ### Docker Compose
 
-```yaml title="docker-compose.yml"
+```yaml title="compose.yml"
 services:
   vito2mqtt:
     image: ghcr.io/ff-fab/vito2mqtt:latest

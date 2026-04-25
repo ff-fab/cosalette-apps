@@ -72,7 +72,7 @@ Each entry in the `CALDATES2MQTT_CALENDARS` JSON list supports these fields:
 | `password`      | string   | yes      | ---     | CalDAV auth password                             |
 | `entries`       | integer  | no       | `5`     | Number of upcoming events to fetch               |
 | `days`          | integer  | no       | `14`    | Lookahead window in days                         |
-| `poll_interval` | float    | no       | `7200`  | Seconds between reads (default 2 hours)          |
+| `schedule`      | string   | no       | `"0 0 0/2 * * ?"` | Quartz cron expression for polling schedule (default: every 2 hours) |
 
 !!! note "Calendar key uniqueness"
     Each calendar's `key` must be unique --- it becomes the MQTT device name and topic
@@ -108,7 +108,7 @@ CALDATES2MQTT_MQTT__PORT=1883
 # --- CalDAV Calendars ---
 # REQUIRED: JSON list of calendar configurations
 # Each calendar becomes its own MQTT device with periodic polling.
-CALDATES2MQTT_CALENDARS='[{"key":"garbage","url":"https://cloud.example.com/remote.php/dav/calendars/user/","calendar_name":"abfall_shared_by_fab","username":"user","password":"secret","entries":5,"days":14,"poll_interval":7200},{"key":"birthday","url":"https://cloud.example.com/remote.php/dav/calendars/user/","calendar_name":"birthdays","username":"user","password":"secret"}]'
+CALDATES2MQTT_CALENDARS='[{"key":"garbage","url":"https://cloud.example.com/remote.php/dav/calendars/user/","calendar_name":"abfall_shared_by_fab","username":"user","password":"secret","entries":5,"days":14,"schedule":"0 0 0/2 * * ?"},{"key":"birthday","url":"https://cloud.example.com/remote.php/dav/calendars/user/","calendar_name":"birthdays","username":"user","password":"secret"}]'
 
 # HTTP timeout for CalDAV requests in seconds (default: 30)
 # CALDATES2MQTT_CALDAV_TIMEOUT=30
@@ -134,7 +134,7 @@ CALDATES2MQTT_CALENDARS='[
     "password": "secret",
     "entries": 5,
     "days": 14,
-    "poll_interval": 7200
+    "schedule": "0 0 0/2 * * ?"
   },
   {
     "key": "birthday",
@@ -144,7 +144,7 @@ CALDATES2MQTT_CALENDARS='[
     "password": "secret",
     "entries": 10,
     "days": 30,
-    "poll_interval": 86400
+    "schedule": "0 0 6 * * ?"
   }
 ]'
 ```
@@ -152,7 +152,7 @@ CALDATES2MQTT_CALENDARS='[
 !!! tip "JSON formatting"
     The `CALDATES2MQTT_CALENDARS` value must be valid JSON. For readability in `.env`
     files, you can use multi-line values with single quotes as shown above. In
-    `docker-compose.yml` environment sections, keep it on a single line.
+    `compose.yml` environment sections, keep it on a single line.
 
 ---
 

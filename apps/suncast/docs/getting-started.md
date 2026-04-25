@@ -20,7 +20,7 @@ visualizations flow to your MQTT broker.
     Docker is the simplest way to run suncast. The Compose stack includes suncast,
     an nginx sidecar for serving SVGs over HTTP, and Mosquitto.
 
-    ```yaml title="docker-compose.yml"
+    ```yaml title="compose.yml"
     services:
       suncast:
         image: ghcr.io/ff-fab/suncast:latest
@@ -79,7 +79,7 @@ visualizations flow to your MQTT broker.
     !!! tip "Download everything at once"
         Grab all files in one go:
         ```bash
-        for f in docker-compose.yml mosquitto.conf .env.example geometry.example.yaml; do
+        for f in compose.yml mosquitto.conf .env.example geometry.example.yaml; do
           curl -fsSL "https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/suncast/$f" -o "$f"
         done
         mv .env.example .env
@@ -90,7 +90,7 @@ visualizations flow to your MQTT broker.
         Replace `latest` with a release tag (e.g. `0.1.0`) in the `image:` line
         to pin the deployment.
 
-    See the full [docker-compose.yml reference](https://github.com/ff-fab/cosalette-apps/blob/main/apps/suncast/docker-compose.yml)
+    See the full [compose.yml reference](https://github.com/ff-fab/cosalette-apps/blob/main/apps/suncast/compose.yml)
     for health checks and volume details.
 
 === "Manual (pip/uv)"

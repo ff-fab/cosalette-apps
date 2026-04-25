@@ -49,10 +49,10 @@ sorted by date.
 The number of events is limited by the per-calendar `entries` setting (default: 5), and
 only events within the `days` lookahead window are included (default: 14 days).
 
-!!! info "Polling frequency"
-    The default polling interval is 7200 seconds (2 hours). The first reading arrives
-    shortly after startup; subsequent readings follow the configured interval. See
-    [Configuration](configuration.md) to adjust per-calendar.
+!!! info "Polling schedule"
+    By default, calendars are polled every 2 hours (Quartz cron `"0 0 0/2 * * ?"`).
+    The first reading arrives shortly after startup; subsequent reads follow the
+    configured schedule. See [Configuration](configuration.md) to adjust per-calendar.
 
 ### Re-Read Command
 

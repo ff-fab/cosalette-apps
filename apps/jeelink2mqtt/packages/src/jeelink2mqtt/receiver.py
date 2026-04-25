@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 import cosalette
 from cosalette import DeviceStore
 
-from jeelink2mqtt.app import SharedState, get_state
+from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.calibration import apply_calibration
 from jeelink2mqtt.models import MappingEvent, SensorConfig, SensorReading
 from jeelink2mqtt.ports import JeeLinkPort
@@ -50,9 +50,9 @@ def register_receiver(app: cosalette.App) -> None:
         jeelink: JeeLinkPort,
         store: DeviceStore,
         settings: Jeelink2MqttSettings,
+        state: SharedState,
     ) -> None:
         """Main receiver loop: open adapter, read frames, process, publish."""
-        state = get_state()
 
         # -- Restore persisted registry state (if any) ---------------------
         _restore_registry(store, state, settings)

@@ -16,7 +16,9 @@ from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.main import _poll_interval, _telemetry
+from cosalette import setting_ref
+
+from airthings2mqtt.main import _telemetry
 from airthings2mqtt.ports import AirthingsReaderPort
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -70,7 +72,7 @@ def build_integration_app(
         settings_class=Airthings2MqttSettings,
         adapters={AirthingsReaderPort: adapter},
     )
-    test_app.telemetry("airthings", interval=_poll_interval)(_telemetry)
+    test_app.telemetry("airthings", interval=setting_ref("poll_interval"))(_telemetry)
     return test_app
 
 

@@ -8,7 +8,7 @@ All settings are loaded from environment variables (CALDATES2MQTT_ prefix),
 from __future__ import annotations
 
 import cosalette
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import SettingsConfigDict
 
 
@@ -29,11 +29,31 @@ class CalendarConfig(BaseModel):
         default=5, gt=0, description="Number of upcoming events to fetch"
     )
     days: int = Field(default=14, gt=0, description="Lookahead window in days")
-    poll_interval: float = Field(
-        default=7200.0,
-        gt=0,
-        description="Seconds between reads (default 2h)",
+    schedule: str = Field(
+        default="0 0 0/2 * * ?",
+        description=(
+            "Quartz cron expression for polling schedule "
+            "(default: every 2 hours). "
+            "Format: second minute hour day-of-month month day-of-week"
+        ),
     )
+
+    @field_validator("schedule")
+    @classmethod
+    def validate_quartz_cron(cls, v: str) -> str:
+        """Validate that ``schedule`` is a 6- or 7-field Quartz cron expression.
+
+        Quartz cron format: second minute hour day-of-month month day-of-week [year]
+        """
+        parts = v.split()
+        if len(parts) not in (6, 7):
+            msg = (
+                f"Invalid Quartz cron expression {v!r}: expected 6 or 7 "
+                f"whitespace-separated fields (got {len(parts)}). "
+                "Format: second minute hour day-of-month month day-of-week [year]"
+            )
+            raise ValueError(msg)
+        return v
 
 
 class CalDates2MqttSettings(cosalette.Settings):

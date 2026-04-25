@@ -262,9 +262,9 @@ VOLUME /app/data
 ENTRYPOINT ["$NAME"]
 EOF
 
-# ── docker-compose.yml ───────────────────────────────────────
+# ── compose.yml ───────────────────────────────────────
 ENV_PREFIX="${PKG_NAME^^}"   # uppercase for env vars
-cat > "$APP/docker-compose.yml" <<EOF
+cat > "$APP/compose.yml" <<EOF
 services:
   $NAME:
     build:

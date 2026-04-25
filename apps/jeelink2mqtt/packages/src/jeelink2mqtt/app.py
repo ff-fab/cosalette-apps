@@ -11,11 +11,12 @@ Shared State
 The :class:`SharedState` dataclass holds domain objects (registry,
 filter bank, sensor configs) that must be accessible to both the
 receiver device and the mapping command handler.  It is initialised
-during the :func:`lifespan` and retrieved via :func:`get_state`.
+during the :func:`lifespan` and injected via cosalette's dependency
+injection system.
 
-This module-level singleton avoids polluting DI with mutable
-application state while keeping the two handlers loosely coupled
-(they share state through an explicit accessor, not hidden globals).
+The lifespan context manager yields the SharedState instance, which
+cosalette automatically injects into device and command functions
+that declare a ``state: SharedState`` parameter.
 """
 
 from __future__ import annotations
@@ -63,21 +64,6 @@ class SharedState:
     """Lookup table of domain sensor configs keyed by name."""
 
 
-_state: SharedState | None = None
-
-
-def get_state() -> SharedState:
-    """Return the shared application state.
-
-    Raises:
-        RuntimeError: If called outside the application lifespan.
-    """
-    if _state is None:
-        msg = "Application state not initialised — are you inside the app lifespan?"
-        raise RuntimeError(msg)
-    return _state
-
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -102,7 +88,7 @@ def _build_sensor_configs(settings: Jeelink2MqttSettings) -> list[SensorConfig]:
 
 
 @asynccontextmanager
-async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
+async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[SharedState]:
     """Application lifespan — initialise and tear down shared state.
 
     **Why here?**  The registry, filter bank, and sensor config lookup
@@ -110,11 +96,10 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
     runs *after* adapter resolution but *before* devices start — the
     ideal hook for one-time domain initialisation.
     """
-    global _state  # noqa: PLW0603
     settings: Jeelink2MqttSettings = ctx.settings  # type: ignore
 
     configs = _build_sensor_configs(settings)
-    _state = SharedState(
+    state = SharedState(
         registry=SensorRegistry(configs, settings.staleness_timeout_seconds),
         filter_bank=FilterBank(settings.median_filter_window),
         sensor_configs={c.name: c for c in configs},
@@ -127,9 +112,8 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
     )
 
     try:
-        yield
+        yield state
     finally:
-        _state = None
         logger.info("Shared state torn down")
 
 
@@ -173,7 +157,7 @@ def create_app() -> cosalette.App:
     )
 
     # Deferred imports avoid circular deps — both modules import
-    # from *this* file (get_state / SharedState).
+    # from *this* file (SharedState).
     from jeelink2mqtt.commands import register_commands
     from jeelink2mqtt.receiver import register_receiver
 

@@ -34,7 +34,6 @@ from jeelink2mqtt.app import (
     _build_sensor_configs,
     _lifespan,
     create_app,
-    get_state,
 )
 from jeelink2mqtt.commands import register_commands
 from jeelink2mqtt.filters import FilterBank
@@ -234,9 +233,7 @@ class TestLifespan:
         ctx = AppContext(settings=settings_one_sensor, adapters={})
 
         # Act
-        async with _lifespan(ctx):
-            state = get_state()
-
+        async with _lifespan(ctx) as state:
             # Assert — state is populated
             assert isinstance(state, SharedState)
             assert isinstance(state.registry, SensorRegistry)
@@ -246,21 +243,17 @@ class TestLifespan:
     async def test_lifespan_tears_down_state(
         self, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
-        """Exiting the lifespan resets _state to None.
+        """Exiting the lifespan completes normally.
 
-        Technique: State Transition — SharedState → None.
+        Technique: State Transition — SharedState → cleanup.
         """
         # Arrange
         ctx = AppContext(settings=settings_one_sensor, adapters={})
 
-        # Act
-        async with _lifespan(ctx):
-            pass  # lifespan active, _state is set
-
-        # Assert — after exit, state is torn down
-        assert app_module._state is None
-        with pytest.raises(RuntimeError, match="not initialised"):
-            get_state()
+        # Act & Assert — lifespan completes without error
+        async with _lifespan(ctx) as state:
+            assert isinstance(state, SharedState)
+        # After context exit, lifespan has completed
 
     async def test_lifespan_sensor_config_lookup(
         self, settings_two_sensors: Jeelink2MqttSettings
@@ -273,9 +266,7 @@ class TestLifespan:
         ctx = AppContext(settings=settings_two_sensors, adapters={})
 
         # Act
-        async with _lifespan(ctx):
-            state = get_state()
-
+        async with _lifespan(ctx) as state:
             # Assert
             assert set(state.sensor_configs.keys()) == {"office", "outdoor"}
             assert state.sensor_configs["office"].temp_offset == -0.3
@@ -347,17 +338,28 @@ class TestHandleMappingDispatch:
     Technique: Decision Table Testing — command × validity → response.
     """
 
-    @pytest.fixture
-    def _wired_state(self) -> SharedState:
-        """Set up module-level _state so get_state() works inside the handler."""
-        state = _make_shared_state(
-            configs=[
-                SensorConfig(name="office"),
-                SensorConfig(name="outdoor"),
-            ],
-        )
-        app_module._state = state
-        return state
+    async def test_handle_mapping_with_state(
+        self,
+        handle_mapping,
+        settings_one_sensor: Jeelink2MqttSettings,
+    ) -> None:
+        """Test command handler with proper state injection.
+
+        Technique: Integration Testing — lifespan + command handler.
+        """
+        # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
+        store = _make_device_store()
+        payload = json.dumps({"command": "list_unknown"})
+
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await handle_mapping(payload=payload, store=store, state=state)
+
+            # Assert
+            assert result is not None
+            assert result["status"] == "ok"
+            assert "unknown_sensors" in result
 
     @pytest.fixture
     def handle_mapping(self):
@@ -367,64 +369,73 @@ class TestHandleMappingDispatch:
         return _extract_handler(app, "command", "mapping")
 
     async def test_invalid_json_returns_error(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Non-JSON payload yields an error dict.
 
         Technique: Error Guessing — malformed input.
         """
         # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         store = _make_device_store()
 
-        # Act
-        result = await handle_mapping(payload="not-json{{{", store=store)
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await handle_mapping(
+                payload="not-json{{{{", store=store, state=state
+            )
 
-        # Assert
-        assert result == {"error": "Invalid JSON payload"}
+            # Assert
+            assert result == {"error": "Invalid JSON payload"}
 
     async def test_unknown_command_returns_error(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Payload with unrecognised command yields an error dict.
 
         Technique: Decision Table — unknown command branch.
         """
         # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         store = _make_device_store()
         payload = json.dumps({"command": "explode"})
 
-        # Act
-        result = await handle_mapping(payload=payload, store=store)
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await handle_mapping(payload=payload, store=store, state=state)
 
-        # Assert
-        assert result == {"error": "Unknown command: explode"}
+            # Assert
+            assert result == {"error": "Unknown command: explode"}
 
     async def test_empty_command_returns_error(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Payload with no 'command' key yields an error for empty string.
 
         Technique: Error Guessing — missing required field.
         """
         # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         store = _make_device_store()
         payload = json.dumps({"not_command": "assign"})
 
-        # Act
-        result = await handle_mapping(payload=payload, store=store)
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await handle_mapping(payload=payload, store=store, state=state)
 
-        # Assert
-        assert "error" in result
-        assert "Unknown command" in str(result["error"])
+            # Assert
+            assert "error" in result
+            assert "Unknown command" in str(result["error"])
 
     async def test_assign_returns_ok_and_persists(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Valid assign command creates mapping and persists to store.
 
         Technique: Decision Table — assign → ok + store write.
         """
         # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         store = _make_device_store()
         payload = json.dumps(
             {
@@ -434,27 +445,29 @@ class TestHandleMappingDispatch:
             }
         )
 
-        # Act
-        result = await handle_mapping(payload=payload, store=store)
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await handle_mapping(payload=payload, store=store, state=state)
 
-        # Assert — response
-        assert result["status"] == "ok"
-        assert result["event"]["event_type"] == "manual_assign"
-        assert result["event"]["sensor_name"] == "office"
-        assert result["event"]["new_sensor_id"] == 42
+            # Assert — response
+            assert result["status"] == "ok"
+            assert result["event"]["event_type"] == "manual_assign"
+            assert result["event"]["sensor_name"] == "office"
+            assert result["event"]["new_sensor_id"] == 42
 
-        # Assert — persistence
-        assert "registry" in store
-        assert _wired_state.registry.resolve(42) == "office"
+            # Assert — persistence
+            assert "registry" in store
+            assert state.registry.resolve(42) == "office"
 
     async def test_reset_returns_ok_and_persists(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Reset removes an existing mapping and persists the change.
 
         Technique: State Transition — mapped → unmapped.
         """
         # Arrange — first assign, then reset
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         store = _make_device_store()
         assign_payload = json.dumps(
             {
@@ -463,60 +476,70 @@ class TestHandleMappingDispatch:
                 "sensor_id": 42,
             }
         )
-        await handle_mapping(payload=assign_payload, store=store)
 
-        reset_payload = json.dumps(
-            {
-                "command": "reset",
-                "sensor_name": "office",
-            }
-        )
+        async with _lifespan(ctx) as state:
+            await handle_mapping(payload=assign_payload, store=store, state=state)
 
-        # Act
-        result = await handle_mapping(payload=reset_payload, store=store)
+            reset_payload = json.dumps(
+                {
+                    "command": "reset",
+                    "sensor_name": "office",
+                }
+            )
 
-        # Assert
-        assert result["status"] == "ok"
-        assert result["event"]["sensor_name"] == "office"
-        assert _wired_state.registry.resolve(42) is None
+            # Act
+            result = await handle_mapping(
+                payload=reset_payload, store=store, state=state
+            )
+
+            # Assert
+            assert result["status"] == "ok"
+            assert result["event"]["sensor_name"] == "office"
+            assert state.registry.resolve(42) is None
 
     async def test_reset_all_clears_all_mappings(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_two_sensors: Jeelink2MqttSettings
     ) -> None:
         """reset_all removes every mapping and persists.
 
         Technique: Decision Table — reset_all → cleared count.
         """
         # Arrange — assign two sensors
+        ctx = AppContext(settings=settings_two_sensors, adapters={})
         store = _make_device_store()
-        for name, sid in [("office", 42), ("outdoor", 99)]:
-            payload = json.dumps(
-                {
-                    "command": "assign",
-                    "sensor_name": name,
-                    "sensor_id": sid,
-                }
+
+        async with _lifespan(ctx) as state:
+            for name, sid in [("office", 42), ("outdoor", 99)]:
+                payload = json.dumps(
+                    {
+                        "command": "assign",
+                        "sensor_name": name,
+                        "sensor_id": sid,
+                    }
+                )
+                result = await handle_mapping(payload=payload, store=store, state=state)
+                assert result["status"] == "ok", f"assign {name} failed: {result}"
+
+            # Act
+            result = await handle_mapping(
+                payload=json.dumps({"command": "reset_all"}),
+                store=store,
+                state=state,
             )
-            await handle_mapping(payload=payload, store=store)
 
-        # Act
-        result = await handle_mapping(
-            payload=json.dumps({"command": "reset_all"}),
-            store=store,
-        )
-
-        # Assert
-        assert result["status"] == "ok"
-        assert result["cleared"] == 2
+            # Assert
+            assert result["status"] == "ok"
+            assert result["cleared"] == 2
 
     async def test_list_unknown_returns_unmapped_ids(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """list_unknown returns recently-seen unmapped sensor IDs.
 
         Technique: Decision Table — list_unknown → read-only query.
         """
         # Arrange — inject an unmapped reading into the registry
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         reading = SensorReading(
             sensor_id=999,
             temperature=20.0,
@@ -524,36 +547,40 @@ class TestHandleMappingDispatch:
             low_battery=False,
             timestamp=datetime.now(UTC),
         )
-        # Assign both sensors so 999 is truly unknown
-        _wired_state.registry.assign("office", 42)
-        _wired_state.registry.assign("outdoor", 77)
-        _wired_state.registry.record_reading(reading)
 
-        store = _make_device_store()
-        payload = json.dumps({"command": "list_unknown"})
+        async with _lifespan(ctx) as state:
+            # Assign both sensors so 999 is truly unknown
+            state.registry.assign("office", 42)
+            state.registry.record_reading(reading)
 
-        # Act
-        result = await handle_mapping(payload=payload, store=store)
+            store = _make_device_store()
+            payload = json.dumps({"command": "list_unknown"})
 
-        # Assert
-        assert result["status"] == "ok"
-        assert "999" in result["unknown_sensors"]
+            # Act
+            result = await handle_mapping(payload=payload, store=store, state=state)
+
+            # Assert
+            assert result["status"] == "ok"
+            assert "999" in result["unknown_sensors"]
 
     async def test_list_unknown_does_not_persist(
-        self, handle_mapping, _wired_state: SharedState
+        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """list_unknown is read-only — store is NOT written.
 
         Technique: Specification-based — mutation vs. query contract.
         """
         # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
         store = _make_device_store()
         payload = json.dumps({"command": "list_unknown"})
 
-        # Act
-        await handle_mapping(payload=payload, store=store)
+        async with _lifespan(ctx) as state:
+            # Act
+            await handle_mapping(payload=payload, store=store, state=state)
 
-        # Assert — store was not written to
+            # Assert — no persistence occurred
+            assert len(store) == 0
         assert "registry" not in store
 
 
@@ -615,7 +642,9 @@ class TestReceiverMainLoop:
 
         # Act — run receiver as a background task
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -666,7 +695,9 @@ class TestReceiverMainLoop:
 
         # Act — run receiver and inject enough readings for filter convergence
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -721,7 +752,9 @@ class TestReceiverMainLoop:
 
         # Act
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -777,7 +810,9 @@ class TestReceiverMainLoop:
 
         # Act
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -820,7 +855,9 @@ class TestReceiverMainLoop:
 
         # Act
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -868,7 +905,9 @@ class TestReceiverMainLoop:
 
         # Act — start and immediately shut down (no readings)
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -909,7 +948,9 @@ class TestReceiverMainLoop:
 
         # Act — run receiver; it should restore the mapping
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
