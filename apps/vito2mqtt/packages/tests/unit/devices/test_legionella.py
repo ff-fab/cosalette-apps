@@ -911,7 +911,7 @@ class TestLegionellaDevice:
 
         # Act
         await _heating_countdown(
-            ctx,
+            ctx,  # type: ignore[arg-type]
             target_temp=68,
             original_setpoint=50,
             remaining_minutes=2,
