@@ -8,21 +8,12 @@ vars:
   MODULE_NAME: '{{.MODULE_NAME | default .APP_NAME}}'
   PKG: packages
 
-  HAS_UNIT_TESTS:
-    sh: >-
-      find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \)
-      2>/dev/null | grep -qm1 . && echo true || echo false
-  HAS_INTEGRATION_TESTS:
-    sh: >-
-      find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \)
-      2>/dev/null | grep -qm1 . && echo true || echo false
-
 tasks:
   test:
     desc: 'Run all tests for {{.APP_NAME}} with coverage'
     cmds:
       - |
-        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+        if ! find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 .; then
           echo "ℹ No unit tests found — skipping"
           exit 0
         fi
@@ -34,7 +25,7 @@ tasks:
     desc: 'Run unit tests for {{.APP_NAME}}'
     cmds:
       - |
-        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+        if ! find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 .; then
           echo "ℹ No unit tests found — skipping"
           exit 0
         fi
@@ -55,7 +46,7 @@ tasks:
     desc: 'Run integration tests for {{.APP_NAME}}'
     cmds:
       - |
-        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+        if ! find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 .; then
           echo "ℹ No integration tests found — skipping"
           exit 0
         fi
@@ -162,7 +153,7 @@ tasks:
     desc: 'CI unit tests with coverage for {{.APP_NAME}}'
     cmds:
       - |
-        if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
+        if ! find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 .; then
           echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
           exit 0
         fi
@@ -175,7 +166,7 @@ tasks:
     desc: 'CI integration tests for {{.APP_NAME}}'
     cmds:
       - |
-        if [ "{{.HAS_INTEGRATION_TESTS}}" = "true" ]; then
+        if find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 .; then
           uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/integration/ \
             -v --tb=short -m integration \
             --junitxml=results-integration.xml
