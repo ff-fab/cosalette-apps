@@ -5,7 +5,7 @@ Deploy vito2mqtt in Docker for isolation, reproducibility, and easier management
 ## Prerequisites
 
 - **Docker**: 20.10+ ([install](https://docs.docker.com/engine/install/))
-- **Docker Compose**: 2.0+ (included with Docker Desktop; on Linux, `pip install docker-compose`)
+- **Docker Compose**: 2.0+ (included with Docker Desktop; on Linux, `apt install docker-compose-plugin` or `docker compose version` (Docker v2 plugin, pre-installed with Docker Desktop))
 - **Serial device**: USB-to-serial adapter (CH340, FTDI, etc.) accessible via `/dev/ttyUSB0`
 - **MQTT broker endpoint**: Either Docker-hosted (this guide) or external
 
@@ -50,14 +50,14 @@ If using a different device path (e.g., `/dev/ttyUSB1`), update both:
 
 ```bash
 # Build vito2mqtt image and start both services (Mosquitto + vito2mqtt)
-docker-compose up
+docker compose up
 
 # Detached mode (runs in background)
-docker-compose up -d
+docker compose up -d
 
 # View logs
-docker-compose logs -f         # All services
-docker-compose logs -f vito2mqtt  # Just the app
+docker compose logs -f         # All services
+docker compose logs -f vito2mqtt  # Just the app
 ```
 
 The app will automatically attempt to connect to the heating device on startup. Check logs for any connection errors.
@@ -125,13 +125,13 @@ VITO2MQTT_POLLING_HEATING_RADIATOR=300
 
 ```bash
 # Stop services
-docker-compose down
+docker compose down
 
 # Modify .env
 nano .env
 
 # Restart
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Serial Device Access
@@ -252,20 +252,20 @@ docker volume rm vito2mqtt_mosquitto-data
 
 ```bash
 # Real-time logs for all services
-docker-compose logs -f
+docker compose logs -f
 
 # Just vito2mqtt (colorized, last 100 lines)
-docker-compose logs -f vito2mqtt --tail 100
+docker compose logs -f vito2mqtt --tail 100
 
 # With timestamps
-docker-compose logs -f vito2mqtt --timestamps
+docker compose logs -f vito2mqtt --timestamps
 ```
 
 ### Check Service Status
 
 ```bash
 # List running containers
-docker-compose ps
+docker compose ps
 
 # Show container resource usage (CPU, memory)
 docker stats vito2mqtt vito2mqtt-mosquitto
@@ -291,7 +291,7 @@ docker exec vito2mqtt-mosquitto mosquitto_sub -t '#' -v
 docker exec vito2mqtt-mosquitto mosquitto_pub -t 'test/hello' -m 'world'
 
 # Check broker logs
-docker-compose logs mosquitto
+docker compose logs mosquitto
 ```
 
 ## Resource Limits
@@ -318,7 +318,7 @@ Apply changes:
 
 ```bash
 nano compose.yml
-docker-compose up -d
+docker compose up -d
 ```
 
 ## Health Checks
@@ -412,14 +412,14 @@ git pull origin main
 ### Rebuild Image
 
 ```bash
-docker-compose build --no-cache
-docker-compose up -d
+docker compose build --no-cache
+docker compose up -d
 ```
 
 If the image build fails, check:
 
 ```bash
-docker-compose build --no-cache --progress=plain
+docker compose build --no-cache --progress=plain
 ```
 
 ### Database/Migration
@@ -430,13 +430,13 @@ vito2mqtt does not use a database. Configuration is stateless MQTT pub/sub.
 
 ```bash
 # Stop services (containers persist)
-docker-compose stop
+docker compose stop
 
 # Stop and remove containers
-docker-compose down
+docker compose down
 
 # Stop, remove containers, and delete volumes (⚠️ deletes Mosquitto data)
-docker-compose down -v
+docker compose down -v
 
 # Remove unused images/volumes (cleanup)
 docker system prune -a --volumes
@@ -475,15 +475,15 @@ ls /dev/ttyUSB*
 
 # Verify compose.yml devices section matches
 # Rebuild and restart
-docker-compose down
-docker-compose up -d --build
+docker compose down
+docker compose up -d --build
 ```
 
 ### "Cannot connect to MQTT broker"
 
 ```bash
 # Verify Mosquitto is running
-docker-compose ps
+docker compose ps
 docker logs vito2mqtt-mosquitto
 
 # Check network connectivity

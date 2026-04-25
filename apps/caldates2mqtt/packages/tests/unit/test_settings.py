@@ -141,6 +141,54 @@ class TestCalDates2MqttSettingsValidation:
         with pytest.raises(ValidationError):
             make_caldates2mqtt_settings(calendars=[])
 
+    def test_schedule_rejects_too_few_fields(self) -> None:
+        """Schedule with fewer than 6 fields is rejected."""
+        with pytest.raises(ValidationError, match="6 or 7"):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "schedule": "* * *",
+                    }
+                ]
+            )
+
+    def test_schedule_rejects_plain_text(self) -> None:
+        """A non-cron string like 'every 2 hours' is rejected."""
+        with pytest.raises(ValidationError, match="6 or 7"):
+            make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        "schedule": "every 2 hours",
+                    }
+                ]
+            )
+
+    def test_schedule_accepts_seven_field_cron(self) -> None:
+        """Optional 7th year field is accepted."""
+        settings = make_caldates2mqtt_settings(
+            calendars=[
+                {
+                    "key": "test",
+                    "url": "https://example.com/",
+                    "calendar_name": "cal",
+                    "username": "u",
+                    "password": "p",
+                    "schedule": "0 0 12 * * ? 2025-2030",
+                }
+            ]
+        )
+        assert settings.calendars[0].schedule == "0 0 12 * * ? 2025-2030"
+
 
 @pytest.mark.unit
 class TestCalDates2MqttSettingsMultiCalendar:

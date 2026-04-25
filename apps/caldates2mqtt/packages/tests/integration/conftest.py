@@ -8,14 +8,16 @@ without real CalDAV or MQTT I/O.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
+import cosalette
 import pytest
 from cosalette import App, MockMqttClient
 from pydantic_settings import PydanticBaseSettingsSource
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.main import make_calendar_handler
+from caldates2mqtt.main import calendar
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
 
@@ -83,10 +85,21 @@ def build_integration_app(
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
     )
+
+    def _make_handler(cal: CalendarConfig):
+        async def _handler(
+            trigger: cosalette.TriggerPayload,
+            reader: CalDavPort,
+            logger: logging.Logger,
+        ) -> dict[str, object]:
+            return await calendar(cal, trigger, reader, logger)
+
+        return _handler
+
     for cal in calendars:
         app.add_telemetry(
             cal.key,
-            make_calendar_handler(cal),
+            _make_handler(cal),
             schedule=cal.schedule,
             triggerable=True,
         )
