@@ -43,6 +43,7 @@ from vito2mqtt.devices.legionella import (
     _STORE_KEY_ORIGINAL_SETPOINT,
     LEGIONELLA_SETPOINT_SIGNAL,
     TIMER_SIGNAL_FOR_DAY,
+    _heating_countdown,
     _legionella_device,
     is_within_heating_window,
     register_legionella,
@@ -487,6 +488,23 @@ class _FakeContext:
             self._shutdown = True
 
 
+class _StreamingInvalidHeatingContext:
+    """Context that emits malformed commands indefinitely during heating tests."""
+
+    def __init__(self) -> None:
+        self.publish_state = AsyncMock()
+
+    @property
+    def shutdown_requested(self) -> bool:
+        return False
+
+    async def commands(self, timeout: float = 60):  # noqa: ARG002
+        while True:
+            cmd = MagicMock()
+            cmd.payload = "not-json"
+            yield cmd
+
+
 @contextmanager
 def _instant_wait_for(ctx: _FakeContext):
     """Patch ``asyncio.wait_for`` in the legionella module for instant timeouts.
@@ -861,6 +879,45 @@ class TestLegionellaDevice:
         assert remaining_values[0] == 3
         assert remaining_values == sorted(remaining_values, reverse=True)
         assert len(remaining_values) >= 2
+
+    async def test_malformed_commands_do_not_stall_heating_countdown(self) -> None:
+        """Malformed commands during heating do not extend the minute budget.
+
+        Technique: Error Guessing — repeated junk payloads while heating.
+        """
+        # Arrange
+        ctx = _StreamingInvalidHeatingContext()
+        monotonic_values = [0.0, 0.0, 30.0, 61.0, 61.0, 61.0, 122.0]
+
+        def _fake_monotonic() -> float:
+            if monotonic_values:
+                return monotonic_values.pop(0)
+            return 122.0
+
+        # Act
+        with patch(
+            "vito2mqtt.devices.legionella.time_module.monotonic",
+            side_effect=_fake_monotonic,
+        ):
+            await asyncio.wait_for(
+                _heating_countdown(
+                    ctx,
+                    target_temp=68,
+                    original_setpoint=50,
+                    remaining_minutes=2,
+                ),
+                timeout=0.5,
+            )
+
+        # Assert — the countdown advanced despite malformed commands
+        ctx.publish_state.assert_awaited_once_with(
+            {
+                "status": "heating",
+                "target_temperature": 68,
+                "original_setpoint": 50,
+                "remaining_minutes": 1,
+            }
+        )
 
     async def test_graceful_shutdown_best_effort_restore(self) -> None:
         """Shutdown during heating → best-effort restore attempted.

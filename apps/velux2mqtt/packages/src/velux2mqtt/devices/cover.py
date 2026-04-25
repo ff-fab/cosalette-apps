@@ -31,6 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time as time_module
 from collections.abc import Awaitable, Callable
 from typing import Literal
 
@@ -87,7 +88,7 @@ def make_cover(
         _cal_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
 
         @ctx.on_command("calibrate")
-        async def _route_calibrate(sub_topic: str | None, payload: str) -> None:
+        async def _route_calibrate(_sub_topic: str | None, payload: str) -> None:
             params = _parse_calibrate(
                 payload
             )  # Now looks for {"phase": "start/go/mark/cancel"}
@@ -514,77 +515,184 @@ async def _run_calibration_task(
 
             await _publish_calibration_state(cal, calibration)
 
-            # Process subsequent commands until complete or cancelled
-            while calibration.state is not CalibrationState.IDLE:
-                try:
-                    params = await asyncio.wait_for(cal_queue.get(), timeout=120.0)
-                except asyncio.TimeoutError:
-                    logger.warning("Calibration timed out, cancelling")
-                    calibration.cancel()
-                    break
-
-                action = params.get("action")
-                try:
-                    if action == "go":
-                        event = calibration.go()
-                        if event.press_button and event.direction is not None:
-                            pin = (
-                                cover_cfg.pin_down
-                                if event.direction is CalibrationDirection.CLOSE
-                                else cover_cfg.pin_up
-                            )
-                            await gpio.press(pin, settings.button_press_duration)
-                    elif action == "mark":
-                        event = calibration.mark()
-                        if event.press_button and event.direction is not None:
-                            pin = (
-                                cover_cfg.pin_down
-                                if event.direction is CalibrationDirection.CLOSE
-                                else cover_cfg.pin_up
-                            )
-                            await gpio.press(pin, settings.button_press_duration)
-                    elif action == "cancel":
-                        calibration.cancel()
-                    else:
-                        logger.warning("Unknown calibration action: %r", action)
-                except (CalibrationError, ValueError, TypeError) as exc:
-                    logger.warning("Calibration error: %s", exc)
-
-                await _publish_calibration_state(cal, calibration)
-
-                if calibration.state is CalibrationState.COMPLETE:
-                    # Publish result
-                    result_data: dict[str, object] = {
-                        "avg_close": round(calibration.average_close, 2),
-                        "avg_open": round(calibration.average_open, 2),
-                    }
-                    db_pct = 0.0
-                    if calibration.has_offset:
-                        result_data["avg_offset"] = round(calibration.average_offset, 2)
-                    if calibration.has_dead_band:
-                        db_pct = calibration.dead_band_pct(
-                            calibration.average_close, calibration.average_open
-                        )
-                        result_data["avg_dead_band"] = round(
-                            calibration.average_dead_band, 2
-                        )
-                        result_data["dead_band_pct"] = round(db_pct, 1)
-                    parts = [
-                        f"avg_close={calibration.average_close:.2f}s",
-                        f"avg_open={calibration.average_open:.2f}s",
-                    ]
-                    if calibration.has_offset:
-                        parts.append(f"avg_offset={calibration.average_offset:.2f}s")
-                    if calibration.has_dead_band:
-                        parts.append(
-                            f"avg_dead_band={calibration.average_dead_band:.2f}s ({db_pct:.1f}%)"
-                        )
-                    logger.info("Calibration complete: %s", ", ".join(parts))
-                    await ctx.publish(
-                        "calibrate/result", json.dumps(result_data), retain=True
-                    )
-                    break
+            await _run_active_calibration_session(
+                ctx=ctx,
+                gpio=gpio,
+                cover_cfg=cover_cfg,
+                settings=settings,
+                calibration=calibration,
+                cal=cal,
+                cal_queue=cal_queue,
+                logger=logger,
+            )
+            _drain_calibration_queue(cal_queue)
         # sub_entity exits → calibrate/availability = "offline"
+
+
+def _calibration_progress(
+    calibration: CalibrationStateMachine,
+) -> tuple[CalibrationState, int, CalibrationDirection]:
+    """Return a marker that changes only when calibration meaningfully advances."""
+    return (calibration.state, calibration.current_run, calibration.direction)
+
+
+async def _dispatch_calibration_event(
+    *,
+    event,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+) -> None:
+    """Apply the GPIO side effect requested by a calibration transition."""
+    if not event.press_button or event.direction is None:
+        return
+
+    pin = (
+        cover_cfg.pin_down
+        if event.direction is CalibrationDirection.CLOSE
+        else cover_cfg.pin_up
+    )
+    await gpio.press(pin, settings.button_press_duration)
+
+
+async def _process_calibration_action(
+    *,
+    action: object,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    calibration: CalibrationStateMachine,
+    logger: logging.Logger,
+) -> bool:
+    """Apply one calibration action and report whether it advanced the session."""
+    before = _calibration_progress(calibration)
+
+    try:
+        if action == "go":
+            event = calibration.go()
+            await _dispatch_calibration_event(
+                event=event,
+                gpio=gpio,
+                cover_cfg=cover_cfg,
+                settings=settings,
+            )
+        elif action == "mark":
+            event = calibration.mark()
+            await _dispatch_calibration_event(
+                event=event,
+                gpio=gpio,
+                cover_cfg=cover_cfg,
+                settings=settings,
+            )
+        elif action == "cancel":
+            calibration.cancel()
+        else:
+            logger.warning("Unknown calibration action: %r", action)
+            return False
+    except (CalibrationError, ValueError, TypeError) as exc:
+        logger.warning("Calibration error: %s", exc)
+        return False
+
+    return _calibration_progress(calibration) != before
+
+
+async def _publish_calibration_result(
+    *,
+    ctx: cosalette.DeviceContext,
+    calibration: CalibrationStateMachine,
+    logger: logging.Logger,
+) -> None:
+    """Publish the final calibration result payload."""
+    result_data: dict[str, object] = {
+        "avg_close": round(calibration.average_close, 2),
+        "avg_open": round(calibration.average_open, 2),
+    }
+    db_pct = 0.0
+    if calibration.has_offset:
+        result_data["avg_offset"] = round(calibration.average_offset, 2)
+    if calibration.has_dead_band:
+        db_pct = calibration.dead_band_pct(
+            calibration.average_close,
+            calibration.average_open,
+        )
+        result_data["avg_dead_band"] = round(calibration.average_dead_band, 2)
+        result_data["dead_band_pct"] = round(db_pct, 1)
+
+    parts = [
+        f"avg_close={calibration.average_close:.2f}s",
+        f"avg_open={calibration.average_open:.2f}s",
+    ]
+    if calibration.has_offset:
+        parts.append(f"avg_offset={calibration.average_offset:.2f}s")
+    if calibration.has_dead_band:
+        parts.append(
+            f"avg_dead_band={calibration.average_dead_band:.2f}s ({db_pct:.1f}%)"
+        )
+
+    logger.info("Calibration complete: %s", ", ".join(parts))
+    await ctx.publish("calibrate/result", json.dumps(result_data), retain=True)
+
+
+def _drain_calibration_queue(cal_queue: asyncio.Queue[dict[str, object]]) -> None:
+    """Discard stale calibration actions left over from the previous session."""
+    while True:
+        try:
+            cal_queue.get_nowait()
+        except asyncio.QueueEmpty:
+            return
+
+
+async def _run_active_calibration_session(
+    *,
+    ctx: cosalette.DeviceContext,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    calibration: CalibrationStateMachine,
+    cal: cosalette.SubEntityContext,
+    cal_queue: asyncio.Queue[dict[str, object]],
+    logger: logging.Logger,
+) -> None:
+    """Run one active calibration session with a fixed inactivity deadline."""
+    deadline = time_module.monotonic() + 120.0
+
+    while calibration.state is not CalibrationState.IDLE:
+        remaining = deadline - time_module.monotonic()
+        if remaining <= 0:
+            logger.warning("Calibration timed out, cancelling")
+            calibration.cancel()
+            await _publish_calibration_state(cal, calibration)
+            return
+
+        try:
+            params = await asyncio.wait_for(cal_queue.get(), timeout=remaining)
+        except asyncio.TimeoutError:
+            logger.warning("Calibration timed out, cancelling")
+            calibration.cancel()
+            await _publish_calibration_state(cal, calibration)
+            return
+
+        advanced = await _process_calibration_action(
+            action=params.get("action"),
+            gpio=gpio,
+            cover_cfg=cover_cfg,
+            settings=settings,
+            calibration=calibration,
+            logger=logger,
+        )
+
+        await _publish_calibration_state(cal, calibration)
+
+        if calibration.state is CalibrationState.COMPLETE:
+            await _publish_calibration_result(
+                ctx=ctx,
+                calibration=calibration,
+                logger=logger,
+            )
+            return
+
+        if advanced:
+            deadline = time_module.monotonic() + 120.0
 
 
 async def _publish_calibration_state(

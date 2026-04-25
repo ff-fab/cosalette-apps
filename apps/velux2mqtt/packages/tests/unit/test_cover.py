@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
+from unittest.mock import patch
 
 import pytest
 
@@ -28,9 +29,11 @@ from velux2mqtt.devices.cover import (
     _execute_step,
     _parse_calibrate,
     _publish_position,
+    _run_active_calibration_session,
     _run_homing,
     make_cover,
 )
+from velux2mqtt.domain.calibration import CalibrationStateMachine
 from velux2mqtt.domain.drift import MoveStep
 from velux2mqtt.domain.position import PositionTracker
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
@@ -213,6 +216,16 @@ class FakeSubEntityContext:
     def on_command(self, handler):
         self.parent._sub_handlers[self.name] = handler
         return handler
+
+
+class RepeatingCalibrationQueue:
+    """Queue-like test double that yields the same calibration action forever."""
+
+    def __init__(self, action: str) -> None:
+        self._payload = {"action": action}
+
+    async def get(self) -> dict[str, object]:
+        return self._payload
 
 
 # ---------------------------------------------------------------------------
@@ -1093,6 +1106,54 @@ class TestCalibrationDispatch:
 
         # Assert — sub_entity should be cleaned up after device shutdown
         assert "calibrate" not in ctx._active_sub_entities
+
+    async def test_invalid_active_phase_does_not_refresh_timeout(self) -> None:
+        """Out-of-sequence active phases do not keep calibration alive indefinitely.
+
+        Technique: Error Guessing — repeated no-op phases during active calibration.
+        """
+        # Arrange
+        gpio = FakeGpio()
+        settings = _make_settings(enable_homing=False)
+        ctx = FakeDeviceContext(gpio)
+        calibration = CalibrationStateMachine()
+        calibration.start()
+        cal_queue = RepeatingCalibrationQueue("start")
+        monotonic_values = [0.0, 0.0, 121.0]
+
+        def _fake_monotonic() -> float:
+            if monotonic_values:
+                return monotonic_values.pop(0)
+            return 121.0
+
+        # Act
+        async with ctx.sub_entity("calibrate") as cal:
+            with patch(
+                "velux2mqtt.devices.cover.time_module.monotonic",
+                side_effect=_fake_monotonic,
+            ):
+                await asyncio.wait_for(
+                    _run_active_calibration_session(
+                        ctx=ctx,
+                        gpio=gpio,
+                        cover_cfg=_DEFAULT_COVER,
+                        settings=settings,
+                        calibration=calibration,
+                        cal=cal,
+                        cal_queue=cal_queue,  # type: ignore[arg-type]
+                        logger=__import__("logging").getLogger("test"),
+                    ),
+                    timeout=0.5,
+                )
+
+        # Assert — the session timed out instead of being kept alive forever
+        cal_states = [
+            json.loads(payload)["state"]
+            for ch, payload in ctx.published_channels
+            if ch == "calibrate/state"
+        ]
+        assert calibration.state.name == "IDLE"
+        assert cal_states[-1] == "IDLE"
 
     # Note: More complex calibration integration tests are covered by
     # integration tests. These unit tests focus on the basic command flow.

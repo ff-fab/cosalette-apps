@@ -168,10 +168,14 @@ async def handle_mapping(
     import json
 
     try:
-        data: dict[str, Any] = json.loads(payload)
+        data = json.loads(payload)
     except json.JSONDecodeError:
         logger.warning("Invalid JSON in mapping command: %r", payload)
         return {"error": "Invalid JSON payload"}
+
+    if not isinstance(data, dict):
+        logger.warning("Non-object JSON in mapping command: %r", payload)
+        return {"error": "JSON payload must be an object"}
 
     command = data.get("command", "")
 

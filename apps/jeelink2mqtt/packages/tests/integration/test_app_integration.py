@@ -365,6 +365,28 @@ class TestHandleMappingDispatch:
             # Assert
             assert result == {"error": "Invalid JSON payload"}
 
+    @pytest.mark.parametrize("payload", ["[]", '"mapping"', "42"])
+    async def test_non_object_json_returns_error(
+        self,
+        handle_mapping,
+        settings_one_sensor: Jeelink2MqttSettings,
+        payload: str,
+    ) -> None:
+        """Valid JSON that is not an object yields an error dict.
+
+        Technique: Equivalence Partitioning — JSON scalar/array inputs.
+        """
+        # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
+        store = _make_device_store()
+
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await handle_mapping(payload=payload, store=store, state=state)
+
+            # Assert
+            assert result == {"error": "JSON payload must be an object"}
+
     async def test_unknown_command_returns_error(
         self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:

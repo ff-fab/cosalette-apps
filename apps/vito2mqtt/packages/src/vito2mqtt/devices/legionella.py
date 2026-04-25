@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time as time_module
 from datetime import datetime, time, timedelta
 
 from cosalette import App, DeviceContext, DeviceStore
@@ -192,20 +193,10 @@ async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
         if cmd is None:
             continue  # timeout — no command received, loop again
 
-        # Parse command payload (same logic as old _handle_command)
-        try:
-            data = json.loads(cmd.payload)
-        except json.JSONDecodeError:
-            logger.warning("Invalid legionella command payload: %r", cmd.payload)
+        action = _parse_legionella_action(cmd.payload)
+        if action is None:
             continue
 
-        if not isinstance(data, dict):
-            logger.warning(
-                "Ignoring non-object JSON in legionella command: %r", cmd.payload
-            )
-            continue
-
-        action = data.get("action")
         if action == "start":
             await _handle_start(
                 ctx,
@@ -218,6 +209,77 @@ async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
             pass
         else:
             logger.warning("Unknown legionella action: %r", action)
+
+
+def _parse_legionella_action(payload: str, *, log_context: str = "") -> str | None:
+    """Parse a legionella command payload and return its action."""
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError:
+        logger.warning("Invalid legionella command payload%s: %r", log_context, payload)
+        return None
+
+    if not isinstance(data, dict):
+        logger.warning(
+            "Ignoring non-object JSON in legionella command%s: %r",
+            log_context,
+            payload,
+        )
+        return None
+
+    action = data.get("action")
+    if not isinstance(action, str):
+        logger.warning(
+            "Ignoring legionella command without string action%s: %r",
+            log_context,
+            payload,
+        )
+        return None
+
+    return action
+
+
+async def _next_legionella_command(
+    ctx: DeviceContext,
+    *,
+    timeout: float,
+):
+    """Return the next command yielded by ``ctx.commands()`` or ``None``."""
+    try:
+        return await anext(ctx.commands(timeout=timeout))
+    except StopAsyncIteration:
+        return None
+
+
+async def _wait_for_legionella_action(
+    ctx: DeviceContext,
+    *,
+    timeout: float,
+    allowed_actions: frozenset[str],
+    log_context: str,
+) -> str | None:
+    """Wait for an allowed action without extending the original timeout budget."""
+    deadline = time_module.monotonic() + timeout
+
+    while not ctx.shutdown_requested:
+        remaining = deadline - time_module.monotonic()
+        if remaining <= 0:
+            return None
+
+        cmd = await _next_legionella_command(ctx, timeout=remaining)
+        if cmd is None:
+            return None
+
+        action = _parse_legionella_action(cmd.payload, log_context=log_context)
+        if action is None:
+            continue
+        if action not in allowed_actions:
+            logger.warning("Ignoring legionella action%s: %r", log_context, action)
+            continue
+
+        return action
+
+    return None
 
 
 async def _heating_countdown(
@@ -233,24 +295,12 @@ async def _heating_countdown(
     are acted on immediately rather than waiting for the next minute tick.
     """
     while remaining_minutes > 0 and not ctx.shutdown_requested:
-        # Wait 60 s for a command; timeout means "one minute elapsed"
-        action = None
-        async for cmd in ctx.commands(timeout=60):
-            if cmd is None:
-                break  # timeout — one minute elapsed
-
-            # Parse command payload
-            try:
-                data = json.loads(cmd.payload)
-            except json.JSONDecodeError:
-                logger.warning(
-                    "Invalid legionella command payload during heating: %r", cmd.payload
-                )
-                continue
-
-            if isinstance(data, dict):
-                action = data.get("action")
-            break  # Got a command, process it
+        action = await _wait_for_legionella_action(
+            ctx,
+            timeout=60.0,
+            allowed_actions=frozenset({"cancel"}),
+            log_context=" during heating",
+        )
 
         # Check for cancel
         if action == "cancel":
