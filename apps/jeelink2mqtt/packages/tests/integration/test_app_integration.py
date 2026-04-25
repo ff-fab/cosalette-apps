@@ -1,12 +1,12 @@
 """Integration tests for the jeelink2mqtt application layer.
 
-Tests the cosalette application wiring: ``app.py`` (lifespan, factory,
-sensor config builder), ``commands.py`` (handle_mapping dispatch
-wrapper), and ``receiver.py`` (main receiver loop).
+Tests the cosalette application wiring: ``app.py`` (lifespan,
+sensor config builder), ``commands.py`` (mapping command
+implementations), and ``receiver.py`` (pipeline helpers / main loop).
 
 These tests exercise the *registered* handlers extracted from the
-cosalette ``App``, verifying that the decorator-based wiring works
-end-to-end with real domain objects and in-memory test doubles.
+module-level ``app`` in ``main.py``, verifying that the declarative
+wiring works end-to-end with real domain objects and in-memory doubles.
 
 Test Techniques Used:
 - Integration Testing: Component wiring across app/commands/receiver
@@ -27,18 +27,15 @@ import pytest
 from cosalette import AppContext, DeviceStore
 from cosalette.stores import MemoryStore
 
-import jeelink2mqtt.app as app_module
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter
 from jeelink2mqtt.app import (
     SharedState,
     _build_sensor_configs,
     _lifespan,
-    create_app,
 )
-from jeelink2mqtt.commands import register_commands
 from jeelink2mqtt.filters import FilterBank
+from jeelink2mqtt.main import app
 from jeelink2mqtt.models import SensorConfig, SensorReading
-from jeelink2mqtt.receiver import register_receiver
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from tests.fixtures.async_utils import wait_for_condition
@@ -115,14 +112,8 @@ def _extract_handler(app: cosalette.App, kind: str, name: str):
 
 @pytest.fixture(autouse=True)
 def _reset_app_state():
-    """Ensure module-level _state is clean before and after each test.
-
-    The lifespan and some tests mutate ``app_module._state`` directly;
-    this fixture guarantees isolation.
-    """
-    app_module._state = None
+    """No-op fixture retained for compatibility; state is lifespan-managed."""
     yield
-    app_module._state = None
 
 
 @pytest.fixture
@@ -278,21 +269,17 @@ class TestLifespan:
 
 
 @pytest.mark.integration
-class TestCreateApp:
-    """Test create_app: composition root producing a cosalette App.
+class TestApp:
+    """Test the module-level app: composition root producing a cosalette App.
 
     Technique: Specification-based — factory contract verification.
     """
 
     def test_returns_cosalette_app(self) -> None:
-        """create_app() returns a cosalette.App instance.
+        """app is a cosalette.App instance.
 
         Technique: Specification-based — return type contract.
         """
-        # Arrange / Act
-        app = create_app()
-
-        # Assert
         assert isinstance(app, cosalette.App)
 
     def test_app_has_correct_name(self) -> None:
@@ -300,21 +287,13 @@ class TestCreateApp:
 
         Technique: Specification-based — identity attribute.
         """
-        # Arrange / Act
-        app = create_app()
-
-        # Assert
         assert app._name == "jeelink2mqtt"
 
     def test_app_registers_receiver_and_commands(self) -> None:
-        """create_app() registers both the receiver device and mapping command.
+        """app registers both the receiver device and mapping command.
 
         Technique: Integration Testing — wiring completeness.
         """
-        # Arrange / Act
-        app = create_app()
-
-        # Assert — at least one device and one command registered
         assert len(app._devices) >= 1
         assert len(app._commands) >= 1
         device_names = [d.name for d in app._devices]
@@ -363,9 +342,7 @@ class TestHandleMappingDispatch:
 
     @pytest.fixture
     def handle_mapping(self):
-        """Extract the registered handle_mapping function from a fresh App."""
-        app = cosalette.App(name="test", version="0.0.0")
-        register_commands(app)
+        """Extract the registered handle_mapping function from the app."""
         return _extract_handler(app, "command", "mapping")
 
     async def test_invalid_json_returns_error(
@@ -601,22 +578,18 @@ class TestReceiverMainLoop:
 
     @pytest.fixture
     def receiver_fn(self):
-        """Extract the registered receiver function from a fresh App."""
-        app = cosalette.App(name="test", version="0.0.0")
-        register_receiver(app)
+        """Extract the registered receiver function from the app."""
         return _extract_handler(app, "device", "receiver")
 
     @pytest.fixture
     def wired_state_one_sensor(self) -> SharedState:
-        """Set up module-level _state with 'office' sensor."""
+        """Build a SharedState with 'office' sensor for injection."""
         configs = [SensorConfig(name="office", temp_offset=-0.3)]
-        state = SharedState(
+        return SharedState(
             registry=SensorRegistry(sensors=configs, staleness_timeout=600.0),
             filter_bank=FilterBank(window=3),
             sensor_configs={c.name: c for c in configs},
         )
-        app_module._state = state
-        return state
 
     async def test_receiver_publishes_raw_on_reading(
         self,
