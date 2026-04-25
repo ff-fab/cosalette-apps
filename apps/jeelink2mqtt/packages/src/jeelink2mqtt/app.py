@@ -1,22 +1,9 @@
-"""Cosalette application factory for jeelink2mqtt.
+"""Application lifespan and backward-compatibility re-exports for jeelink2mqtt.
 
-Composition root that wires domain components, adapters, and
-persistence into a cosalette ``App``.  Follows the composition root
-pattern (ADR-001): this module is the *only* place where concrete
-implementations are assembled — all other modules depend on ports.
-
-Shared State
-~~~~~~~~~~~~
-
-The :class:`SharedState` dataclass holds domain objects (registry,
-filter bank, sensor configs) that must be accessible to both the
-receiver device and the mapping command handler.  It is initialised
-during the :func:`lifespan` and injected via cosalette's dependency
-injection system.
-
-The lifespan context manager yields the SharedState instance, which
-cosalette automatically injects into device and command functions
-that declare a ``state: SharedState`` parameter.
+The active composition root is :mod:`jeelink2mqtt.main`.  This module
+retains the :func:`_lifespan` async context manager (imported by tests)
+and re-exports :class:`SharedState` and :func:`_build_sensor_configs`
+from :mod:`jeelink2mqtt.state` so existing imports continue to work.
 """
 
 from __future__ import annotations
@@ -24,77 +11,26 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
-from pathlib import Path
 
 import cosalette
-from cosalette.stores import JsonFileStore
 
-from jeelink2mqtt import __version__
-from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.filters import FilterBank
-from jeelink2mqtt.models import SensorConfig
-from jeelink2mqtt.ports import JeeLinkPort
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings
+from jeelink2mqtt.state import SharedState, _build_sensor_configs  # noqa: F401
+
+__all__ = ["SharedState", "_build_sensor_configs", "_lifespan"]
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Shared application state
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class SharedState:
-    """Shared mutable state initialised during lifespan.
-
-    Holds the domain objects that both the receiver device and
-    mapping command handler need to access.
-    """
-
-    registry: SensorRegistry
-    """Sensor ID → name registry (auto-adopt + manual assign)."""
-
-    filter_bank: FilterBank
-    """Per-sensor median filters for outlier rejection."""
-
-    sensor_configs: dict[str, SensorConfig] = field(default_factory=dict)
-    """Lookup table of domain sensor configs keyed by name."""
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _build_sensor_configs(settings: Jeelink2MqttSettings) -> list[SensorConfig]:
-    """Convert settings-layer sensor definitions to domain SensorConfig."""
-    return [
-        SensorConfig(
-            name=s.name,
-            temp_offset=s.temp_offset,
-            humidity_offset=s.humidity_offset,
-            staleness_timeout=s.staleness_timeout,
-        )
-        for s in settings.sensors
-    ]
-
-
-# ---------------------------------------------------------------------------
-# Lifespan
-# ---------------------------------------------------------------------------
 
 
 @asynccontextmanager
 async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[SharedState]:
     """Application lifespan — initialise and tear down shared state.
 
-    **Why here?**  The registry, filter bank, and sensor config lookup
-    must exist before any device or command handler runs.  The lifespan
-    runs *after* adapter resolution but *before* devices start — the
-    ideal hook for one-time domain initialisation.
+    Runs *after* adapter resolution but *before* devices start,
+    building the :class:`SharedState` (registry, filter bank, sensor
+    config lookup) that both the receiver and command handler inject.
     """
     settings: Jeelink2MqttSettings = ctx.settings  # type: ignore
 
@@ -115,53 +51,3 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[SharedState]:
         yield state
     finally:
         logger.info("Shared state torn down")
-
-
-# ---------------------------------------------------------------------------
-# Adapter factory
-# ---------------------------------------------------------------------------
-
-
-def _make_adapter(settings: Jeelink2MqttSettings) -> PyLaCrosseAdapter:
-    """Factory for the production JeeLink adapter.
-
-    Receives ``Jeelink2MqttSettings`` via cosalette's signature-based
-    DI at adapter-resolution time (see ``_call_factory`` in cosalette).
-    """
-    return PyLaCrosseAdapter(port=settings.serial_port, baud_rate=settings.baud_rate)
-
-
-# ---------------------------------------------------------------------------
-# App factory
-# ---------------------------------------------------------------------------
-
-
-def create_app() -> cosalette.App:
-    """Create and wire the jeelink2mqtt cosalette application.
-
-    This is the **composition root** — the single place where all
-    domain components, adapters, and infrastructure are assembled.
-
-    Returns:
-        A fully-configured :class:`cosalette.App` ready to ``run()``
-        or ``cli()``.
-    """
-    app = cosalette.App(
-        name="jeelink2mqtt",
-        version=__version__,
-        description="JeeLink LaCrosse sensor bridge for MQTT",
-        settings_class=Jeelink2MqttSettings,
-        lifespan=_lifespan,
-        store=JsonFileStore(Path("data") / "jeelink2mqtt.json"),
-        adapters={JeeLinkPort: (_make_adapter, FakeJeeLinkAdapter)},
-    )
-
-    # Deferred imports avoid circular deps — both modules import
-    # from *this* file (SharedState).
-    from jeelink2mqtt.commands import register_commands
-    from jeelink2mqtt.receiver import register_receiver
-
-    register_receiver(app)
-    register_commands(app)
-
-    return app

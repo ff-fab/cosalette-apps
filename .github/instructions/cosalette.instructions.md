@@ -68,7 +68,12 @@ async def control_lights(payload: str) -> dict[str, object] | None:
 
 ### Device Coroutines (Full Control)
 ```python
-@app.device("sensor")
+@app.device(
+    "sensor",
+    summary="Temperature sensor with fault detection",
+    behavior=["polls I2C", "validates readings"],
+    effects=["publishes sensor/state"]
+)
 async def sensor_loop(ctx: cosalette.DeviceContext) -> None:
     """Manage your own lifecycle and publishing."""
     while not ctx.shutdown_requested:
@@ -155,8 +160,8 @@ app = cosalette.App(
     settings_class=MyAppSettings
 )
 
-# Access settings in handlers via context
-@app.telemetry("sensor", interval=app.settings.poll_interval)
+# Access settings in handlers via context; use setting_ref() for intervals
+@app.telemetry("sensor", interval=cosalette.setting_ref("poll_interval"))
 async def sensor(ctx: cosalette.DeviceContext) -> dict[str, object]:
     port = ctx.settings.sensor_port
     return await read_sensor(port)
@@ -191,6 +196,31 @@ The callable receives `Settings` and returns `dict[str, config]` (per-device con
 injected by type) or `list[str]` (names only). Works with `@app.telemetry`,
 `@app.device`, and `@app.command`. Prefer this over `@app.on_configure` loops for
 similar devices — reserve imperative registration for complex conditional logic.
+
+When devices need different cron schedules, pass a callable to `schedule=` instead of
+`interval=`. The callable receives the per-device config and returns a cron string or
+`CronSchedule` instance:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class SensorConfig:
+    mac: str
+    cron_expr: str = "0 0 * * * ?"  # default: every hour
+
+@app.telemetry(
+    name=lambda s: s.sensors,
+    schedule=lambda cfg: cfg.cron_expr,  # per-device cron schedule
+)
+async def sensor(
+    ctx: cosalette.DeviceContext, config: SensorConfig,
+) -> dict[str, object]:
+    return {"temperature": await read_ble(config.mac)}
+```
+
+Callable `schedule=` requires `name=callable` (dict-name form) and cannot combine
+with `group=`.
 
 ## Deferred enabled= (Callable)
 
@@ -286,5 +316,13 @@ async def sensor(trigger: TriggerPayload) -> dict[str, object]:
 Constraints: root (unnamed) devices cannot be triggerable; `triggerable=` and `group=`
 are mutually exclusive. Refer to `cosalette ai help triggerable` for details.
 
+## Inspecting the App Manifest
+
+    cosalette manifest myapp.main:app           # JSON manifest
+    cosalette manifest myapp.main:app --table   # human-readable table
+
+Prints all registered telemetry and commands with their contract metadata,
+interval bindings, and publish strategies. Useful for auditing and tooling.
+
 Install the instruction file via: `cosalette ai init`
-For comprehensive topic help: `cosalette ai help <topic>` (architecture, telemetry, testing, configuration, commands, health, scheduling, resilience, sub-entities, triggerable, multi-device)
+For comprehensive topic help: `cosalette ai help <topic>` (architecture, telemetry, testing, configuration, commands, health, scheduling, resilience, sub-entities, triggerable, multi-device, contracts, manifest)

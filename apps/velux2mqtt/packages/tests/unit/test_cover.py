@@ -17,10 +17,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-from dataclasses import dataclass, field
 from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
 
 import pytest
+from cosalette.testing import FakeClock
 
 from velux2mqtt.adapters.fake import FakeGpio, PressCall
 from velux2mqtt.devices.cover import (
@@ -28,13 +29,14 @@ from velux2mqtt.devices.cover import (
     _execute_step,
     _parse_calibrate,
     _publish_position,
+    _run_active_calibration_session,
     _run_homing,
     make_cover,
 )
+from velux2mqtt.domain.calibration import CalibrationStateMachine
 from velux2mqtt.domain.drift import MoveStep
 from velux2mqtt.domain.position import PositionTracker
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -103,6 +105,7 @@ class FakeDeviceContext:
         self._root_handler = None
         self._sub_handlers: dict[str, object] = {}
         self._active_sub_entities: dict[str, object] = {}
+        self.clock: FakeClock = FakeClock()
 
     @property
     def name(self) -> str:
@@ -213,6 +216,16 @@ class FakeSubEntityContext:
     def on_command(self, handler):
         self.parent._sub_handlers[self.name] = handler
         return handler
+
+
+class RepeatingCalibrationQueue:
+    """Queue-like test double that yields the same calibration action forever."""
+
+    def __init__(self, action: str) -> None:
+        self._payload = {"action": action}
+
+    async def get(self) -> dict[str, object]:
+        return self._payload
 
 
 # ---------------------------------------------------------------------------
@@ -1093,6 +1106,61 @@ class TestCalibrationDispatch:
 
         # Assert — sub_entity should be cleaned up after device shutdown
         assert "calibrate" not in ctx._active_sub_entities
+
+    async def test_invalid_active_phase_does_not_refresh_timeout(self) -> None:
+        """Out-of-sequence active phases do not keep calibration alive indefinitely.
+
+        Technique: Error Guessing — repeated no-op phases during active calibration.
+
+        Uses a ``_SequenceClock`` assigned to ``ctx.clock`` to drive the deadline
+        arithmetic without touching ``time.monotonic`` or asyncio's internal clock.
+        The three clock reads in the production code are:
+          1. ``deadline = ctx.clock.now() + 120.0``  → 0.0  → deadline = 120.0
+          2. ``remaining = 120.0 - ctx.clock.now()`` → 0.0  → remaining = 120.0
+          3. ``remaining = 120.0 - ctx.clock.now()`` → 121.0 → remaining = -1.0 → exit
+        """
+        import logging
+
+        class _SequenceClock:
+            def __init__(self, values: list[float]) -> None:
+                self._values = iter(values)
+
+            def now(self) -> float:
+                return next(self._values, 121.0)
+
+            async def sleep(self, _: float) -> None:
+                await asyncio.sleep(0)
+
+        # Arrange
+        gpio = FakeGpio()
+        settings = _make_settings(enable_homing=False)
+        ctx = FakeDeviceContext(gpio)
+        ctx.clock = _SequenceClock([0.0, 0.0, 121.0])  # type: ignore[assignment]
+        calibration = CalibrationStateMachine()
+        calibration.start()
+        cal_queue = RepeatingCalibrationQueue("start")
+
+        async with ctx.sub_entity("calibrate") as cal:
+            # Act — no outer wait_for needed; the sequence clock drives the exit
+            await _run_active_calibration_session(
+                ctx=ctx,
+                gpio=gpio,
+                cover_cfg=_DEFAULT_COVER,
+                settings=settings,
+                calibration=calibration,
+                cal=cal,
+                cal_queue=cal_queue,  # type: ignore[arg-type]
+                logger=logging.getLogger("test"),
+            )
+
+        # Assert — the session cancelled due to deadline expiry, not a valid transition
+        assert calibration.state.name == "IDLE"
+        cal_states = [
+            json.loads(payload)["state"]
+            for ch, payload in ctx.published_channels
+            if ch == "calibrate/state"
+        ]
+        assert cal_states[-1] == "IDLE"
 
     # Note: More complex calibration integration tests are covered by
     # integration tests. These unit tests focus on the basic command flow.

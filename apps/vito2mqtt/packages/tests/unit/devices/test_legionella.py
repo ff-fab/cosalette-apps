@@ -37,12 +37,14 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock, call, patch
 
 import pytest
+from cosalette.testing import FakeClock
 
 from vito2mqtt.devices.legionella import (
     _STORE_KEY_ACTIVE,
     _STORE_KEY_ORIGINAL_SETPOINT,
     LEGIONELLA_SETPOINT_SIGNAL,
     TIMER_SIGNAL_FOR_DAY,
+    _heating_countdown,
     _legionella_device,
     is_within_heating_window,
     register_legionella,
@@ -442,6 +444,7 @@ class _FakeContext:
         self._command_handler: Any = None
         # Command queue for ctx.commands() API
         self._command_queue: asyncio.Queue[str | None] = asyncio.Queue()
+        self.clock: FakeClock = FakeClock()
 
     @property
     def shutdown_requested(self) -> bool:
@@ -485,6 +488,29 @@ class _FakeContext:
         self._timeout_count += 1
         if self._timeout_count >= self._shutdown_after:
             self._shutdown = True
+
+
+class _StreamingInvalidHeatingContext:
+    """Context that emits malformed commands indefinitely during heating tests.
+
+    Each call to ``commands()`` advances ``self.clock._time`` by 61 seconds
+    before yielding, driving the ``_wait_for_legionella_action`` deadline
+    arithmetic without patching ``time.monotonic`` or asyncio internals.
+    """
+
+    def __init__(self) -> None:
+        self.publish_state = AsyncMock()
+        self.clock: FakeClock = FakeClock()
+
+    @property
+    def shutdown_requested(self) -> bool:
+        return False
+
+    async def commands(self, timeout: float = 60):  # noqa: ARG002
+        self.clock._time += 61.0  # simulate elapsed time before each command
+        cmd = MagicMock()
+        cmd.payload = "not-json"
+        yield cmd
 
 
 @contextmanager
@@ -861,6 +887,45 @@ class TestLegionellaDevice:
         assert remaining_values[0] == 3
         assert remaining_values == sorted(remaining_values, reverse=True)
         assert len(remaining_values) >= 2
+
+    async def test_malformed_commands_do_not_stall_heating_countdown(self) -> None:
+        """Malformed commands during heating do not extend the minute budget.
+
+        Technique: Error Guessing — repeated junk payloads while heating.
+
+        ``_StreamingInvalidHeatingContext.commands()`` advances
+        ``self.clock._time`` by 61 s before each yield, driving the deadline
+        arithmetic in ``_wait_for_legionella_action`` without touching
+        ``time.monotonic`` or asyncio internals.
+
+        Sequence with remaining_minutes=2 (clock starts at 0.0):
+          1. deadline = 0.0 + 60.0 = 60.0
+          2. remaining = 60.0 − 0.0 = 60.0  → commands() → clock→61.0 → malformed → continue
+          3. remaining = 60.0 − 61.0 = −1.0 → return None
+          4. deadline = 61.0 + 60.0 = 121.0
+          5. remaining = 121.0 − 61.0 = 60.0 → commands() → clock→122.0 → malformed → continue
+          6. remaining = 121.0 − 122.0 = −1.0 → return None → remaining_minutes=0 → done
+        """
+        # Arrange
+        ctx = _StreamingInvalidHeatingContext()
+
+        # Act
+        await _heating_countdown(
+            ctx,  # type: ignore[arg-type]
+            target_temp=68,
+            original_setpoint=50,
+            remaining_minutes=2,
+        )
+
+        # Assert — the countdown advanced despite malformed commands
+        ctx.publish_state.assert_awaited_once_with(
+            {
+                "status": "heating",
+                "target_temperature": 68,
+                "original_setpoint": 50,
+                "remaining_minutes": 1,
+            }
+        )
 
     async def test_graceful_shutdown_best_effort_restore(self) -> None:
         """Shutdown during heating → best-effort restore attempted.

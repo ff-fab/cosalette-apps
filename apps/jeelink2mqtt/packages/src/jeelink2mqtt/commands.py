@@ -1,7 +1,7 @@
-"""MQTT command handler for sensor mapping management.
+"""MQTT command implementations for sensor mapping management.
 
-Listens on ``jeelink2mqtt/mapping/set`` and dispatches JSON commands
-to the shared :class:`~jeelink2mqtt.registry.SensorRegistry`.
+Provides the command handler functions used by the ``@app.command``
+mapping handler registered in :mod:`jeelink2mqtt.main`.
 
 Supported commands::
 
@@ -10,97 +10,22 @@ Supported commands::
     {"command": "reset_all"}
     {"command": "list_unknown"}
 
-When the handler returns a ``dict``, cosalette auto-publishes it
-as the device state → ``jeelink2mqtt/mapping/state``.
-
 .. note::
 
-   The receiver also publishes a retained mapping **snapshot** to
-   ``mapping/state``.  Command responses follow a different schema
-   (``{status, event}``); the receiver's next snapshot will overwrite
-   the command response, restoring the canonical schema.
-
-Events are NOT drained by the command handler — the receiver loop
-is the single owner of ``drain_events()``, ensuring ``mapping/event``
-publication and filter cleanup happen in one place.
+   Events are NOT drained here — the receiver loop is the single owner
+   of ``drain_events()``, ensuring ``mapping/event`` publication and
+   filter cleanup happen in one place.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-from collections.abc import Callable
 from typing import Any
 
-import cosalette
-from cosalette import DeviceStore
-
-from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.errors import MappingConflictError
+from jeelink2mqtt.state import SharedState
 
 logger = logging.getLogger(__name__)
-
-
-# ---------------------------------------------------------------------------
-# Registration
-# ---------------------------------------------------------------------------
-
-
-def register_commands(app: cosalette.App) -> None:
-    """Register the mapping command handler on *app*."""
-
-    @app.command(
-        "mapping",
-        summary="Map a raw sensor ID to a named sensor",
-    )
-    async def handle_mapping(
-        payload: str,
-        store: DeviceStore,
-        state: SharedState,
-    ) -> dict[str, object] | None:
-        """Route an incoming mapping command to the correct handler.
-
-        Mutations (assign, reset, reset_all) immediately persist the
-        registry to the device store and drain events, ensuring
-        changes survive restarts without waiting for the next reading.
-
-        Returns a response ``dict`` that cosalette auto-publishes
-        to ``jeelink2mqtt/mapping/state``, or ``None`` on no-op.
-        """
-
-        try:
-            data: dict[str, Any] = json.loads(payload)
-        except json.JSONDecodeError:
-            logger.warning("Invalid JSON in mapping command: %r", payload)
-            return {"error": "Invalid JSON payload"}
-
-        command = data.get("command", "")
-
-        _handlers: dict[
-            str,
-            Callable[[SharedState, dict[str, Any]], dict[str, object]],
-        ] = {
-            "assign": _handle_assign,
-            "reset": _handle_reset,
-            "reset_all": _handle_reset_all,
-            "list_unknown": _handle_list_unknown,
-        }
-
-        handler = _handlers.get(command)
-        if handler is None:
-            logger.warning("Unknown mapping command: %r", command)
-            return {"error": f"Unknown command: {command}"}
-
-        result = handler(state, data)
-
-        # Persist immediately after mutation so the mapping survives a
-        # crash.  Events are NOT drained here — the receiver loop is
-        # the single owner of drain_events(), ensuring mapping/event
-        # publication and filter cleanup happen in one place.
-        if command in {"assign", "reset", "reset_all"}:
-            store["registry"] = state.registry.to_dict()
-
-        return result
 
 
 # ---------------------------------------------------------------------------

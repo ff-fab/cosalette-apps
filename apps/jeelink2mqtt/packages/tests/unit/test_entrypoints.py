@@ -1,7 +1,7 @@
 """Unit tests for application entrypoints (main.py, __init__.py).
 
 Test Techniques Used:
-- Specification-based: main() wires create_app → cli correctly
+- Specification-based: main() calls app.run() correctly
 - Error Guessing: Version fallback paths when _version or metadata unavailable
 - Branch/Condition Coverage: try/except import chains in __init__.py
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import importlib
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -23,35 +23,28 @@ import pytest
 class TestMainEntrypoint:
     """Specification-based tests for the CLI entrypoint."""
 
-    def test_main_calls_create_app_and_cli(self) -> None:
-        """main() creates the app via composition root, then calls cli().
+    def test_main_calls_app_run(self) -> None:
+        """main() delegates to the module-level app.run().
 
         Technique: Specification-based — verifying wiring contract.
         """
         # Arrange
-        mock_app = MagicMock()
-
-        with patch(
-            "jeelink2mqtt.main.create_app",
-            return_value=mock_app,
-        ) as mock_create:
+        with patch("jeelink2mqtt.main.app") as mock_app:
             from jeelink2mqtt.main import main
 
             # Act
             main()
 
         # Assert
-        mock_create.assert_called_once()
-        mock_app.cli.assert_called_once()
+        mock_app.run.assert_called_once()
 
     def test_main_module_guard(self) -> None:
-        """The ``if __name__ == '__main__'`` guard exists for direct execution.
+        """The module has a callable main function for direct execution.
 
         Technique: Specification-based — structural check.
         """
         import jeelink2mqtt.main as main_mod
 
-        # Assert — the module has a main function
         assert callable(main_mod.main)
 
 
