@@ -39,7 +39,7 @@ from .conftest import (
 
 def _cal_cmd(action: str, **kwargs: object) -> str:
     """Build a calibration JSON command payload."""
-    data: dict[str, object] = {"calibrate": action, **kwargs}
+    data: dict[str, object] = {"phase": action, **kwargs}
     return json.dumps(data)
 
 
@@ -63,13 +63,13 @@ def _cal_direction_no_offset_cmds(topic: str) -> list[tuple[str, str]]:
 def _get_cal_states(mock_mqtt: MockMqttClient, cover: str) -> list[dict[str, object]]:
     """Extract parsed calibration state messages for a cover."""
     raw = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/state")
-    return [json.loads(payload) for payload, _retain, _qos in raw]
+    return [json.loads(payload) for payload, _retain, _qos in raw if payload]
 
 
 def _get_cal_results(mock_mqtt: MockMqttClient, cover: str) -> list[dict[str, object]]:
     """Extract parsed calibration result messages for a cover."""
     raw = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/result")
-    return [json.loads(payload) for payload, _retain, _qos in raw]
+    return [json.loads(payload) for payload, _retain, _qos in raw if payload]
 
 
 # ---------------------------------------------------------------------------
@@ -94,13 +94,13 @@ class TestCalibrationFlow:
         Technique: State Transition Testing -- IDLE -> READY -> TIMING_OFFSET -> TIMING
         -> READY -> TIMING_OFFSET -> TIMING -> COMPLETE, verifying each published state.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # Act -- full single-run calibration sequence (go + mark-offset + mark-travel)
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            *_cal_direction_cmds(blind_set),  # close direction
-            *_cal_direction_cmds(blind_set),  # open direction
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            *_cal_direction_cmds(blind_cal_set),  # close direction
+            *_cal_direction_cmds(blind_cal_set),  # open direction
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -115,10 +115,10 @@ class TestCalibrationFlow:
             f"Expected 7 state messages, got {len(states)}: {states}"
         )
 
-        # Step 1: start -> READY, run=1, direction=CLOSE
+        # Step 1: start -> READY, run=1, direction=OPEN (cover starts closed)
         assert states[0]["state"] == "READY"
         assert states[0]["run"] == 1
-        assert states[0]["direction"] == "CLOSE"
+        assert states[0]["direction"] == "OPEN"
 
         # Step 2: go -> TIMING_OFFSET
         assert states[1]["state"] == "TIMING_OFFSET"
@@ -126,9 +126,9 @@ class TestCalibrationFlow:
         # Step 3: mark (offset) -> TIMING
         assert states[2]["state"] == "TIMING"
 
-        # Step 4: mark (travel) -> READY (switches to OPEN)
+        # Step 4: mark (travel) -> READY (switches to CLOSE)
         assert states[3]["state"] == "READY"
-        assert states[3]["direction"] == "OPEN"
+        assert states[3]["direction"] == "CLOSE"
 
         # Step 5: go -> TIMING_OFFSET
         assert states[4]["state"] == "TIMING_OFFSET"
@@ -163,17 +163,17 @@ class TestCalibrationFlow:
         Technique: Specification-based -- verify multi-run direction alternation
         and final averaged result including offset.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # 2 runs: close/open, close/open (each with offset mark)
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=2)),
+            (blind_cal_set, _cal_cmd("start", runs=2)),
             # Run 1
-            *_cal_direction_cmds(blind_set),
-            *_cal_direction_cmds(blind_set),
+            *_cal_direction_cmds(blind_cal_set),
+            *_cal_direction_cmds(blind_cal_set),
             # Run 2
-            *_cal_direction_cmds(blind_set),
-            *_cal_direction_cmds(blind_set),
+            *_cal_direction_cmds(blind_cal_set),
+            *_cal_direction_cmds(blind_cal_set),
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -207,12 +207,12 @@ class TestCalibrationFlow:
         Technique: Specification-based -- CLOSE presses down pin,
         OPEN presses up pin.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            *_cal_direction_cmds(blind_set),  # close -> down pin
-            *_cal_direction_cmds(blind_set),  # open -> up pin
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            *_cal_direction_cmds(blind_cal_set),  # close -> down pin
+            *_cal_direction_cmds(blind_cal_set),  # open -> up pin
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -244,11 +244,11 @@ class TestCalibrationFlow:
 
         Technique: State Transition Testing -- cancel from READY -> IDLE.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("cancel")),
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            (blind_cal_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -277,12 +277,12 @@ class TestCalibrationFlow:
 
         Technique: State Transition Testing -- cancel from TIMING_OFFSET -> IDLE.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # enter TIMING_OFFSET
-            (blind_set, _cal_cmd("cancel")),
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            (blind_cal_set, _cal_cmd("go")),  # enter TIMING_OFFSET
+            (blind_cal_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -311,14 +311,14 @@ class TestCalibrationFlow:
 
         Technique: State Transition Testing -- cancel from TIMING -> IDLE.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # Act -- start calibration, enter TIMING_OFFSET, mark offset -> TIMING, cancel
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # enter TIMING_OFFSET
-            (blind_set, _cal_cmd("mark")),  # offset -> TIMING
-            (blind_set, _cal_cmd("cancel")),
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            (blind_cal_set, _cal_cmd("go")),  # enter TIMING_OFFSET
+            (blind_cal_set, _cal_cmd("mark")),  # offset -> TIMING
+            (blind_cal_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -349,15 +349,15 @@ class TestCalibrationFlow:
         Technique: Specification-based -- settings default (calibration_runs=3)
         flows through when start command omits runs parameter.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # Arrange -- build commands for default 3 runs
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start")),  # no runs parameter
+            (blind_cal_set, _cal_cmd("start")),  # no runs parameter
         ]
         for _run in range(3):
-            commands.extend(_cal_direction_cmds(blind_set))  # close
-            commands.extend(_cal_direction_cmds(blind_set))  # open
+            commands.extend(_cal_direction_cmds(blind_cal_set))  # close
+            commands.extend(_cal_direction_cmds(blind_cal_set))  # open
 
         # Act
         await run_app_with_commands(
@@ -406,9 +406,10 @@ class TestCalibrationCommandBlocking:
         Technique: Error Guessing -- concurrent normal command during calibration.
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
+            (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_set, "open"),  # should be rejected
         ]
         await run_app_with_commands(
@@ -439,13 +440,14 @@ class TestCalibrationCommandBlocking:
         Technique: Error Guessing -- stop command during offset timing.
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # now TIMING_OFFSET
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            (blind_cal_set, _cal_cmd("go")),  # now TIMING_OFFSET
             (blind_set, "stop"),  # should be rejected
-            (blind_set, _cal_cmd("mark")),  # continue to TIMING
-            (blind_set, _cal_cmd("mark")),  # complete close travel
+            (blind_cal_set, _cal_cmd("mark")),  # continue to TIMING
+            (blind_cal_set, _cal_cmd("mark")),  # complete close travel
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -475,13 +477,14 @@ class TestCalibrationCommandBlocking:
         Technique: Error Guessing -- stop command during active timing.
         """
         blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            (blind_set, _cal_cmd("go")),  # now TIMING_OFFSET
-            (blind_set, _cal_cmd("mark")),  # now TIMING
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            (blind_cal_set, _cal_cmd("go")),  # now TIMING_OFFSET
+            (blind_cal_set, _cal_cmd("mark")),  # now TIMING
             (blind_set, "stop"),  # should be rejected
-            (blind_set, _cal_cmd("mark")),  # complete close travel
+            (blind_cal_set, _cal_cmd("mark")),  # complete close travel
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -519,11 +522,11 @@ class TestCalibrationCoverIsolation:
 
         Technique: Integration -- verify per-cover calibration state isolation.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
         window_set = f"{TOPIC_PREFIX}/window/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),  # blind enters calibration
+            (blind_cal_set, _cal_cmd("start", runs=1)),  # blind enters calibration
             (window_set, "open"),  # window should work
         ]
         await run_app_with_commands(
@@ -551,12 +554,12 @@ class TestCalibrationCoverIsolation:
 
         Technique: Specification-based -- calibration topics are per-cover.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1)),
-            *_cal_direction_cmds(blind_set),  # close
-            *_cal_direction_cmds(blind_set),  # open
+            (blind_cal_set, _cal_cmd("start", runs=1)),
+            *_cal_direction_cmds(blind_cal_set),  # close
+            *_cal_direction_cmds(blind_cal_set),  # open
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -600,12 +603,12 @@ class TestCalibrationWithoutOffset:
         Technique: State Transition Testing -- READY -> TIMING (skip TIMING_OFFSET)
         -> READY -> TIMING -> COMPLETE.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1, measure_offset=False)),
-            *_cal_direction_no_offset_cmds(blind_set),  # close
-            *_cal_direction_no_offset_cmds(blind_set),  # open
+            (blind_cal_set, _cal_cmd("start", runs=1, measure_offset=False)),
+            *_cal_direction_no_offset_cmds(blind_cal_set),  # close
+            *_cal_direction_no_offset_cmds(blind_cal_set),  # open
         ]
         await run_app_with_commands(
             integration_app_no_homing,
@@ -643,12 +646,12 @@ class TestCalibrationWithoutOffset:
         Technique: Specification-based -- state count: READY + (TIMING + READY)
         + (TIMING + COMPLETE) = 5.
         """
-        blind_set = f"{TOPIC_PREFIX}/blind/set"
+        blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         commands: list[tuple[str, str]] = [
-            (blind_set, _cal_cmd("start", runs=1, measure_offset=False)),
-            *_cal_direction_no_offset_cmds(blind_set),  # close
-            *_cal_direction_no_offset_cmds(blind_set),  # open
+            (blind_cal_set, _cal_cmd("start", runs=1, measure_offset=False)),
+            *_cal_direction_no_offset_cmds(blind_cal_set),  # close
+            *_cal_direction_no_offset_cmds(blind_cal_set),  # open
         ]
         await run_app_with_commands(
             integration_app_no_homing,

@@ -498,14 +498,14 @@ class TestHandleMappingDispatch:
             assert state.registry.resolve(42) is None
 
     async def test_reset_all_clears_all_mappings(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
+        self, handle_mapping, settings_two_sensors: Jeelink2MqttSettings
     ) -> None:
         """reset_all removes every mapping and persists.
 
         Technique: Decision Table — reset_all → cleared count.
         """
         # Arrange — assign two sensors
-        ctx = AppContext(settings=settings_one_sensor, adapters={})
+        ctx = AppContext(settings=settings_two_sensors, adapters={})
         store = _make_device_store()
 
         async with _lifespan(ctx) as state:
@@ -517,7 +517,8 @@ class TestHandleMappingDispatch:
                         "sensor_id": sid,
                     }
                 )
-                await handle_mapping(payload=payload, store=store, state=state)
+                result = await handle_mapping(payload=payload, store=store, state=state)
+                assert result["status"] == "ok", f"assign {name} failed: {result}"
 
             # Act
             result = await handle_mapping(
@@ -579,7 +580,7 @@ class TestHandleMappingDispatch:
             await handle_mapping(payload=payload, store=store, state=state)
 
             # Assert — no persistence occurred
-            assert len(store.data) == 0
+            assert len(store) == 0
         assert "registry" not in store
 
 
@@ -641,7 +642,9 @@ class TestReceiverMainLoop:
 
         # Act — run receiver as a background task
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -692,7 +695,9 @@ class TestReceiverMainLoop:
 
         # Act — run receiver and inject enough readings for filter convergence
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -747,7 +752,9 @@ class TestReceiverMainLoop:
 
         # Act
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -803,7 +810,9 @@ class TestReceiverMainLoop:
 
         # Act
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -846,7 +855,9 @@ class TestReceiverMainLoop:
 
         # Act
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -894,7 +905,9 @@ class TestReceiverMainLoop:
 
         # Act — start and immediately shut down (no readings)
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,
@@ -935,7 +948,9 @@ class TestReceiverMainLoop:
 
         # Act — run receiver; it should restore the mapping
         task = asyncio.create_task(
-            receiver_fn(ctx, adapter, store, settings_one_sensor)
+            receiver_fn(
+                ctx, adapter, store, settings_one_sensor, wired_state_one_sensor
+            )
         )
         await wait_for_condition(
             lambda: adapter._callback is not None,

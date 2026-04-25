@@ -175,10 +175,10 @@ tasks:
     desc: 'CI integration tests for {{.APP_NAME}}'
     cmds:
       - |
-        if [ "{{.HAS_INTEGRATION_TESTS}}" != "true" ]; then
+        if [ "{{.HAS_INTEGRATION_TESTS}}" = "true" ]; then
+          uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/integration/ \
+            -v --tb=short -m integration \
+            --junitxml=results-integration.xml
+        else
           echo "ℹ No integration tests found in {{.PKG}}/tests/integration/ — skipping"
-          exit 0
         fi
-        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/integration/ \
-          -v --tb=short -m integration \
-          --junitxml=results-integration.xml
