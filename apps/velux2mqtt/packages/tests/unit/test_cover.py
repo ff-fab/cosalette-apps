@@ -19,7 +19,6 @@ import asyncio
 import json
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from unittest.mock import patch
 
 import pytest
 
@@ -1111,7 +1110,28 @@ class TestCalibrationDispatch:
         """Out-of-sequence active phases do not keep calibration alive indefinitely.
 
         Technique: Error Guessing — repeated no-op phases during active calibration.
+
+        Design note: we replace ``cover_module.time_module`` *directly* rather
+        than using ``patch("velux2mqtt.devices.cover.time_module.monotonic")``.
+        The reason is that ``time_module`` is an alias for the standard ``time``
+        module, so patching its ``monotonic`` attribute is equivalent to
+        patching ``time.monotonic`` globally — which also affects
+        ``asyncio``'s internal ``loop.time()`` calls (two of them are made by
+        ``asyncio.wait_for`` / ``asyncio.timeout`` setup before the session
+        even starts).  Those hidden calls would consume mock values intended
+        for the session's own deadline arithmetic, causing ``deadline`` to be
+        computed from a "future" timestamp (121.0) and producing a deadline of
+        241.0 s rather than 120.0 s.  The result is an infinite loop that can
+        only be killed by the OS, crashing the IDE test runner.
+
+        By swapping the module reference instead, only calls made through
+        ``cover_module.time_module.monotonic`` are intercepted; asyncio's
+        internal clock remains unaffected.
         """
+        import logging
+
+        import velux2mqtt.devices.cover as cover_module
+
         # Arrange
         gpio = FakeGpio()
         settings = _make_settings(enable_homing=False)
@@ -1119,40 +1139,43 @@ class TestCalibrationDispatch:
         calibration = CalibrationStateMachine()
         calibration.start()
         cal_queue = RepeatingCalibrationQueue("start")
-        monotonic_values = [0.0, 0.0, 121.0]
 
-        def _fake_monotonic() -> float:
-            if monotonic_values:
-                return monotonic_values.pop(0)
-            return 121.0
+        # Three calls happen in the production code:
+        #   1. deadline = time_module.monotonic() + 120.0  → 0.0
+        #   2. remaining = 120.0 - time_module.monotonic() → 0.0   (remaining = 120.0)
+        #   3. remaining = 120.0 - time_module.monotonic() → 121.0 (remaining = -1.0 → exit)
+        monotonic_values = iter([0.0, 0.0, 121.0])
 
-        # Act
-        async with ctx.sub_entity("calibrate") as cal:
-            with patch(
-                "velux2mqtt.devices.cover.time_module.monotonic",
-                side_effect=_fake_monotonic,
-            ):
-                await asyncio.wait_for(
-                    _run_active_calibration_session(
-                        ctx=ctx,
-                        gpio=gpio,
-                        cover_cfg=_DEFAULT_COVER,
-                        settings=settings,
-                        calibration=calibration,
-                        cal=cal,
-                        cal_queue=cal_queue,  # type: ignore[arg-type]
-                        logger=__import__("logging").getLogger("test"),
-                    ),
-                    timeout=0.5,
+        class _FakeTimeModule:
+            @staticmethod
+            def monotonic() -> float:
+                return next(monotonic_values, 121.0)
+
+        original_time_module = cover_module.time_module
+        cover_module.time_module = _FakeTimeModule()  # type: ignore[assignment]
+        try:
+            async with ctx.sub_entity("calibrate") as cal:
+                # Act — no outer wait_for needed; the fake clock drives the exit
+                await _run_active_calibration_session(
+                    ctx=ctx,
+                    gpio=gpio,
+                    cover_cfg=_DEFAULT_COVER,
+                    settings=settings,
+                    calibration=calibration,
+                    cal=cal,
+                    cal_queue=cal_queue,  # type: ignore[arg-type]
+                    logger=logging.getLogger("test"),
                 )
+        finally:
+            cover_module.time_module = original_time_module  # type: ignore[assignment]
 
-        # Assert — the session timed out instead of being kept alive forever
+        # Assert — the session cancelled due to deadline expiry, not a valid transition
+        assert calibration.state.name == "IDLE"
         cal_states = [
             json.loads(payload)["state"]
             for ch, payload in ctx.published_channels
             if ch == "calibrate/state"
         ]
-        assert calibration.state.name == "IDLE"
         assert cal_states[-1] == "IDLE"
 
     # Note: More complex calibration integration tests are covered by
