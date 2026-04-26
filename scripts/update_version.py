@@ -11,8 +11,8 @@ def main() -> int:
         print("setuptools_scm not found. Install with: uv sync --group dev")
         return 1
 
-    # Use absolute path for workspace root
-    workspace_root = Path("/workspace")
+    # Derive repo root from this script's location (scripts/ is at repo root)
+    workspace_root = Path(__file__).parent.parent
     ver = setuptools_scm.get_version(root=workspace_root, fallback_version="0.0.0")
     version_file = (
         workspace_root / "packages" / "src" / "cosalette_apps" / "_version.py"

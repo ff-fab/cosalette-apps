@@ -15,27 +15,23 @@ Apps live under `apps/<name>/`, each with its own `pyproject.toml` and `packages
 
 ## Pull Request & Merge Policy
 
-**NEVER merge a pull request unless the user explicitly asks you to merge.**
+**NEVER merge a pull request unless user explicitly asks.**
 
-Your job ends at creating the PR and waiting for CI. The human reviewer decides when to
-merge. Even if all CI checks pass and the code looks perfect — do NOT merge. Do NOT
-approve-and-merge. Do NOT enable auto-merge. Wait for an explicit user instruction like
-"merge this", "go ahead and merge", or "land it".
+Job ends at creating the PR and waiting for CI. Human reviewer decides when to merge. Even if all CI checks pass — do NOT merge. Do NOT approve-and-merge. Do NOT enable auto-merge. Wait for explicit instruction: "merge this", "go ahead and merge", or "land it".
 
 ## Code Quality Principles
 
 - **Brevity is a feature.** If you wrote 200 lines and it could be 50, rewrite it.
-- **Simplicity test:** Ask yourself — "Would a senior engineer say this is
-  overcomplicated?" If yes, simplify before submitting.
+- **Simplicity test:** "Would a senior engineer say this is overcomplicated?" If yes, simplify before submitting.
 - Prefer clear, idiomatic code over clever abstractions.
-- Every line should earn its place — remove dead code, redundant comments, and
-  unnecessary indirection.
+- Every line should earn its place — remove dead code, redundant comments, unnecessary indirection.
 
 ## GitHub Operations
 
-- Prefer **`gh` CLI** and **`git` CLI** for pull requests, reviews, comments, and issue operations.
+- Use **task wrappers** when available (`task pr:diff`, `task pr:feedback`, `task ci:wait`). For `gh` subcommands without a wrapper, use `gh` directly.
+- Prefer **`git` CLI** for version control operations.
 - Do not depend on GitKraken MCP authentication in this repository.
-- When multiple automation paths exist, choose `gh` commands first.
+- See `tooling.instructions.md` for the full wrapper policy.
 
 ## Library & API Documentation
 
@@ -55,3 +51,5 @@ ADRs are split by scope:
 
 **Follow existing decisions.** Create new ADRs for any major changes, placing them at
 the appropriate scope level.
+
+**Do not write ADR Markdown directly.** Use the `adr-create` skill (`.github/skills/adr-create/SKILL.md`) — produces schema-validated JSON, renders canonical Markdown via `task adr:create`. See `.github/agents/schemas/adr-input.schema.json` for input schema.

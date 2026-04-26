@@ -53,70 +53,32 @@ Do not leave the homepage as just a title and one-liner.
 
 ## ADR Format
 
-Architecture Decision Records follow this structure. ADRs live in two places:
+**Do not write ADR Markdown directly.** Use the `adr-create` skill, which
+produces a schema-conforming JSON document. The renderer (`scripts/render_adr.py`)
+performs structural validation and renders canonical Markdown via
+`task adr:create`.
 
-| Scope              | Location                          | Examples                            |
-| ------------------ | --------------------------------- | ----------------------------------- |
-| Monorepo-wide      | `docs/adr/ADR-NNN-title.md`      | Monorepo structure, shared tooling  |
-| App-specific       | `apps/<name>/docs/adr/ADR-NNN-title.md` | Framework choice, domain design     |
+| Resource | Path |
+|----------|------|
+| JSON Schema | `.github/agents/schemas/adr-input.schema.json` |
+| Renderer | `scripts/render_adr.py` |
+| Task | `task adr:create -- <input.json>` |
+| Skill | `.github/skills/adr-create/SKILL.md` |
 
-When creating an ADR, choose the right scope:
-- Decisions affecting the monorepo or multiple apps → root `docs/adr/`
-- Decisions scoped to a single app's architecture → `apps/<name>/docs/adr/`
+All ADRs include YAML frontmatter with `status`, `date`, `impact`, and `tags`.
 
-ADR template:
+### ADR Operations
 
-```markdown
-# ADR-<number>: <title>
+| Operation | JSON `type` | Description |
+|-----------|-------------|-------------|
+| New ADR | `"new"` | Creates `docs/adr/ADR-NNN-slug.md` (auto-numbered) |
+| Amend ADR | `"amendment"` | Appends amendment section to existing ADR |
+| Supersede ADR | `"supersede"` | Creates new ADR, marks old as superseded |
 
-## Status
+### Impact Levels & Decision Matrix Requirements
 
-Proposed | Accepted | Deprecated | Superseded **Date:** YYYY-MM-DD
-
-## Context
-
-The issue and context for the decision.
-
-## Decision
-
-Use <solution> for <problem> because <rationale>.
-
-## Decision Drivers
-
-- Driver 1...
-
-## Considered Options
-
-- Option 1...
-
-## Decision Matrix
-
-| Criterion | Option 1 | Option 2 |
-| --------- | -------- | -------- |
-| Driver 1  | 3        | 5        |
-
-_Scale: 1 (poor) to 5 (excellent)_
-
-## Consequences
-
-### Positive
-
-- ...
-
-### Negative
-
-- ...
-
-_<Date>_
-```
-
-## File Locations
-
-| Content              | Location                              |
-| -------------------- | ------------------------------------- |
-| Root documentation   | `docs/`                               |
-| Root ADRs            | `docs/adr/`                           |
-| App documentation    | `apps/<name>/docs/`                   |
-| App ADRs             | `apps/<name>/docs/adr/`               |
-
-ADRs are included in their respective documentation site (root or per-app).
+| Impact | Decision matrix | Min options | When to use |
+|--------|-----------------|-------------|-------------|
+| `low` | Optional | 2 | Single-module convention, naming, tooling |
+| `moderate` | **Required** (≥3 criteria) | 2 | Multiple modules, new dependency |
+| `high` | **Required** (≥5 criteria) | 3 | Architectural pattern, cross-cutting, breaking |

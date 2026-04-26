@@ -2,13 +2,10 @@
   "name": "cosalette-apps",
   "build": {
     "dockerfile": "Dockerfile",
-    // Pull cached layers from GHCR so local builds reuse CI-built image layers.
-    // Mirrors the cacheFrom used in .github/workflows/devcontainer-build.yml.
     "cacheFrom": "ghcr.io/ff-fab/cosalette-apps-devcontainer"
   },
-  "workspaceFolder": "/workspace",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=cached",
-
+  "workspaceFolder": "/workspaces/cosalette-apps",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/cosalette-apps,type=bind,consistency=cached",
   "features": {
     "ghcr.io/devcontainers/features/docker-in-docker:2": {
       "moby": false
@@ -18,17 +15,18 @@
   },
 
   "remoteEnv": {
-    "PATH": "/home/vscode/.local/bin:/workspace/.venv/bin:${containerEnv:PATH}",
+    "PATH": "/home/vscode/.local/bin:/workspaces/cosalette-apps/.venv/bin:${containerEnv:PATH}",
     "UV_LINK_MODE": "copy",
     "GH_PAGER": "cat",
-    "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}"
+    "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}",
+    "OPENCODE_API_KEY": "${localEnv:OPENCODE_API_KEY}"
   },
 
   "customizations": {
     "vscode": {
       "settings": {
         // Python interpreter in container
-        "python.defaultInterpreterPath": "/workspace/.venv/bin/python",
+        "python.defaultInterpreterPath": "/workspaces/cosalette-apps/.venv/bin/python",
         "python.terminal.activateEnvironment": true,
 
         // Line length: 88 characters (matches Prettier, Ruff, and Black conventions)
@@ -145,24 +143,44 @@
         "github.gitAuthentication": true,
         "githubPullRequests.remotes": ["cosalette-apps", "origin", "upstream"],
 
-        // Beads: bd is baked into the image so the extension can discover
-        // the project on first startup before post-create finishes.
+        // Jinja template file associations — gives Jinja + host-language
+        // dual syntax highlighting (requires samuelcolvin.jinjahtml extension)
+        "files.associations": {
+          "Dockerfile.jinja": "jinja-dockerfile",
+          "*.sh.jinja": "jinja-shell",
+          "*.toml.jinja": "jinja-toml",
+          "*.json.jinja": "jinja-json",
+          "*.yml.jinja": "jinja-yaml",
+          "*.md.jinja": "jinja-md"
+        },
+
+        // Beads (bd) issue tracker — auto-start daemon on container open
         "beads.autoStartDaemon": true,
 
         // Window title
         "window.title": "cosalette-apps [devcontainer]"
+
+        // Optional: theme colour customisations (uncomment to use)
+        // "workbench.colorCustomizations": {
+        //   "activityBar.background": "#1e1e2e",
+        //   "statusBar.background": "#1e1e2e",
+        //   "titleBar.activeBackground": "#1e1e2e"
+        // }
       },
       "extensions": [
         "ms-python.python",
         "ms-python.vscode-pylance",
         "charliermarsh.ruff",
         "tamasfe.even-better-toml",
+        "samuelcolvin.jinjahtml",
 
         "dbaeumer.vscode-eslint",
         "esbenp.prettier-vscode",
         "bradlc.vscode-tailwindcss",
+        "GitHub.copilot",
         "GitHub.copilot-chat",
         "anthropic.claude-code",
+        "sst-dev.opencode",
         "vivaxy.vscode-conventional-commits",
         "ryanluker.vscode-coverage-gutters",
         "task.vscode-task",
@@ -173,8 +191,8 @@
     }
   },
 
-  "postCreateCommand": "/workspace/.devcontainer/post-create.sh",
-  "postStartCommand": "/workspace/.devcontainer/post-start.sh",
+  "postCreateCommand": "/workspaces/cosalette-apps/.devcontainer/post-create.sh",
+  "postStartCommand": "/workspaces/cosalette-apps/.devcontainer/post-start.sh",
 
   "remoteUser": "vscode"
 }

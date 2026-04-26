@@ -7,7 +7,7 @@ description: >
   "/commit", or invokes /caveman-commit. Auto-triggers when staging changes.
 ---
 
-Write commit messages terse and exact. Conventional Commits format. No fluff. Why over what.
+Write commit messages terse and exact. **Conventional Commits** format. No fluff. Why over what.
 
 ## Rules
 

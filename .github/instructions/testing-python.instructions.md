@@ -19,9 +19,7 @@ applyTo: 'apps/*/packages/tests/**/*.py'
 
 ## Test Technique Documentation
 
-**Every test must document the test design technique(s) used.** This ensures
-traceability to ISTQB principles and helps reviewers understand why specific test cases
-were chosen.
+**Every test must document the test design technique(s) used.** Ensures traceability to ISTQB principles and helps reviewers understand why specific test cases were chosen.
 
 ### Module-Level Docstring
 
@@ -66,7 +64,7 @@ def test_frozen_immutability(self) -> None:
 
 ### AAA Pattern
 
-Follow the Arrange-Act-Assert pattern:
+Follow Arrange-Act-Assert:
 
 ```python
 def test_parse_value_extracts_unit():

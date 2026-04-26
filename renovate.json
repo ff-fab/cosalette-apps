@@ -20,14 +20,14 @@
       "matchManagers": ["pre-commit"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "pre-commit-hooks",
-      "automerge": true
+      "automerge": false
     },
     {
       "description": "Group all GitHub Actions minor+patch updates",
       "matchManagers": ["github-actions"],
       "matchUpdateTypes": ["minor", "patch"],
       "groupName": "github-actions",
-      "automerge": true
+      "automerge": false
     },
     {
       "description": "Major version bumps get individual PRs (may need code changes)",
@@ -35,6 +35,11 @@
       "automerge": false
     }
   ],
+  "lockFileMaintenance": {
+    "enabled": true,
+    "automerge": false,
+    "schedule": ["before 9am on monday"]
+  },
   "vulnerabilityAlerts": {
     "enabled": true,
     "schedule": ["at any time"]

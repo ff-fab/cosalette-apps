@@ -3,7 +3,7 @@
 # Run this periodically to keep linting tools (ruff, ty, etc.) current
 
 set -e
-cd /workspace
+cd "$(git rev-parse --show-toplevel)"
 
 if [ ! -f ".pre-commit-config.yaml" ]; then
     echo "❌ No .pre-commit-config.yaml found in workspace root"
