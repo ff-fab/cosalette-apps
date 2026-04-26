@@ -5,7 +5,7 @@ set -e
 export PATH="/home/vscode/.local/bin:$PATH"
 
 ensure_git_repo() {
-    local repo_root="/workspace"
+    local repo_root="/workspaces/cosalette-apps"
 
     if ! command -v git >/dev/null 2>&1; then
         echo "❌ git is required but not installed."
@@ -27,7 +27,7 @@ echo "🏠 Setting up cosalette-apps development environment..."
 
 # Python setup
 echo "📦 Setting up Python..."
-cd /workspace
+cd /workspaces/cosalette-apps
 
 # Check if venv exists but has broken symlinks (stale uv cache)
 if [ -d ".venv" ]; then
@@ -37,7 +37,7 @@ if [ -d ".venv" ]; then
     fi
 fi
 
-uv sync --all-groups
+uv sync --all-groups --all-extras
 echo "✅ Python dependencies installed"
 
 # Ensure git is available before git-dependent setup steps.
@@ -45,21 +45,20 @@ ensure_git_repo
 
 # Generate version from git tags (setuptools_scm)
 echo "📌 Updating version from git tags..."
-cd /workspace
-uv run --group dev python /workspace/scripts/update_version.py || echo "⚠️  Could not update version (git tags may not be available in this checkout)"
+cd /workspaces/cosalette-apps
+uv run --group dev python /workspaces/cosalette-apps/scripts/update_version.py || echo "⚠️  Could not update version (git tags may not be available in this checkout)"
 
 # Install pre-commit hooks (if configured)
-cd /workspace
+cd /workspaces/cosalette-apps
 if [ -f ".pre-commit-config.yaml" ]; then
-    echo "🪝 Installing pre-commit hooks..."
-    # Run pre-commit from the repository root (where .pre-commit-config.yaml is)
-    if uv run --group dev pre-commit install --install-hooks; then
-        echo "✅ Pre-commit hooks installed successfully"
+    echo "🪝 Installing pre-commit hook environments..."
+    # Beads owns core.hooksPath (.beads/hooks/) and chains to pre-commit there,
+    # so we only need to download hook environments — not install git shims.
+    if uv run --group dev pre-commit install-hooks; then
+        echo "✅ Pre-commit hook environments installed successfully"
     else
-        echo "⚠️  pre-commit install had issues, but continuing..."
+        echo "⚠️  pre-commit install-hooks had issues, but continuing..."
     fi
-    # Install additional hook stages for beads (bd) sync
-    uv run --group dev pre-commit install --hook-type pre-push --hook-type post-merge 2>/dev/null || true
 fi
 
 # Install beads MCP server for Copilot integration (Python-based)
@@ -77,10 +76,10 @@ if ! git config beads.role >/dev/null 2>&1; then
 fi
 
 # Initialize beads issue tracker if not already done
-cd /workspace
+cd /workspaces/cosalette-apps
 if [ ! -d ".beads" ]; then
     echo "🔮 Initializing beads issue tracker..."
-    bd init --quiet --skip-hooks
+    bd init --quiet --skip-hooks --server --prefix "ca"
     echo "✅ Beads initialized"
 else
     echo "✅ Beads already initialized"
@@ -100,6 +99,8 @@ echo "✅ SSH known_hosts seeded (agent forwarding handles authentication)"
 # gh defaults to $PAGER (=less) when its own pager config is blank.
 # GH_PAGER=cat is set via remoteEnv, but gh config persists across shell sessions.
 gh config set pager cat 2>/dev/null || true
+
+
 
 # GitHub CLI authentication reminder
 echo ""

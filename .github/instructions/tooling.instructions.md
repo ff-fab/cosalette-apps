@@ -1,5 +1,5 @@
 ---
-description: 'Tooling policy: task runner and uv, never bare python'
+description: 'Tooling policy: task runner, uv, and gh CLI wrappers'
 applyTo: '**'
 ---
 
@@ -16,31 +16,54 @@ applyTo: '**'
 
 Run `task --list` to see all available tasks. Key tasks for development:
 
-| Need                           | Command                                             |
-| ------------------------------ | --------------------------------------------------- |
-| Run all unit tests             | `task test:unit`                                    |
-| Run a specific test file       | `task test:file -- packages/tests/unit/test_foo.py` |
-| Run tests matching a pattern   | `task test:file -- -k test_my_function`             |
-| Run tests with coverage        | `task test:cov`                                     |
-| Lint (ruff check + format)     | `task lint`                                         |
-| Fix lint issues                | `task lint:fix`                                     |
-| Type check (ty)                | `task typecheck`                                    |
-| All checks (lint+type+test)    | `task check`                                        |
-| Complexity (radon + cognitive) | `task complexity`                                   |
-| Duplication detection          | `task similarity`                                   |
-| Per-app tests                  | `task <app>:test:unit`                              |
-| Run all apps' tests            | `task test:all`                                     |
-| Lint all apps                  | `task lint:all`                                     |
-| Pre-PR quality gate            | `task pre-pr`                                       |
-| Wait for CI on a PR            | `task ci:wait -- <pr-number>`                       |
-| Preview docs                   | `task docs:serve`                                   |
-| Preview app docs               | `task <app>:docs:serve`                             |
-| Sync dependencies              | `task sync`                                         |
-| Export beads DB to JSONL       | `task beads:sync`                                   |
+| Need                          | Command                                      |
+| ----------------------------- | -------------------------------------------- |
+| Run all unit tests            | `task test:unit`                             |
+| Run integration tests         | `task test:integration`                      |
+| Run a specific test file      | `task test:file -- packages/tests/unit/test_foo.py`   |
+| Run tests matching a pattern  | `task test:file -- -k test_my_function`      |
+| Run tests with coverage       | `task test:cov`                                |
+| Lint (ruff check + format)    | `task lint`                                    |
+| Fix lint issues               | `task lint:fix`                                |
+| Type check (ty)               | `task typecheck`                               |
+| All checks (lint+type+test)   | `task check`                                   |
+| Complexity (all gates)        | `task complexity`                              |
+| Cyclomatic complexity only    | `task complexity:cyclomatic`                   |
+| Cognitive complexity only     | `task complexity:cognitive`                    |
+| Duplication detection         | `task similarity`                              |
+| Per-app tests                 | `task <app>:test:unit`                         |
+| Run all apps' tests           | `task test:all`                                |
+| Lint all apps                 | `task lint:all`                                |
+| Pre-PR quality gate           | `task pre-pr`                                  |
+| Create a PR                   | `task pr:create -- --title "..." --body "..."` |
+| Wait for CI on a PR           | `task ci:wait -- <pr-number>`                  |
+| Show PR diff                  | `task pr:diff -- <pr-number>`                  |
+| Fetch all PR feedback (JSON)  | `task pr:feedback -- <pr-number>`              |
+| List open PRs (no releases)   | `task pr:list`                                 |
+| Preview docs                  | `task docs:serve`                              |
+| Preview app docs              | `task <app>:docs:serve`                        |
+| Sync dependencies             | `task sync`                                    |
+| Export beads DB to JSONL      | `task beads:sync`                              |
+
+## GitHub CLI wrapper policy
+
+**Never invoke `gh` directly for commands that have task wrappers.** Use the wrapper
+instead:
+
+- `task pr:create -- --title "..." --body "..."` instead of `gh pr create ...`
+- `task pr:diff -- <n>` instead of `gh pr diff <n>`
+- `task pr:feedback -- <n>` instead of `bash .github/skills/pr-review/fetch-pr-feedback.sh <n>`
+- `task ci:wait -- <n>` instead of `gh pr checks <n>`
+
+For `gh` subcommands without a task wrapper (e.g., `gh issue list`),
+direct invocation is acceptable.
+
+These wrappers are convenience aliases — they do not add input validation or
+sanitization.
 
 ## When no task exists
 
-For one-off commands not covered by the Taskfile, use `uv run --package <name>` from
+For one-off commands not covered by Taskfile, use `uv run --package <name>` from
 the repo root:
 
 ```bash

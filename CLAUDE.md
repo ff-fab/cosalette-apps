@@ -1,7 +1,6 @@
 # CLAUDE.md
 
-This project's conventions are documented in GitHub Copilot instruction files. Read and
-follow them.
+Project conventions in GitHub Copilot instruction files. Read and follow them.
 
 ## Instructions
 
@@ -58,3 +57,7 @@ Framework guidance is maintained in
 `cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
 
 <!-- END COSALETTE AI SUPPORT -->
+
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
+
+<!-- END BEADS INTEGRATION -->
