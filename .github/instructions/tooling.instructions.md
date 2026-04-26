@@ -35,7 +35,7 @@ Run `task --list` to see all available tasks. Key tasks for development:
 | Run all apps' tests           | `task test:all`                                |
 | Lint all apps                 | `task lint:all`                                |
 | Pre-PR quality gate           | `task pre-pr`                                  |
-| Create a PR                   | `task pr:create -- --title "..." --body "..."` |
+| Create a PR                   | `task pr:create TITLE="..." BODY="..."`       |
 | Wait for CI on a PR           | `task ci:wait -- <pr-number>`                  |
 | Show PR diff                  | `task pr:diff -- <pr-number>`                  |
 | Fetch all PR feedback (JSON)  | `task pr:feedback -- <pr-number>`              |
@@ -50,7 +50,7 @@ Run `task --list` to see all available tasks. Key tasks for development:
 **Never invoke `gh` directly for commands that have task wrappers.** Use the wrapper
 instead:
 
-- `task pr:create -- --title "..." --body "..."` instead of `gh pr create ...`
+- `task pr:create TITLE="..." BODY="..."` instead of `gh pr create ...`
 - `task pr:diff -- <n>` instead of `gh pr diff <n>`
 - `task pr:feedback -- <n>` instead of `bash .github/skills/pr-review/fetch-pr-feedback.sh <n>`
 - `task ci:wait -- <n>` instead of `gh pr checks <n>`

@@ -24,28 +24,26 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 # Install go-task (task runner — https://taskfile.dev)
 # renovate: datasource=github-releases depName=go-task/task
 ARG TASK_VERSION=v3.50.0
+# SHA-256 digests for supply-chain integrity verification (update on version bump)
+ARG TASK_SHA256_AMD64=d449ba85ab85a0769989d78f8b9872938e4ba9347f7f4f925f73d98272a0a655
+ARG TASK_SHA256_ARM64=ee67e7d999a4a70711bff1946c70bf76628012c91d9be55626ee90ba976897da
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
     case "${ARCH}" in \
-        amd64) TASK_ARCH='amd64' ;; \
-        arm64) TASK_ARCH='arm64' ;; \
+        amd64) TASK_ARCH='amd64'; EXPECTED_SHA="${TASK_SHA256_AMD64}" ;; \
+        arm64) TASK_ARCH='arm64'; EXPECTED_SHA="${TASK_SHA256_ARM64}" ;; \
         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac; \
     TASK_TARBALL="task_linux_${TASK_ARCH}.tar.gz"; \
     TASK_URL="https://github.com/go-task/task/releases/download/${TASK_VERSION}/${TASK_TARBALL}"; \
-    TASK_CHECKSUMS_URL="https://github.com/go-task/task/releases/download/${TASK_VERSION}/task_checksums.txt"; \
     for i in 1 2 3; do \
         curl -fsSL "${TASK_URL}" -o /tmp/task.tar.gz && break || sleep 5; \
     done; \
-    for i in 1 2 3; do \
-        curl -fsSL "${TASK_CHECKSUMS_URL}" -o /tmp/task_checksums.txt && break || sleep 5; \
-    done; \
-    EXPECTED_SHA=$(grep "  ${TASK_TARBALL}$" /tmp/task_checksums.txt | awk '{print $1}'); \
     echo "${EXPECTED_SHA}  /tmp/task.tar.gz" | sha256sum -c -; \
     cd /tmp && tar -xzf task.tar.gz task && \
     mv task /usr/local/bin/ && \
     chmod +x /usr/local/bin/task && \
-    rm -f /tmp/task.tar.gz /tmp/task_checksums.txt
+    rm -f /tmp/task.tar.gz
 
 # Install dolt (versioned SQL database backend for the beads/bd issue tracker).
 # Baked into the image so the container starts reliably without a runtime download.

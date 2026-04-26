@@ -1,6 +1,6 @@
 ---
 name: pre-pr-gate
-description: Pre-PR quality gate. Runs deterministic checks, syncs beads state, pushes, and creates the PR. Use when the user says "prepare a PR", "let's wrap up", "land the plane", "session complete", "pre-pr", "ready to push", or any variation of finishing work and opening a pull request.
+description: Pre-PR quality gate. Runs deterministic checks, syncs beads state, and pushes. Delegates PR creation to create-pr skill. Use when the user says "prepare a PR", "let's wrap up", "land the plane", "session complete", "pre-pr", "ready to push", or any variation of finishing work and opening a pull request.
 ---
 
 # Pre-PR Quality Gate

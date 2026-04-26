@@ -82,14 +82,3 @@ All ADRs include YAML frontmatter with `status`, `date`, `impact`, and `tags`.
 | `low` | Optional | 2 | Single-module convention, naming, tooling |
 | `moderate` | **Required** (≥3 criteria) | 2 | Multiple modules, new dependency |
 | `high` | **Required** (≥5 criteria) | 3 | Architectural pattern, cross-cutting, breaking |
-
-## File Locations
-
-| Content              | Location                              |
-| -------------------- | ------------------------------------- |
-| Root documentation   | `docs/`                               |
-| Root ADRs            | `docs/adr/`                           |
-| App documentation    | `apps/<name>/docs/`                   |
-| App ADRs             | `apps/<name>/docs/adr/`               |
-
-ADRs are included in their respective documentation site (root or per-app).

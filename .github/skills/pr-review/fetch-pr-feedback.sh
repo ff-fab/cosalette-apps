@@ -135,7 +135,7 @@ if [[ -n "$HEAD_SHA" ]]; then
 
     # Compute aggregate state from BOTH legacy statuses and check runs.
     # Priority: failure > pending > success > unknown
-    STATE=$(jq -n \
+    STATE=$(jq -nr \
         --arg status_state "$STATUS_STATE" \
         --argjson statuses "$STATUS_ARRAY" \
         --argjson check_runs "$CHECK_RUNS" \
@@ -151,7 +151,7 @@ if [[ -n "$HEAD_SHA" ]]; then
         elif (($statuses | length) + ($check_runs | length)) == 0 then "unknown"
         else "success"
         end
-        ' -r 2>/dev/null || echo 'unknown')
+        ' 2>/dev/null || echo 'unknown')
 
     CI_STATUS=$(jq -n \
         --arg state "$STATE" \
