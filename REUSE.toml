@@ -46,6 +46,7 @@ path = [
     ".copier-answers.yml",
     ".env",
     ".editorconfig-checker.json",
+    ".kilo/**",
     ".flake8",
     "LICENSE",
     "LICENSES/**",
