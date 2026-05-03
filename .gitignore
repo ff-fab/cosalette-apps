@@ -250,3 +250,6 @@ legacy/
 
 # Local-only ADRs (licensing/legal — never committed)
 **/docs/adr/ADR-000-*
+
+# Kilo plans
+.kilo/plans/

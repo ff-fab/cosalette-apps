@@ -1,0 +1,23 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "model": "opencode-go/deepseek-v4-pro",
+  "instructions": [
+    "AGENTS.md",
+    ".github/instructions/tooling.instructions.md",
+    ".github/instructions/workflow.instructions.md",
+    ".github/instructions/testing-python.instructions.md",
+    ".github/instructions/python.instructions.md",
+    ".github/instructions/documentation.instructions.md",
+    ".github/instructions/cosalette.instructions.md"
+  ],
+  "mcp": {
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  },
+  "permission": {
+    "bash": "ask",
+    "edit": "allow"
+  }
+}

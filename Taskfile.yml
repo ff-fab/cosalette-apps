@@ -127,6 +127,16 @@ tasks:
     cmds:
       - uv run reuse lint
 
+  check-parity:
+    desc: Verify .github/ ↔ .kilo/ agent/command description parity
+    cmds:
+      - bash scripts/check-agent-parity.sh
+
+  check-parity:test:
+    desc: Run the parity script test suite
+    cmds:
+      - bash scripts/test-check-agent-parity.sh
+
   pre-pr:
     desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity)
     cmds:

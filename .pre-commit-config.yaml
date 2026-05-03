@@ -109,6 +109,16 @@ repos:
       - id: reuse
         name: REUSE (license compliance)
 
+  # Agent parity: Ensure .kilo/ mirrors .github/ agents and prompts
+  - repo: local
+    hooks:
+      - id: check-agent-parity
+        name: Agent parity (.github/ ↔ .kilo/)
+        entry: bash scripts/check-agent-parity.sh
+        language: system
+        files: '^(\.github/(agents|prompts)/|\.kilo/(agents|commands)/).*\.md$'
+        pass_filenames: false
+
   # Beads (bd): Guard pushes and keep git in sync
   # pre-push: FAILS if .beads/ has uncommitted changes (forces commit-before-push)
   # post-merge: pulls upstream Dolt changes after git pull

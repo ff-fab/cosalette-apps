@@ -127,6 +127,21 @@ item. The gate task references the TODO doc but contains no decision logic itsel
 <!-- BEGIN BEADS INTEGRATION -->
 <!-- END BEADS INTEGRATION -->
 
+## Kilo / OpenCode Config
+
+Agent configuration for Kilo and OpenCode lives in `.kilo/` (mirroring `.github/`).
+`kilo.json` / `opencode.json` are the entry points.
+
+**Remote MCP — Context7:** `kilo.json` configures a remote Context7 MCP endpoint
+(`https://mcp.context7.com/mcp`) used for live library documentation lookups. This
+endpoint receives the names of libraries/APIs you query — no source code or secrets are
+transmitted. See [context7.com](https://context7.com) for the data policy. If working in
+a sensitive environment, remove the `mcp` block from a local `kilo.json` override.
+
+**Parity check:** `scripts/check-agent-parity.sh` ensures `.github/` ↔ `.kilo/`
+descriptions stay in sync. Run `bash scripts/check-agent-parity.sh` or
+`bash scripts/test-check-agent-parity.sh` to verify.
+
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
 
 ## cosalette Framework Support
