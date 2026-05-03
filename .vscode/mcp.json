@@ -12,7 +12,7 @@
       }
     },
     "cosalette": {
-      "command": "/workspace/.venv/bin/python3",
+      "command": "/workspaces/cosalette-apps/.venv/bin/python3",
       "args": ["-m", "cosalette", "ai", "mcp", "serve"],
       "env": {}
     }
