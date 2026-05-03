@@ -98,5 +98,5 @@ Domain layer must never import cosalette or adapters. See `cosalette ai help arc
 
 ---
 
-Refresh this file: `cosalette ai init`
+Refresh this file: `cosalette ai init --force`
 Inspect registrations: `cosalette manifest myapp.main:app [--table]`

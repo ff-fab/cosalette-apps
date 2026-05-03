@@ -13,9 +13,9 @@
 |-----|---------------|----------------------|----------------|
 | airthings2mqtt | **Refactor** | `triggerable=True` on `@app.telemetry` | cap-clg (open) |
 | caldates2mqtt | **No-op** | Already fully 0.3.13-native | — |
-| gas2mqtt | **Refactor** | Replace `lifespan=` with `@app.state` | — |
+| gas2mqtt | **Refactor** | Replace `lifespan=` with `@app.state` | cap-8xn |
 | suncast | **Keep** | Minor: `@app.state` for SVG cross-device state | — |
-| velux2mqtt | **Keep** | `@app.on_configure` already used; see workspace-35p | workspace-35p (close) |
+| velux2mqtt | **Keep** | `@app.on_configure` already used; see workspace-35p | workspace-35p (closed) |
 | vito2mqtt | **Keep** | Eager `store=` minor smell; imperative registration appropriate | workspace-485 (narrow) |
 | wallpanel-control | **No-op** | App is a stub; workspace-ds8 implementation must apply 0.3.13-native patterns from day one | workspace-ds8 (update) |
 
