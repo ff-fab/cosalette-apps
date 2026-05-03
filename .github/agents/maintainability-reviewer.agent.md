@@ -28,5 +28,5 @@ mode, xenon/radon thresholds, pre-commit hooks, cognitive complexity limits.
 - MAJOR: poor naming, SRP violations, significant duplication
 - MINOR: style inconsistencies, missing docstrings
 
-**Output:** Return JSON conforming to `.github/agents/schemas/review-findings.schema.json`.
+**Output:** Return JSON conforming to `.github/agents/schemas/reviewer-output.schema.json`.
 Set `source` to `"agent"` on all findings.
