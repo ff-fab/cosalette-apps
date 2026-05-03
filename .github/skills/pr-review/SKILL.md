@@ -76,7 +76,7 @@ Pass the collected PR data to all 4 perspective reviewer sub-agents **in paralle
 3. **performance-reviewer** — allocations, N+1, blocking I/O, hot paths
 4. **quality-reviewer** — correctness, edge cases, test coverage, idioms
 
-Each returns JSON conforming to `review-findings.schema.json`.
+Each returns JSON conforming to `.github/agents/schemas/reviewer-output.schema.json`.
 
 Merge all findings into unified list. Then convert GitHub reviewer comments (from
 `reviews`, `review_comments`, `conversation_comments`) into same findings format

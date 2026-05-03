@@ -42,5 +42,5 @@ Review against the project's testing conventions (loaded via instruction files).
 - MINOR: naming inconsistencies, parametrize opportunities, fixture consolidation
 
 **Output:** Return JSON conforming to
-`.github/agents/schemas/review-findings.schema.json`. Set `source` to `"agent"` on all
+`.github/agents/schemas/reviewer-output.schema.json`. Set `source` to `"agent"` on all
 findings.

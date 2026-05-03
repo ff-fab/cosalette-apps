@@ -35,34 +35,14 @@ CRITICAL: You receive context from the parent agent including:
 3. **Provide Feedback**: Return a structured review containing:
    - **Status**: `APPROVED` | `NEEDS_REVISION` | `FAILED`
    - **Summary**: 1-2 sentence overview of the review
-   - **Strengths**: What was done well (2-4 bullet points)
+   - **Strengths**: What was done well (0-5 bullet points; omit when status is FAILED)
    - **Issues**: Problems found (if any, with severity: CRITICAL, MAJOR, MINOR)
    - **Recommendations**: Specific, actionable suggestions for improvements
    - **Next Steps**: What should happen next (approve and continue, or revise)
 </review_workflow>
 
-<output_format>
-
-## Code Review: {Phase Name}
-
-**Status:** {APPROVED | NEEDS_REVISION | FAILED}
-
-**Summary:** {Brief assessment of implementation quality}
-
-**Strengths:**
-
-- {What was done well}
-- {Good practices followed}
-
-**Issues Found:** {if none, say "None"}
-
-- **[{CRITICAL|MAJOR|MINOR}]** {Issue description with file/line reference}
-
-**Recommendations:**
-
-- {Specific suggestion for improvement}
-
-**Next Steps:** {What the orchestrator should do next} </output_format>
+**Output contract:** Return results as JSON conforming to
+`.github/agents/schemas/code-review-output.schema.json`.
 
 Keep feedback concise, specific, and actionable. Focus on blocking issues vs.
 nice-to-haves. Reference specific files, functions, and lines where relevant.

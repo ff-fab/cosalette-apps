@@ -39,5 +39,5 @@ vulnerabilities. You know that the code was written by an inferior coding agent.
 - MINOR: defense-in-depth improvement, hardening suggestion
 
 **Output:** Return JSON conforming to
-`.github/agents/schemas/review-findings.schema.json`. Set `source` to `"agent"` on all
+`.github/agents/schemas/reviewer-output.schema.json`. Set `source` to `"agent"` on all
 findings.

@@ -41,9 +41,5 @@ user feedback.
 - Stop when you have actionable context, not 100% certainty
 </research_guidelines>
 
-Return a structured summary with:
-- **Relevant Files:** List with brief descriptions
-- **Key Functions/Classes:** Names and locations
-- **Patterns/Conventions:** What the codebase follows
-- **Implementation Options:** 2-3 approaches if applicable
-- **Open Questions:** What remains unclear (if any)
+**Output contract:** Return results as JSON conforming to
+`.github/agents/schemas/research-output.schema.json`.
