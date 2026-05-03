@@ -40,12 +40,13 @@
           "description": "Always 'agent' for findings produced by a reviewer sub-agent. When the orchestrator converts human review comments (reviews, review_comments, conversation_comments) into the same findings shape, it sets source to the GitHub login instead — that merged list is not validated against this schema."
         },
         "file": {
-          "type": "string",
-          "description": "Workspace-relative path to the file containing the issue (e.g. 'src/mypackage/core.py'). Use an empty string only when the finding is PR-level rather than tied to a specific file."
+          "type": ["string", "null"],
+          "description": "Workspace-relative path to the file containing the issue (e.g. 'src/mypackage/core.py'). Must not be an absolute path or contain '..' segments. Use null when the finding is PR-level rather than tied to a specific file."
         },
         "line": {
           "type": ["integer", "null"],
-          "description": "Line number within the file where the issue is located. Null when the finding is file-level rather than tied to a specific line."
+          "minimum": 1,
+          "description": "1-based line number within the file where the issue is located. Null when the finding is file-level rather than tied to a specific line."
         },
         "finding": {
           "type": "string",

@@ -35,7 +35,7 @@ CRITICAL: You receive context from the parent agent including:
 3. **Provide Feedback**: Return a structured review containing:
    - **Status**: `APPROVED` | `NEEDS_REVISION` | `FAILED`
    - **Summary**: 1-2 sentence overview of the review
-   - **Strengths**: What was done well (0-5 bullet points; omit when status is FAILED)
+   - **Strengths**: What was done well (0-5 bullet points; pass `[]` when status is FAILED)
    - **Issues**: Problems found (if any, with severity: CRITICAL, MAJOR, MINOR)
    - **Recommendations**: Specific, actionable suggestions for improvements
    - **Next Steps**: What should happen next (approve and continue, or revise)

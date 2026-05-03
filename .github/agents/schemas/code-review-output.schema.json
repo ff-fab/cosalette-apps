@@ -6,7 +6,6 @@
   "required": [
     "status",
     "summary",
-    "strengths",
     "issues",
     "recommendations",
     "next_steps"
@@ -33,6 +32,7 @@
     "issues": {
       "type": "array",
       "description": "Problems found during review.",
+      "maxItems": 20,
       "items": {
         "type": "object",
         "required": ["severity", "description", "location"],
@@ -61,13 +61,14 @@
     "recommendations": {
       "type": "array",
       "description": "General recommendations for improvement.",
+      "maxItems": 10,
       "items": { "type": "string" }
     },
     "next_steps": {
       "type": "string",
       "description": "What should happen next based on the review."
     },
-    "quality_checks": {
+    "quality_results": {
       "type": "object",
       "description": "Results of automated quality gates.",
       "additionalProperties": false,

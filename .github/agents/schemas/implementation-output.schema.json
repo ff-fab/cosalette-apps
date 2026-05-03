@@ -31,7 +31,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Workspace-relative file path."
+            "description": "Workspace-relative file path. Must not be an absolute path or contain '..' segments."
           },
           "action": {
             "type": "string",
@@ -60,7 +60,7 @@
           },
           "file": {
             "type": "string",
-            "description": "File containing the function."
+            "description": "Workspace-relative path to the file containing the function. Must not be an absolute path or contain '..' segments."
           },
           "action": {
             "type": "string",

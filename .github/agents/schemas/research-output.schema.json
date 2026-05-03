@@ -14,6 +14,8 @@
     "relevant_files": {
       "type": "array",
       "description": "Files relevant to the task, with purpose annotations.",
+      "minItems": 1,
+      "maxItems": 20,
       "items": {
         "type": "object",
         "required": ["path", "purpose"],
@@ -21,7 +23,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "Workspace-relative file path."
+            "description": "Workspace-relative file path. Must not be an absolute path or contain '..' segments."
           },
           "purpose": {
             "type": "string",
@@ -38,6 +40,7 @@
     "key_symbols": {
       "type": "array",
       "description": "Important symbols (functions, classes, etc.) discovered.",
+      "maxItems": 25,
       "items": {
         "type": "object",
         "required": ["name", "type", "location"],
@@ -54,7 +57,7 @@
           },
           "location": {
             "type": "string",
-            "description": "File path and optional line reference."
+            "description": "Workspace-relative file path and optional line reference. Must not be an absolute path or contain '..' segments."
           },
           "relevance": {
             "type": "string",
@@ -67,6 +70,7 @@
     "patterns": {
       "type": "array",
       "description": "Conventions and patterns observed in the codebase.",
+      "maxItems": 15,
       "items": {
         "type": "string",
         "maxLength": 200
@@ -75,6 +79,7 @@
     "ecosystem_context": {
       "type": "array",
       "description": "Best practices, idioms, and conventions from the broader ecosystem (language, framework, community) discovered via web research.",
+      "maxItems": 10,
       "items": {
         "type": "object",
         "required": ["topic", "finding", "source"],
@@ -92,7 +97,7 @@
           },
           "source": {
             "type": "string",
-            "description": "URL or reference for the finding."
+            "description": "URL or citation for the finding. If a URL, must use https:// scheme."
           },
           "relevance": {
             "type": "string",
