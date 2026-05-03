@@ -13,15 +13,12 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import replace
 from datetime import UTC, datetime
 
 import cosalette
 from cosalette import DeviceStore
 
-from jeelink2mqtt.calibration import apply_calibration
 from jeelink2mqtt.models import MappingEvent, SensorConfig, SensorReading
-from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 from jeelink2mqtt.state import SharedState
 
@@ -38,10 +35,12 @@ def _apply_pipeline(
     config: SensorConfig,
     state: SharedState,
 ) -> SensorReading:
-    """Filter → calibrate a raw reading, returning a new SensorReading."""
-    temp, humidity = state.filter_bank.filter(reading)
-    filtered = replace(reading, temperature=temp, humidity=int(humidity))
-    return apply_calibration(filtered, config)
+    """Filter → calibrate a raw reading, returning a new SensorReading.
+
+    DEPRECATED: This function is kept for backward compatibility.
+    New code should call state.apply_pipeline(reading, config) directly.
+    """
+    return state.apply_pipeline(reading, config)
 
 
 # ---------------------------------------------------------------------------
@@ -56,29 +55,10 @@ def _restore_registry(
 ) -> None:
     """Restore persisted registry state from the device store.
 
-    If the store contains a ``"registry"`` key from a previous run,
-    we rebuild the :class:`SensorRegistry` from that snapshot so
-    ID→name mappings survive restarts.
+    DEPRECATED: This function is kept for backward compatibility.
+    New code should call state.restore_from(store, settings) directly.
     """
-    registry_data = store.get("registry")
-    if registry_data is None:
-        logger.info("No persisted registry state — starting fresh")
-        return
-
-    if not isinstance(registry_data, dict):
-        logger.warning("Invalid persisted registry data — starting fresh")
-        return
-
-    configs = list(state.sensor_configs.values())
-    state.registry = SensorRegistry.from_dict(
-        registry_data,  # type: ignore
-        sensors=configs,
-        staleness_timeout=settings.staleness_timeout_seconds,
-    )
-    logger.info(
-        "Restored registry with %d mapping(s)",
-        len(state.registry.get_all_mappings()),
-    )
+    state.restore_from(store, settings)
 
 
 # ---------------------------------------------------------------------------
@@ -124,7 +104,11 @@ async def _publish_mapping_event(
     ctx: cosalette.DeviceContext,
     event: MappingEvent,
 ) -> None:
-    """Publish a mapping change event (non-retained)."""
+    """Publish a mapping change event (non-retained).
+
+    DEPRECATED: This function is kept for backward compatibility.
+    New code should call state methods that handle event publishing directly.
+    """
     payload = json.dumps(
         {
             "event_type": event.event_type,
@@ -142,7 +126,11 @@ async def _publish_mapping_state(
     ctx: cosalette.DeviceContext,
     state: SharedState,
 ) -> None:
-    """Publish current mapping state snapshot (retained)."""
+    """Publish current mapping state snapshot (retained).
+
+    DEPRECATED: This function is kept for backward compatibility.
+    New code should call state methods that handle state publishing directly.
+    """
     mapping_state = {
         name: {
             "sensor_id": m.sensor_id,

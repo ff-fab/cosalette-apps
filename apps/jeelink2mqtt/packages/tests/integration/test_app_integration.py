@@ -32,6 +32,7 @@ from jeelink2mqtt.app import (
     SharedState,
     _build_sensor_configs,
     _lifespan,
+    build_shared_state,
 )
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.main import app
@@ -202,6 +203,52 @@ class TestBuildSensorConfigs:
 
 
 # ======================================================================
+# TestBuildSharedState
+# ======================================================================
+
+
+@pytest.mark.integration
+class TestBuildSharedState:
+    """Test build_shared_state: factory function for @app.state decorator.
+
+    Technique: Specification-based — verify the factory contract.
+    """
+
+    def test_builds_shared_state_with_registry(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """Factory produces SharedState with populated registry and filter bank.
+
+        Technique: Specification-based — domain object assembly.
+        """
+        # Act
+        state = build_shared_state(settings_one_sensor)
+
+        # Assert
+        assert isinstance(state, SharedState)
+        assert isinstance(state.registry, SensorRegistry)
+        assert isinstance(state.filter_bank, FilterBank)
+        assert "office" in state.sensor_configs
+
+    def test_builds_empty_state_for_no_sensors(self) -> None:
+        """Factory handles settings with no sensors.
+
+        Technique: Boundary Value Analysis — zero sensors.
+        """
+        # Arrange
+        settings = _make_settings(sensors=[])
+
+        # Act
+        state = build_shared_state(settings)
+
+        # Assert
+        assert isinstance(state, SharedState)
+        assert len(state.sensor_configs) == 0
+        assert isinstance(state.registry, SensorRegistry)
+        assert isinstance(state.filter_bank, FilterBank)
+
+
+# ======================================================================
 # TestLifespan
 # ======================================================================
 
@@ -288,6 +335,31 @@ class TestApp:
         Technique: Specification-based — identity attribute.
         """
         assert app._name == "jeelink2mqtt"
+
+    def test_app_uses_state_factories(self) -> None:
+        """The App uses @app.state decorator, not lifespan.
+
+        Technique: Specification-based — verifies the cosalette 0.3.13 refactor.
+        """
+        # Check that the app has state factories registered
+        assert hasattr(app, "_state_factories")
+        assert len(app._state_factories) > 0
+
+        # Find the SharedState factory
+        shared_state_factory = None
+        for factory in app._state_factories:
+            if hasattr(factory.factory, "__annotations__"):
+                return_annotation = factory.factory.__annotations__.get("return")
+                # Handle both string annotation and class annotation
+                if (
+                    return_annotation == SharedState
+                    or return_annotation == "SharedState"
+                ):
+                    shared_state_factory = factory
+                    break
+
+        assert shared_state_factory is not None, "No SharedState factory found"
+        assert shared_state_factory.factory.__name__ == "shared_state"
 
     def test_app_registers_receiver_and_commands(self) -> None:
         """app registers both the receiver device and mapping command.

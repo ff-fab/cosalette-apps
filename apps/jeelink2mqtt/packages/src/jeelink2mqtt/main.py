@@ -29,11 +29,10 @@ from jeelink2mqtt import __version__
 from jeelink2mqtt import commands as _commands
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
-from jeelink2mqtt.app import _lifespan
 from jeelink2mqtt.models import SensorReading
 from jeelink2mqtt.ports import JeeLinkPort
 from jeelink2mqtt.settings import Jeelink2MqttSettings
-from jeelink2mqtt.state import SharedState
+from jeelink2mqtt.state import SharedState, build_shared_state
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +47,21 @@ app = cosalette.App(
     version=__version__,
     description="JeeLink LaCrosse sensor bridge for MQTT",
     settings_class=Jeelink2MqttSettings,
-    lifespan=_lifespan,
     store=JsonFileStore(Path("data") / "jeelink2mqtt.json"),
     adapters={JeeLinkPort: (_make_adapter, FakeJeeLinkAdapter)},
 )
+
+
+@app.state
+def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
+    """State factory for SharedState with registry, filter bank, and sensor configs."""
+    state = build_shared_state(settings)
+    logger.info(
+        "Shared state ready — %d sensor(s): %s",
+        len(state.sensor_configs),
+        ", ".join(state.sensor_configs.keys()) or "(none)",
+    )
+    return state
 
 
 @app.device(
@@ -67,7 +77,7 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
     """Main receiver loop: open adapter, read frames, process, publish."""
 
     # -- Restore persisted registry state (if any) -------------------------
-    _receiver._restore_registry(store, state, settings)
+    state.restore_from(store, settings)
 
     # -- Bridge sync callbacks → async queue --------------------------------
     #
@@ -110,29 +120,23 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             if name is not None:
                 config = state.sensor_configs.get(name)
                 if config is not None:
-                    calibrated = _receiver._apply_pipeline(reading, config, state)
+                    calibrated = state.apply_pipeline(reading, config)
                     await _receiver._publish_sensor(ctx, name, calibrated)
                     last_readings[name] = calibrated
                     last_publish_time[name] = datetime.now(UTC)
                     await ctx.publish(f"{name}/availability", "online", retain=True)
 
             # 4. Mapping events (only publish state when something changed)
-            events = state.registry.drain_events()
-            for event in events:
-                await _receiver._publish_mapping_event(ctx, event)
-                if event.old_sensor_id is not None:
-                    state.filter_bank.reset(event.old_sensor_id)
-
-            if events:
-                await _receiver._publish_mapping_state(ctx, state)
-                store["registry"] = state.registry.to_dict()
+            if await state.flush_events(ctx, store):
                 last_persist_time = datetime.now(UTC)
 
             # 5. Periodic persistence for last_seen metadata (ADR-004)
             now = datetime.now(UTC)
-            if (now - last_persist_time).total_seconds() >= 60:
-                store["registry"] = state.registry.to_dict()
-                last_persist_time = now
+            new_persist_time = state.persist_registry_if_due(
+                store, now, last_persist_time, 60
+            )
+            if new_persist_time is not None:
+                last_persist_time = new_persist_time
 
     finally:
         for sensor_cfg in settings.sensors:
