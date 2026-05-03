@@ -16,7 +16,7 @@ NC='\033[0m' # No Color
 errors=0
 warnings=0
 
-# Known renames: Copilot source → Kilo target (intentional, not drift)
+# Known renames: Copilot source filename → Kilo target filename (intentional, not drift)
 declare -A KNOWN_RENAMES=(
   ["orchestrator.agent.md"]="implement.md"
   ["orchestrator.prompt.md"]="implement.md"
@@ -26,7 +26,7 @@ for src in "${!KNOWN_RENAMES[@]}"; do
   KNOWN_RENAMES_REVERSE["${KNOWN_RENAMES[$src]}"]="$src"
 done
 
-# Known renames where description differs intentionally (skip description check)
+# Known source filenames where description differs intentionally (skip description check)
 declare -A KNOWN_DESCRIPTION_SKIP=(
   ["orchestrator.agent.md"]=1
 )
@@ -40,7 +40,6 @@ extract_yaml_field() {
   local field="$2"
   local inside=0
   local value=""
-  local indent=""
   while IFS= read -r line; do
     if [[ "$line" == "---" ]]; then
       if [[ $inside -eq 0 ]]; then
@@ -56,7 +55,7 @@ extract_yaml_field() {
         value="${BASH_REMATCH[1]}"
         value="${value#\"}"; value="${value%\"}"
         value="${value#\'}"; value="${value%\'}"
-        echo "$value"
+        printf '%s' "$value"
         return
       fi
       # Check for key: (multi-line value follows)
@@ -65,7 +64,7 @@ extract_yaml_field() {
         local block=""
         local block_indent=2  # Prettier indents with 2 spaces
         while IFS= read -r next_line; do
-          # Stop if line is not indented (another top-level key) or is empty
+          # Stop if line is not indented (another top-level key)
           if [[ ! "$next_line" =~ ^[[:space:]]{${block_indent},} ]]; then
             break
           fi
@@ -79,7 +78,7 @@ extract_yaml_field() {
             block="$block $stripped"
           fi
         done
-        echo "$block"
+        printf '%s' "$block"
         return
       fi
     fi
@@ -88,19 +87,32 @@ extract_yaml_field() {
 
 # ── Helper: check file pairs ──────────────────────────────────
 check_pair() {
-  local source="$1"   # .github/agents/foo.agent.md
+  local source="$1"    # .github/agents/foo.agent.md
   local target="$2"    # .kilo/agents/foo.md
-  local label="$3"     # "agent" or "prompt/command"
+  local label="$3"     # "agent" or "command"
+
+  # Derive source_name from the argument — not from any outer-scope variable
+  local source_name
+  source_name=$(basename "$source")    # e.g. orchestrator.agent.md
+  local target_dir
+  target_dir=$(dirname "$target")
 
   if [[ ! -f "$target" ]]; then
-    alt="${KNOWN_RENAMES[${basename}.agent.md]}"
-    if [[ -n "$alt" ]] && [[ -f ".kilo/agents/${alt}" ]]; then
-      target=".kilo/agents/${alt}"
+    local alt="${KNOWN_RENAMES[$source_name]:-}"
+    if [[ -n "$alt" ]] && [[ -f "${target_dir}/${alt}" ]]; then
+      target="${target_dir}/${alt}"
     else
-      echo -e "${RED}✗ MISSING:${NC} ${label} ${target} (no mirror for ${source})"
+      printf "${RED}✗ MISSING:${NC} %s %s (no mirror for %s)\n" "$label" "$target" "$source"
       ((errors++))
       return
     fi
+  fi
+
+  # Guard against symlinks — prevents path traversal via malicious PR branches
+  if [[ -L "$source" || -L "$target" ]]; then
+    printf "${YELLOW}⚠ SKIP:${NC} %s ↔ %s (symlink — skipping to prevent path traversal)\n" \
+      "$source" "$target"
+    return
   fi
 
   local source_desc
@@ -108,21 +120,46 @@ check_pair() {
   source_desc=$(extract_yaml_field "$source" "description")
   target_desc=$(extract_yaml_field "$target" "description")
 
-  if [[ -n "${KNOWN_DESCRIPTION_SKIP[${basename}.${label}]:-}" ]] || \
-     [[ "${label}" == "agent" && -n "${KNOWN_DESCRIPTION_SKIP[${basename}.agent.md]:-}" ]] || \
-     [[ "${label}" == "command" && -n "${KNOWN_DESCRIPTION_SKIP[${basename}.prompt.md]:-}" ]]; then
-    echo -e "${YELLOW}✓${NC} ${label}: ${source} ↔ ${target} (intentional rename, description skip)"
+  if [[ -n "${KNOWN_DESCRIPTION_SKIP[$source_name]:-}" ]]; then
+    printf "${YELLOW}✓${NC} %s: %s ↔ %s (intentional rename, description skip)\n" \
+      "$label" "$source" "$target"
     return
   fi
   if [[ "$source_desc" != "$target_desc" ]]; then
-    echo -e "${RED}✗ DRIFT:${NC} ${label} description mismatch"
-    echo "    Source (${source}): ${source_desc}"
-    echo "    Target (${target}): ${target_desc}"
+    printf "${RED}✗ DRIFT:${NC} %s description mismatch\n" "$label"
+    printf "    Source (%s): %s\n" "$source" "$source_desc"
+    printf "    Target (%s): %s\n" "$target" "$target_desc"
     ((errors++))
     return
   fi
 
-  echo -e "${GREEN}✓${NC} ${label}: ${source} ↔ ${target}"
+  printf "${GREEN}✓${NC} %s: %s ↔ %s\n" "$label" "$source" "$target"
+}
+
+# ── Helper: check for orphan .kilo/ files with no Copilot source ─
+check_orphans() {
+  local kilo_dir="$1"       # .kilo/agents or .kilo/commands
+  local source_dir="$2"     # .github/agents or .github/prompts
+  local source_suffix="$3"  # .agent.md or .prompt.md
+  local label="$4"          # "agent" or "command"
+
+  for target in "${kilo_dir}"/*.md; do
+    [[ -f "$target" ]] || continue
+    [[ "$(basename "$target")" == ".gitkeep" ]] && continue
+    local bname
+    bname=$(basename "$target" .md)
+    local source="${source_dir}/${bname}${source_suffix}"
+    if [[ ! -f "$source" ]]; then
+      local alt="${KNOWN_RENAMES_REVERSE[${bname}.md]:-}"
+      if [[ -n "$alt" ]]; then
+        printf "${GREEN}✓${NC} %s: %s (renamed from %s)\n" "$label" "$target" "$alt"
+      else
+        printf "${YELLOW}⚠ ORPHAN:${NC} %s %s has no Copilot source at %s\n" \
+          "$label" "$target" "$source"
+        ((warnings++))
+      fi
+    fi
+  done
 }
 
 # ── Check agents ──────────────────────────────────────────────
@@ -131,8 +168,8 @@ echo ""
 
 for source in .github/agents/*.agent.md; do
   [[ -f "$source" ]] || continue
-  basename=$(basename "$source" .agent.md)
-  target=".kilo/agents/${basename}.md"
+  bname=$(basename "$source" .agent.md)
+  target=".kilo/agents/${bname}.md"
   check_pair "$source" "$target" "agent"
 done
 
@@ -144,8 +181,8 @@ echo ""
 
 for source in .github/prompts/*.prompt.md; do
   [[ -f "$source" ]] || continue
-  basename=$(basename "$source" .prompt.md)
-  target=".kilo/commands/${basename}.md"
+  bname=$(basename "$source" .prompt.md)
+  target=".kilo/commands/${bname}.md"
   check_pair "$source" "$target" "command"
 done
 
@@ -155,48 +192,19 @@ echo ""
 echo "=== Reverse check: Orphan .kilo/ files ==="
 echo ""
 
-for target in .kilo/agents/*.md; do
-  [[ -f "$target" ]] || continue
-  [[ "$(basename "$target")" == ".gitkeep" ]] && continue
-  basename=$(basename "$target" .md)
-  source=".github/agents/${basename}.agent.md"
-  if [[ ! -f "$source" ]]; then
-    alt="${KNOWN_RENAMES_REVERSE[${basename}.md]}"
-    if [[ -n "$alt" ]]; then
-      echo -e "${GREEN}✓${NC} agent: ${target} (renamed from ${alt})"
-    else
-      echo -e "${YELLOW}⚠ ORPHAN:${NC} agent ${target} has no Copilot source at ${source}"
-      ((warnings++))
-    fi
-  fi
-done
-
-for target in .kilo/commands/*.md; do
-  [[ -f "$target" ]] || continue
-  [[ "$(basename "$target")" == ".gitkeep" ]] && continue
-  basename=$(basename "$target" .md)
-  source=".github/prompts/${basename}.prompt.md"
-  if [[ ! -f "$source" ]]; then
-    alt="${KNOWN_RENAMES_REVERSE[${basename}.md]}"
-    if [[ -n "$alt" ]]; then
-      echo -e "${GREEN}✓${NC} command: ${target} (renamed from ${alt})"
-    else
-      echo -e "${YELLOW}⚠ ORPHAN:${NC} command ${target} has no Copilot source at ${source}"
-      ((warnings++))
-    fi
-  fi
-done
+check_orphans ".kilo/agents"   ".github/agents"  ".agent.md"  "agent"
+check_orphans ".kilo/commands" ".github/prompts" ".prompt.md" "command"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""
 echo "───────────────────────────────────────────"
 if [[ $errors -eq 0 && $warnings -eq 0 ]]; then
-  echo -e "${GREEN}✓ All agent and command files are in sync${NC}"
+  printf "${GREEN}✓ All agent and command files are in sync${NC}\n"
   exit 0
 elif [[ $errors -eq 0 ]]; then
-  echo -e "${YELLOW}✓ Parity check passed with ${warnings} warning(s)${NC}"
+  printf "${YELLOW}✓ Parity check passed with %d warning(s)${NC}\n" "$warnings"
   exit 0
 else
-  echo -e "${RED}✗ Parity check FAILED: ${errors} error(s), ${warnings} warning(s)${NC}"
+  printf "${RED}✗ Parity check FAILED: %d error(s), %d warning(s)${NC}\n" "$errors" "$warnings"
   exit 1
 fi

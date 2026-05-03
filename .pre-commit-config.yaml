@@ -116,7 +116,7 @@ repos:
         name: Agent parity (.github/ ↔ .kilo/)
         entry: bash scripts/check-agent-parity.sh
         language: system
-        always_run: true
+        files: '^(\.github/(agents|prompts)/|\.kilo/(agents|commands)/).*\.md$'
         pass_filenames: false
 
   # Beads (bd): Guard pushes and keep git in sync
