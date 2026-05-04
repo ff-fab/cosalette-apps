@@ -783,6 +783,27 @@ class TestSharedStateRestoreFrom:
         mappings = state.registry.get_all_mappings()
         assert len(mappings) == 0
 
+    def test_handles_corrupt_registry_data(self) -> None:
+        """restore_from falls back gracefully when from_dict raises on corrupt schema.
+
+        Technique: Error Guessing — valid dict type but wrong internal schema
+        causes SensorRegistry.from_dict() to raise KeyError.
+        """
+        # Arrange
+        config = SensorConfig(name="office")
+        state = _make_shared_state(sensor_configs=[config])
+        # Valid dict but missing required "sensor_id" key inside mappings
+        registry_data = {"mappings": {"office": {"sensor_name": "office"}}}
+        store = _make_device_store(initial_data={"registry": registry_data})
+        settings = _make_settings(sensor_names=["office"])
+
+        # Act — must not raise
+        state.restore_from(store, settings)
+
+        # Assert — falls back to fresh empty registry
+        mappings = state.registry.get_all_mappings()
+        assert len(mappings) == 0
+
 
 @pytest.mark.unit
 class TestSharedStateApplyPipeline:
@@ -811,9 +832,9 @@ class TestSharedStateFlushEvents:
     """Test SharedState.flush_events method."""
 
     async def test_flushes_registry_events_and_persists(self) -> None:
-        """flush_events drains events, publishes, and persists registry.
+        """flush_events drains events, publishes to correct topics, and persists.
 
-        Technique: Specification-based — side effects verification.
+        Technique: Specification-based — topics, retain flags, JSON structure, store key.
         """
         # Arrange
         config = SensorConfig(name="office")
@@ -821,17 +842,46 @@ class TestSharedStateFlushEvents:
         ctx = FakeDeviceContext()
         store = _make_device_store()
 
-        # Trigger an event by recording a reading
+        # Trigger an auto-adopt event by recording an unmapped reading
         reading = _fixed_reading(sensor_id=42)
         state.registry.record_reading(reading)
 
         # Act
         result = await state.flush_events(ctx, store)
 
-        # Assert
-        assert result is True  # Events were flushed
-        assert len(ctx.published) >= 2  # mapping/event and mapping/state
-        assert "registry" in store  # Registry was persisted
+        # Assert — return value
+        assert result is True
+
+        # Assert — published topics in order
+        topics = [t for t, _, _ in ctx.published]
+        assert "mapping/event" in topics
+        assert "mapping/state" in topics
+
+        # Assert — mapping/event payload and retain flag
+        event_topic, event_payload, event_retain = next(
+            (t, p, r) for t, p, r in ctx.published if t == "mapping/event"
+        )
+        assert event_retain is False
+        event_data = json.loads(event_payload)
+        assert event_data["sensor_name"] == "office"
+        assert event_data["new_sensor_id"] == 42
+        assert "event_type" in event_data
+        assert "timestamp" in event_data
+
+        # Assert — mapping/state payload and retain flag
+        _state_topic, state_payload, state_retain = next(
+            (t, p, r) for t, p, r in ctx.published if t == "mapping/state"
+        )
+        assert state_retain is True
+        state_data = json.loads(state_payload)
+        assert "office" in state_data
+        assert state_data["office"]["sensor_id"] == 42
+
+        # Assert — registry persisted to store with expected structure
+        assert "registry" in store
+        persisted = store["registry"]
+        assert isinstance(persisted, dict)
+        assert "mappings" in persisted
 
     async def test_no_events_returns_false(self) -> None:
         """flush_events returns False when no events to flush.

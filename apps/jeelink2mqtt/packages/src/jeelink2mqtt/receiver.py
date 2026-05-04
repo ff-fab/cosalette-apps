@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import warnings
 from datetime import UTC, datetime
 
 import cosalette
@@ -40,6 +41,11 @@ def _apply_pipeline(
     DEPRECATED: This function is kept for backward compatibility.
     New code should call state.apply_pipeline(reading, config) directly.
     """
+    warnings.warn(
+        "_apply_pipeline() is deprecated; call state.apply_pipeline(reading, config) directly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     return state.apply_pipeline(reading, config)
 
 
@@ -58,6 +64,11 @@ def _restore_registry(
     DEPRECATED: This function is kept for backward compatibility.
     New code should call state.restore_from(store, settings) directly.
     """
+    warnings.warn(
+        "_restore_registry() is deprecated; call state.restore_from(store, settings) directly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     state.restore_from(store, settings)
 
 

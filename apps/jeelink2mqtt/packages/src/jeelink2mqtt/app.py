@@ -13,13 +13,18 @@ of lifespan for shared state management.
 from __future__ import annotations
 
 import logging
+import warnings
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 import cosalette
 
 from jeelink2mqtt.settings import Jeelink2MqttSettings
-from jeelink2mqtt.state import SharedState, _build_sensor_configs, build_shared_state  # noqa: F401
+from jeelink2mqtt.state import (  # noqa: F401
+    SharedState,
+    _build_sensor_configs,
+    build_shared_state,
+)
 
 __all__ = ["SharedState", "_build_sensor_configs", "build_shared_state", "_lifespan"]
 
@@ -37,6 +42,11 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[SharedState]:
     building the :class:`SharedState` (registry, filter bank, sensor
     config lookup) that both the receiver and command handler inject.
     """
+    warnings.warn(
+        "_lifespan() is deprecated; the app now uses @app.state in main.py.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     settings: Jeelink2MqttSettings = ctx.settings  # type: ignore
 
     state = build_shared_state(settings)

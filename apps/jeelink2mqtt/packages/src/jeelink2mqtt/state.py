@@ -10,18 +10,19 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
+from jeelink2mqtt.calibration import apply_calibration
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.models import SensorConfig, SensorReading
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 
 if TYPE_CHECKING:
-    from cosalette import DeviceStore
     from cosalette import DeviceContext as PublishableDeviceContext
+    from cosalette import DeviceStore
 
 logger = logging.getLogger(__name__)
 
@@ -60,11 +61,15 @@ class SharedState:
             return
 
         configs = list(self.sensor_configs.values())
-        self.registry = SensorRegistry.from_dict(
-            registry_data,  # type: ignore
-            sensors=configs,
-            staleness_timeout=settings.staleness_timeout_seconds,
-        )
+        try:
+            self.registry = SensorRegistry.from_dict(
+                cast(dict[str, Any], registry_data),
+                sensors=configs,
+                staleness_timeout=settings.staleness_timeout_seconds,
+            )
+        except KeyError, TypeError, ValueError:
+            logger.warning("Corrupt persisted registry data — starting fresh")
+            return
         logger.info(
             "Restored registry with %d mapping(s)",
             len(self.registry.get_all_mappings()),
@@ -74,9 +79,6 @@ class SharedState:
         self, reading: SensorReading, config: SensorConfig
     ) -> SensorReading:
         """Filter → calibrate a raw reading, returning a new SensorReading."""
-        from dataclasses import replace
-        from jeelink2mqtt.calibration import apply_calibration
-
         temp, humidity = self.filter_bank.filter(reading)
         filtered = replace(reading, temperature=temp, humidity=int(humidity))
         return apply_calibration(filtered, config)
