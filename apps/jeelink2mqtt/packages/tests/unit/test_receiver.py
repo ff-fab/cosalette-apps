@@ -723,3 +723,224 @@ class TestMaybeHeartbeat:
 
         # Assert — last_publish_time updated (newer than old_time)
         assert last_publish_time["office"] > old_time
+
+
+# ===========================================================================
+# SharedState methods (cosalette 0.3.13 refactor)
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestSharedStateRestoreFrom:
+    """Test SharedState.restore_from method."""
+
+    def test_restores_registry_from_valid_data(self) -> None:
+        """restore_from rebuilds registry from store data.
+
+        Technique: Specification-based — persistence contract.
+        """
+        # Arrange
+        config = SensorConfig(name="office")
+        state = _make_shared_state(sensor_configs=[config])
+
+        registry_data = {
+            "mappings": {
+                "office": {
+                    "sensor_id": 42,
+                    "sensor_name": "office",
+                    "mapped_at": "2025-01-01T00:00:00+00:00",
+                    "last_seen": "2025-01-01T00:00:00+00:00",
+                }
+            },
+            "unmapped": {},
+        }
+        store = _make_device_store(initial_data={"registry": registry_data})
+        settings = _make_settings(sensor_names=["office"])
+
+        # Act
+        state.restore_from(store, settings)
+
+        # Assert
+        mappings = state.registry.get_all_mappings()
+        assert "office" in mappings
+        assert mappings["office"].sensor_id == 42
+
+    def test_handles_missing_registry_data(self) -> None:
+        """restore_from handles missing registry key gracefully.
+
+        Technique: Error Guessing — missing data.
+        """
+        # Arrange
+        config = SensorConfig(name="office")
+        state = _make_shared_state(sensor_configs=[config])
+        store = _make_device_store()  # Empty store
+        settings = _make_settings(sensor_names=["office"])
+
+        # Act
+        state.restore_from(store, settings)
+
+        # Assert — no exception, registry remains empty
+        mappings = state.registry.get_all_mappings()
+        assert len(mappings) == 0
+
+    def test_handles_corrupt_registry_data(self) -> None:
+        """restore_from falls back gracefully when from_dict raises on corrupt schema.
+
+        Technique: Error Guessing — valid dict type but wrong internal schema
+        causes SensorRegistry.from_dict() to raise KeyError.
+        """
+        # Arrange
+        config = SensorConfig(name="office")
+        state = _make_shared_state(sensor_configs=[config])
+        # Valid dict but missing required "sensor_id" key inside mappings
+        registry_data = {"mappings": {"office": {"sensor_name": "office"}}}
+        store = _make_device_store(initial_data={"registry": registry_data})
+        settings = _make_settings(sensor_names=["office"])
+
+        # Act — must not raise
+        state.restore_from(store, settings)
+
+        # Assert — falls back to fresh empty registry
+        mappings = state.registry.get_all_mappings()
+        assert len(mappings) == 0
+
+
+@pytest.mark.unit
+class TestSharedStateApplyPipeline:
+    """Test SharedState.apply_pipeline method."""
+
+    def test_delegates_to_filter_and_calibration(self) -> None:
+        """apply_pipeline performs filter → calibrate composition.
+
+        Technique: Specification-based — verifies delegation.
+        """
+        # Arrange
+        config = SensorConfig(name="office", temp_offset=1.0, humidity_offset=2.0)
+        state = _make_shared_state(sensor_configs=[config], window=3)
+        reading = _fixed_reading(sensor_id=42, temperature=20.0, humidity=50)
+
+        # Act
+        result = state.apply_pipeline(reading, config)
+
+        # Assert
+        assert result.temperature == pytest.approx(21.0)  # 20.0 + 1.0
+        assert result.humidity == 52  # 50 + 2.0
+
+
+@pytest.mark.unit
+class TestSharedStateFlushEvents:
+    """Test SharedState.flush_events method."""
+
+    async def test_flushes_registry_events_and_persists(self) -> None:
+        """flush_events drains events, publishes to correct topics, and persists.
+
+        Technique: Specification-based — topics, retain flags, JSON structure, store key.
+        """
+        # Arrange
+        config = SensorConfig(name="office")
+        state = _make_shared_state(sensor_configs=[config])
+        ctx = FakeDeviceContext()
+        store = _make_device_store()
+
+        # Trigger an auto-adopt event by recording an unmapped reading
+        reading = _fixed_reading(sensor_id=42)
+        state.registry.record_reading(reading)
+
+        # Act
+        result = await state.flush_events(ctx, store)
+
+        # Assert — return value
+        assert result is True
+
+        # Assert — published topics in order
+        topics = [t for t, _, _ in ctx.published]
+        assert "mapping/event" in topics
+        assert "mapping/state" in topics
+
+        # Assert — mapping/event payload and retain flag
+        event_topic, event_payload, event_retain = next(
+            (t, p, r) for t, p, r in ctx.published if t == "mapping/event"
+        )
+        assert event_retain is False
+        event_data = json.loads(event_payload)
+        assert event_data["sensor_name"] == "office"
+        assert event_data["new_sensor_id"] == 42
+        assert "event_type" in event_data
+        assert "timestamp" in event_data
+
+        # Assert — mapping/state payload and retain flag
+        _state_topic, state_payload, state_retain = next(
+            (t, p, r) for t, p, r in ctx.published if t == "mapping/state"
+        )
+        assert state_retain is True
+        state_data = json.loads(state_payload)
+        assert "office" in state_data
+        assert state_data["office"]["sensor_id"] == 42
+
+        # Assert — registry persisted to store with expected structure
+        assert "registry" in store
+        persisted = store["registry"]
+        assert isinstance(persisted, dict)
+        assert "mappings" in persisted
+
+    async def test_no_events_returns_false(self) -> None:
+        """flush_events returns False when no events to flush.
+
+        Technique: Boundary Value Analysis — zero events.
+        """
+        # Arrange
+        state = _make_shared_state()
+        ctx = FakeDeviceContext()
+        store = _make_device_store()
+
+        # Act
+        result = await state.flush_events(ctx, store)
+
+        # Assert
+        assert result is False
+        assert len(ctx.published) == 0
+
+
+@pytest.mark.unit
+class TestSharedStatePersistRegistryIfDue:
+    """Test SharedState.persist_registry_if_due method."""
+
+    def test_persists_when_interval_elapsed(self) -> None:
+        """persist_registry_if_due persists when interval has passed.
+
+        Technique: Specification-based — time threshold behavior.
+        """
+        # Arrange
+        state = _make_shared_state()
+        store = _make_device_store()
+        now = datetime.now(UTC)
+        last_persist = now - timedelta(seconds=120)  # 2 minutes ago
+
+        # Act
+        result = state.persist_registry_if_due(
+            store, now, last_persist, 60
+        )  # 1 minute interval
+
+        # Assert
+        assert result == now  # Returns new persist time
+        assert "registry" in store  # Registry was persisted
+
+    def test_does_not_persist_when_interval_not_elapsed(self) -> None:
+        """persist_registry_if_due does not persist when interval hasn't passed.
+
+        Technique: Specification-based — time threshold behavior.
+        """
+        # Arrange
+        state = _make_shared_state()
+        store = _make_device_store()
+        now = datetime.now(UTC)
+        last_persist = now - timedelta(seconds=30)  # 30 seconds ago
+
+        # Act
+        result = state.persist_registry_if_due(
+            store, now, last_persist, 60
+        )  # 1 minute interval
+
+        # Assert
+        assert result is None  # No persist occurred
+        assert "registry" not in store  # Registry was not persisted
