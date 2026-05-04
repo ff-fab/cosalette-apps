@@ -6,7 +6,8 @@ Protocol ports, never on concrete implementations.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from types import TracebackType
 from typing import Protocol, runtime_checkable
 
 from jeelink2mqtt.models import SensorMapping, SensorReading
@@ -21,19 +22,19 @@ class JeeLinkPort(Protocol):
     it straightforward to substitute a mock or simulator for testing.
     """
 
-    def open(self) -> None:
+    async def open(self) -> None:
         """Open the serial connection to the JeeLink receiver."""
         ...
 
-    def close(self) -> None:
+    async def close(self) -> None:
         """Close the serial connection."""
         ...
 
-    def start_scan(self) -> None:
+    async def start_scan(self) -> None:
         """Start scanning for incoming LaCrosse sensor frames."""
         ...
 
-    def stop_scan(self) -> None:
+    async def stop_scan(self) -> None:
         """Stop scanning for sensor frames."""
         ...
 
@@ -52,6 +53,27 @@ class JeeLinkPort(Protocol):
         Args:
             enabled: ``True`` to turn the LED on, ``False`` to turn it off.
         """
+        ...
+
+    def __aiter__(self) -> AsyncIterator[SensorReading]:
+        """Return an async iterator over sensor readings."""
+        ...
+
+    async def __anext__(self) -> SensorReading:
+        """Get the next sensor reading."""
+        ...
+
+    async def __aenter__(self) -> JeeLinkPort:
+        """Enter async context manager."""
+        ...
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exit async context manager."""
         ...
 
 

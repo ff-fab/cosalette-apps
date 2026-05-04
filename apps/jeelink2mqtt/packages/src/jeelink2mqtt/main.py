@@ -79,71 +79,63 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
     # -- Restore persisted registry state (if any) -------------------------
     state.restore_from(store, settings)
 
-    # -- Bridge sync callbacks → async queue --------------------------------
-    #
-    # pylacrosse calls back from a serial reader *thread*, while
-    # asyncio.Queue is not thread-safe.  We use call_soon_threadsafe
-    # to safely enqueue from the foreign thread.
-    queue: asyncio.Queue[SensorReading] = asyncio.Queue()
-    loop = asyncio.get_running_loop()
+    # -- Open adapter and start scanning ------------------------------------
+    async with jeelink:
+        logger.info("Receiver started — listening on %s", settings.serial_port)
 
-    def _on_reading(reading: SensorReading) -> None:
-        loop.call_soon_threadsafe(queue.put_nowait, reading)
+        last_readings: dict[str, SensorReading] = {}
+        last_publish_time: dict[str, datetime] = {}
+        last_persist_time = datetime.now(UTC)
 
-    jeelink.open()
-    jeelink.register_callback(_on_reading)
-    jeelink.start_scan()
-    logger.info("Receiver started — listening on %s", settings.serial_port)
+        try:
+            while not ctx.shutdown_requested:
+                try:
+                    reading = await asyncio.wait_for(anext(jeelink), timeout=1.0)
+                except TimeoutError:
+                    await _receiver._check_staleness(ctx, settings, state)
+                    await _receiver._maybe_heartbeat(
+                        ctx, settings, state, last_readings, last_publish_time
+                    )
+                    continue
+                except StopAsyncIteration:
+                    # Iterator exhausted (adapter closed)
+                    logger.info("JeeLink iterator exhausted — receiver ending")
+                    break
 
-    last_readings: dict[str, SensorReading] = {}
-    last_publish_time: dict[str, datetime] = {}
-    last_persist_time = datetime.now(UTC)
+                # 1. Raw diagnostic (every frame, non-retained)
+                await _receiver._publish_raw(ctx, reading)
 
-    try:
-        while not ctx.shutdown_requested:
-            try:
-                reading = await asyncio.wait_for(queue.get(), timeout=1.0)
-            except TimeoutError:
-                await _receiver._check_staleness(ctx, settings, state)
-                await _receiver._maybe_heartbeat(
-                    ctx, settings, state, last_readings, last_publish_time
+                # 2. Route through registry
+                name = state.registry.record_reading(reading)
+
+                # 3. Mapped → filter → calibrate → publish
+                if name is not None:
+                    config = state.sensor_configs.get(name)
+                    if config is not None:
+                        calibrated = state.apply_pipeline(reading, config)
+                        await _receiver._publish_sensor(ctx, name, calibrated)
+                        last_readings[name] = calibrated
+                        last_publish_time[name] = datetime.now(UTC)
+                        await ctx.publish(f"{name}/availability", "online", retain=True)
+
+                # 4. Mapping events (only publish state when something changed)
+                if await state.flush_events(ctx, store):
+                    last_persist_time = datetime.now(UTC)
+
+                # 5. Periodic persistence for last_seen metadata (ADR-004)
+                now = datetime.now(UTC)
+                new_persist_time = state.persist_registry_if_due(
+                    store, now, last_persist_time, 60
                 )
-                continue
+                if new_persist_time is not None:
+                    last_persist_time = new_persist_time
 
-            # 1. Raw diagnostic (every frame, non-retained)
-            await _receiver._publish_raw(ctx, reading)
-
-            # 2. Route through registry
-            name = state.registry.record_reading(reading)
-
-            # 3. Mapped → filter → calibrate → publish
-            if name is not None:
-                config = state.sensor_configs.get(name)
-                if config is not None:
-                    calibrated = state.apply_pipeline(reading, config)
-                    await _receiver._publish_sensor(ctx, name, calibrated)
-                    last_readings[name] = calibrated
-                    last_publish_time[name] = datetime.now(UTC)
-                    await ctx.publish(f"{name}/availability", "online", retain=True)
-
-            # 4. Mapping events (only publish state when something changed)
-            if await state.flush_events(ctx, store):
-                last_persist_time = datetime.now(UTC)
-
-            # 5. Periodic persistence for last_seen metadata (ADR-004)
-            now = datetime.now(UTC)
-            new_persist_time = state.persist_registry_if_due(
-                store, now, last_persist_time, 60
-            )
-            if new_persist_time is not None:
-                last_persist_time = new_persist_time
-
-    finally:
-        for sensor_cfg in settings.sensors:
-            await ctx.publish(f"{sensor_cfg.name}/availability", "offline", retain=True)
-        jeelink.stop_scan()
-        jeelink.close()
-        logger.info("Receiver stopped")
+        finally:
+            for sensor_cfg in settings.sensors:
+                await ctx.publish(
+                    f"{sensor_cfg.name}/availability", "offline", retain=True
+                )
+            logger.info("Receiver stopped")
 
 
 @app.command(
