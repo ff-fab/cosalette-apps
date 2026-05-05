@@ -10,10 +10,12 @@ Test Techniques Used:
 - Error Guessing: Methods called before open() raise RuntimeError
 - Specification-based: Callback wrapping and frame parsing
 - Branch/Condition Coverage: Parse success, parse failure, callback exception
+- Async Iterator Testing: PEP 525 compliance, iterator exhaustion
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -24,6 +26,24 @@ from jeelink2mqtt.models import SensorReading
 # ======================================================================
 # Fixtures
 # ======================================================================
+
+
+class FakeLaCrosseSensor:
+    """Fake sensor object matching pylacrosse 0.4 LaCrosseSensor interface."""
+
+    def __init__(
+        self,
+        sensorid: int,
+        temperature: float,
+        humidity: int,
+        low_battery: bool = False,
+        new_battery: bool = False,
+    ):
+        self.sensorid = sensorid
+        self.temperature = temperature
+        self.humidity = humidity
+        self.low_battery = low_battery
+        self.new_battery = new_battery
 
 
 @pytest.fixture()
@@ -41,7 +61,7 @@ def mock_pylacrosse():
 
 
 @pytest.fixture()
-def opened_adapter(mock_pylacrosse):
+async def opened_adapter(mock_pylacrosse):
     """PyLaCrosseAdapter that has already been ``open()``-ed.
 
     Returns ``(adapter, mock_instance)`` with the mock's initial
@@ -51,7 +71,7 @@ def opened_adapter(mock_pylacrosse):
 
     _, mock_instance = mock_pylacrosse
     adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
-    adapter.open()
+    await adapter.open()
     mock_instance.reset_mock()  # Clear the open() call
     return adapter, mock_instance
 
@@ -65,7 +85,7 @@ def opened_adapter(mock_pylacrosse):
 class TestPyLaCrosseAdapterLifecycle:
     """State Transition Testing for open/close lifecycle."""
 
-    def test_open_imports_and_creates_lacrosse(
+    async def test_open_imports_and_creates_lacrosse(
         self, mock_pylacrosse: tuple[MagicMock, MagicMock]
     ) -> None:
         """open() lazily imports pylacrosse, creates LaCrosse, and opens it.
@@ -81,13 +101,13 @@ class TestPyLaCrosseAdapterLifecycle:
         adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
 
         # Act
-        adapter.open()
+        await adapter.open()
 
         # Assert
         mock_module.LaCrosse.assert_called_once_with("/dev/ttyUSB0", 57600)
         mock_instance.open.assert_called_once()
 
-    def test_close_closes_and_clears(
+    async def test_close_closes_and_clears(
         self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
         """close() delegates to the underlying instance and sets it to None.
@@ -97,13 +117,13 @@ class TestPyLaCrosseAdapterLifecycle:
         adapter, mock_instance = opened_adapter
 
         # Act
-        adapter.close()
+        await adapter.close()
 
         # Assert
         mock_instance.close.assert_called_once()
         assert adapter._lacrosse is None  # noqa: SLF001
 
-    def test_close_when_not_open_is_noop(self, mock_pylacrosse) -> None:
+    async def test_close_when_not_open_is_noop(self, mock_pylacrosse) -> None:
         """close() on a never-opened adapter is a safe no-op.
 
         Technique: Error Guessing — calling close before open should
@@ -115,7 +135,7 @@ class TestPyLaCrosseAdapterLifecycle:
         adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
 
         # Act / Assert — no exception
-        adapter.close()
+        await adapter.close()
 
 
 # ======================================================================
@@ -127,7 +147,7 @@ class TestPyLaCrosseAdapterLifecycle:
 class TestPyLaCrosseAdapterScanning:
     """State Transition Testing for start_scan / stop_scan."""
 
-    def test_start_scan_delegates(
+    async def test_start_scan_delegates(
         self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
         """start_scan() delegates to the underlying pylacrosse instance.
@@ -137,12 +157,12 @@ class TestPyLaCrosseAdapterScanning:
         adapter, mock_instance = opened_adapter
 
         # Act
-        adapter.start_scan()
+        await adapter.start_scan()
 
         # Assert
         mock_instance.start_scan.assert_called_once()
 
-    def test_start_scan_without_open_raises(self, mock_pylacrosse) -> None:
+    async def test_start_scan_without_open_raises(self, mock_pylacrosse) -> None:
         """start_scan() before open() raises RuntimeError.
 
         Technique: Error Guessing — precondition violation.
@@ -154,9 +174,9 @@ class TestPyLaCrosseAdapterScanning:
 
         # Act / Assert
         with pytest.raises(RuntimeError, match="Adapter not open"):
-            adapter.start_scan()
+            await adapter.start_scan()
 
-    def test_stop_scan_does_not_raise(
+    async def test_stop_scan_does_not_raise(
         self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
         """stop_scan() is a no-op that logs a debug message.
@@ -166,7 +186,37 @@ class TestPyLaCrosseAdapterScanning:
         adapter, _ = opened_adapter
 
         # Act / Assert — no exception raised
-        adapter.stop_scan()
+        await adapter.stop_scan()
+
+
+# ======================================================================
+# Async context manager
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterAsyncContext:
+    """Async context manager lifecycle tests."""
+
+    async def test_aenter_failure_cleans_up_connection(self, mock_pylacrosse) -> None:
+        """If start_scan fails during __aenter__, close() is called to cleanup.
+
+        Technique: Error Path Testing — ensure resource cleanup on failure.
+        """
+        from jeelink2mqtt.adapters import PyLaCrosseAdapter
+
+        # Arrange
+        _, mock_instance = mock_pylacrosse
+        mock_instance.start_scan.side_effect = RuntimeError("Scan failed")
+        adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
+
+        # Act / Assert
+        with pytest.raises(RuntimeError, match="Scan failed"):
+            async with adapter:
+                pass  # Should not reach here
+
+        # Verify cleanup was called
+        mock_instance.close.assert_called_once()
 
 
 # ======================================================================
@@ -195,7 +245,10 @@ class TestPyLaCrosseAdapterCallback:
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act — simulate pylacrosse calling the wrapper
-        wrapper("id=42 t=21.5 h=55 nbat=0")
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=42, temperature=21.5, humidity=55, low_battery=False
+        )
+        wrapper(fake_sensor, None)
 
         # Assert
         assert len(received) == 1
@@ -220,7 +273,10 @@ class TestPyLaCrosseAdapterCallback:
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act
-        wrapper("id=10 t=18.0 h=70 nbat=1")
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=10, temperature=18.0, humidity=70, low_battery=True
+        )
+        wrapper(fake_sensor, None)
 
         # Assert
         assert len(received) == 1
@@ -241,7 +297,10 @@ class TestPyLaCrosseAdapterCallback:
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act
-        wrapper("id=7 t=-3.2 h=90 nbat=0")
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=7, temperature=-3.2, humidity=90, low_battery=False
+        )
+        wrapper(fake_sensor, None)
 
         # Assert
         assert len(received) == 1
@@ -277,11 +336,15 @@ class TestPyLaCrosseAdapterCallback:
 
         # Act
         with caplog.at_level(logging.WARNING):
-            wrapper("garbage data here")
+            # Test with sensor missing sensorid attribute
+            class BadSensor:
+                pass
+
+            wrapper(BadSensor(), None)
 
         # Assert — callback was NOT invoked
         assert len(received) == 0
-        assert "Unparsable LaCrosse frame" in caplog.text
+        assert "Invalid sensor object" in caplog.text
 
     def test_register_callback_logs_exception_from_callback(
         self, opened_adapter: tuple[object, MagicMock], caplog
@@ -302,11 +365,39 @@ class TestPyLaCrosseAdapterCallback:
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act — exception does NOT propagate
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=1, temperature=20.0, humidity=50, low_battery=False
+        )
         with caplog.at_level(logging.ERROR):
-            wrapper("id=1 t=20.0 h=50 nbat=0")
+            wrapper(fake_sensor, None)
 
         # Assert — error is logged
-        assert "Error processing LaCrosse frame" in caplog.text
+        assert "Error processing sensor reading" in caplog.text
+
+    def test_register_callback_handles_missing_humidity(
+        self, opened_adapter: tuple[object, MagicMock], caplog
+    ) -> None:
+        """Wrapper logs warning for a sensor missing the humidity attribute.
+
+        Technique: Error Guessing — partial sensor object from hardware.
+        """
+        adapter, mock_instance = opened_adapter
+
+        received: list[SensorReading] = []
+        adapter.register_callback(received.append)
+        wrapper = mock_instance.register_all.call_args[0][0]
+
+        class IncompleteSensor:
+            sensorid = 99
+            temperature = 25.0
+            # missing humidity intentionally
+            low_battery = False
+
+        with caplog.at_level(logging.WARNING):
+            wrapper(IncompleteSensor(), None)
+
+        assert "Sensor missing expected attribute" in caplog.text
+        assert len(received) == 0
 
 
 # ======================================================================
@@ -357,3 +448,111 @@ class TestPyLaCrosseAdapterLed:
         # Act / Assert
         with pytest.raises(RuntimeError, match="Adapter not open"):
             adapter.set_led(True)
+
+
+# ======================================================================
+# start_scan callback behavior
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterStartScan:
+    """Branch/Condition Coverage for start_scan's internal sensor callback."""
+
+    async def test_start_scan_callback_converts_sensor_object(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """start_scan() registers a callback that converts sensor objects and enqueues.
+
+        Technique: Specification-based — the start_scan wrapper is a distinct code
+        path from register_callback; both must correctly bridge sensor objects.
+        """
+        from datetime import datetime
+
+        adapter, mock_instance = opened_adapter
+
+        await adapter.start_scan()
+
+        callback = mock_instance.register_all.call_args[0][0]
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=42, temperature=21.5, humidity=55, low_battery=False
+        )
+        callback(fake_sensor, None)
+
+        reading = await anext(adapter)
+        assert reading.sensor_id == 42
+        assert reading.temperature == 21.5
+        assert reading.humidity == 55
+        assert reading.low_battery is False
+        assert isinstance(reading.timestamp, datetime)
+
+    async def test_start_scan_callback_drops_sensor_missing_sensorid(
+        self, opened_adapter: tuple[object, MagicMock], caplog
+    ) -> None:
+        """start_scan() callback logs warning and skips sensor without sensorid.
+
+        Technique: Error Guessing — partial sensor object from hardware.
+        """
+        adapter, mock_instance = opened_adapter
+
+        await adapter.start_scan()
+        callback = mock_instance.register_all.call_args[0][0]
+
+        class BadSensor:
+            temperature = 20.0
+            humidity = 50
+            low_battery = False
+
+        with caplog.at_level(logging.WARNING):
+            callback(BadSensor(), None)
+
+        assert "Invalid sensor object - missing sensorid" in caplog.text
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(anext(adapter), timeout=0.1)
+
+
+# ======================================================================
+# Async iterator
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterAsyncIterator:
+    """PEP 525 compliance and iterator lifecycle tests."""
+
+    async def test_async_iterator_stops_on_close(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """Async iterator raises StopAsyncIteration when adapter is closed.
+
+        Technique: State Transition — iterator termination via sentinel.
+        """
+        adapter, _ = opened_adapter
+
+        await adapter.start_scan()
+        asyncio.create_task(adapter.close())
+
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+    async def test_async_iterator_stays_exhausted(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """Closed iterator continues to raise StopAsyncIteration (PEP 525 compliance).
+
+        Technique: Error Guessing — verify iterator stays exhausted after close.
+        PEP 525 requires that once exhausted, an async iterator must keep raising
+        StopAsyncIteration on every subsequent call rather than blocking.
+        """
+        adapter, _ = opened_adapter
+
+        await adapter.start_scan()
+        await adapter.close()
+
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+        # Subsequent calls must also raise immediately, not block
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)

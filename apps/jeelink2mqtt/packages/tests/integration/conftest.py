@@ -39,10 +39,10 @@ def shared_state(sensor_configs: list[SensorConfig]) -> SharedState:
 
 
 @pytest.fixture
-def fake_adapter() -> FakeJeeLinkAdapter:
+async def fake_adapter() -> FakeJeeLinkAdapter:
     """Pre-opened FakeJeeLinkAdapter ready for callback registration."""
     adapter = FakeJeeLinkAdapter()
-    adapter.open()
+    await adapter.open()
     return adapter
 
 

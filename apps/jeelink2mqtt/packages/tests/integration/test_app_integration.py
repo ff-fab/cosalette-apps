@@ -714,12 +714,12 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
-        # Inject a reading through the adapter's callback bridge
-        adapter.inject(reading)
+        # Inject a reading through the adapter's async iterator
+        adapter.inject_async(reading)
         await wait_for_condition(
             lambda: any(t == "raw/state" for t, _, _ in ctx.published),
             description="raw/state published",
@@ -767,13 +767,13 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
         # Inject 3 readings (window=3 for filter convergence)
         for _ in range(3):
-            adapter.inject(reading)
+            adapter.inject_async(reading)
         await wait_for_condition(
             lambda: any(t == "office/state" for t, _, _ in ctx.published),
             description="sensor state published",
@@ -824,11 +824,11 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
-        adapter.inject(reading)
+        adapter.inject_async(reading)
         await wait_for_condition(
             lambda: any(t == "mapping/event" for t, _, _ in ctx.published),
             description="mapping event published",
@@ -882,11 +882,11 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
-        adapter.inject(reading)
+        adapter.inject_async(reading)
         await wait_for_condition(
             lambda: "registry" in store,
             description="registry persisted",
@@ -927,13 +927,13 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
         # Fill filter window
         for _ in range(3):
-            adapter.inject(reading)
+            adapter.inject_async(reading)
         await wait_for_condition(
             lambda: any(
                 t == "office/availability" and p == "online"
@@ -977,8 +977,8 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
         ctx._shutdown = True
@@ -1020,8 +1020,8 @@ class TestReceiverMainLoop:
             )
         )
         await wait_for_condition(
-            lambda: adapter._callback is not None,
-            description="adapter callback registered",
+            lambda: adapter._scanning,
+            description="adapter scanning started",
         )
 
         # Inject a reading with the persisted sensor_id
@@ -1033,7 +1033,7 @@ class TestReceiverMainLoop:
             timestamp=datetime.now(UTC),
         )
         for _ in range(3):
-            adapter.inject(reading)
+            adapter.inject_async(reading)
         await wait_for_condition(
             lambda: any(t == "office/state" for t, _, _ in ctx.published),
             description="sensor state published",

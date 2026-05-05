@@ -4,73 +4,16 @@ Test Techniques Used:
 - State Transition Testing: Adapter lifecycle (open → callback → inject → close)
 - Error Guessing: inject without callback raises RuntimeError
 - Specification-based Testing: No-op methods don't crash
-- Boundary Value Analysis: Frame regex edge cases (negative temps, zero)
+- Mock Testing: Async context manager lifecycle
+- Reopen Semantics: Queue reset between adapter sessions
 """
 
 from __future__ import annotations
 
 import pytest
 
-from jeelink2mqtt.adapters import _FRAME_RE, FakeJeeLinkAdapter
+from jeelink2mqtt.adapters import FakeJeeLinkAdapter
 from jeelink2mqtt.models import SensorReading
-
-# ======================================================================
-# Frame regex (_FRAME_RE)
-# ======================================================================
-
-
-@pytest.mark.unit
-class TestFrameRegex:
-    """Boundary Value Analysis for the pylacrosse frame regex."""
-
-    def test_positive_temperature(self) -> None:
-        """Standard positive temperature parses correctly.
-
-        Technique: Specification-based — happy path.
-        """
-        match = _FRAME_RE.search("id=42 t=21.5 h=55 nbat=0")
-        assert match is not None
-        assert match.group(1) == "42"
-        assert match.group(2) == "21.5"
-        assert match.group(3) == "55"
-        assert match.group(4) == "0"
-
-    def test_negative_temperature(self) -> None:
-        """Sub-zero temperature (winter outdoor) parses correctly.
-
-        Technique: Boundary Value Analysis — sign change boundary.
-        Regression: Codex review caught that the original regex
-        ``[\\d.]+`` silently dropped negative readings.
-        """
-        match = _FRAME_RE.search("id=17 t=-2.1 h=80 nbat=0")
-        assert match is not None
-        assert match.group(2) == "-2.1"
-
-    def test_zero_temperature(self) -> None:
-        """Exactly 0.0 °C parses correctly.
-
-        Technique: Boundary Value Analysis — zero boundary.
-        """
-        match = _FRAME_RE.search("id=5 t=0.0 h=90 nbat=1")
-        assert match is not None
-        assert match.group(2) == "0.0"
-
-    def test_large_negative_temperature(self) -> None:
-        """Extreme cold (-40 °C, LaCrosse sensor lower bound) parses.
-
-        Technique: Boundary Value Analysis — lower bound.
-        """
-        match = _FRAME_RE.search("id=99 t=-40.0 h=100 nbat=0")
-        assert match is not None
-        assert match.group(2) == "-40.0"
-
-    def test_malformed_frame_returns_none(self) -> None:
-        """Garbage input yields no match.
-
-        Technique: Error Guessing — unparsable input.
-        """
-        assert _FRAME_RE.search("garbage data") is None
-
 
 # ======================================================================
 # FakeJeeLinkAdapter lifecycle
@@ -81,7 +24,7 @@ class TestFrameRegex:
 class TestFakeJeeLinkAdapterLifecycle:
     """State Transition tests for FakeJeeLinkAdapter open/close lifecycle."""
 
-    def test_open_marks_adapter_open(self) -> None:
+    async def test_open_marks_adapter_open(self) -> None:
         """open() sets the internal _open flag.
 
         Technique: State Transition — closed → open.
@@ -90,27 +33,27 @@ class TestFakeJeeLinkAdapterLifecycle:
         adapter = FakeJeeLinkAdapter()
 
         # Act
-        adapter.open()
+        await adapter.open()
 
         # Assert
         assert adapter._open is True
 
-    def test_close_marks_adapter_closed(self) -> None:
+    async def test_close_marks_adapter_closed(self) -> None:
         """close() clears the _open flag.
 
         Technique: State Transition — open → closed.
         """
         # Arrange
         adapter = FakeJeeLinkAdapter()
-        adapter.open()
+        await adapter.open()
 
         # Act
-        adapter.close()
+        await adapter.close()
 
         # Assert
         assert adapter._open is False
 
-    def test_close_clears_callback(self, make_reading) -> None:
+    async def test_close_clears_callback(self, make_reading) -> None:
         """close() removes the registered callback.
 
         Technique: State Transition — callback registered → cleared.
@@ -120,7 +63,7 @@ class TestFakeJeeLinkAdapterLifecycle:
         adapter.register_callback(lambda r: None)
 
         # Act
-        adapter.close()
+        await adapter.close()
 
         # Assert — inject should now raise because callback is gone
         with pytest.raises(RuntimeError, match="No callback registered"):
@@ -206,7 +149,7 @@ class TestFakeJeeLinkAdapterInject:
 class TestFakeJeeLinkAdapterNoOps:
     """Specification-based tests — no-op methods don't crash."""
 
-    def test_start_scan_is_noop(self) -> None:
+    async def test_start_scan_is_noop(self) -> None:
         """start_scan() executes without error.
 
         Technique: Specification-based — no-op contract.
@@ -215,9 +158,9 @@ class TestFakeJeeLinkAdapterNoOps:
         adapter = FakeJeeLinkAdapter()
 
         # Act / Assert — should not raise
-        adapter.start_scan()
+        await adapter.start_scan()
 
-    def test_stop_scan_is_noop(self) -> None:
+    async def test_stop_scan_is_noop(self) -> None:
         """stop_scan() executes without error.
 
         Technique: Specification-based — no-op contract.
@@ -226,7 +169,7 @@ class TestFakeJeeLinkAdapterNoOps:
         adapter = FakeJeeLinkAdapter()
 
         # Act / Assert — should not raise
-        adapter.stop_scan()
+        await adapter.stop_scan()
 
     def test_set_led_is_noop(self) -> None:
         """set_led() executes without error.
@@ -239,3 +182,172 @@ class TestFakeJeeLinkAdapterNoOps:
         # Act / Assert — should not raise
         adapter.set_led(True)
         adapter.set_led(False)
+
+
+# ======================================================================
+# FakeJeeLinkAdapter async context manager
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestFakeJeeLinkAdapterAsyncContext:
+    """Async context manager tests for FakeJeeLinkAdapter."""
+
+    async def test_async_context_manager_lifecycle(self) -> None:
+        """Async context manager opens and closes adapter correctly.
+
+        Technique: State Transition — context manager lifecycle.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+
+        # Act / Assert
+        async with adapter:
+            assert adapter._open is True
+            assert adapter._scanning is True
+
+        # After exit, adapter should be closed
+        assert adapter._open is False
+        assert adapter._scanning is False
+
+    async def test_async_context_manager_returns_self(self) -> None:
+        """__aenter__ returns the adapter instance.
+
+        Technique: Specification-based — context manager contract.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+
+        # Act / Assert
+        async with adapter as entered:
+            assert entered is adapter
+
+
+# ======================================================================
+# FakeJeeLinkAdapter async iterator
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestFakeJeeLinkAdapterAsyncIterator:
+    """Async iterator tests for FakeJeeLinkAdapter."""
+
+    async def test_async_iterator_yields_injected_readings(self, make_reading) -> None:
+        """Async iterator yields readings injected via inject_async.
+
+        Technique: Specification-based — async iteration contract.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+        await adapter.open()
+        reading1 = make_reading(sensor_id=1, temperature=20.0)
+        reading2 = make_reading(sensor_id=2, temperature=21.0)
+
+        # Act
+        adapter.inject_async(reading1)
+        adapter.inject_async(reading2)
+
+        # Assert
+        result1 = await anext(adapter)
+        result2 = await anext(adapter)
+        assert result1 == reading1
+        assert result2 == reading2
+
+    async def test_async_iterator_stops_on_close(self, make_reading) -> None:
+        """Async iterator raises StopAsyncIteration when adapter is closed.
+
+        Technique: State Transition — iterator termination.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+        await adapter.open()
+
+        # Act
+        await adapter.close()
+
+        # Assert
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+    async def test_async_iterator_stays_exhausted(self, make_reading) -> None:
+        """Closed iterator continues to raise StopAsyncIteration (PEP 525 compliance).
+
+        Technique: Error Guessing — verify iterator stays exhausted after close.
+        PEP 525 requires that once exhausted, an async iterator must keep raising
+        StopAsyncIteration instead of blocking.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+        await adapter.open()
+        await adapter.close()
+
+        # First call raises StopAsyncIteration
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+        # Subsequent calls must also raise immediately, not block
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+    async def test_inject_populates_both_callback_and_iterator(
+        self, make_reading
+    ) -> None:
+        """inject() feeds both callback and async iterator patterns.
+
+        Technique: Specification-based — dual population contract.
+        """
+        # Arrange
+        received_callback: list[SensorReading] = []
+        adapter = FakeJeeLinkAdapter()
+        adapter.register_callback(received_callback.append)
+        reading = make_reading(sensor_id=42, temperature=23.5)
+
+        # Act
+        adapter.inject(reading)
+
+        # Assert - callback received reading
+        assert len(received_callback) == 1
+        assert received_callback[0] == reading
+
+        # Assert - iterator also has reading
+        result = await anext(adapter)
+        assert result == reading
+
+
+# ======================================================================
+# FakeJeeLinkAdapter reopen semantics
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestFakeJeeLinkAdapterReopen:
+    """State Transition tests for FakeJeeLinkAdapter reopen semantics.
+
+    Validates that open() after close() resets the queue so stale sentinel
+    values from the previous session do not poison the new one.
+    """
+
+    async def test_reopen_clears_queue_state(self, make_reading) -> None:
+        """open() after close() clears queue to prevent stale readings.
+
+        Technique: State Transition — closed → reopen.
+        Regression: ensures sentinel from first close() does not immediately
+        terminate iteration in the second session.
+        """
+        adapter = FakeJeeLinkAdapter()
+
+        # First session: open → inject → close
+        await adapter.open()
+        reading_session1 = make_reading(sensor_id=99, temperature=25.0)
+        adapter.inject_async(reading_session1)
+        await adapter.close()
+
+        # Second session: reopen → inject new reading
+        await adapter.open()
+        reading_session2 = make_reading(sensor_id=100, temperature=30.0)
+        adapter.inject_async(reading_session2)
+
+        # Should get the new reading, not StopAsyncIteration from close sentinel
+        result = await anext(adapter)
+        assert result.sensor_id == 100
+        assert result.temperature == 30.0
