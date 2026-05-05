@@ -576,11 +576,8 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {}
-        last_publish_time: dict[str, datetime] = {}
-
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — nothing published
         assert len(ctx.published) == 0
@@ -599,13 +596,11 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {"office": reading}
-        last_publish_time: dict[str, datetime] = {
-            "office": datetime.now(UTC),  # Just now
-        }
+        state.last_readings["office"] = reading
+        state.last_publish_time["office"] = datetime.now(UTC)  # Just now
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — interval not elapsed → nothing published
         assert len(ctx.published) == 0
@@ -626,11 +621,11 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {"office": reading}
-        last_publish_time: dict[str, datetime] = {}  # No entry at all
+        state.last_readings["office"] = reading
+        # No entry in state.last_publish_time
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — no last_time → condition triggers continue
         assert len(ctx.published) == 0
@@ -650,12 +645,12 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {"office": reading}
+        state.last_readings["office"] = reading
         # Last publish was 30 seconds ago → well past 10s interval
-        last_publish_time: dict[str, datetime] = {"office": now - timedelta(seconds=30)}
+        state.last_publish_time["office"] = now - timedelta(seconds=30)
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — sensor state re-published + availability online
         assert len(ctx.published) == 2
@@ -686,11 +681,11 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {}  # No cached reading
-        last_publish_time: dict[str, datetime] = {"office": now - timedelta(seconds=30)}
+        # No cached reading in state.last_readings
+        state.last_publish_time["office"] = now - timedelta(seconds=30)
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — only availability, no state re-publish
         assert len(ctx.published) == 1
@@ -715,14 +710,14 @@ class TestMaybeHeartbeat:
         ctx = FakeDeviceContext()
 
         old_time = now - timedelta(seconds=30)
-        last_readings: dict[str, SensorReading] = {"office": reading}
-        last_publish_time: dict[str, datetime] = {"office": old_time}
+        state.last_readings["office"] = reading
+        state.last_publish_time["office"] = old_time
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — last_publish_time updated (newer than old_time)
-        assert last_publish_time["office"] > old_time
+        assert state.last_publish_time["office"] > old_time
 
 
 # ===========================================================================

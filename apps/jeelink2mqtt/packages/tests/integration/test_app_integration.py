@@ -28,17 +28,17 @@ from cosalette import AppContext, DeviceStore
 from cosalette.stores import MemoryStore
 
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter
-from jeelink2mqtt.app import (
-    SharedState,
-    _build_sensor_configs,
-    _lifespan,
-    build_shared_state,
-)
+from jeelink2mqtt.app import _lifespan
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.main import app
 from jeelink2mqtt.models import SensorConfig, SensorReading
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
+from jeelink2mqtt.state import (
+    SharedState,
+    _build_sensor_configs,
+    build_shared_state,
+)
 from tests.fixtures.async_utils import wait_for_condition
 from tests.fixtures.doubles import FakeDeviceContext
 
@@ -372,6 +372,34 @@ class TestApp:
         command_names = [c.name for c in app._commands]
         assert "receiver" in device_names
         assert "mapping" in command_names
+
+    def test_app_registers_periodic_handlers(self) -> None:
+        """app registers staleness and heartbeat timing handlers.
+
+        Technique: Specification-based — verify cap-i4l refactor wiring.
+        Ensures staleness_checker and heartbeat_publisher are registered
+        as named device handlers.
+        """
+        device_names = [d.name for d in app._devices]
+        assert "staleness" in device_names, "staleness handler not registered"
+        assert "heartbeat" in device_names, "heartbeat handler not registered"
+
+    def test_shared_state_has_heartbeat_state(self) -> None:
+        """SharedState includes last_readings and last_publish_time for heartbeat.
+
+        Technique: State Transition Testing — verify heartbeat state exists.
+        Ensures the SharedState dataclass has the required fields for
+        heartbeat tracking (last_readings, last_publish_time).
+        """
+        settings = _make_settings(sensor_names=["office"])
+        state = build_shared_state(settings)
+
+        assert hasattr(state, "last_readings"), "SharedState missing last_readings"
+        assert hasattr(state, "last_publish_time"), (
+            "SharedState missing last_publish_time"
+        )
+        assert isinstance(state.last_readings, dict)
+        assert isinstance(state.last_publish_time, dict)
 
 
 # ======================================================================

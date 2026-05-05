@@ -177,8 +177,6 @@ async def _maybe_heartbeat(
     ctx: cosalette.DeviceContext,
     settings: Jeelink2MqttSettings,
     state: SharedState,
-    last_readings: dict[str, SensorReading],
-    last_publish_time: dict[str, datetime],
 ) -> None:
     """Re-publish sensor state if the heartbeat interval has elapsed.
 
@@ -194,14 +192,14 @@ async def _maybe_heartbeat(
         if state.registry.is_stale(name):
             continue
 
-        last_time = last_publish_time.get(name)
+        last_time = state.last_publish_time.get(name)
         if last_time is None or (now - last_time).total_seconds() < interval:
             continue
 
         # Re-publish last known calibrated reading if available
-        last = last_readings.get(name)
+        last = state.last_readings.get(name)
         if last is not None:
             await _publish_sensor(ctx, name, last)
 
         await ctx.publish(f"{name}/availability", "online", retain=True)
-        last_publish_time[name] = now
+        state.last_publish_time[name] = now
