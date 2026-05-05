@@ -5,6 +5,7 @@ Test Techniques Used:
 - Error Guessing: inject without callback raises RuntimeError
 - Specification-based Testing: No-op methods don't crash
 - Mock Testing: Async context manager lifecycle
+- Reopen Semantics: Queue reset between adapter sessions
 """
 
 from __future__ import annotations
@@ -268,6 +269,26 @@ class TestFakeJeeLinkAdapterAsyncIterator:
         with pytest.raises(StopAsyncIteration):
             await anext(adapter)
 
+    async def test_async_iterator_stays_exhausted(self, make_reading) -> None:
+        """Closed iterator continues to raise StopAsyncIteration (PEP 525 compliance).
+
+        Technique: Error Guessing — verify iterator stays exhausted after close.
+        PEP 525 requires that once exhausted, an async iterator must keep raising
+        StopAsyncIteration instead of blocking.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+        await adapter.open()
+        await adapter.close()
+
+        # First call raises StopAsyncIteration
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+        # Subsequent calls must also raise immediately, not block
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
     async def test_inject_populates_both_callback_and_iterator(
         self, make_reading
     ) -> None:
@@ -291,3 +312,42 @@ class TestFakeJeeLinkAdapterAsyncIterator:
         # Assert - iterator also has reading
         result = await anext(adapter)
         assert result == reading
+
+
+# ======================================================================
+# FakeJeeLinkAdapter reopen semantics
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestFakeJeeLinkAdapterReopen:
+    """State Transition tests for FakeJeeLinkAdapter reopen semantics.
+
+    Validates that open() after close() resets the queue so stale sentinel
+    values from the previous session do not poison the new one.
+    """
+
+    async def test_reopen_clears_queue_state(self, make_reading) -> None:
+        """open() after close() clears queue to prevent stale readings.
+
+        Technique: State Transition — closed → reopen.
+        Regression: ensures sentinel from first close() does not immediately
+        terminate iteration in the second session.
+        """
+        adapter = FakeJeeLinkAdapter()
+
+        # First session: open → inject → close
+        await adapter.open()
+        reading_session1 = make_reading(sensor_id=99, temperature=25.0)
+        adapter.inject_async(reading_session1)
+        await adapter.close()
+
+        # Second session: reopen → inject new reading
+        await adapter.open()
+        reading_session2 = make_reading(sensor_id=100, temperature=30.0)
+        adapter.inject_async(reading_session2)
+
+        # Should get the new reading, not StopAsyncIteration from close sentinel
+        result = await anext(adapter)
+        assert result.sensor_id == 100
+        assert result.temperature == 30.0

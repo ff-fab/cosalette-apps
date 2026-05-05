@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from types import TracebackType
@@ -16,6 +17,9 @@ from typing import Any
 from jeelink2mqtt.models import SensorReading
 
 logger = logging.getLogger(__name__)
+
+_QUEUE_MAXSIZE = 100
+"""Maximum unprocessed readings to buffer before dropping."""
 
 
 class PyLaCrosseAdapter:
@@ -35,6 +39,7 @@ class PyLaCrosseAdapter:
         self._lacrosse: Any = None
         self._queue: asyncio.Queue[SensorReading | None] | None = None
         self._loop: asyncio.AbstractEventLoop | None = None
+        self._closed = False
 
     async def open(self) -> None:
         """Lazily import pylacrosse, create the instance, and open."""
@@ -45,7 +50,8 @@ class PyLaCrosseAdapter:
 
         # Set up async infrastructure
         self._loop = asyncio.get_running_loop()
-        self._queue = asyncio.Queue()
+        self._queue = asyncio.Queue(_QUEUE_MAXSIZE)
+        self._closed = False
 
     def _convert_sensor_to_reading(self, sensor: Any) -> SensorReading | None:
         """Convert pylacrosse sensor object to SensorReading.
@@ -57,22 +63,42 @@ class PyLaCrosseAdapter:
         Returns:
             SensorReading object, or None if sensor is invalid
         """
-        try:
-            # Extract attributes from sensor object
-            if not hasattr(sensor, "sensorid"):
-                logger.warning("Invalid sensor object - missing sensorid: %r", sensor)
-                return None
+        if not hasattr(sensor, "sensorid"):
+            logger.warning("Invalid sensor object - missing sensorid: %r", sensor)
+            return None
 
-            return SensorReading(
-                sensor_id=sensor.sensorid,
-                temperature=sensor.temperature,
-                humidity=sensor.humidity,
-                low_battery=sensor.low_battery,
-                timestamp=datetime.now(UTC),
-            )
+        try:
+            sensor_id = int(sensor.sensorid)
+            temperature = float(sensor.temperature)
+            humidity = int(sensor.humidity)
+            low_battery = bool(sensor.low_battery)
         except AttributeError as e:
             logger.warning("Sensor missing expected attribute: %s", e)
             return None
+        except (TypeError, ValueError) as e:
+            logger.warning("Sensor attribute type coercion failed: %s", e)
+            return None
+
+        if not math.isfinite(temperature):
+            logger.warning(
+                "Non-finite temperature %r for sensor %d — dropping",
+                temperature,
+                sensor_id,
+            )
+            return None
+        if not (0 <= humidity <= 100):
+            logger.warning(
+                "Invalid humidity %d for sensor %d — dropping", humidity, sensor_id
+            )
+            return None
+
+        return SensorReading(
+            sensor_id=sensor_id,
+            temperature=temperature,
+            humidity=humidity,
+            low_battery=low_battery,
+            timestamp=datetime.now(UTC),
+        )
 
     async def close(self) -> None:
         """Close the underlying serial connection if open."""
@@ -114,8 +140,19 @@ class PyLaCrosseAdapter:
 
                 # Bridge from thread to async event loop
                 if self._loop is not None and self._queue is not None:
+                    queue = self._queue
+
+                    def _enqueue(r: SensorReading) -> None:
+                        try:
+                            queue.put_nowait(r)
+                        except asyncio.QueueFull:
+                            logger.warning(
+                                "Queue full — dropping reading from sensor %d",
+                                r.sensor_id,
+                            )
+
                     try:
-                        self._loop.call_soon_threadsafe(self._queue.put_nowait, reading)
+                        self._loop.call_soon_threadsafe(_enqueue, reading)
                     except RuntimeError:
                         # Event loop might be shutting down
                         logger.debug("Failed to enqueue reading during shutdown")
@@ -179,13 +216,15 @@ class PyLaCrosseAdapter:
 
     async def __anext__(self) -> SensorReading:
         """Get the next sensor reading."""
+        if self._closed:
+            raise StopAsyncIteration
         if self._queue is None:
             msg = "Adapter not open — call open() first"
             raise RuntimeError(msg)
 
         reading = await self._queue.get()
         if reading is None:
-            # Sentinel value indicating shutdown
+            self._closed = True
             raise StopAsyncIteration
         return reading
 
@@ -225,12 +264,14 @@ class FakeJeeLinkAdapter:
         self._open = False
         self._queue: asyncio.Queue[SensorReading | None] = asyncio.Queue()
         self._scanning = False
+        self._closed = False
 
     async def open(self) -> None:
         """Mark the adapter as open and reset the queue."""
         self._open = True
-        # Reset the queue to clear any pending readings or sentinel values from previous sessions
+        # Reset the queue and closed flag for reopen support
         self._queue = asyncio.Queue()
+        self._closed = False
 
     async def close(self) -> None:
         """Mark the adapter as closed and clear the callback."""
@@ -266,9 +307,11 @@ class FakeJeeLinkAdapter:
 
     async def __anext__(self) -> SensorReading:
         """Get the next sensor reading."""
+        if self._closed:
+            raise StopAsyncIteration
         reading = await self._queue.get()
         if reading is None:
-            # Sentinel value indicating shutdown
+            self._closed = True
             raise StopAsyncIteration
         return reading
 

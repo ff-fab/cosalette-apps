@@ -10,10 +10,12 @@ Test Techniques Used:
 - Error Guessing: Methods called before open() raise RuntimeError
 - Specification-based: Callback wrapping and frame parsing
 - Branch/Condition Coverage: Parse success, parse failure, callback exception
+- Async Iterator Testing: PEP 525 compliance, iterator exhaustion
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -372,6 +374,31 @@ class TestPyLaCrosseAdapterCallback:
         # Assert — error is logged
         assert "Error processing sensor reading" in caplog.text
 
+    def test_register_callback_handles_missing_humidity(
+        self, opened_adapter: tuple[object, MagicMock], caplog
+    ) -> None:
+        """Wrapper logs warning for a sensor missing the humidity attribute.
+
+        Technique: Error Guessing — partial sensor object from hardware.
+        """
+        adapter, mock_instance = opened_adapter
+
+        received: list[SensorReading] = []
+        adapter.register_callback(received.append)
+        wrapper = mock_instance.register_all.call_args[0][0]
+
+        class IncompleteSensor:
+            sensorid = 99
+            temperature = 25.0
+            # missing humidity intentionally
+            low_battery = False
+
+        with caplog.at_level(logging.WARNING):
+            wrapper(IncompleteSensor(), None)
+
+        assert "Sensor missing expected attribute" in caplog.text
+        assert len(received) == 0
+
 
 # ======================================================================
 # LED control
@@ -421,3 +448,111 @@ class TestPyLaCrosseAdapterLed:
         # Act / Assert
         with pytest.raises(RuntimeError, match="Adapter not open"):
             adapter.set_led(True)
+
+
+# ======================================================================
+# start_scan callback behavior
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterStartScan:
+    """Branch/Condition Coverage for start_scan's internal sensor callback."""
+
+    async def test_start_scan_callback_converts_sensor_object(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """start_scan() registers a callback that converts sensor objects and enqueues.
+
+        Technique: Specification-based — the start_scan wrapper is a distinct code
+        path from register_callback; both must correctly bridge sensor objects.
+        """
+        from datetime import datetime
+
+        adapter, mock_instance = opened_adapter
+
+        await adapter.start_scan()
+
+        callback = mock_instance.register_all.call_args[0][0]
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=42, temperature=21.5, humidity=55, low_battery=False
+        )
+        callback(fake_sensor, None)
+
+        reading = await anext(adapter)
+        assert reading.sensor_id == 42
+        assert reading.temperature == 21.5
+        assert reading.humidity == 55
+        assert reading.low_battery is False
+        assert isinstance(reading.timestamp, datetime)
+
+    async def test_start_scan_callback_drops_sensor_missing_sensorid(
+        self, opened_adapter: tuple[object, MagicMock], caplog
+    ) -> None:
+        """start_scan() callback logs warning and skips sensor without sensorid.
+
+        Technique: Error Guessing — partial sensor object from hardware.
+        """
+        adapter, mock_instance = opened_adapter
+
+        await adapter.start_scan()
+        callback = mock_instance.register_all.call_args[0][0]
+
+        class BadSensor:
+            temperature = 20.0
+            humidity = 50
+            low_battery = False
+
+        with caplog.at_level(logging.WARNING):
+            callback(BadSensor(), None)
+
+        assert "Invalid sensor object - missing sensorid" in caplog.text
+
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(anext(adapter), timeout=0.1)
+
+
+# ======================================================================
+# Async iterator
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterAsyncIterator:
+    """PEP 525 compliance and iterator lifecycle tests."""
+
+    async def test_async_iterator_stops_on_close(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """Async iterator raises StopAsyncIteration when adapter is closed.
+
+        Technique: State Transition — iterator termination via sentinel.
+        """
+        adapter, _ = opened_adapter
+
+        await adapter.start_scan()
+        asyncio.create_task(adapter.close())
+
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+    async def test_async_iterator_stays_exhausted(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """Closed iterator continues to raise StopAsyncIteration (PEP 525 compliance).
+
+        Technique: Error Guessing — verify iterator stays exhausted after close.
+        PEP 525 requires that once exhausted, an async iterator must keep raising
+        StopAsyncIteration on every subsequent call rather than blocking.
+        """
+        adapter, _ = opened_adapter
+
+        await adapter.start_scan()
+        await adapter.close()
+
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
+
+        # Subsequent calls must also raise immediately, not block
+        with pytest.raises(StopAsyncIteration):
+            await anext(adapter)
