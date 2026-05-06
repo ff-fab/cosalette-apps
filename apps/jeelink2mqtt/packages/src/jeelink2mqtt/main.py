@@ -19,7 +19,6 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 import cosalette
 from cosalette import DeviceStore
@@ -168,61 +167,117 @@ async def heartbeat(  # pragma: no cover — composition root, tested via helper
         await _receiver._maybe_heartbeat(ctx, settings, state)
 
 
+def _parse_or_error(
+    payload: str,
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+    """Parse a mapping command payload or return an error response dict.
+
+    Returns:
+        ``(parsed_data, None)`` on success.
+        ``(None, {"error": ...})`` on parse failure.
+    """
+    try:
+        return _commands.parse_command_payload(payload), None
+    except _commands.MappingCommandPayloadError as exc:
+        return None, {"error": str(exc)}
+
+
 @app.command(
     "mapping",
-    summary="Map a raw sensor ID to a named sensor",
+    sub="assign",
+    summary="Manually assign an ephemeral sensor ID to a logical name",
 )
-async def handle_mapping(
+async def mapping_assign(
     payload: str,
     store: DeviceStore,
     state: SharedState,
-) -> dict[str, object] | None:
-    """Route an incoming mapping command to the correct handler.
+) -> dict[str, object]:
+    """Assign a sensor ID to a named sensor.
 
-    Supported commands::
-
-        {"command": "assign",       "sensor_name": "office", "sensor_id": 42}
-        {"command": "reset",        "sensor_name": "office"}
-        {"command": "reset_all"}
-        {"command": "list_unknown"}
-
-    Mutations (assign, reset, reset_all) immediately persist the
-    registry to the device store, ensuring changes survive restarts.
-    Returns a response dict that cosalette publishes to
-    ``jeelink2mqtt/mapping/state``, or ``None`` on no-op.
+    Payload: {"command": "assign", "sensor_name": "office", "sensor_id": 42}
     """
-    import json
+    data, err = _parse_or_error(payload)
+    if err is not None:
+        return err
+    assert data is not None  # invariant: err is None ⟹ data is not None
 
-    try:
-        data = json.loads(payload)
-    except json.JSONDecodeError:
-        logger.warning("Invalid JSON in mapping command: %r", payload)
-        return {"error": "Invalid JSON payload"}
+    result = _commands.handle_assign(state, data)
 
-    if not isinstance(data, dict):
-        logger.warning("Non-object JSON in mapping command: %r", payload)
-        return {"error": "JSON payload must be an object"}
-
-    command = data.get("command", "")
-
-    _handlers: dict[str, Any] = {
-        "assign": _commands._handle_assign,
-        "reset": _commands._handle_reset,
-        "reset_all": _commands._handle_reset_all,
-        "list_unknown": _commands._handle_list_unknown,
-    }
-
-    handler = _handlers.get(command)
-    if handler is None:
-        logger.warning("Unknown mapping command: %r", command)
-        return {"error": f"Unknown command: {command}"}
-
-    result = handler(state, data)
-
-    if command in {"assign", "reset", "reset_all"}:
+    if "error" not in result:
         store["registry"] = state.registry.to_dict()
 
     return result
+
+
+@app.command(
+    "mapping",
+    sub="reset",
+    summary="Remove the mapping for a named sensor",
+)
+async def mapping_reset(
+    payload: str,
+    store: DeviceStore,
+    state: SharedState,
+) -> dict[str, object]:
+    """Reset (remove) the mapping for a named sensor.
+
+    Payload: {"command": "reset", "sensor_name": "office"}
+    """
+    data, err = _parse_or_error(payload)
+    if err is not None:
+        return err
+    assert data is not None  # invariant: err is None ⟹ data is not None
+
+    result = _commands.handle_reset(state, data)
+
+    if "error" not in result:
+        store["registry"] = state.registry.to_dict()
+
+    return result
+
+
+@app.command(
+    "mapping",
+    sub="reset_all",
+    summary="Clear all sensor mappings",
+)
+async def mapping_reset_all(
+    payload: str,
+    store: DeviceStore,
+    state: SharedState,
+) -> dict[str, object]:
+    """Clear all sensor mappings.
+
+    Payload: {"command": "reset_all"}
+    """
+    _, err = _parse_or_error(payload)
+    if err is not None:
+        return err
+
+    result = _commands.handle_reset_all(state)
+
+    store["registry"] = state.registry.to_dict()
+
+    return result
+
+
+@app.command(
+    "mapping",
+    sub="list_unknown",
+    summary="Return recently-seen sensor IDs that are not yet mapped",
+)
+async def mapping_list_unknown(
+    payload: str,  # noqa: ARG001 — framework requires; list_unknown needs no payload fields
+    store: DeviceStore,  # noqa: ARG001 — Required by cosalette command DI; list_unknown is read-only
+    state: SharedState,
+) -> dict[str, object]:
+    """List unmapped sensor IDs.
+
+    Payload: {"command": "list_unknown"}
+
+    Note: Does not persist anything to the store.
+    """
+    return _commands.handle_list_unknown(state)
 
 
 def main() -> None:

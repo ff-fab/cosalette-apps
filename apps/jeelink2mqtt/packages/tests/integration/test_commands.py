@@ -12,16 +12,14 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.commands import (
-    _handle_assign,
-    _handle_list_unknown,
-    _handle_reset,
-    _handle_reset_all,
+    handle_assign,
+    handle_list_unknown,
+    handle_reset,
+    handle_reset_all,
 )
 
 # ======================================================================
@@ -43,7 +41,7 @@ class TestAssignCommand:
         data = {"command": "assign", "sensor_name": "office", "sensor_id": 42}
 
         # Act
-        result = _handle_assign(shared_state, data)
+        result = handle_assign(shared_state, data)
 
         # Assert
         assert result["status"] == "ok"
@@ -58,7 +56,7 @@ class TestAssignCommand:
         data = {"command": "assign", "sensor_name": "outdoor", "sensor_id": 77}
 
         # Act
-        result = _handle_assign(shared_state, data)
+        result = handle_assign(shared_state, data)
 
         # Assert
         assert result["status"] == "ok"
@@ -74,20 +72,20 @@ class TestAssignCommand:
         Technique: Error Guessing — MappingConflictError path.
         """
         # Arrange
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "office", "sensor_id": 42},
         )
 
         # Act
-        result = _handle_assign(
+        result = handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "outdoor", "sensor_id": 42},
         )
 
         # Assert
         assert "error" in result
-        assert "already mapped" in str(result["error"])
+        assert result["error"] == "sensor ID already assigned"
 
     def test_assign_unknown_sensor_returns_error(
         self, shared_state: SharedState
@@ -104,7 +102,7 @@ class TestAssignCommand:
         }
 
         # Act
-        result = _handle_assign(shared_state, data)
+        result = handle_assign(shared_state, data)
 
         # Assert
         assert "error" in result
@@ -126,13 +124,13 @@ class TestResetCommand:
         Technique: State Transition — mapped → unmapped.
         """
         # Arrange
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "office", "sensor_id": 42},
         )
 
         # Act
-        result = _handle_reset(
+        result = handle_reset(
             shared_state,
             {"command": "reset", "sensor_name": "office"},
         )
@@ -148,7 +146,7 @@ class TestResetCommand:
         Technique: Decision Table — reset when no mapping exists.
         """
         # Act
-        result = _handle_reset(
+        result = handle_reset(
             shared_state,
             {"command": "reset", "sensor_name": "office"},
         )
@@ -173,17 +171,17 @@ class TestResetAllCommand:
         Technique: State Transition — multiple mappings → empty.
         """
         # Arrange
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "office", "sensor_id": 42},
         )
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "outdoor", "sensor_id": 77},
         )
 
         # Act
-        result = _handle_reset_all(shared_state, {"command": "reset_all"})
+        result = handle_reset_all(shared_state)
 
         # Assert
         assert result["status"] == "ok"
@@ -216,9 +214,8 @@ class TestListUnknownCommand:
         shared_state.registry.record_reading(reading2)
 
         # Act
-        result = _handle_list_unknown(
+        result = handle_list_unknown(
             shared_state,
-            {"command": "list_unknown"},
         )
 
         # Assert
@@ -230,75 +227,5 @@ class TestListUnknownCommand:
 
 
 # ======================================================================
-# Error Handling
+# End of command integration tests
 # ======================================================================
-
-
-@pytest.mark.integration
-class TestCommandErrorHandling:
-    """Tests for invalid inputs and unknown commands.
-
-    These test the dispatch logic that wraps the handlers, verifying
-    that JSON parse + command lookup produce correct error dicts.
-
-    Because ``handle_mapping`` is a cosalette ``@app.command()``
-    coroutine that requires ``DeviceStore`` injection, we test the
-    underlying dispatch logic by calling the internal handler helpers
-    with a real ``SharedState``.
-    """
-
-    def test_invalid_json_returns_error(self, shared_state: SharedState) -> None:
-        """Non-JSON payload triggers json.JSONDecodeError which the handler
-        would catch and return ``{"error": "Invalid JSON payload"}``.
-
-        We verify that the parsing path raises correctly, and that the
-        handler's documented contract holds.
-
-        Technique: Error Guessing — malformed input.
-        """
-        import json
-
-        payload = "not valid json {"
-
-        # Verify the parsing path raises as expected
-        with pytest.raises(json.JSONDecodeError):
-            json.loads(payload)
-
-        # Verify the handler helpers reject missing required fields
-        # (simulates what happens after failed JSON parse → error dict)
-        result = _handle_assign(shared_state, {})
-        assert "error" in result
-
-    def test_unknown_command_returns_error(self, shared_state: SharedState) -> None:
-        """An unknown command routes to no handler.
-
-        We verify the dispatch lookup returns None, and that each known
-        handler rejects payloads missing the required ``command`` key.
-
-        Technique: Error Guessing — unknown command routing.
-        """
-        from jeelink2mqtt.commands import (
-            _handle_assign,
-            _handle_list_unknown,
-            _handle_reset,
-            _handle_reset_all,
-        )
-
-        # The dispatch table used by handle_mapping
-        handlers = {
-            "assign": _handle_assign,
-            "reset": _handle_reset,
-            "reset_all": _handle_reset_all,
-            "list_unknown": _handle_list_unknown,
-        }
-
-        # Unknown command yields no handler
-        data = json.loads('{"command": "foobar"}')
-        assert handlers.get(data["command"]) is None
-
-        # Known commands with missing fields return error dicts
-        result = _handle_assign(shared_state, {"command": "assign"})
-        assert "error" in result
-
-        result = _handle_reset(shared_state, {"command": "reset"})
-        assert "error" in result

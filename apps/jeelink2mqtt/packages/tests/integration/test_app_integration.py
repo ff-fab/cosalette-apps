@@ -21,6 +21,7 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import cosalette
 import pytest
@@ -42,9 +43,62 @@ from jeelink2mqtt.state import (
 from tests.fixtures.async_utils import wait_for_condition
 from tests.fixtures.doubles import FakeDeviceContext
 
+if TYPE_CHECKING:
+    from cosalette import MockMqttClient
+
 # ======================================================================
 # Helpers
 # ======================================================================
+
+
+def _build_integration_app() -> cosalette.App:
+    """Create a test app with minimal components for mapping framework tests.
+
+    Only includes mapping sub-commands and shared state factory.
+    Avoids unnecessary background loops for command routing tests.
+    """
+    from cosalette.stores import MemoryStore
+
+    from jeelink2mqtt import __version__
+    from jeelink2mqtt.main import (
+        mapping_assign,
+        mapping_list_unknown,
+        mapping_reset,
+        mapping_reset_all,
+    )
+
+    test_app = cosalette.App(
+        name="jeelink2mqtt",
+        version=__version__,
+        description="JeeLink LaCrosse sensor bridge for MQTT",
+        settings_class=Jeelink2MqttSettings,
+        store=MemoryStore(),
+    )
+
+    # Register the same state factory as the real app
+    @test_app.state
+    def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
+        return build_shared_state(settings)
+
+    # Register mapping sub-commands
+    test_app.command(
+        "mapping",
+        sub="assign",
+        summary="Manually assign an ephemeral sensor ID to a logical name",
+    )(mapping_assign)
+    test_app.command(
+        "mapping", sub="reset", summary="Remove the mapping for a named sensor"
+    )(mapping_reset)
+    test_app.command("mapping", sub="reset_all", summary="Clear all sensor mappings")(
+        mapping_reset_all
+    )
+    test_app.command(
+        "mapping",
+        sub="list_unknown",
+        summary="Return recently-seen sensor IDs that are not yet mapped",
+    )(mapping_list_unknown)
+
+    return test_app
 
 
 def _make_settings(
@@ -87,13 +141,14 @@ def _make_shared_state(
     )
 
 
-def _extract_handler(app: cosalette.App, kind: str, name: str):
+def _extract_handler(app: cosalette.App, kind: str, name: str, sub: str | None = None):
     """Extract a registered handler function from a cosalette App.
 
     Args:
         app: The cosalette App with registered handlers.
         kind: ``"command"`` or ``"device"``.
         name: The registration name to find.
+        sub: The sub-command name (for sub-commands only).
 
     Returns:
         The handler's async function.
@@ -101,8 +156,17 @@ def _extract_handler(app: cosalette.App, kind: str, name: str):
     registry = app._commands if kind == "command" else app._devices
     for reg in registry:
         if reg.name == name:
-            return reg.func
-    msg = f"No {kind} named {name!r} found in app"
+            if sub is None:
+                # Looking for a handler without sub-command
+                if getattr(reg, "sub", None) is None:
+                    return reg.func
+            else:
+                # Looking for a specific sub-command handler
+                if getattr(reg, "sub", None) == sub:
+                    return reg.func
+
+    sub_desc = f" (sub={sub!r})" if sub else ""
+    msg = f"No {kind} named {name!r}{sub_desc} found in app"
     raise LookupError(msg)
 
 
@@ -405,18 +469,18 @@ class TestApp:
 
 
 @pytest.mark.integration
-class TestHandleMappingDispatch:
-    """Test the handle_mapping wrapper registered via @app.command.
+class TestMappingSubCommands:
+    """Test the mapping sub-command handlers registered via @app.command.
 
-    Exercises the command dispatch code in commands.py lines 52-100:
+    Exercises the sub-command dispatch and individual command handlers in main.py:
     JSON parsing, handler routing, store persistence, error responses.
 
-    Technique: Decision Table Testing — command × validity → response.
+    Technique: Decision Table Testing — sub-command × validity → response.
     """
 
     async def test_handle_mapping_with_state(
         self,
-        handle_mapping,
+        mapping_list_unknown,
         settings_one_sensor: Jeelink2MqttSettings,
     ) -> None:
         """Test command handler with proper state injection.
@@ -430,7 +494,9 @@ class TestHandleMappingDispatch:
 
         async with _lifespan(ctx) as state:
             # Act
-            result = await handle_mapping(payload=payload, store=store, state=state)
+            result = await mapping_list_unknown(
+                payload=payload, store=store, state=state
+            )
 
             # Assert
             assert result is not None
@@ -438,12 +504,27 @@ class TestHandleMappingDispatch:
             assert "unknown_sensors" in result
 
     @pytest.fixture
-    def handle_mapping(self):
-        """Extract the registered handle_mapping function from the app."""
-        return _extract_handler(app, "command", "mapping")
+    def mapping_assign(self):
+        """Extract the registered mapping_assign function from the app."""
+        return _extract_handler(app, "command", "mapping", sub="assign")
+
+    @pytest.fixture
+    def mapping_reset(self):
+        """Extract the registered mapping_reset function from the app."""
+        return _extract_handler(app, "command", "mapping", sub="reset")
+
+    @pytest.fixture
+    def mapping_reset_all(self):
+        """Extract the registered mapping_reset_all function from the app."""
+        return _extract_handler(app, "command", "mapping", sub="reset_all")
+
+    @pytest.fixture
+    def mapping_list_unknown(self):
+        """Extract the registered mapping_list_unknown function from the app."""
+        return _extract_handler(app, "command", "mapping", sub="list_unknown")
 
     async def test_invalid_json_returns_error(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
+        self, mapping_assign, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Non-JSON payload yields an error dict.
 
@@ -455,7 +536,7 @@ class TestHandleMappingDispatch:
 
         async with _lifespan(ctx) as state:
             # Act
-            result = await handle_mapping(
+            result = await mapping_assign(
                 payload="not-json{{{{", store=store, state=state
             )
 
@@ -465,7 +546,7 @@ class TestHandleMappingDispatch:
     @pytest.mark.parametrize("payload", ["[]", '"mapping"', "42"])
     async def test_non_object_json_returns_error(
         self,
-        handle_mapping,
+        mapping_assign,
         settings_one_sensor: Jeelink2MqttSettings,
         payload: str,
     ) -> None:
@@ -479,52 +560,36 @@ class TestHandleMappingDispatch:
 
         async with _lifespan(ctx) as state:
             # Act
-            result = await handle_mapping(payload=payload, store=store, state=state)
+            result = await mapping_assign(payload=payload, store=store, state=state)
 
             # Assert
             assert result == {"error": "JSON payload must be an object"}
 
-    async def test_unknown_command_returns_error(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
-    ) -> None:
-        """Payload with unrecognised command yields an error dict.
+    async def test_app_has_mapping_subcommand_registrations(self) -> None:
+        """Verify that all expected mapping sub-commands are registered.
 
-        Technique: Decision Table — unknown command branch.
+        Technique: Specification-based — declarative registrations.
         """
-        # Arrange
-        ctx = AppContext(settings=settings_one_sensor, adapters={})
-        store = _make_device_store()
-        payload = json.dumps({"command": "explode"})
+        # Find all mapping command registrations
+        mapping_commands = [
+            reg
+            for reg in app._commands
+            if reg.name == "mapping" and hasattr(reg, "sub")
+        ]
 
-        async with _lifespan(ctx) as state:
-            # Act
-            result = await handle_mapping(payload=payload, store=store, state=state)
+        # Extract sub-command names
+        sub_commands = {reg.sub for reg in mapping_commands}
 
-            # Assert
-            assert result == {"error": "Unknown command: explode"}
+        # Assert all expected sub-commands are registered
+        expected = {"assign", "reset", "reset_all", "list_unknown"}
+        assert sub_commands == expected
 
-    async def test_empty_command_returns_error(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
-    ) -> None:
-        """Payload with no 'command' key yields an error for empty string.
-
-        Technique: Error Guessing — missing required field.
-        """
-        # Arrange
-        ctx = AppContext(settings=settings_one_sensor, adapters={})
-        store = _make_device_store()
-        payload = json.dumps({"not_command": "assign"})
-
-        async with _lifespan(ctx) as state:
-            # Act
-            result = await handle_mapping(payload=payload, store=store, state=state)
-
-            # Assert
-            assert "error" in result
-            assert "Unknown command" in str(result["error"])
+        # Verify each has a distinct handler function
+        handlers = {reg.sub: reg.func for reg in mapping_commands}
+        assert len(handlers) == len(expected)  # No duplicates
 
     async def test_assign_returns_ok_and_persists(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
+        self, mapping_assign, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Valid assign command creates mapping and persists to store.
 
@@ -543,7 +608,7 @@ class TestHandleMappingDispatch:
 
         async with _lifespan(ctx) as state:
             # Act
-            result = await handle_mapping(payload=payload, store=store, state=state)
+            result = await mapping_assign(payload=payload, store=store, state=state)
 
             # Assert — response
             assert result["status"] == "ok"
@@ -555,8 +620,40 @@ class TestHandleMappingDispatch:
             assert "registry" in store
             assert state.registry.resolve(42) == "office"
 
+    async def test_assign_payload_with_error_metadata_key_succeeds(
+        self, mapping_assign, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """Valid assign payload containing "error" key as metadata is processed correctly.
+
+        Technique: Regression Testing — prevents control flow misinterpretation
+        of "error" in valid payload data vs. actual error conditions.
+        """
+        # Arrange
+        ctx = AppContext(settings=settings_one_sensor, adapters={})
+        store = _make_device_store()
+        payload = json.dumps(
+            {
+                "command": "assign",
+                "sensor_name": "office",
+                "sensor_id": 42,
+                "error": "metadata",
+            }
+        )
+
+        async with _lifespan(ctx) as state:
+            # Act
+            result = await mapping_assign(payload=payload, store=store, state=state)
+
+            # Assert — response
+            assert result["status"] == "ok"
+            assert result["event"]["new_sensor_id"] == 42
+
+            # Assert — persistence and state
+            assert state.registry.resolve(42) == "office"
+            assert "registry" in store
+
     async def test_reset_returns_ok_and_persists(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
+        self, mapping_assign, mapping_reset, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """Reset removes an existing mapping and persists the change.
 
@@ -574,7 +671,7 @@ class TestHandleMappingDispatch:
         )
 
         async with _lifespan(ctx) as state:
-            await handle_mapping(payload=assign_payload, store=store, state=state)
+            await mapping_assign(payload=assign_payload, store=store, state=state)
 
             reset_payload = json.dumps(
                 {
@@ -584,7 +681,7 @@ class TestHandleMappingDispatch:
             )
 
             # Act
-            result = await handle_mapping(
+            result = await mapping_reset(
                 payload=reset_payload, store=store, state=state
             )
 
@@ -594,7 +691,10 @@ class TestHandleMappingDispatch:
             assert state.registry.resolve(42) is None
 
     async def test_reset_all_clears_all_mappings(
-        self, handle_mapping, settings_two_sensors: Jeelink2MqttSettings
+        self,
+        mapping_assign,
+        mapping_reset_all,
+        settings_two_sensors: Jeelink2MqttSettings,
     ) -> None:
         """reset_all removes every mapping and persists.
 
@@ -613,11 +713,11 @@ class TestHandleMappingDispatch:
                         "sensor_id": sid,
                     }
                 )
-                result = await handle_mapping(payload=payload, store=store, state=state)
+                result = await mapping_assign(payload=payload, store=store, state=state)
                 assert result["status"] == "ok", f"assign {name} failed: {result}"
 
             # Act
-            result = await handle_mapping(
+            result = await mapping_reset_all(
                 payload=json.dumps({"command": "reset_all"}),
                 store=store,
                 state=state,
@@ -628,7 +728,7 @@ class TestHandleMappingDispatch:
             assert result["cleared"] == 2
 
     async def test_list_unknown_returns_unmapped_ids(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
+        self, mapping_list_unknown, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """list_unknown returns recently-seen unmapped sensor IDs.
 
@@ -653,14 +753,16 @@ class TestHandleMappingDispatch:
             payload = json.dumps({"command": "list_unknown"})
 
             # Act
-            result = await handle_mapping(payload=payload, store=store, state=state)
+            result = await mapping_list_unknown(
+                payload=payload, store=store, state=state
+            )
 
             # Assert
             assert result["status"] == "ok"
             assert "999" in result["unknown_sensors"]
 
     async def test_list_unknown_does_not_persist(
-        self, handle_mapping, settings_one_sensor: Jeelink2MqttSettings
+        self, mapping_list_unknown, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
         """list_unknown is read-only — store is NOT written.
 
@@ -673,11 +775,337 @@ class TestHandleMappingDispatch:
 
         async with _lifespan(ctx) as state:
             # Act
-            await handle_mapping(payload=payload, store=store, state=state)
+            await mapping_list_unknown(payload=payload, store=store, state=state)
 
             # Assert — no persistence occurred
             assert len(store) == 0
         assert "registry" not in store
+
+
+# ======================================================================
+# TestMappingSubCommandErrors
+# ======================================================================
+
+
+async def _run_mapping_command(
+    payload: str, settings: Jeelink2MqttSettings, expected_topic: str
+) -> MockMqttClient:
+    """Helper to run a mapping command and return the MockMqttClient after completion.
+
+    Handles app startup, subscription wait, command delivery, response wait,
+    and shutdown. Returns the MockMqttClient for assertion checking.
+
+    Args:
+        payload: The command payload to deliver to jeelink2mqtt/mapping/set
+        settings: App settings
+        expected_topic: Topic to wait for (e.g., 'jeelink2mqtt/mapping/error' or 'jeelink2mqtt/mapping/state')
+
+    Returns:
+        MockMqttClient instance with published messages available for assertions
+    """
+    from cosalette import MockMqttClient
+
+    mock_mqtt = MockMqttClient()
+    test_app = _build_integration_app()
+
+    shutdown_event = asyncio.Event()
+    task = asyncio.create_task(
+        test_app._run_async(
+            mqtt=mock_mqtt,
+            settings=settings,
+            shutdown_event=shutdown_event,
+        )
+    )
+
+    try:
+        # Wait for mapping subscription to be present
+        await wait_for_condition(
+            lambda: (
+                "jeelink2mqtt/mapping/set" in getattr(mock_mqtt, "subscriptions", set())
+            ),
+            timeout=1.0,
+            description="mapping subscription setup",
+        )
+
+        # Deliver command payload
+        await mock_mqtt.deliver("jeelink2mqtt/mapping/set", payload)
+
+        # Wait for expected response topic to have at least one publish
+        await wait_for_condition(
+            lambda: any(
+                topic == expected_topic
+                for topic, _payload, _retain, _qos in mock_mqtt.published
+            ),
+            timeout=1.0,
+            description=f"{expected_topic} message publication",
+        )
+
+    finally:
+        # Shutdown — suppress secondary exceptions so the original failure is preserved
+        shutdown_event.set()
+        try:
+            await task
+        except Exception:  # noqa: BLE001
+            pass
+
+    return mock_mqtt
+
+
+@pytest.mark.integration
+class TestMappingSubCommandErrors:
+    """Test sub-command error handling through the real cosalette framework.
+
+    These tests exercise the cosalette CommandRunner.register_sub_command_proxy
+    dispatch path, not direct handler calls. Uses MockMqttClient.deliver() to
+    trigger the real app error handling and verify structured error responses.
+
+    Technique: Framework Integration Testing — cosalette sub-dispatch errors.
+    """
+
+    async def test_invalid_json_publishes_structured_error(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """Invalid JSON to mapping/set publishes error_type='invalid_json'.
+
+        Technique: Error Guessing — malformed JSON input through framework.
+        """
+        # Act
+        mock_mqtt = await _run_mapping_command(
+            "not-json{{{{", settings_one_sensor, "jeelink2mqtt/mapping/error"
+        )
+
+        # Assert — structured error published to mapping/error
+        error_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/error"
+        ]
+        assert len(error_msgs) == 1
+
+        error_data = json.loads(error_msgs[0])
+        assert error_data["error_type"] == "invalid_json"
+        assert "message" in error_data
+        assert "device" in error_data
+        assert "timestamp" in error_data
+
+        # Assert — no mapping/state response for errors
+        mapping_state_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/state"
+        ]
+        # Should not have mapping/state triggered by this error
+        assert len(mapping_state_msgs) == 0
+
+    async def test_missing_command_field_publishes_structured_error(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """Missing 'command' field publishes error_type='missing_sub_key'.
+
+        Technique: Error Guessing — missing required field through framework.
+        """
+        # Act
+        mock_mqtt = await _run_mapping_command(
+            json.dumps({"sensor_name": "office", "sensor_id": 42}),
+            settings_one_sensor,
+            "jeelink2mqtt/mapping/error",
+        )
+
+        # Assert — structured error published
+        error_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/error"
+        ]
+        assert len(error_msgs) == 1
+
+        error_data = json.loads(error_msgs[0])
+        assert error_data["error_type"] == "missing_sub_key"
+        assert "command" in error_data["message"]
+
+        # Assert — no mapping/state response for errors
+        mapping_state_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/state"
+        ]
+        assert len(mapping_state_msgs) == 0
+
+    async def test_unknown_command_publishes_structured_error(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """Unknown command like 'explode' publishes error_type='unknown_sub_command'.
+
+        Technique: Error Guessing — unknown sub-command through framework.
+        """
+        # Act
+        mock_mqtt = await _run_mapping_command(
+            json.dumps({"command": "explode", "data": "boom"}),
+            settings_one_sensor,
+            "jeelink2mqtt/mapping/error",
+        )
+
+        # Assert — structured error published
+        error_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/error"
+        ]
+        assert len(error_msgs) == 1
+
+        error_data = json.loads(error_msgs[0])
+        assert error_data["error_type"] == "unknown_sub_command"
+        assert "explode" in error_data["message"]
+
+        # Assert — no mapping/state response for errors
+        mapping_state_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/state"
+        ]
+        assert len(mapping_state_msgs) == 0
+
+    async def test_valid_command_does_publish_mapping_state(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """Valid command publishes mapping/state response (contrast to errors).
+
+        Technique: Specification-based — positive case for comparison.
+        """
+        # Act
+        mock_mqtt = await _run_mapping_command(
+            json.dumps({"command": "assign", "sensor_name": "office", "sensor_id": 42}),
+            settings_one_sensor,
+            "jeelink2mqtt/mapping/state",
+        )
+
+        # Assert — mapping/state response published for valid commands
+        mapping_state_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/state"
+        ]
+        assert len(mapping_state_msgs) == 1
+
+        # Should be valid command response
+        state_data = json.loads(mapping_state_msgs[0])
+        assert state_data["status"] == "ok"
+
+        # Assert — no error messages for valid commands
+        error_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/error"
+        ]
+        assert len(error_msgs) == 0
+
+    async def test_unexpected_handler_exception_does_not_crash_app(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """RuntimeError escaping a sub-command handler does not crash the framework.
+
+        Verifies the app remains responsive after an unexpected exception in a handler.
+
+        Technique: Error Guessing — unhandled exception escaping handler body.
+        """
+        from unittest.mock import patch
+
+        from cosalette import MockMqttClient
+
+        mock_mqtt = MockMqttClient()
+        test_app = _build_integration_app()
+        shutdown_event = asyncio.Event()
+        task = asyncio.create_task(
+            test_app._run_async(
+                mqtt=mock_mqtt,
+                settings=settings_one_sensor,
+                shutdown_event=shutdown_event,
+            )
+        )
+
+        try:
+            await wait_for_condition(
+                lambda: (
+                    "jeelink2mqtt/mapping/set"
+                    in getattr(mock_mqtt, "subscriptions", set())
+                ),
+                timeout=1.0,
+                description="mapping subscription setup",
+            )
+
+            with patch(
+                "jeelink2mqtt.commands.handle_assign",
+                side_effect=RuntimeError("unexpected failure"),
+            ):
+                await mock_mqtt.deliver(
+                    "jeelink2mqtt/mapping/set",
+                    json.dumps(
+                        {"command": "assign", "sensor_name": "office", "sensor_id": 42}
+                    ),
+                )
+
+            # Give the event loop time to process the command and any error handling
+            done, _ = await asyncio.wait([task], timeout=0.3)
+
+            # App should still be running — RuntimeError must not propagate out
+            assert task not in done, "Framework crashed on unexpected handler exception"
+
+        finally:
+            shutdown_event.set()
+            try:
+                await task
+            except Exception:  # noqa: BLE001
+                pass
+
+    @pytest.mark.parametrize(
+        ("sub_command", "payload_fields", "expected_status"),
+        [
+            ("reset", {"command": "reset", "sensor_name": "office"}, "ok"),
+            ("reset_all", {"command": "reset_all"}, "ok"),
+            ("list_unknown", {"command": "list_unknown"}, "ok"),
+        ],
+    )
+    async def test_sub_command_positive_path_publishes_mapping_state(
+        self,
+        settings_one_sensor: Jeelink2MqttSettings,
+        sub_command: str,
+        payload_fields: dict,
+        expected_status: str,
+    ) -> None:
+        """Each sub-command routes through the framework and publishes mapping/state.
+
+        Verifies that reset, reset_all, and list_unknown all have their MQTT
+        topic routing wired correctly end-to-end (complements the assign-only
+        positive test).
+
+        Technique: Decision Table Testing — sub-command × routing → response.
+        """
+        # Act
+        mock_mqtt = await _run_mapping_command(
+            json.dumps(payload_fields),
+            settings_one_sensor,
+            "jeelink2mqtt/mapping/state",
+        )
+
+        # Assert — mapping/state published
+        mapping_state_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/state"
+        ]
+        assert len(mapping_state_msgs) >= 1, (
+            f"{sub_command} routing did not produce mapping/state"
+        )
+        state_data = json.loads(mapping_state_msgs[0])
+        assert state_data["status"] == expected_status
+
+        # Assert — no errors
+        error_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/error"
+        ]
+        assert len(error_msgs) == 0, f"{sub_command} unexpectedly published an error"
 
 
 # ======================================================================
