@@ -16,10 +16,10 @@ import pytest
 
 from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.commands import (
-    _handle_assign,
-    _handle_list_unknown,
-    _handle_reset,
-    _handle_reset_all,
+    handle_assign,
+    handle_list_unknown,
+    handle_reset,
+    handle_reset_all,
 )
 
 # ======================================================================
@@ -41,7 +41,7 @@ class TestAssignCommand:
         data = {"command": "assign", "sensor_name": "office", "sensor_id": 42}
 
         # Act
-        result = _handle_assign(shared_state, data)
+        result = handle_assign(shared_state, data)
 
         # Assert
         assert result["status"] == "ok"
@@ -56,7 +56,7 @@ class TestAssignCommand:
         data = {"command": "assign", "sensor_name": "outdoor", "sensor_id": 77}
 
         # Act
-        result = _handle_assign(shared_state, data)
+        result = handle_assign(shared_state, data)
 
         # Assert
         assert result["status"] == "ok"
@@ -72,20 +72,20 @@ class TestAssignCommand:
         Technique: Error Guessing — MappingConflictError path.
         """
         # Arrange
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "office", "sensor_id": 42},
         )
 
         # Act
-        result = _handle_assign(
+        result = handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "outdoor", "sensor_id": 42},
         )
 
         # Assert
         assert "error" in result
-        assert "already mapped" in str(result["error"])
+        assert result["error"] == "sensor ID already assigned"
 
     def test_assign_unknown_sensor_returns_error(
         self, shared_state: SharedState
@@ -102,7 +102,7 @@ class TestAssignCommand:
         }
 
         # Act
-        result = _handle_assign(shared_state, data)
+        result = handle_assign(shared_state, data)
 
         # Assert
         assert "error" in result
@@ -124,13 +124,13 @@ class TestResetCommand:
         Technique: State Transition — mapped → unmapped.
         """
         # Arrange
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "office", "sensor_id": 42},
         )
 
         # Act
-        result = _handle_reset(
+        result = handle_reset(
             shared_state,
             {"command": "reset", "sensor_name": "office"},
         )
@@ -146,7 +146,7 @@ class TestResetCommand:
         Technique: Decision Table — reset when no mapping exists.
         """
         # Act
-        result = _handle_reset(
+        result = handle_reset(
             shared_state,
             {"command": "reset", "sensor_name": "office"},
         )
@@ -171,17 +171,17 @@ class TestResetAllCommand:
         Technique: State Transition — multiple mappings → empty.
         """
         # Arrange
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "office", "sensor_id": 42},
         )
-        _handle_assign(
+        handle_assign(
             shared_state,
             {"command": "assign", "sensor_name": "outdoor", "sensor_id": 77},
         )
 
         # Act
-        result = _handle_reset_all(shared_state, {"command": "reset_all"})
+        result = handle_reset_all(shared_state)
 
         # Assert
         assert result["status"] == "ok"
@@ -214,9 +214,8 @@ class TestListUnknownCommand:
         shared_state.registry.record_reading(reading2)
 
         # Act
-        result = _handle_list_unknown(
+        result = handle_list_unknown(
             shared_state,
-            {"command": "list_unknown"},
         )
 
         # Assert

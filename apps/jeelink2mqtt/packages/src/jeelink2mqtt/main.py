@@ -167,6 +167,21 @@ async def heartbeat(  # pragma: no cover — composition root, tested via helper
         await _receiver._maybe_heartbeat(ctx, settings, state)
 
 
+def _parse_or_error(
+    payload: str,
+) -> tuple[dict[str, object] | None, dict[str, object] | None]:
+    """Parse a mapping command payload or return an error response dict.
+
+    Returns:
+        ``(parsed_data, None)`` on success.
+        ``(None, {"error": ...})`` on parse failure.
+    """
+    try:
+        return _commands.parse_command_payload(payload), None
+    except _commands.MappingCommandPayloadError as exc:
+        return None, {"error": str(exc)}
+
+
 @app.command(
     "mapping",
     sub="assign",
@@ -181,15 +196,15 @@ async def mapping_assign(
 
     Payload: {"command": "assign", "sensor_name": "office", "sensor_id": 42}
     """
-    try:
-        data = _commands.parse_command_payload(payload)
-    except _commands.MappingCommandPayloadError as exc:
-        return {"error": str(exc)}
+    data, err = _parse_or_error(payload)
+    if err is not None:
+        return err
+    assert data is not None  # invariant: err is None ⟹ data is not None
 
-    result = _commands._handle_assign(state, data)
+    result = _commands.handle_assign(state, data)
 
-    # Persist registry changes
-    store["registry"] = state.registry.to_dict()
+    if "error" not in result:
+        store["registry"] = state.registry.to_dict()
 
     return result
 
@@ -208,15 +223,15 @@ async def mapping_reset(
 
     Payload: {"command": "reset", "sensor_name": "office"}
     """
-    try:
-        data = _commands.parse_command_payload(payload)
-    except _commands.MappingCommandPayloadError as exc:
-        return {"error": str(exc)}
+    data, err = _parse_or_error(payload)
+    if err is not None:
+        return err
+    assert data is not None  # invariant: err is None ⟹ data is not None
 
-    result = _commands._handle_reset(state, data)
+    result = _commands.handle_reset(state, data)
 
-    # Persist registry changes
-    store["registry"] = state.registry.to_dict()
+    if "error" not in result:
+        store["registry"] = state.registry.to_dict()
 
     return result
 
@@ -235,14 +250,12 @@ async def mapping_reset_all(
 
     Payload: {"command": "reset_all"}
     """
-    try:
-        data = _commands.parse_command_payload(payload)
-    except _commands.MappingCommandPayloadError as exc:
-        return {"error": str(exc)}
+    _, err = _parse_or_error(payload)
+    if err is not None:
+        return err
 
-    result = _commands._handle_reset_all(state, data)
+    result = _commands.handle_reset_all(state)
 
-    # Persist registry changes
     store["registry"] = state.registry.to_dict()
 
     return result
@@ -254,8 +267,8 @@ async def mapping_reset_all(
     summary="Return recently-seen sensor IDs that are not yet mapped",
 )
 async def mapping_list_unknown(
-    payload: str,
-    store: DeviceStore,  # noqa: ARG001
+    payload: str,  # noqa: ARG001 — framework requires; list_unknown needs no payload fields
+    store: DeviceStore,  # noqa: ARG001 — Required by cosalette command DI; list_unknown is read-only
     state: SharedState,
 ) -> dict[str, object]:
     """List unmapped sensor IDs.
@@ -264,12 +277,7 @@ async def mapping_list_unknown(
 
     Note: Does not persist anything to the store.
     """
-    try:
-        data = _commands.parse_command_payload(payload)
-    except _commands.MappingCommandPayloadError as exc:
-        return {"error": str(exc)}
-
-    return _commands._handle_list_unknown(state, data)
+    return _commands.handle_list_unknown(state)
 
 
 def main() -> None:

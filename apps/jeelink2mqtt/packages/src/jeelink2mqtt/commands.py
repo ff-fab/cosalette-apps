@@ -1,9 +1,16 @@
 """MQTT command implementations for sensor mapping management.
 
 Provides the command handler functions used by the ``@app.command``
-mapping handler registered in :mod:`jeelink2mqtt.main`.
+mapping sub-command handlers registered in :mod:`jeelink2mqtt.main`.
 
-Supported commands::
+Commands are dispatched by cosalette via MQTT sub-topic routing
+(``command`` field in payload maps to a registered sub-command)::
+
+    jeelink2mqtt/mapping/set  ← incoming command payload
+    jeelink2mqtt/mapping/state ← handler response
+    jeelink2mqtt/mapping/error ← framework-level routing errors
+
+Sub-commands::
 
     {"command": "assign",       "sensor_name": "office", "sensor_id": 42}
     {"command": "reset",        "sensor_name": "office"}
@@ -50,11 +57,19 @@ def parse_command_payload(payload: str) -> dict[str, object]:
     try:
         data = json.loads(payload)
     except json.JSONDecodeError as exc:
-        logger.warning("Invalid JSON in mapping command: %r", payload)
+        logger.warning(
+            "Invalid JSON in mapping command: %d bytes, error at position %d",
+            len(payload),
+            exc.pos,
+        )
         raise MappingCommandPayloadError("Invalid JSON payload") from exc
 
     if not isinstance(data, dict):
-        logger.warning("Non-object JSON in mapping command: %r", payload)
+        logger.warning(
+            "Non-object JSON in mapping command: %d bytes, type=%s",
+            len(payload),
+            type(data).__name__,
+        )
         raise MappingCommandPayloadError("JSON payload must be an object")
 
     return data
@@ -65,7 +80,7 @@ def parse_command_payload(payload: str) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
-def _handle_assign(
+def handle_assign(
     state: SharedState,
     data: dict[str, Any],
 ) -> dict[str, Any]:
@@ -76,9 +91,15 @@ def _handle_assign(
     if not sensor_name or sensor_id is None:
         return {"error": "assign requires 'sensor_name' and 'sensor_id'"}
 
+    if not isinstance(sensor_id, int) or isinstance(sensor_id, bool):
+        return {"error": "sensor_id must be an integer"}
+
     try:
-        event = state.registry.assign(str(sensor_name), int(sensor_id))
-    except (MappingConflictError, ValueError) as exc:
+        event = state.registry.assign(str(sensor_name), sensor_id)
+    except MappingConflictError as exc:
+        logger.debug("Mapping conflict for sensor_id=%d: %s", sensor_id, exc)
+        return {"error": "sensor ID already assigned"}
+    except ValueError as exc:
         return {"error": str(exc)}
 
     return {
@@ -93,7 +114,7 @@ def _handle_assign(
     }
 
 
-def _handle_reset(
+def handle_reset(
     state: SharedState,
     data: dict[str, Any],
 ) -> dict[str, Any]:
@@ -116,9 +137,8 @@ def _handle_reset(
     }
 
 
-def _handle_reset_all(
+def handle_reset_all(
     state: SharedState,
-    data: dict[str, Any],  # noqa: ARG001
 ) -> dict[str, Any]:
     """Clear all sensor mappings."""
     events = state.registry.reset_all()
@@ -129,9 +149,8 @@ def _handle_reset_all(
     }
 
 
-def _handle_list_unknown(
+def handle_list_unknown(
     state: SharedState,
-    data: dict[str, Any],  # noqa: ARG001
 ) -> dict[str, Any]:
     """Return recently-seen sensor IDs that are not yet mapped."""
     unmapped = state.registry.get_unmapped_ids()

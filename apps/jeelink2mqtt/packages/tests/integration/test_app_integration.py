@@ -841,9 +841,12 @@ async def _run_mapping_command(
         )
 
     finally:
-        # Shutdown
+        # Shutdown — suppress secondary exceptions so the original failure is preserved
         shutdown_event.set()
-        await task
+        try:
+            await task
+        except Exception:  # noqa: BLE001
+            pass
 
     return mock_mqtt
 
@@ -877,7 +880,7 @@ class TestMappingSubCommandErrors:
             for topic, payload, _retain, _qos in mock_mqtt.published
             if topic == "jeelink2mqtt/mapping/error"
         ]
-        assert len(error_msgs) >= 1
+        assert len(error_msgs) == 1
 
         error_data = json.loads(error_msgs[0])
         assert error_data["error_type"] == "invalid_json"
@@ -914,7 +917,7 @@ class TestMappingSubCommandErrors:
             for topic, payload, _retain, _qos in mock_mqtt.published
             if topic == "jeelink2mqtt/mapping/error"
         ]
-        assert len(error_msgs) >= 1
+        assert len(error_msgs) == 1
 
         error_data = json.loads(error_msgs[0])
         assert error_data["error_type"] == "missing_sub_key"
@@ -948,7 +951,7 @@ class TestMappingSubCommandErrors:
             for topic, payload, _retain, _qos in mock_mqtt.published
             if topic == "jeelink2mqtt/mapping/error"
         ]
-        assert len(error_msgs) >= 1
+        assert len(error_msgs) == 1
 
         error_data = json.loads(error_msgs[0])
         assert error_data["error_type"] == "unknown_sub_command"
@@ -982,7 +985,7 @@ class TestMappingSubCommandErrors:
             for topic, payload, _retain, _qos in mock_mqtt.published
             if topic == "jeelink2mqtt/mapping/state"
         ]
-        assert len(mapping_state_msgs) >= 1
+        assert len(mapping_state_msgs) == 1
 
         # Should be valid command response
         state_data = json.loads(mapping_state_msgs[0])
@@ -995,6 +998,114 @@ class TestMappingSubCommandErrors:
             if topic == "jeelink2mqtt/mapping/error"
         ]
         assert len(error_msgs) == 0
+
+    async def test_unexpected_handler_exception_does_not_crash_app(
+        self, settings_one_sensor: Jeelink2MqttSettings
+    ) -> None:
+        """RuntimeError escaping a sub-command handler does not crash the framework.
+
+        Verifies the app remains responsive after an unexpected exception in a handler.
+
+        Technique: Error Guessing — unhandled exception escaping handler body.
+        """
+        from unittest.mock import patch
+
+        from cosalette import MockMqttClient
+
+        mock_mqtt = MockMqttClient()
+        test_app = _build_integration_app()
+        shutdown_event = asyncio.Event()
+        task = asyncio.create_task(
+            test_app._run_async(
+                mqtt=mock_mqtt,
+                settings=settings_one_sensor,
+                shutdown_event=shutdown_event,
+            )
+        )
+
+        try:
+            await wait_for_condition(
+                lambda: (
+                    "jeelink2mqtt/mapping/set"
+                    in getattr(mock_mqtt, "subscriptions", set())
+                ),
+                timeout=1.0,
+                description="mapping subscription setup",
+            )
+
+            with patch(
+                "jeelink2mqtt.commands.handle_assign",
+                side_effect=RuntimeError("unexpected failure"),
+            ):
+                await mock_mqtt.deliver(
+                    "jeelink2mqtt/mapping/set",
+                    json.dumps(
+                        {"command": "assign", "sensor_name": "office", "sensor_id": 42}
+                    ),
+                )
+
+            # Give the event loop time to process the command and any error handling
+            done, _ = await asyncio.wait([task], timeout=0.3)
+
+            # App should still be running — RuntimeError must not propagate out
+            assert task not in done, "Framework crashed on unexpected handler exception"
+
+        finally:
+            shutdown_event.set()
+            try:
+                await task
+            except Exception:  # noqa: BLE001
+                pass
+
+    @pytest.mark.parametrize(
+        ("sub_command", "payload_fields", "expected_status"),
+        [
+            ("reset", {"command": "reset", "sensor_name": "office"}, "ok"),
+            ("reset_all", {"command": "reset_all"}, "ok"),
+            ("list_unknown", {"command": "list_unknown"}, "ok"),
+        ],
+    )
+    async def test_sub_command_positive_path_publishes_mapping_state(
+        self,
+        settings_one_sensor: Jeelink2MqttSettings,
+        sub_command: str,
+        payload_fields: dict,
+        expected_status: str,
+    ) -> None:
+        """Each sub-command routes through the framework and publishes mapping/state.
+
+        Verifies that reset, reset_all, and list_unknown all have their MQTT
+        topic routing wired correctly end-to-end (complements the assign-only
+        positive test).
+
+        Technique: Decision Table Testing — sub-command × routing → response.
+        """
+        # Act
+        mock_mqtt = await _run_mapping_command(
+            json.dumps(payload_fields),
+            settings_one_sensor,
+            "jeelink2mqtt/mapping/state",
+        )
+
+        # Assert — mapping/state published
+        mapping_state_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/state"
+        ]
+        assert len(mapping_state_msgs) >= 1, (
+            f"{sub_command} routing did not produce mapping/state"
+        )
+        state_data = json.loads(mapping_state_msgs[0])
+        assert state_data["status"] == expected_status
+
+        # Assert — no errors
+        error_msgs = [
+            payload
+            for topic, payload, _retain, _qos in mock_mqtt.published
+            if topic == "jeelink2mqtt/mapping/error"
+        ]
+        assert len(error_msgs) == 0, f"{sub_command} unexpectedly published an error"
 
 
 # ======================================================================

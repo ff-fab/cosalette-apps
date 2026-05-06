@@ -25,8 +25,6 @@ Split the jeelink2mqtt mapping command from a manual dispatch dictionary into de
 - TestHandleAssign error-key regression case
 - Removed stale manual dispatch integration tests
 
-**Review Status:** APPROVED
-
 **Git Commit Message:**
 refactor(jeelink2mqtt): split mapping commands
 
