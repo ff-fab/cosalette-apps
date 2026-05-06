@@ -13,9 +13,10 @@ Timing concerns for jeelink2mqtt now live in named app-level handlers, while the
 
 **Functions created/changed:**
 - `receiver`
-- `staleness_checker`
-- `heartbeat_publisher`
+- `staleness`
+- `heartbeat`
 - `SharedState.record_published_reading`
+- `_check_staleness`
 - `_maybe_heartbeat`
 - `FakeDeviceContext.sleep`
 
@@ -23,8 +24,8 @@ Timing concerns for jeelink2mqtt now live in named app-level handlers, while the
 - `TestApp.test_app_registers_periodic_handlers`
 - `TestApp.test_shared_state_has_heartbeat_state`
 - `TestMaybeHeartbeat` state-backed heartbeat cases
-
-**Review Status:** APPROVED
+- `TestCheckStaleness` dedup and TOCTOU guard cases
+- `TestRecordPublishedReading` availability side-effect cases
 
 **Git Commit Message:**
 refactor(jeelink2mqtt): split timing handlers

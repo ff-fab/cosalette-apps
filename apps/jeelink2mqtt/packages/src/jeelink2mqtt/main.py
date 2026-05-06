@@ -138,7 +138,7 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
     "staleness",
     summary="Staleness checker: publish offline availability for stale sensors",
 )
-async def staleness_checker(  # pragma: no cover — composition root, tested via helpers
+async def staleness(  # pragma: no cover — composition root, tested via helpers
     ctx: cosalette.DeviceContext,
     settings: Jeelink2MqttSettings,
     state: SharedState,
@@ -153,7 +153,7 @@ async def staleness_checker(  # pragma: no cover — composition root, tested vi
     "heartbeat",
     summary="Heartbeat publisher: re-publish sensor state at configured interval",
 )
-async def heartbeat_publisher(  # pragma: no cover — composition root, tested via helpers
+async def heartbeat(  # pragma: no cover — composition root, tested via helpers
     ctx: cosalette.DeviceContext,
     settings: Jeelink2MqttSettings,
     state: SharedState,

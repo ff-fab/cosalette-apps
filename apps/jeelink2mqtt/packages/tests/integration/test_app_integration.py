@@ -385,21 +385,18 @@ class TestApp:
         assert "heartbeat" in device_names, "heartbeat handler not registered"
 
     def test_shared_state_has_heartbeat_state(self) -> None:
-        """SharedState includes last_readings and last_publish_time for heartbeat.
+        """SharedState includes last_readings, last_publish_time, and last_availability.
 
-        Technique: State Transition Testing — verify heartbeat state exists.
+        Technique: Specification-based — verify heartbeat and dedup state exists.
         Ensures the SharedState dataclass has the required fields for
-        heartbeat tracking (last_readings, last_publish_time).
+        heartbeat tracking and duplicate offline-publish prevention.
         """
         settings = _make_settings(sensor_names=["office"])
         state = build_shared_state(settings)
 
-        assert hasattr(state, "last_readings"), "SharedState missing last_readings"
-        assert hasattr(state, "last_publish_time"), (
-            "SharedState missing last_publish_time"
-        )
         assert isinstance(state.last_readings, dict)
         assert isinstance(state.last_publish_time, dict)
+        assert isinstance(state.last_availability, dict)
 
 
 # ======================================================================

@@ -163,14 +163,25 @@ async def _check_staleness(
     settings: Jeelink2MqttSettings,
     state: SharedState,
 ) -> None:
-    """Publish ``offline`` availability for any stale sensors."""
+    """Publish ``offline`` availability for sensors that just became stale.
+
+    Only publishes on the fresh→stale transition to avoid flooding the
+    broker with duplicate retained messages.  Re-checks staleness after
+    each ``await`` to guard against TOCTOU with the receiver task.
+    """
     for sensor_cfg in settings.sensors:
-        if state.registry.is_stale(sensor_cfg.name):
-            await ctx.publish(
-                f"{sensor_cfg.name}/availability",
-                "offline",
-                retain=True,
-            )
+        name = sensor_cfg.name
+        if not state.registry.is_stale(name):
+            continue
+        if state.last_availability.get(name) == "offline":
+            continue  # already offline — no duplicate publish
+        await ctx.publish(f"{name}/availability", "offline", retain=True)
+        # Re-validate: if the receiver processed a fresh reading while the
+        # publish was in flight, correct the availability.
+        if state.registry.is_stale(name):
+            state.last_availability[name] = "offline"
+        else:
+            await ctx.publish(f"{name}/availability", "online", retain=True)
 
 
 async def _maybe_heartbeat(
@@ -202,4 +213,7 @@ async def _maybe_heartbeat(
             await _publish_sensor(ctx, name, last)
 
         await ctx.publish(f"{name}/availability", "online", retain=True)
-        state.last_publish_time[name] = now
+        # Guard: only advance timestamp if receiver hasn't already updated it
+        # during the above awaits (TOCTOU guard for concurrent device tasks).
+        if state.last_publish_time.get(name) is last_time:
+            state.last_publish_time[name] = now
