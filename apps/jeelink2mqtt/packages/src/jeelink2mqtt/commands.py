@@ -19,6 +19,7 @@ Supported commands::
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any
 
@@ -26,6 +27,37 @@ from jeelink2mqtt.errors import MappingConflictError
 from jeelink2mqtt.state import SharedState
 
 logger = logging.getLogger(__name__)
+
+
+class MappingCommandPayloadError(Exception):
+    """Raised when a mapping command payload cannot be parsed or is invalid."""
+
+
+# ---------------------------------------------------------------------------
+# Shared helpers
+# ---------------------------------------------------------------------------
+
+
+def parse_command_payload(payload: str) -> dict[str, object]:
+    """Parse and validate JSON command payload.
+
+    Returns:
+        Parsed data dict on success.
+
+    Raises:
+        MappingCommandPayloadError: If parsing fails or payload is invalid.
+    """
+    try:
+        data = json.loads(payload)
+    except json.JSONDecodeError as exc:
+        logger.warning("Invalid JSON in mapping command: %r", payload)
+        raise MappingCommandPayloadError("Invalid JSON payload") from exc
+
+    if not isinstance(data, dict):
+        logger.warning("Non-object JSON in mapping command: %r", payload)
+        raise MappingCommandPayloadError("JSON payload must be an object")
+
+    return data
 
 
 # ---------------------------------------------------------------------------

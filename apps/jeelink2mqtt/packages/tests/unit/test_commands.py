@@ -2,19 +2,66 @@
 
 from __future__ import annotations
 
-
 import pytest
 
 from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.commands import (
+    MappingCommandPayloadError,
     _handle_assign,
     _handle_list_unknown,
     _handle_reset,
     _handle_reset_all,
+    parse_command_payload,
 )
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.models import SensorConfig
 from jeelink2mqtt.registry import SensorRegistry
+
+# -- parse_command_payload ---------------------------------------------------
+
+
+class TestParseCommandPayload:
+    def test_parse_valid_json_object(self) -> None:
+        """Valid JSON object is parsed correctly."""
+        payload = '{"command": "assign", "sensor_name": "office"}'
+        result = parse_command_payload(payload)
+        assert result == {"command": "assign", "sensor_name": "office"}
+
+    def test_parse_valid_json_object_with_error_key(self) -> None:
+        """Valid JSON object with 'error' key is parsed correctly."""
+        payload = '{"command": "assign", "sensor_name": "office", "error": "metadata"}'
+        result = parse_command_payload(payload)
+        assert result == {
+            "command": "assign",
+            "sensor_name": "office",
+            "error": "metadata",
+        }
+
+    def test_parse_invalid_json_raises_exception(self) -> None:
+        """Invalid JSON raises MappingCommandPayloadError."""
+        payload = "not-json{{{{"
+        with pytest.raises(MappingCommandPayloadError, match="Invalid JSON payload"):
+            parse_command_payload(payload)
+
+    def test_parse_non_object_json_raises_exception(self) -> None:
+        """JSON that is not an object raises MappingCommandPayloadError."""
+        payload = '"string"'
+        with pytest.raises(
+            MappingCommandPayloadError, match="JSON payload must be an object"
+        ):
+            parse_command_payload(payload)
+
+        payload = "42"
+        with pytest.raises(
+            MappingCommandPayloadError, match="JSON payload must be an object"
+        ):
+            parse_command_payload(payload)
+
+        payload = "[]"
+        with pytest.raises(
+            MappingCommandPayloadError, match="JSON payload must be an object"
+        ):
+            parse_command_payload(payload)
 
 
 @pytest.fixture
@@ -40,6 +87,17 @@ class TestHandleAssign:
         assert result["status"] == "ok"
         assert result["event"]["sensor_name"] == "office"
         assert result["event"]["new_sensor_id"] == 42
+
+    def test_assign_success_with_error_key(self, state: SharedState) -> None:
+        """Valid assign payload with 'error' key succeeds."""
+        result = _handle_assign(
+            state, {"sensor_name": "office", "sensor_id": 42, "error": "metadata"}
+        )
+        assert result["status"] == "ok"
+        assert result["event"]["sensor_name"] == "office"
+        assert result["event"]["new_sensor_id"] == 42
+        # Check that the assignment was persisted to the registry
+        assert state.registry.resolve(42) == "office"
 
     def test_assign_missing_sensor_name(self, state: SharedState) -> None:
         result = _handle_assign(state, {"sensor_id": 42})
