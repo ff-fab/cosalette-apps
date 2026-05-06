@@ -29,7 +29,6 @@ from jeelink2mqtt import __version__
 from jeelink2mqtt import commands as _commands
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
-from jeelink2mqtt.models import SensorReading
 from jeelink2mqtt.ports import JeeLinkPort
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
@@ -83,19 +82,15 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
     async with jeelink:
         logger.info("Receiver started — listening on %s", settings.serial_port)
 
-        last_readings: dict[str, SensorReading] = {}
-        last_publish_time: dict[str, datetime] = {}
         last_persist_time = datetime.now(UTC)
 
         try:
             while not ctx.shutdown_requested:
                 try:
+                    # Use timeout to allow prompt shutdown checking
                     reading = await asyncio.wait_for(anext(jeelink), timeout=1.0)
                 except TimeoutError:
-                    await _receiver._check_staleness(ctx, settings, state)
-                    await _receiver._maybe_heartbeat(
-                        ctx, settings, state, last_readings, last_publish_time
-                    )
+                    # No reading within timeout — loop continues for shutdown check
                     continue
                 except StopAsyncIteration:
                     # Iterator exhausted (adapter closed)
@@ -114,8 +109,9 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
                     if config is not None:
                         calibrated = state.apply_pipeline(reading, config)
                         await _receiver._publish_sensor(ctx, name, calibrated)
-                        last_readings[name] = calibrated
-                        last_publish_time[name] = datetime.now(UTC)
+                        state.record_published_reading(
+                            name, calibrated, datetime.now(UTC)
+                        )
                         await ctx.publish(f"{name}/availability", "online", retain=True)
 
                 # 4. Mapping events (only publish state when something changed)
@@ -136,6 +132,40 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
                     f"{sensor_cfg.name}/availability", "offline", retain=True
                 )
             logger.info("Receiver stopped")
+
+
+@app.device(
+    "staleness",
+    summary="Staleness checker: publish offline availability for stale sensors",
+)
+async def staleness(  # pragma: no cover — composition root, tested via helpers
+    ctx: cosalette.DeviceContext,
+    settings: Jeelink2MqttSettings,
+    state: SharedState,
+) -> None:
+    """Periodic staleness check: mark sensors offline if no recent readings."""
+    while not ctx.shutdown_requested:
+        await ctx.sleep(1.0)
+        await _receiver._check_staleness(ctx, settings, state)
+
+
+@app.device(
+    "heartbeat",
+    summary="Heartbeat publisher: re-publish sensor state at configured interval",
+)
+async def heartbeat(  # pragma: no cover — composition root, tested via helpers
+    ctx: cosalette.DeviceContext,
+    settings: Jeelink2MqttSettings,
+    state: SharedState,
+) -> None:
+    """Periodic heartbeat: re-publish last known readings to prevent inactivity timeouts.
+
+    Checks every 1 second for eligible sensors (matching the old receiver loop cadence),
+    while _maybe_heartbeat uses settings.heartbeat_interval_seconds as the threshold.
+    """
+    while not ctx.shutdown_requested:
+        await ctx.sleep(1.0)
+        await _receiver._maybe_heartbeat(ctx, settings, state)
 
 
 @app.command(

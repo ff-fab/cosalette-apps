@@ -25,6 +25,9 @@ class FakeDeviceContext:
         """Record a publish call as ``(topic, payload, retain)``."""
         self.published.append((topic, payload, retain))
 
+    async def sleep(self, seconds: float) -> None:  # noqa: ARG002
+        """No-op sleep for tests — completes instantly."""
+
     @property
     def shutdown_requested(self) -> bool:
         """Return the current shutdown flag value."""

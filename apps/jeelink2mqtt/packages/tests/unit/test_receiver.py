@@ -555,6 +555,57 @@ class TestCheckStaleness:
         assert payload == "offline"
         assert retain is True
 
+    async def test_already_offline_not_republished(self) -> None:
+        """A sensor already marked offline is not re-published on each tick.
+
+        Technique: Equivalence Partitioning — deduplication of retained offline
+        publishes. Without this guard, the handler would spam the MQTT broker
+        with identical retained messages every second while a sensor stays stale.
+        """
+        # Arrange — stale sensor whose availability was already published
+        configs = [SensorConfig(name="office")]
+        settings = _make_settings(sensor_names=["office"])
+        state = _make_shared_state(sensor_configs=configs)
+        state.last_availability["office"] = "offline"  # already published
+        ctx = FakeDeviceContext()
+
+        # Act
+        await _check_staleness(ctx, settings, state)
+
+        # Assert — no duplicate publish
+        assert len(ctx.published) == 0
+
+    async def test_toctou_corrects_availability_when_sensor_recovers(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """If sensor recovers while the offline publish is in flight, re-publishes online.
+
+        Technique: Boundary Value Analysis — TOCTOU guard path.
+        Simulates the race: receiver updates the registry between the first
+        and second is_stale() check (the check before and after the await).
+        """
+        # Arrange — sensor starts stale; registry will report recovered on second check
+        configs = [SensorConfig(name="office")]
+        settings = _make_settings(sensor_names=["office"])
+        state = _make_shared_state(sensor_configs=configs)
+        ctx = FakeDeviceContext()
+
+        # Monkeypatch: first call → stale (triggers publish), second → recovered
+        is_stale_results = iter([True, False])
+        monkeypatch.setattr(
+            state.registry, "is_stale", lambda _name: next(is_stale_results)
+        )
+
+        # Act
+        await _check_staleness(ctx, settings, state)
+
+        # Assert — offline published, then corrected to online
+        assert len(ctx.published) == 2
+        assert ctx.published[0] == ("office/availability", "offline", True)
+        assert ctx.published[1] == ("office/availability", "online", True)
+        # last_availability is NOT set to "offline" (sensor recovered)
+        assert state.last_availability.get("office") != "offline"
+
 
 # ===========================================================================
 # _maybe_heartbeat
@@ -576,11 +627,8 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {}
-        last_publish_time: dict[str, datetime] = {}
-
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — nothing published
         assert len(ctx.published) == 0
@@ -599,13 +647,11 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {"office": reading}
-        last_publish_time: dict[str, datetime] = {
-            "office": datetime.now(UTC),  # Just now
-        }
+        state.last_readings["office"] = reading
+        state.last_publish_time["office"] = datetime.now(UTC)  # Just now
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — interval not elapsed → nothing published
         assert len(ctx.published) == 0
@@ -626,11 +672,11 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {"office": reading}
-        last_publish_time: dict[str, datetime] = {}  # No entry at all
+        state.last_readings["office"] = reading
+        # No entry in state.last_publish_time
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — no last_time → condition triggers continue
         assert len(ctx.published) == 0
@@ -650,12 +696,12 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {"office": reading}
+        state.last_readings["office"] = reading
         # Last publish was 30 seconds ago → well past 10s interval
-        last_publish_time: dict[str, datetime] = {"office": now - timedelta(seconds=30)}
+        state.last_publish_time["office"] = now - timedelta(seconds=30)
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — sensor state re-published + availability online
         assert len(ctx.published) == 2
@@ -686,11 +732,11 @@ class TestMaybeHeartbeat:
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
         ctx = FakeDeviceContext()
 
-        last_readings: dict[str, SensorReading] = {}  # No cached reading
-        last_publish_time: dict[str, datetime] = {"office": now - timedelta(seconds=30)}
+        # No cached reading in state.last_readings
+        state.last_publish_time["office"] = now - timedelta(seconds=30)
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — only availability, no state re-publish
         assert len(ctx.published) == 1
@@ -715,14 +761,54 @@ class TestMaybeHeartbeat:
         ctx = FakeDeviceContext()
 
         old_time = now - timedelta(seconds=30)
-        last_readings: dict[str, SensorReading] = {"office": reading}
-        last_publish_time: dict[str, datetime] = {"office": old_time}
+        state.last_readings["office"] = reading
+        state.last_publish_time["office"] = old_time
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state, last_readings, last_publish_time)
+        await _maybe_heartbeat(ctx, settings, state)
 
         # Assert — last_publish_time updated (newer than old_time)
-        assert last_publish_time["office"] > old_time
+        assert state.last_publish_time["office"] > old_time
+
+    async def test_toctou_guard_preserves_receiver_timestamp(self) -> None:
+        """Heartbeat does not overwrite a more-recent receiver timestamp.
+
+        Technique: State Transition Testing — TOCTOU guard prevents regression.
+        If the receiver updates last_publish_time during heartbeat's awaits,
+        the heartbeat must not overwrite it with the older snapshot value.
+        """
+        # Arrange — interval has elapsed
+        configs = [SensorConfig(name="office")]
+        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
+        now = datetime.now(UTC)
+        reading = _fixed_reading(sensor_id=42, timestamp=now)
+        state.registry.record_reading(reading)
+
+        settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
+
+        old_time = now - timedelta(seconds=30)
+        state.last_readings["office"] = reading
+        state.last_publish_time["office"] = old_time
+
+        # Simulate receiver publishing a fresh reading during the heartbeat awaits
+        receiver_time = datetime.now(UTC)
+
+        class CtxWithReceiverSideEffect(FakeDeviceContext):
+            async def publish(
+                self, topic: str, payload: str, *, retain: bool = False
+            ) -> None:
+                await super().publish(topic, payload, retain=retain)
+                if topic.endswith("/state"):
+                    # Receiver updates the timestamp during _publish_sensor await
+                    state.last_publish_time["office"] = receiver_time
+
+        ctx = CtxWithReceiverSideEffect()
+
+        # Act
+        await _maybe_heartbeat(ctx, settings, state)
+
+        # Assert — guard prevented heartbeat from overwriting receiver's timestamp
+        assert state.last_publish_time["office"] is receiver_time
 
 
 # ===========================================================================
@@ -944,3 +1030,48 @@ class TestSharedStatePersistRegistryIfDue:
         # Assert
         assert result is None  # No persist occurred
         assert "registry" not in store  # Registry was not persisted
+
+
+# ===========================================================================
+# SharedState.record_published_reading
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestRecordPublishedReading:
+    """Verifies SharedState.record_published_reading side effects."""
+
+    def test_stores_reading_and_timestamp(self) -> None:
+        """record_published_reading caches the reading and publish timestamp.
+
+        Technique: Specification-based — state mutation contract.
+        """
+        # Arrange
+        state = _make_shared_state(sensor_configs=[SensorConfig(name="office")])
+        reading = _fixed_reading(sensor_id=42)
+        published_at = datetime.now(UTC)
+
+        # Act
+        state.record_published_reading("office", reading, published_at)
+
+        # Assert — exact object identity, not just equality
+        assert state.last_readings["office"] is reading
+        assert state.last_publish_time["office"] is published_at
+
+    def test_sets_last_availability_online(self) -> None:
+        """record_published_reading marks the sensor's availability as online.
+
+        Technique: Specification-based — dedup contract for staleness_checker.
+        After a sensor publishes a reading, staleness_checker should not
+        re-publish offline until the sensor actually becomes stale again.
+        """
+        # Arrange
+        state = _make_shared_state(sensor_configs=[SensorConfig(name="office")])
+        state.last_availability["office"] = "offline"  # previously stale
+        reading = _fixed_reading(sensor_id=42)
+
+        # Act
+        state.record_published_reading("office", reading, datetime.now(UTC))
+
+        # Assert — availability cleared back to online after receiving reading
+        assert state.last_availability["office"] == "online"

@@ -44,6 +44,19 @@ class SharedState:
     sensor_configs: dict[str, SensorConfig] = field(default_factory=dict)
     """Lookup table of domain sensor configs keyed by name."""
 
+    last_readings: dict[str, SensorReading] = field(default_factory=dict)
+    """Last calibrated reading per sensor (for heartbeat re-publish)."""
+
+    last_publish_time: dict[str, datetime] = field(default_factory=dict)
+    """Last publish timestamp per sensor (for heartbeat interval tracking)."""
+
+    last_availability: dict[str, str] = field(default_factory=dict)
+    """Last published availability per sensor (``'online'`` or ``'offline'``).
+
+    Used by staleness_checker to avoid duplicate retained offline publishes
+    and to correct availability when a sensor recovers mid-publish.
+    """
+
     def restore_from(self, store: DeviceStore, settings: Jeelink2MqttSettings) -> None:
         """Restore persisted registry state from the device store.
 
@@ -82,6 +95,14 @@ class SharedState:
         temp, humidity = self.filter_bank.filter(reading)
         filtered = replace(reading, temperature=temp, humidity=int(humidity))
         return apply_calibration(filtered, config)
+
+    def record_published_reading(
+        self, name: str, reading: SensorReading, published_at: datetime
+    ) -> None:
+        """Record a published reading for heartbeat re-publishing."""
+        self.last_readings[name] = reading
+        self.last_publish_time[name] = published_at
+        self.last_availability[name] = "online"
 
     async def flush_events(
         self,
