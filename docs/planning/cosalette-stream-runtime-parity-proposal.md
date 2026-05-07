@@ -2,8 +2,9 @@
 
 **Date:** 2026-05-06
 **Author:** jeelink2mqtt maintainer
-**Status:** Proposal - blocks cap-5xy
-**Blocked work:** cap-5xy, cap-v6y
+**Status:** Proposal — awaiting framework review
+**Blocked work:** cap-5xy (final open child of cap-v6y)
+**Superseded by:** Implementation of `AsyncStreamablePort[T]`, `DeviceContext`/`DeviceStore` injection for `@app.stream`, and `AppHarness.inject_stream` parity in cosalette (tracked in cap-5xy)
 
 ---
 
@@ -17,12 +18,14 @@ This proposal recommends extending the framework's `@app.stream` runtime to achi
 
 ## Expectation vs. Current Behavior
 
-| Aspect | Expected (from P2 in [cosalette-framework-enhancement-proposals.md](cosalette-framework-enhancement-proposals.md)) | Current (cosalette 0.3.13) | Impact |
+The expectations below are derived from P2 in [cosalette-framework-enhancement-proposals.md](cosalette-framework-enhancement-proposals.md).
+
+| Aspect | Expected | Current (cosalette 0.3.13) | Impact |
 |--------|---------|---------|--------|
 | **DeviceContext injection** | Stream handlers can inject `DeviceContext` to publish telemetry, state, and availability | Not available. `start_stream_tasks` provider map includes settings, adapters, state, ClockPort, Logger, but not `DeviceContext` | Cannot publish raw frames, calibrated state, mapping events, or availability from stream handler |
 | **DeviceStore injection** | Stream handlers can inject `DeviceStore` to restore and persist registry state | Not available. Provider map does not include `DeviceStore` | Cannot restore sensor registry on startup or persist mapping changes |
-| **Async adapter lifecycle** | `@app.stream` runtime calls async lifecycle methods (`await port.start_scan()`, `await port.stop_scan()`, `await port.close()`) | `_stream_runner.run_stream` calls synchronous lifecycle: `port.open()`, `port.register_callback(...)`, `port.start_scan()`, then registers sync callbacks for stop/close | Forces adapter to implement sync `StreamablePort[T]` protocol, duplicating async lifecycle already built in cap-e4c |
-| **Adapter access for non-stream ops** | Handler can inject concrete adapter type (e.g., `JeeLinkPort`) for operations like `jeelink.set_led(...)` while framework owns lifecycle via `StreamablePort[T]` registration | `_validate_stream_signature` calls `_check_no_port_in_signature`, which forbids parameters annotated as `StreamablePort[T]`. A concrete app adapter type such as `JeeLinkPort` may be injectable if registered, but the framework lacks a clear single-source lifecycle model when the same instance is both the stream source and app adapter | Cannot call app-specific methods like `set_led` from stream handler without clarity on lifecycle ownership |
+| **Async adapter lifecycle** | `@app.stream` runtime calls async lifecycle methods (`await port.start_scan()`, `await port.stop_scan()`, `await port.close()`) | `_stream_runner.run_stream` calls synchronous lifecycle: `port.open()`, `port.register_callback(...)`, `port.start_scan()`, then registers sync callbacks for stop/close via `_safe_call` | Sync cleanup callbacks silently discard the coroutines returned by `JeeLinkPort`'s async lifecycle methods — serial port never closed on shutdown (resource leak). Also forces duplicate sync/async lifecycle plumbing. |
+| **Adapter access for non-stream ops** | Handler can inject concrete adapter type (e.g., `JeeLinkPort`) for operations like `jeelink.set_led(...)` while framework owns lifecycle via `StreamablePort[T]` registration | Two blockers: (1) `_validate_stream_signature` → `_find_compatible_stream_adapter` looks for a `StreamablePort[SensorReading]`-keyed adapter; jeelink2mqtt registers under `JeeLinkPort`, so `@app.stream` raises `TypeError` at decoration time before any signature check runs. (2) Even after registration is resolved, `_check_no_port_in_signature` forbids `StreamablePort[T]` parameters while the framework lacks a clear single-source lifecycle model. | `@app.stream` raises `TypeError` at decoration time (not runtime). Migration must include re-registering the adapter under `AsyncStreamablePort[SensorReading]` key. |
 | **AppHarness parity** | `AppHarness.inject_stream` provides production-equivalent stream DI (DeviceContext, DeviceStore, settings, state, adapters) | `inject_stream` builds limited provider map: settings, state overrides, ClockPort, Logger. No `DeviceContext`, `DeviceStore`, or adapter providers | Integration tests cannot verify publishing, persistence, or full adapter interaction |
 
 ---
@@ -83,7 +86,10 @@ async def receiver(
 
     try:
         async for reading in stream:
+            now = datetime.now(UTC)  # single clock read per iteration
+
             # 1. Raw diagnostic (every frame, non-retained)
+            # _receiver.*: module-level helpers in jeelink2mqtt/_receiver.py
             await _receiver._publish_raw(ctx, reading)
 
             # 2. Route through registry
@@ -95,15 +101,17 @@ async def receiver(
                 if config is not None:
                     calibrated = state.apply_pipeline(reading, config)
                     await _receiver._publish_sensor(ctx, name, calibrated)
-                    state.record_published_reading(name, calibrated, datetime.now(UTC))
-                    await ctx.publish(f"{name}/availability", "online", retain=True)
+                    state.record_published_reading(name, calibrated, now)
+                    # Publish availability only on offline→online transition
+                    if not state.is_available(name):
+                        state.mark_available(name)
+                        await ctx.publish(f"{name}/availability", "online", retain=True)
 
             # 4. Mapping events (publish state when something changed)
             if await state.flush_events(ctx, store):
-                last_persist_time = datetime.now(UTC)
+                last_persist_time = now
 
             # 5. Periodic persistence for last_seen metadata
-            now = datetime.now(UTC)
             new_persist_time = state.persist_registry_if_due(
                 store, now, last_persist_time, 60
             )
@@ -111,8 +119,10 @@ async def receiver(
                 last_persist_time = new_persist_time
 
     finally:
-        for sensor_cfg in settings.sensors:
-            await ctx.publish(f"{sensor_cfg.name}/availability", "offline", retain=True)
+        # Publish all offline statuses concurrently
+        await asyncio.gather(
+            *[ctx.publish(f"{s.name}/availability", "offline", retain=True) for s in settings.sensors]
+        )
 ```
 
 Note: The concrete adapter `jeelink: JeeLinkPort` is shown as injectable for non-stream operations (e.g., `jeelink.set_led(enabled)` for LED control), but the framework must clarify lifecycle ownership to avoid handlers calling lifecycle methods.
@@ -286,13 +296,14 @@ Once the framework implements Option A:
 1. **Update adapter registration:**
     - Keep `JeeLinkPort` registered in the app adapter map
     - Add an explicit stream-source registration for `AsyncStreamablePort[SensorReading]`, or allow the framework to derive it from the `JeeLinkPort` registration
-   - Ensure `JeeLinkPort` implements `AsyncStreamablePort[SensorReading]`
+    - Ensure `JeeLinkPort` implements `AsyncStreamablePort[SensorReading]`
 2. **Convert receiver to `@app.stream`:**
    - Change decorator from `@app.device` to `@app.stream`
    - Add `stream: cosalette.Stream[SensorReading]` parameter
    - Inject `ctx: DeviceContext`, `store: DeviceStore`, `jeelink: JeeLinkPort`, `settings: Jeelink2MqttSettings`, `state: SharedState`
    - Replace `async for reading in jeelink:` with `async for reading in stream:`
    - Remove async context manager usage (`async with jeelink:`)
+   - Gate `availability/online` publishes on offline→online state transition (not unconditionally per reading); use `asyncio.gather` for concurrent offline publishes in the `finally` block
 3. **Update integration tests:**
     - Use `harness.inject_stream` for stream-specific behavior
     - Pass or configure `ctx`, `store`, `jeelink`, `settings`, and `state` providers
@@ -335,4 +346,4 @@ Once the framework implements Option A:
 
 **Do not attempt workarounds** like Option B (app-side shim) or Option D (split orchestrator), as they increase complexity without solving the core DI and lifecycle gaps.
 
-Once the framework supports Option A, migrate jeelink2mqtt to `@app.stream` following the migration path described above. This will close cap-5xy and unblock cap-v6y.
+Once the framework supports Option A, migrate jeelink2mqtt to `@app.stream` following the migration path described above. This will close cap-5xy, the final open child of cap-v6y.
