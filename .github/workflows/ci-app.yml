@@ -7,6 +7,7 @@ on:
         type: string
 
 env:
+  # Image reference used by the devcontainer-run composite action
   DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 concurrency:
@@ -20,21 +21,12 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Run linting inside devcontainer
-        uses: devcontainers/ci@v0.3
+        uses: ./.github/actions/devcontainer-run
         with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ${{ inputs.app }}:lint
+          run-cmd: task ${{ inputs.app }}:lint
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   typecheck:
     runs-on: ubuntu-latest
@@ -42,21 +34,12 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Run type checking inside devcontainer
-        uses: devcontainers/ci@v0.3
+        uses: ./.github/actions/devcontainer-run
         with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ${{ inputs.app }}:typecheck
+          run-cmd: task ${{ inputs.app }}:typecheck
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest
@@ -64,29 +47,19 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Run unit tests inside devcontainer
-        uses: devcontainers/ci@v0.3
+        uses: ./.github/actions/devcontainer-run
         with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ${{ inputs.app }}:ci:test:unit
-      - uses: codecov/codecov-action@v5
+          run-cmd: task ${{ inputs.app }}:ci:test:unit
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
         if: always()
         with:
           files: apps/${{ inputs.app }}/coverage.xml
           flags: ${{ inputs.app }}
       - name: Run integration tests inside devcontainer
-        uses: devcontainers/ci@v0.3
+        uses: ./.github/actions/devcontainer-run
         with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ${{ inputs.app }}:ci:test:integration
+          run-cmd: task ${{ inputs.app }}:ci:test:integration
+          token: ${{ secrets.GITHUB_TOKEN }}

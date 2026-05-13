@@ -30,6 +30,13 @@
       "automerge": false
     },
     {
+      "description": "Pin Docker image digests for reproducibility. Digest updates are safe to auto-merge: they are immutable content-addressed pointers (not mutable tags) and CI must pass before the merge is applied.",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["digest"],
+      "groupName": "docker-digests",
+      "automerge": true
+    },
+    {
       "description": "Major version bumps get individual PRs (may need code changes)",
       "matchUpdateTypes": ["major"],
       "automerge": false

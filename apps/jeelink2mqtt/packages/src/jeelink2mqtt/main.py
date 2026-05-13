@@ -167,6 +167,14 @@ async def heartbeat(  # pragma: no cover — composition root, tested via helper
         await _receiver._maybe_heartbeat(ctx, settings, state)
 
 
+_PARSE_OR_ERROR_IMPOSSIBLE: str = "_parse_or_error returned (None, None)"
+"""
+Invariant guard message: _parse_or_error always returns (data, None) or (None, err),
+never (None, None). Both mapping_assign and mapping_reset reference this constant so
+the message stays in sync across sites.
+"""
+
+
 def _parse_or_error(
     payload: str,
 ) -> tuple[dict[str, object] | None, dict[str, object] | None]:
@@ -199,7 +207,8 @@ async def mapping_assign(
     data, err = _parse_or_error(payload)
     if err is not None:
         return err
-    assert data is not None  # invariant: err is None ⟹ data is not None
+    if data is None:  # invariant: err is None ⟹ data is not None
+        raise RuntimeError(_PARSE_OR_ERROR_IMPOSSIBLE)
 
     result = _commands.handle_assign(state, data)
 
@@ -226,7 +235,8 @@ async def mapping_reset(
     data, err = _parse_or_error(payload)
     if err is not None:
         return err
-    assert data is not None  # invariant: err is None ⟹ data is not None
+    if data is None:  # invariant: err is None ⟹ data is not None
+        raise RuntimeError(_PARSE_OR_ERROR_IMPOSSIBLE)
 
     result = _commands.handle_reset(state, data)
 

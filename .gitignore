@@ -253,3 +253,6 @@ legacy/
 
 # Kilo plans
 .kilo/plans/
+
+# QA task logs
+.qa-logs/

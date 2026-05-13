@@ -7,6 +7,7 @@ on:
         type: string
 
 env:
+  # Image reference used by the devcontainer-run composite action
   DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
 jobs:
@@ -16,23 +17,14 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@v6
-      - name: Prepare runner for devcontainer
-        run: mkdir -p ~/.ssh
-      - name: Log in to GHCR (for devcontainer cache)
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
       - name: Build ${{ inputs.app }} docs inside devcontainer
-        uses: devcontainers/ci@v0.3
+        uses: ./.github/actions/devcontainer-run
         with:
-          cacheFrom: ${{ env.DEVCONTAINER_IMAGE }}
-          push: never
-          runCmd: task ${{ inputs.app }}:docs:build
+          run-cmd: task ${{ inputs.app }}:docs:build
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Upload docs artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: docs-${{ inputs.app }}
           path: apps/${{ inputs.app }}/site
