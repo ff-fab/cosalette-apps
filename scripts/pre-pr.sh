@@ -28,8 +28,12 @@ TIMEOUT_SECURITY="${TIMEOUT_SECURITY:-300}"     # 5 min
 
 # Detect GNU timeout --foreground support once
 declare -a _TIMEOUT_EXTRA=()
-if timeout --foreground --kill-after=30s 1 true 2>/dev/null; then
-    _TIMEOUT_EXTRA=(--foreground --kill-after=30s)
+if command -v timeout >/dev/null 2>&1; then
+    if timeout --foreground --kill-after=30s 1 true 2>/dev/null; then
+        _TIMEOUT_EXTRA=(--foreground --kill-after=30s)
+    fi
+else
+    echo "WARN: 'timeout' command not found — per-step timeouts are disabled" >&2
 fi
 
 # ── Logging setup ─────────────────────────────────────────────────────────────

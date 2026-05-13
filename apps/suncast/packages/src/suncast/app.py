@@ -22,6 +22,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
+from typing import cast
 from zoneinfo import ZoneInfo
 
 import cosalette
@@ -80,7 +81,7 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
 @asynccontextmanager
 async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
     """Application lifespan — starts HTTP server if enabled."""
-    settings: SuncastSettings = ctx.settings  # type: ignore
+    settings = cast(SuncastSettings, ctx.settings)
     http_settings = HttpSettings(
         http_enabled=settings.http_enabled,
         http_host=settings.http_host,

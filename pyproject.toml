@@ -180,6 +180,7 @@ dev = [
     "detect-secrets>=1.5.0",
     "actionlint-py>=1.7.12.24",
     "zizmor>=1.24.1",
+    # Platform Compatibility Workarounds
     "urllib3>=2.7.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
     # AI/MCP tooling support (cosalette ai mcp serve)
     "cosalette[mcp]>=0.3.13",

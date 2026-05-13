@@ -28,7 +28,7 @@ from unittest.mock import patch
 import cosalette
 import pytest
 
-from suncast.app import PipelineState, _build_pipeline, create_app
+from suncast.app import PipelineState, _build_pipeline, _poll_interval, create_app
 from suncast.domain.geometry import BuildingConfig, CanvasConfig, GeometryConfig
 from suncast.output import OutputManager
 from suncast.renderer import RenderSettings, ShadowRenderer
@@ -101,3 +101,27 @@ class TestBuildPipeline:
         assert state.render_settings.primary_color == "#aaa"
         assert state.render_settings.stroke_width == 3.0
         assert state.render_settings.sundial_mode == "compact"
+
+
+@pytest.mark.unit
+class TestPollInterval:
+    """_poll_interval() — deferred interval resolver."""
+
+    def test_returns_poll_interval_from_settings(self) -> None:
+        """Happy path: returns poll_interval from SuncastSettings.
+
+        Technique: Specification-based — verifies the deferred resolver contract.
+        """
+        settings = _make_settings(poll_interval=30.0)
+        assert _poll_interval(settings) == 30.0
+
+    def test_raises_type_error_for_wrong_settings_type(self) -> None:
+        """Error Guessing: a plain cosalette.Settings raises TypeError.
+
+        _poll_interval is called by the framework with the app's settings object.
+        If the framework ever passes the wrong type, the guard must catch it
+        before a silent AttributeError or incorrect value is returned downstream.
+        """
+        wrong = cosalette.Settings()
+        with pytest.raises(TypeError, match="Expected SuncastSettings"):
+            _poll_interval(wrong)

@@ -75,7 +75,7 @@ jobs:
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues
   security:
     needs: detect
-    if: needs.detect.outputs.shared == 'true' || needs.detect.outputs.apps != '[]'
+    if: needs.detect.result == 'success' && (needs.detect.outputs.shared == 'true' || needs.detect.outputs.apps != '[]')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -91,7 +91,7 @@ jobs:
   # Per-app CI dispatched via matrix
   app-ci:
     needs: detect
-    if: needs.detect.outputs.apps != '[]'
+    if: needs.detect.result == 'success' && needs.detect.outputs.apps != '[]'
     strategy:
       matrix:
         app: ${{ fromJson(needs.detect.outputs.apps) }}

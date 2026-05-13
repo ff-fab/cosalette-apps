@@ -137,6 +137,11 @@ tasks:
     cmds:
       - bash scripts/test-check-agent-parity.sh
 
+  test:scripts:
+    desc: Run shell script unit tests (qa-task.sh, pre-pr.sh)
+    cmds:
+      - bash scripts/tests/test_qa_scripts.sh
+
   pre-pr:
     desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + security)
     vars:

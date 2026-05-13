@@ -30,7 +30,7 @@ fi
 LOG_DIR="${QA_LOG_DIR:-.qa-logs}"
 mkdir -p "$LOG_DIR"
 
-TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)_$$
 SAFE_TASK="${TASK_NAME//:/--}"
 LOG_FILE="$LOG_DIR/${SAFE_TASK}_${TIMESTAMP}.log"
 STATUS_FILE="$LOG_DIR/${SAFE_TASK}.status"
@@ -39,6 +39,7 @@ run_with_log() {
     local label="$1"
     shift
     echo "==> [$label] $*" | tee -a "$LOG_FILE"
+    # pipefail: pipeline exits nonzero if "$@" fails, even though tee succeeds
     if "$@" 2>&1 | tee -a "$LOG_FILE"; then
         echo "==> [$label] OK" | tee -a "$LOG_FILE"
         return 0
@@ -71,7 +72,7 @@ _do_security_secrets() {
         echo "ERROR: .secrets.baseline not found — create it with: uv run detect-secrets scan > .secrets.baseline" >&2
         return 1
     fi
-    { git ls-files -z; git ls-files --others --exclude-standard -z; } | sort -zu | \
+    { git ls-files -z; git ls-files --others --exclude-standard -z; } | \
         xargs -0 uv run detect-secrets-hook --baseline "$baseline" --
 }
 
@@ -85,7 +86,7 @@ _do_security_python() {
         echo "No source directories found — skipping"
         return 0
     fi
-    uv run ruff check --select S "${src_dirs[@]}"
+    uv run ruff check --select S --no-config "${src_dirs[@]}"
 }
 
 _do_security_actions() {
@@ -136,26 +137,23 @@ case "$TASK_NAME" in
         ;;
 
     security:actions)
-        RC=0
-        run_with_log actionlint uv run actionlint .github/workflows/*.yml || RC=$?
-        run_with_log zizmor \
-            uv run zizmor \
-                --min-severity high \
-                --min-confidence high \
-                --no-progress \
-                .github/workflows \
-                .github/actions || RC=$?
-        echo "$RC" > "$STATUS_FILE"
-        exit $RC
+        run_task security:actions _do_security_actions
         ;;
 
     security:audit)
-        echo "==> [security:audit] Running full security audit..." | tee -a "$LOG_FILE"
+        echo "==> [security:audit] Running full security audit (parallel)..." | tee -a "$LOG_FILE"
+        # Run all four checks in parallel; collect exit codes via PIDs
+        _do_security_deps    >> "$LOG_FILE" 2>&1 & PID_DEPS=$!
+        _do_security_secrets >> "$LOG_FILE" 2>&1 & PID_SEC=$!
+        _do_security_python  >> "$LOG_FILE" 2>&1 & PID_PY=$!
+        _do_security_actions >> "$LOG_FILE" 2>&1 & PID_ACT=$!
+
         AUDIT_FAILURES=()
-        run_with_log security:deps    _do_security_deps    || AUDIT_FAILURES+=(security:deps)
-        run_with_log security:secrets _do_security_secrets || AUDIT_FAILURES+=(security:secrets)
-        run_with_log security:python  _do_security_python  || AUDIT_FAILURES+=(security:python)
-        run_with_log security:actions _do_security_actions || AUDIT_FAILURES+=(security:actions)
+        wait $PID_DEPS    || AUDIT_FAILURES+=(security:deps)
+        wait $PID_SEC     || AUDIT_FAILURES+=(security:secrets)
+        wait $PID_PY      || AUDIT_FAILURES+=(security:python)
+        wait $PID_ACT     || AUDIT_FAILURES+=(security:actions)
+
         if [ ${#AUDIT_FAILURES[@]} -gt 0 ]; then
             echo "==> [security:audit] FAILED: ${AUDIT_FAILURES[*]}" | tee -a "$LOG_FILE"
             echo "1" > "$STATUS_FILE"
