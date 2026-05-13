@@ -615,7 +615,8 @@ class TestLegionellaDevice:
 
         # Act
         with _instant_wait_for(ctx):
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — original setpoint written back
         port.write_signal.assert_any_await(LEGIONELLA_SETPOINT_SIGNAL, 50)
@@ -641,7 +642,8 @@ class TestLegionellaDevice:
 
         # Act
         with _instant_wait_for(ctx):
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert
         ctx.publish_state.assert_any_await({"status": "idle"})
@@ -667,7 +669,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — timer signal for Monday was read
         port.read_signal.assert_any_await("timer_hw_monday")
@@ -698,7 +701,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — rejected state published
         published = [c.args[0] for c in ctx.publish_state.await_args_list]
@@ -738,7 +742,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — target temp written
         port.write_signal.assert_any_await(LEGIONELLA_SETPOINT_SIGNAL, 68)
@@ -792,7 +797,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — original setpoint restored
         published = [c.args[0] for c in ctx.publish_state.await_args_list]
@@ -834,7 +840,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — store cleared
         assert store.get(_STORE_KEY_ACTIVE) is False
@@ -876,7 +883,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — heating states have decrementing remaining_minutes
         published = [c.args[0] for c in ctx.publish_state.await_args_list]
@@ -962,7 +970,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — best-effort restore was attempted: the last write
         # should be the original setpoint (50), not the treatment temp (68)
@@ -1017,7 +1026,8 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            await _legionella_device(ctx, store)  # type: ignore[arg-type]
+            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                pass  # type: ignore[arg-type]
 
         # Assert — store still active because restore write failed
         assert store.get(_STORE_KEY_ACTIVE) is True
@@ -1035,7 +1045,8 @@ class TestLegionellaDevice:
 
         async def _run_device():
             with _instant_wait_for(ctx):
-                await _legionella_device(ctx, store)  # type: ignore[arg-type]
+                async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                    pass  # type: ignore[arg-type]
 
         # Inject non-dict JSON commands
         task = asyncio.create_task(_run_device())

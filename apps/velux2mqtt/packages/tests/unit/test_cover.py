@@ -229,6 +229,17 @@ class RepeatingCalibrationQueue:
 
 
 # ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+async def _exhaust(gen: AsyncIterator[object]) -> None:
+    """Drain an async generator to completion."""
+    async for _ in gen:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Homing tests (P3.2)
 # ---------------------------------------------------------------------------
 
@@ -642,7 +653,9 @@ class TestMakeCover:
 
         # Assert
         assert callable(result)
-        assert asyncio.iscoroutinefunction(result)
+        import inspect
+
+        assert inspect.isasyncgenfunction(result)
 
     async def test_device_publishes_initial_state(self) -> None:
         """Device function publishes initial position on startup.
@@ -657,7 +670,8 @@ class TestMakeCover:
         ctx = FakeDeviceContext(gpio, shutdown=True)  # immediate shutdown
 
         # Act
-        await device_fn(ctx)
+        async for _ in device_fn(ctx):
+            pass
 
         # Assert — should publish initial state (position=0 since no homing)
         assert len(ctx.published_states) >= 1
@@ -676,7 +690,8 @@ class TestMakeCover:
         ctx = FakeDeviceContext(gpio, shutdown=True)  # shutdown after homing
 
         # Act
-        await device_fn(ctx)
+        async for _ in device_fn(ctx):
+            pass
 
         # Assert — homing to close sets position=0
         assert {"position": 0} in ctx.published_states
@@ -693,7 +708,7 @@ class TestMakeCover:
         ctx = FakeDeviceContext(gpio)
 
         # Act — run device as a task and send a command
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)  # Let device start
         await ctx.send_command("stop")
         await asyncio.sleep(0.01)  # Let device process command
@@ -719,7 +734,7 @@ class TestMakeCover:
         ctx = FakeDeviceContext(gpio)
 
         # Act — run device and send stop command
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)
         ctx.published_states.clear()  # Clear initial state
         gpio.presses.clear()
@@ -744,7 +759,7 @@ class TestMakeCover:
         ctx = FakeDeviceContext(gpio)
 
         # Act — run device and send open command
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)
         gpio.presses.clear()
         await ctx.send_command("open")
@@ -767,7 +782,7 @@ class TestMakeCover:
         ctx = FakeDeviceContext(gpio)
 
         # Act — run device and send invalid command
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)
         ctx.published_states.clear()  # Clear initial state
         await ctx.send_command("garbage_payload")
@@ -859,7 +874,7 @@ class TestCalibrationDispatch:
         ctx = FakeDeviceContext(gpio)
 
         # Start device as task
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)  # Let device start
 
         # Send commands
@@ -883,7 +898,7 @@ class TestCalibrationDispatch:
         ctx = FakeDeviceContext(gpio)
 
         # Start device as task
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)  # Let device start
 
         # Send calibration commands
@@ -911,7 +926,7 @@ class TestCalibrationDispatch:
         ctx = FakeDeviceContext(gpio)
 
         # Start device as task
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)  # Let device start
 
         # Send commands
@@ -1093,7 +1108,7 @@ class TestCalibrationDispatch:
         ctx = FakeDeviceContext(gpio)
 
         # Start device
-        device_task = asyncio.create_task(device_fn(ctx))
+        device_task = asyncio.create_task(_exhaust(device_fn(ctx)))
         await asyncio.sleep(0.01)
 
         # Begin calibration

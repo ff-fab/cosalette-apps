@@ -35,6 +35,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import AsyncIterator
 from datetime import datetime, time, timedelta
 
 from cosalette import App, DeviceContext, DeviceStore
@@ -144,7 +145,9 @@ def is_within_heating_window(
 # ---------------------------------------------------------------------------
 
 
-async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
+async def _legionella_device(
+    ctx: DeviceContext, store: DeviceStore
+) -> AsyncIterator[None]:
     """Legionella treatment device loop.
 
     Runs as a long-lived concurrent task managed by the cosalette framework.
@@ -208,6 +211,7 @@ async def _legionella_device(ctx: DeviceContext, store: DeviceStore) -> None:
             pass
         else:
             logger.warning("Unknown legionella action: %r", action)
+        yield
 
 
 def _parse_legionella_action(payload: str, *, log_context: str = "") -> str | None:
