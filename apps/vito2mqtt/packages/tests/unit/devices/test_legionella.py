@@ -46,6 +46,7 @@ from vito2mqtt.devices.legionella import (
     TIMER_SIGNAL_FOR_DAY,
     _heating_countdown,
     _legionella_device,
+    _restore_setpoint,
     is_within_heating_window,
     register_legionella,
 )
@@ -918,12 +919,13 @@ class TestLegionellaDevice:
         ctx = _StreamingInvalidHeatingContext()
 
         # Act
-        await _heating_countdown(
+        async for _ in _heating_countdown(
             ctx,  # type: ignore[arg-type]
             target_temp=68,
             original_setpoint=50,
             remaining_minutes=2,
-        )
+        ):
+            pass
 
         # Assert — the countdown advanced despite malformed commands
         ctx.publish_state.assert_awaited_once_with(
@@ -1088,3 +1090,97 @@ class TestRegisterLegionella:
 
         # Assert
         app.add_device.assert_called_once_with("legionella", _legionella_device)
+
+
+# ===========================================================================
+# _restore_setpoint — reaction boundary regression
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestRestoreSetpointReactionBoundaries:
+    """Regression: _restore_setpoint must yield two separate reaction boundaries.
+
+    The previous plain-async version published both ``"restoring"`` and
+    ``"idle"`` inside a single function body; ``_handle_start`` then yielded
+    once *after* the call returned.  This collapsed two meaningful state
+    transitions behind one reaction boundary, preventing the cosalette 0.4
+    framework from observing the intermediate ``"restoring"`` state.
+
+    Converting ``_restore_setpoint`` to an async generator exposes:
+
+    1. A yield *after* ``"restoring"`` is published (before the serial write).
+    2. A yield *after* ``"idle"`` is published (cycle fully complete).
+    """
+
+    async def test_first_yield_emitted_after_restoring_before_idle(self) -> None:
+        """First yield occurs after 'restoring' is published, before 'idle'.
+
+        Technique: State Transition — drive the generator step by step and
+        inspect the published state set at each reaction boundary.
+        """
+        # Arrange
+        port = AsyncMock(spec=OptolinkPort)
+        store = _FakeDeviceStore()
+        ctx = _FakeContext()  # shutdown_requested = False by default
+
+        gen = _restore_setpoint(ctx, store, port, original_setpoint=50)  # type: ignore[arg-type]
+
+        # Act — advance to the first yield
+        await anext(gen)
+
+        # Assert — only 'restoring' has been published; 'idle' not yet
+        statuses_after_first = [
+            c.args[0]["status"] for c in ctx.publish_state.await_args_list
+        ]
+        assert statuses_after_first == ["restoring"], (
+            f"Expected ['restoring'] after first yield, got {statuses_after_first}"
+        )
+
+    async def test_second_yield_emitted_after_idle(self) -> None:
+        """Second yield occurs after 'idle' is published; generator then exhausts.
+
+        Technique: State Transition — verify the full boundary sequence and
+        that the generator is properly exhausted after two yields.
+        """
+        # Arrange
+        port = AsyncMock(spec=OptolinkPort)
+        store = _FakeDeviceStore()
+        ctx = _FakeContext()
+
+        gen = _restore_setpoint(ctx, store, port, original_setpoint=50)  # type: ignore[arg-type]
+
+        # Advance through both yields
+        await anext(gen)  # first yield: after 'restoring'
+        await anext(gen)  # second yield: after 'idle'
+
+        # Assert — both states published in order
+        statuses = [c.args[0]["status"] for c in ctx.publish_state.await_args_list]
+        assert statuses == ["restoring", "idle"], (
+            f"Expected ['restoring', 'idle'] after second yield, got {statuses}"
+        )
+
+        # Assert — generator is now exhausted (no third yield)
+        with pytest.raises(StopAsyncIteration):
+            await anext(gen)
+
+    async def test_store_cleared_and_saved_on_normal_path(self) -> None:
+        """Normal path clears the store and calls save() exactly once.
+
+        Technique: Specification-based — side-effect contract.
+        """
+        # Arrange
+        port = AsyncMock(spec=OptolinkPort)
+        store = _FakeDeviceStore(
+            {_STORE_KEY_ACTIVE: True, _STORE_KEY_ORIGINAL_SETPOINT: 50}
+        )
+        ctx = _FakeContext()
+
+        # Act — exhaust the generator
+        async for _ in _restore_setpoint(ctx, store, port, original_setpoint=50):  # type: ignore[arg-type]
+            pass
+
+        # Assert
+        assert store.get(_STORE_KEY_ACTIVE) is False
+        assert store.get(_STORE_KEY_ORIGINAL_SETPOINT) is None
+        assert store.save_calls == 1

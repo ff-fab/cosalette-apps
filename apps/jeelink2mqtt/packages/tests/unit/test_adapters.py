@@ -6,13 +6,17 @@ Test Techniques Used:
 - Specification-based Testing: No-op methods don't crash
 - Mock Testing: Async context manager lifecycle
 - Reopen Semantics: Queue reset between adapter sessions
+- Thread-safety Regression: framework callback dispatched via call_soon_threadsafe
 """
 
 from __future__ import annotations
 
+import sys
+from unittest.mock import MagicMock, patch
+
 import pytest
 
-from jeelink2mqtt.adapters import FakeJeeLinkAdapter
+from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.models import SensorReading
 
 # ======================================================================
@@ -351,3 +355,102 @@ class TestFakeJeeLinkAdapterReopen:
         result = await anext(adapter)
         assert result.sensor_id == 100
         assert result.temperature == 30.0
+
+
+# ======================================================================
+# PyLaCrosseAdapter — framework callback thread safety
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterFrameworkCallback:
+    """Regression: framework callback must be dispatched via call_soon_threadsafe.
+
+    cosalette 0.4's run_stream registers ``stream.put`` as the callback via
+    :meth:`PyLaCrosseAdapter.register_callback`.  The ``_wrapper`` inside
+    :meth:`start_scan` runs on the pylacrosse serial-reader thread, which is
+    **not** the asyncio event-loop thread.  Calling ``stream.put`` (or any
+    :class:`asyncio.Queue` method) directly from that thread is a data-race —
+    it must be marshalled to the event loop via
+    ``self._loop.call_soon_threadsafe()``.
+    """
+
+    async def test_framework_callback_dispatched_via_call_soon_threadsafe(
+        self,
+    ) -> None:
+        """start_scan() uses call_soon_threadsafe, never calls framework_cb directly.
+
+        Regression: the previous version called ``framework_cb(reading)``
+        directly from the pylacrosse thread.  cosalette's Stream.put wraps
+        asyncio.Queue, which is NOT thread-safe.  Cross-thread direct calls
+        can silently corrupt the queue or drop readings.
+
+        Technique: Mock Testing — intercept self._loop.call_soon_threadsafe
+        and verify it receives the callback reference; assert the callback is
+        never invoked directly from the wrapper.
+        """
+        # Build a minimal mock pylacrosse module (lazy import inside open()).
+        captured_wrapper: dict = {}
+        mock_lacrosse = MagicMock()
+        mock_lacrosse.register_all.side_effect = lambda w: captured_wrapper.update(
+            {"fn": w}
+        )
+        mock_pylacrosse = MagicMock()
+        mock_pylacrosse.LaCrosse.return_value = mock_lacrosse
+
+        direct_calls: list = []
+        framework_cb = MagicMock(side_effect=lambda r: direct_calls.append(r))
+
+        with patch.dict(sys.modules, {"pylacrosse": mock_pylacrosse}):
+            adapter = PyLaCrosseAdapter("/dev/ttyUSB0", 57600)
+            await adapter.open()
+            adapter.register_callback(framework_cb)
+
+            # Replace _loop with a mock to intercept call_soon_threadsafe.
+            # Must happen BEFORE start_scan() so the wrapper captures the mock.
+            mock_loop = MagicMock()
+            adapter._loop = mock_loop
+
+            await adapter.start_scan()
+
+        assert "fn" in captured_wrapper, "register_all() was never called"
+        wrapper = captured_wrapper["fn"]
+
+        # Build a valid-looking sensor (attributes coerced by _convert_sensor_to_reading).
+        sensor = MagicMock()
+        sensor.sensorid = "42"
+        sensor.temperature = "20.5"
+        sensor.humidity = "60"
+        sensor.low_battery = False
+
+        # Trigger the wrapper as if running on the pylacrosse serial-reader thread.
+        wrapper(sensor)
+
+        # framework_cb must NOT have been called directly from the wrapper.
+        assert direct_calls == [], (
+            "framework_cb was invoked directly from the wrapper thread — "
+            "this is a thread-safety violation; use call_soon_threadsafe instead"
+        )
+
+        # call_soon_threadsafe must have been called with a dispatcher closure,
+        # not framework_cb directly — the closure catches/logs exceptions locally.
+        mock_loop.call_soon_threadsafe.assert_called_once()
+        dispatched_fn = mock_loop.call_soon_threadsafe.call_args[0][0]
+        assert callable(dispatched_fn), (
+            "call_soon_threadsafe must receive a callable dispatcher"
+        )
+        assert dispatched_fn is not framework_cb, (
+            "call_soon_threadsafe must receive a dispatcher closure, "
+            "not framework_cb directly"
+        )
+
+        # Invoke the dispatcher manually and assert framework_cb receives the
+        # converted SensorReading with the expected field values.
+        dispatched_fn()
+        framework_cb.assert_called_once()
+        reading = framework_cb.call_args[0][0]
+        assert isinstance(reading, SensorReading)
+        assert reading.sensor_id == 42
+        assert reading.temperature == 20.5
+        assert reading.humidity == 60
+        assert reading.low_battery is False

@@ -200,12 +200,13 @@ async def _legionella_device(
             continue
 
         if action == "start":
-            await _handle_start(
+            async for _ in _handle_start(
                 ctx,
                 store,
                 port,
                 settings,
-            )
+            ):
+                yield
         elif action == "cancel":
             # "cancel" while idle is a no-op
             pass
@@ -290,7 +291,7 @@ async def _heating_countdown(
     target_temp: object,
     original_setpoint: object,
     remaining_minutes: int,
-) -> None:
+) -> AsyncIterator[None]:
     """Count down minute-by-minute, publishing heating state updates.
 
     Exits early if the device shuts down or a ``cancel`` command arrives
@@ -320,6 +321,7 @@ async def _heating_countdown(
                     "remaining_minutes": remaining_minutes,
                 }
             )
+        yield  # reaction boundary: after each countdown step
 
 
 async def _restore_setpoint(
@@ -327,14 +329,22 @@ async def _restore_setpoint(
     store: DeviceStore,
     port: OptolinkPort,
     original_setpoint: object,
-) -> None:
+) -> AsyncIterator[None]:
     """Restore the original hot-water setpoint after treatment.
 
-    On normal completion the setpoint is restored and the store is cleared.
+    Implemented as an async generator to expose two distinct reaction
+    boundaries to the cosalette 0.4 framework:
+
+    1. After ``"restoring"`` is published — the framework can react before
+       the serial write completes.
+    2. After ``"idle"`` is published — the framework can react once the
+       restore cycle is fully finished.
+
     On graceful shutdown a best-effort restore is attempted with a short
     timeout so the boiler isn't left at the elevated temperature.  If the
     write fails the store remains active and crash recovery handles it on
-    next startup.
+    next startup.  The shutdown path does not yield (no meaningful
+    intermediate state to expose).
     """
     if not ctx.shutdown_requested:
         await ctx.publish_state(
@@ -343,10 +353,12 @@ async def _restore_setpoint(
                 "original_setpoint": original_setpoint,
             }
         )
+        yield  # reaction boundary: restoring published
         await port.write_signal(LEGIONELLA_SETPOINT_SIGNAL, original_setpoint)
         store.update({_STORE_KEY_ACTIVE: False, _STORE_KEY_ORIGINAL_SETPOINT: None})
         store.save()
         await ctx.publish_state({"status": "idle"})
+        yield  # reaction boundary: final idle published
     else:
         # Graceful shutdown — best-effort restore so the boiler doesn't
         # remain at the elevated temperature between restarts.
@@ -371,14 +383,17 @@ async def _handle_start(
     store: DeviceStore,
     port: OptolinkPort,
     settings: Vito2MqttSettings,
-) -> None:
-    """Execute a full start → heat → restore cycle.
+) -> AsyncIterator[None]:
+    """Execute a full start → heat → restore cycle as an async generator.
 
+    Yields at each meaningful cosalette 0.4 reaction boundary so the
+    framework can observe state transitions between ``await`` points.
     Delegates the minute-by-minute countdown to :func:`_heating_countdown`
     and the setpoint restoration to :func:`_restore_setpoint`.
     """
     # -- Checking phase -----------------------------------------------------
     await ctx.publish_state({"status": "checking"})
+    yield  # reaction boundary: checking published
 
     now = datetime.now()  # noqa: DTZ005
     weekday = now.weekday()
@@ -397,7 +412,9 @@ async def _handle_start(
         )
         logger.info("Legionella treatment rejected: %s", reason)
         await ctx.publish_state({"status": "rejected", "reason": reason})
+        yield  # reaction boundary: rejected published
         await ctx.publish_state({"status": "idle"})
+        yield  # reaction boundary: idle published after rejection
         return
 
     # -- Save original setpoint ---------------------------------------------
@@ -430,16 +447,19 @@ async def _handle_start(
             "remaining_minutes": remaining_minutes,
         }
     )
+    yield  # reaction boundary: initial heating state published
 
-    await _heating_countdown(
+    async for _ in _heating_countdown(
         ctx,
         target_temp,
         original_setpoint,
         remaining_minutes,
-    )
+    ):
+        yield  # reaction boundary: forwarded from each countdown step
 
     # -- Restore original setpoint ------------------------------------------
-    await _restore_setpoint(ctx, store, port, original_setpoint)
+    async for _ in _restore_setpoint(ctx, store, port, original_setpoint):
+        yield  # reaction boundary forwarded from restore phase
 
 
 # ---------------------------------------------------------------------------
