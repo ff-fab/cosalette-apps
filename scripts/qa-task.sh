@@ -86,7 +86,7 @@ _do_security_python() {
         echo "No source directories found — skipping"
         return 0
     fi
-    uv run ruff check --select S --no-config "${src_dirs[@]}"
+    uv run ruff check --select S --isolated "${src_dirs[@]}"
 }
 
 _do_security_actions() {
