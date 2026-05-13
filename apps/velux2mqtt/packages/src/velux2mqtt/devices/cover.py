@@ -31,7 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Literal
 
 import cosalette
@@ -56,7 +56,7 @@ from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
 def make_cover(
     cover_cfg: CoverConfig,
     settings: Velux2MqttSettings,
-) -> Callable[..., Awaitable[None]]:
+) -> Callable[..., AsyncIterator[None]]:
     """Create a cover device function for registration with cosalette.
 
     Returns an async callable with the signature expected by
