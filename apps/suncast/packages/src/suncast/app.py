@@ -113,7 +113,8 @@ async def _shadow_handler(
 
 def _poll_interval(s: cosalette.Settings) -> float:
     """Deferred interval — resolved after settings are parsed."""
-    assert isinstance(s, SuncastSettings)
+    if not isinstance(s, SuncastSettings):
+        raise TypeError(f"Expected SuncastSettings, got {type(s).__name__}")
     return s.poll_interval
 
 

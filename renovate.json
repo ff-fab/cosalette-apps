@@ -30,6 +30,13 @@
       "automerge": false
     },
     {
+      "description": "Pin Docker image digests for reproducibility",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "matchUpdateTypes": ["digest"],
+      "groupName": "docker-digests",
+      "automerge": true
+    },
+    {
       "description": "Major version bumps get individual PRs (may need code changes)",
       "matchUpdateTypes": ["major"],
       "automerge": false

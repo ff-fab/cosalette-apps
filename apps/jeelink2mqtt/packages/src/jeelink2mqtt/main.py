@@ -199,7 +199,8 @@ async def mapping_assign(
     data, err = _parse_or_error(payload)
     if err is not None:
         return err
-    assert data is not None  # invariant: err is None ⟹ data is not None
+    if data is None:  # invariant: err is None ⟹ data is not None
+        raise RuntimeError("_parse_or_error returned (None, None)")
 
     result = _commands.handle_assign(state, data)
 
@@ -226,7 +227,8 @@ async def mapping_reset(
     data, err = _parse_or_error(payload)
     if err is not None:
         return err
-    assert data is not None  # invariant: err is None ⟹ data is not None
+    if data is None:  # invariant: err is None ⟹ data is not None
+        raise RuntimeError("_parse_or_error returned (None, None)")
 
     result = _commands.handle_reset(state, data)
 

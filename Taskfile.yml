@@ -138,15 +138,42 @@ tasks:
       - bash scripts/test-check-agent-parity.sh
 
   pre-pr:
-    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity)
+    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + security)
+    vars:
+      PRE_PR_LOG: '{{.PRE_PR_LOG | default "/tmp/cosalette-pre-pr.log"}}'
+      PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES | default "120"}}'
+    env:
+      PRE_PR_LOG: '{{.PRE_PR_LOG}}'
+      PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES}}'
     cmds:
-      - pre-commit run --all-files
-      - task: reuse:lint
-      - task: lint:all
-      - task: typecheck:all
-      - task: test:all
-      - task: complexity
-      - task: similarity
+      - bash scripts/pre-pr.sh
+
+  # ── Security ───────────────────────────────────────────────
+
+  security:audit:
+    desc: Run full security audit (deps + secrets + python + actions)
+    cmds:
+      - bash scripts/qa-task.sh security:audit
+
+  security:deps:
+    desc: Check Python dependencies for known vulnerabilities (pip-audit)
+    cmds:
+      - bash scripts/qa-task.sh security:deps
+
+  security:secrets:
+    desc: Scan for accidentally committed secrets (detect-secrets)
+    cmds:
+      - bash scripts/qa-task.sh security:secrets
+
+  security:python:
+    desc: Ruff security rules (select S) across root and all app source directories
+    cmds:
+      - bash scripts/qa-task.sh security:python
+
+  security:actions:
+    desc: Audit GitHub Actions workflows (actionlint + zizmor)
+    cmds:
+      - bash scripts/qa-task.sh security:actions
 
   app:new:
     desc: 'Scaffold a new app (e.g.: task app:new -- myapp "My app description")'

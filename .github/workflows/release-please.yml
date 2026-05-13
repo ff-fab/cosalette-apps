@@ -6,23 +6,25 @@ on:
 
 permissions:
   contents: read
-  packages: write
 
 jobs:
   release:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
     outputs:
       releases_created: ${{ steps.release.outputs.releases_created }}
       paths_released: ${{ steps.release.outputs.paths_released }}
       docker_matrix: ${{ steps.docker-matrix.outputs.matrix }}
     steps:
-      - uses: actions/create-github-app-token@v2
+      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349  # v2
         id: app-token
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@8b8fd2cc23b2e18957157a9d923d75aa0c6f6ad5  # v4
         id: release
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -52,6 +54,9 @@ jobs:
     strategy:
       matrix: ${{ fromJSON(needs.release.outputs.docker_matrix) }}
     uses: ./.github/workflows/docker-app.yml
+    permissions:
+      contents: read
+      packages: write
     with:
       app: ${{ matrix.app }}
       version: ${{ matrix.version }}

@@ -48,6 +48,7 @@ path = [
     ".editorconfig-checker.json",
     ".kilo/**",
     ".flake8",
+    ".secrets.baseline",
     "LICENSE",
     "LICENSES/**",
 ]
