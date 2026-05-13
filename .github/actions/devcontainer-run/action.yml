@@ -80,7 +80,8 @@ runs:
         CARGO_HOME: ${{ github.workspace }}/.cache/cargo-home
         CARGO_TARGET_DIR: ${{ github.workspace }}/target
       with:
-        cacheFrom: type=registry,ref=${{ inputs.image }}:buildcache
+        imageName: ${{ inputs.image }}
+        cacheFrom: ${{ inputs.image }}
         push: never
         runCmd: ${{ inputs.run-cmd }}
 
