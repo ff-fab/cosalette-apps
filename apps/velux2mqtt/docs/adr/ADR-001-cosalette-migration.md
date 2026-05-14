@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-24
+Accepted **Date:** 2026-03-24 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -108,4 +108,43 @@ _Scale: 1 (poor) to 5 (excellent)_
 - **Learning curve** --- contributors need to understand cosalette's device model and DI
   system in addition to the domain logic.
 
-_2026-03-24_
+## Amendment (2026-05-14) — Corrective
+
+**Rationale:** cosalette 0.4 exposes dict-name device registration via @app.device(name=callable), so configured covers can now be expanded declaratively while preserving one DeviceContext and independent runtime state per cover.
+
+> **Justification for amendment (not supersession):** Supersession is not warranted because the primary decision to use cosalette remains unchanged; the impact is confined to the velux2mqtt composition root, cover handler entry point, tests, and documentation, with no MQTT contract or domain model migration.
+
+### Revised Decision
+
+Use cosalette dict-name @app.device registration for configured Velux covers because it keeps one device per cover while removing the imperative on_configure/add_device loop from the composition root.
+
+```python
+def _cover_map(settings: cosalette.Settings) -> dict[str, CoverConfig]:
+    if not isinstance(settings, Velux2MqttSettings):
+        raise TypeError(f"Expected Velux2MqttSettings, got {type(settings).__name__}")
+    return {cover.name: cover for cover in settings.covers}
+
+
+@app.device(name=_cover_map, summary="Velux cover: open/close/stop control")
+async def cover(
+    ctx: cosalette.DeviceContext,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+):
+    async for event in cover_device(ctx, cover_cfg, settings):
+        yield event
+```
+
+### Additional Sub-Decision: Keep make_cover() as a compatibility wrapper
+
+The application registers the top-level `cover_device()` through `@app.device(name=_cover_map)`. `make_cover()` remains as a small wrapper for focused unit tests and external callers that need a pre-bound device function.
+
+### Additional Positive Consequences
+
+- The composition root now uses cosalette's declarative multi-device API while preserving one independent runtime device per configured cover.
+- Direct composition tests can assert the name-mapping registration without duplicating the production add_device loop.
+
+### Additional Negative Consequences
+
+- Per-cover summary text is now generic at registration time because dict-name expansion does not provide a per-expanded-device summary hook.
+- The top-level handler must expose CoverConfig and Velux2MqttSettings as explicit dependencies instead of relying solely on closure capture.
