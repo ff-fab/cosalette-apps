@@ -145,11 +145,6 @@ async def publish_mapping_state(
     await ctx.publish("mapping/state", json.dumps(mapping_state), retain=True)
 
 
-# Backward compatibility aliases
-_publish_mapping_event = publish_mapping_event
-_publish_mapping_state = publish_mapping_state
-
-
 # ---------------------------------------------------------------------------
 # Staleness & heartbeat
 # ---------------------------------------------------------------------------

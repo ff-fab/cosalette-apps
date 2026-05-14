@@ -118,6 +118,11 @@ class SharedState:
     ) -> datetime | None:
         """Persist registry if interval has elapsed.
 
+        Periodic background writer — fires when *interval_seconds* have elapsed
+        since the last persist.  See also
+        :func:`jeelink2mqtt.main._persist_registry` for the event-driven writer
+        called by the ``on_registry_events`` reactor and mapping command handlers.
+
         Returns the new persist time if persisted, None otherwise.
         """
         if (now - last_persist_time).total_seconds() >= interval_seconds:

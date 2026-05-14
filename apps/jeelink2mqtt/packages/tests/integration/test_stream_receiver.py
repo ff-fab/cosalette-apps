@@ -21,7 +21,7 @@ import pytest
 from jeelink2mqtt.main import receiver
 from jeelink2mqtt.models import SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
-from jeelink2mqtt.state import build_shared_state
+from jeelink2mqtt.state import SharedState, build_shared_state
 
 from tests.fixtures.doubles import FakeDeviceContext
 
@@ -60,9 +60,9 @@ def _make_reading(
 async def _run_receiver(
     readings: list[SensorReading],
     ctx: FakeDeviceContext,
-    store_data: dict[str, object],
+    store_data: dict[str, object] | None,
     settings: Jeelink2MqttSettings,
-    state: object,
+    state: SharedState,
 ) -> None:
     """Run the receiver async generator, injecting readings then shutting down.
 
@@ -72,9 +72,10 @@ async def _run_receiver(
     from cosalette import DeviceStore
     from cosalette.stores import MemoryStore
     from jeelink2mqtt.main import on_registry_events
-    from jeelink2mqtt.state import SharedState
 
-    backend = MemoryStore(initial={"receiver": store_data} if store_data else None)
+    backend = MemoryStore(
+        initial={"receiver": store_data} if store_data is not None else None
+    )
     device_store = DeviceStore(backend, "receiver")
     device_store.load()
 
@@ -83,7 +84,11 @@ async def _run_receiver(
     async def _inject_and_shutdown() -> None:
         for r in readings:
             stream.put(r)
-        await asyncio.sleep(0)  # let generator process items first
+        # Yield control once so the generator processes all buffered items before
+        # shutdown is signalled.  A single asyncio.sleep(0) is sufficient because
+        # cosalette.Stream.put() wakes the consumer coroutine synchronously; the
+        # consumer then runs to its next yield point before this task resumes.
+        await asyncio.sleep(0)
         stream.shutdown()
 
     gen = receiver(
@@ -91,16 +96,15 @@ async def _run_receiver(
         ctx=ctx,  # type: ignore[arg-type]
         store=device_store,
         settings=settings,
-        state=state,  # type: ignore[arg-type]
+        state=state,
     )
 
     async def _drain_gen() -> None:
         async for _ in gen:
             # Manually trigger reactor after yield (simulates framework behavior)
-            if isinstance(state, SharedState):
-                events = state.registry.drain_events()
-                if events:
-                    await on_registry_events(events, ctx, device_store, state)  # type: ignore[arg-type]
+            events = state.registry.drain_events()
+            if events:
+                await on_registry_events(events, ctx, device_store, state)
 
     await asyncio.gather(_drain_gen(), _inject_and_shutdown())
 
@@ -125,7 +129,7 @@ class TestStreamReceiverHandler:
         ctx = FakeDeviceContext()
 
         reading = _make_reading(sensor_id=99, temperature=20.0, humidity=50)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         raw_publishes = [t for t, _, _ in ctx.published if t == "raw/state"]
         assert len(raw_publishes) == 1
@@ -143,7 +147,7 @@ class TestStreamReceiverHandler:
 
         ctx = FakeDeviceContext()
         reading = _make_reading(sensor_id=42, temperature=21.5, humidity=55)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         topics = [t for t, _, _ in ctx.published]
         assert "office/state" in topics
@@ -163,7 +167,7 @@ class TestStreamReceiverHandler:
 
         # Sensor ID 77 is not mapped to any name
         reading = _make_reading(sensor_id=77)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         topics = [t for t, _, _ in ctx.published]
         assert "raw/state" in topics
@@ -209,7 +213,7 @@ class TestStreamReceiverHandler:
         ctx = FakeDeviceContext()
 
         # No readings — just shutdown
-        await _run_receiver([], ctx, {}, settings, state)
+        await _run_receiver([], ctx, None, settings, state)
 
         offline_topics = [
             t for t, p, _ in ctx.published if "availability" in t and p == "offline"
@@ -235,7 +239,7 @@ class TestStreamReceiverHandler:
 
         # Sensor ID 99 is not pre-assigned; its first reading triggers auto-adopt
         reading = _make_reading(sensor_id=99)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         topics = [t for t, _, _ in ctx.published]
         assert "mapping/event" in topics, (
