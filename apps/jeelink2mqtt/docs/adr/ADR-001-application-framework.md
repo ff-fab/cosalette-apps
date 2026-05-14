@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -76,9 +76,8 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 - All MQTT plumbing (connect, reconnect, LWT, graceful shutdown) is handled by the
   framework — zero boilerplate
-- Device archetypes (`@app.stream` for stream-backed push receivers, `@app.device`
-  for long-running tasks, `@app.telemetry` for polling, `@app.command` for MQTT
-  commands) provide clear patterns for JeeLink integration
+- Device archetypes (`@app.device` for push-based, `@app.telemetry` for polling)
+  provide clear patterns for JeeLink integration
 - Hexagonal architecture enforces separation between domain logic and infrastructure,
   making the codebase testable from day one
 - Built-in `--dry-run` flag enables development without hardware
@@ -94,4 +93,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Team must learn cosalette's conventions and device archetypes
 - Framework updates may introduce breaking changes that require adaptation
 
-_2026-03-04_
+## Amendment (2026-05-14) — Minor
+
+!!! note "Editorial note (2026-05-14)"
+    cosalette now uses `@app.stream` for the JeeLink stream-backed receiver, while `@app.device`, `@app.telemetry`, and `@app.command` cover long-running tasks, polling, and MQTT commands respectively.

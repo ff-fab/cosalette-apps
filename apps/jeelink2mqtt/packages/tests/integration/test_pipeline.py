@@ -44,7 +44,7 @@ def _pipeline(
     if config is None:
         return name, None
 
-    calibrated = filter_and_calibrate(reading, config, state)
+    calibrated = filter_and_calibrate(reading, config, state.filter_bank)
     return name, calibrated
 
 

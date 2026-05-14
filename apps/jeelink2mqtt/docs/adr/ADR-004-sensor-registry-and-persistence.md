@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -23,11 +23,9 @@ This data must be persisted atomically to avoid corruption from unexpected shutd
 
 ## Decision
 
-Use **cosalette's JsonFileStore** to persist the sensor registry. The mapping table
-and metadata are stored as a single key, serialized to a human-readable JSON file.
-Writes are application-managed: mapping-change events trigger immediate persistence
-via the `on_registry_events` reactor; last-seen metadata is persisted periodically
-via `persist_registry_if_due` to avoid excessive I/O.
+Use **cosalette's JsonFileStore** with SaveOnChange policy to persist the sensor
+registry. The mapping table and metadata are stored as a single key, serialized to a
+human-readable JSON file on every mapping change.
 
 ## Decision Drivers
 
@@ -41,10 +39,8 @@ via `persist_registry_if_due` to avoid excessive I/O.
 ## Considered Options
 
 1. **cosalette JsonFileStore** — use the framework's built-in persistence with a JSON
-   file backend. Store the mapping table and metadata as a single key. Writes are
-   application-managed: the `on_registry_events` reactor persists immediately on each
-   mapping change; `persist_registry_if_due` handles periodic last-seen metadata
-   updates.
+   file backend. Store the mapping table and metadata as a single key. Use SaveOnChange
+   policy for immediate persistence on mapping updates.
 
 2. **SQLite** — store mappings and metadata in an SQLite database with WAL mode for
    concurrent read/write safety.
@@ -96,9 +92,8 @@ calibration: CalibrationOffset   # optional temp/humidity corrections
 - **Shared state adapter**: registered with cosalette and injected into both the
   receiver device (to resolve IDs to names) and the mapping command handler (to accept
   manual overrides).
-- **Persistence trigger**: the `on_registry_events` reactor (in `main.py`) serializes
-  the registry snapshot to JsonFileStore on every mapping-change event. Metadata updates
-  (last_seen) are persisted periodically via `persist_registry_if_due`, not on every
+- **Persistence trigger**: serialized to JsonFileStore on every mapping change
+  (SaveOnChange). Metadata updates (last_seen) are persisted periodically, not on every
   reading, to avoid excessive I/O.
 
 ## Consequences
@@ -109,8 +104,7 @@ calibration: CalibrationOffset   # optional temp/humidity corrections
 - Human-readable JSON file aids debugging — operators can inspect and even hand-edit
   the mapping if needed
 - Atomic writes (rename-based) protect against corruption from unexpected shutdown
-- Mapping changes are persisted immediately by the `on_registry_events` reactor — no
-  data-loss window for assignment/reset operations
+- SaveOnChange ensures mapping changes are persisted immediately — no data loss window
 - Framework integration means the store participates in cosalette's lifecycle
   (clean shutdown flushes pending writes)
 
@@ -125,4 +119,18 @@ calibration: CalibrationOffset   # optional temp/humidity corrections
 - Manual edits to the JSON file risk introducing invalid state if the operator makes a
   mistake
 
-_2026-03-04_
+## Amendment (2026-05-14) — Corrective
+
+**Rationale:** The original decision described a SaveOnChange policy that no longer matches the implementation. Writes are now application-managed: the on_registry_events reactor handles immediate persistence on mapping changes, and persist_registry_if_due handles periodic last-seen metadata updates.
+
+> **Justification for amendment (not supersession):** The storage backend (JsonFileStore) is unchanged and the decision to use it is still valid. Only the persistence trigger mechanism differs from the original write-up; no downstream code depends on the SaveOnChange description. The cost of updating the wording here is negligible and corrective amendment is appropriate.
+
+### Revised Decision
+
+Use cosalette's JsonFileStore to persist the sensor registry. The mapping table and metadata are stored as a single key, serialized to a human-readable JSON file. Writes are application-managed: mapping-change events trigger immediate persistence via the `on_registry_events` reactor; last-seen metadata is persisted periodically via `persist_registry_if_due` to avoid excessive I/O.
+
+!!! note "Editorial note (2026-05-14)"
+    The `on_registry_events` reactor (registered with `@app.react`) immediately serializes the registry snapshot to JsonFileStore on every mapping-change event.
+
+!!! note "Editorial note (2026-05-14)"
+    `persist_registry_if_due` handles periodic background persistence for last-seen metadata, called from the main receiver loop after each frame, defaulting to a 60-second interval.

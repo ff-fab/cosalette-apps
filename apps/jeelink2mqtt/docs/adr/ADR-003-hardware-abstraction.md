@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -71,10 +71,10 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 ### Device Archetype
 
-The JeeLink's push-based nature maps to cosalette's `@app.stream` archetype — a
-long-running coroutine that receives readings from a `StreamablePort[SensorReading]`
-adapter and yields after processing each frame. This is distinct from
-`@app.telemetry()`, which is framework-controlled polling on a fixed interval.
+The JeeLink's push-based nature maps to cosalette's `@app.device()` archetype — a
+long-running coroutine that owns its event loop and yields readings as they arrive. This
+is distinct from `@app.telemetry()`, which is framework-controlled polling on a fixed
+interval.
 
 ### Port Protocol
 
@@ -117,4 +117,7 @@ class JeeLinkPort(Protocol):
 - Fake adapter must produce realistic enough data to exercise edge cases (e.g.,
   out-of-range values, rapid ID changes)
 
-_2026-03-04_
+## Amendment (2026-05-14) — Minor
+
+!!! note "Editorial note (2026-05-14)"
+    The receiver implementation maps to cosalette `@app.stream` with `StreamablePort[SensorReading]`, replacing the earlier `@app.device()` implementation note.

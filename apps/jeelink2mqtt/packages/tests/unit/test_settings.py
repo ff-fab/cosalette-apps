@@ -256,3 +256,46 @@ class TestSensorConfigSettings:
         assert cfg.temp_offset == -0.5
         assert cfg.humidity_offset == 2.0
         assert cfg.staleness_timeout == 300.0
+
+
+@pytest.mark.unit
+class TestSensorNameValidation:
+    """Security: sensor names are interpolated into MQTT topics — must be valid segments."""
+
+    @pytest.mark.parametrize(
+        "valid_name",
+        ["office", "outdoor", "living-room", "sensor_1", "Sensor-A1", "abc123"],
+        ids=["alpha", "alpha2", "hyphen", "underscore", "mixed", "alphanum"],
+    )
+    def test_valid_names_accepted(self, valid_name: str) -> None:
+        """Names matching [A-Za-z0-9_-]+ are accepted.
+
+        Technique: Equivalence Partitioning — valid segment classes.
+        """
+        # Act
+        cfg = SensorConfigSettings(name=valid_name)
+
+        # Assert
+        assert cfg.name == valid_name
+
+    @pytest.mark.parametrize(
+        "invalid_name",
+        [
+            "",
+            "office/room",
+            "sensor+1",
+            "sensor#1",
+            "sensor name",
+            "sensor\ttab",
+            "sensor\x00null",
+        ],
+        ids=["empty", "slash", "plus", "hash", "space", "tab", "null"],
+    )
+    def test_invalid_names_rejected(self, invalid_name: str) -> None:
+        """Names with '/', '+', '#', whitespace, or control chars raise ValidationError.
+
+        Technique: Error Guessing — MQTT wildcard and separator characters.
+        """
+        # Act / Assert
+        with pytest.raises(ValidationError, match="name"):
+            SensorConfigSettings(name=invalid_name)

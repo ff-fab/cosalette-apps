@@ -133,7 +133,9 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             if name is not None:
                 config = state.sensor_configs.get(name)
                 if config is not None:
-                    calibrated = _pipeline.filter_and_calibrate(reading, config, state)
+                    calibrated = _pipeline.filter_and_calibrate(
+                        reading, config, state.filter_bank
+                    )
                     # Publish temperature + humidity (environment sensor values)
                     # and device metadata for this sensor.
                     await _receiver.publish_sensor_state(ctx, name, calibrated)

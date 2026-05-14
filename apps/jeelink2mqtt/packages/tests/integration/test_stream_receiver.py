@@ -14,6 +14,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
+import json
 from datetime import UTC, datetime
 
 import cosalette
@@ -159,10 +160,8 @@ class TestStreamReceiverHandler:
         assert avail == "online"
 
         # Verify published state contains calibrated temperature (office offset=-0.3)
-        import json as _json
-
         state_payload = next(p for t, p, _ in ctx.published if t == "office/state")
-        state_data = _json.loads(state_payload)
+        state_data = json.loads(state_payload)
         assert state_data["temperature"] == pytest.approx(21.5 - 0.3, abs=0.01)
         assert state_data["humidity"] == 55
 

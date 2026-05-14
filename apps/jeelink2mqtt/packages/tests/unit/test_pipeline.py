@@ -2,9 +2,9 @@
 
 Test Techniques Used:
 - Specification-based Testing: verifies the filter → calibrate composition
-- Equivalence Partitioning: zero offsets, non-zero offsets, multi-reading median convergence
-- State Transition Testing: median filter window convergence
-- Boundary Value Analysis: rounding and metadata preservation
+- Equivalence Partitioning: zero offsets, non-zero offsets, per-sensor filter isolation
+- State Transition Testing: median filter window convergence and first-call passthrough
+- Dataclasses.replace contract: metadata fields (sensor_id, low_battery, timestamp) preserved
 """
 
 from __future__ import annotations
@@ -67,13 +67,15 @@ class TestFilterAndCalibrate:
 
         Technique: Specification-based — calibration adds offset to filtered value.
         """
+        # Arrange
         config = SensorConfig(name="office", temp_offset=1.0, humidity_offset=2.0)
         state = _make_state(sensor_configs=[config], window=3)
         reading = _reading(sensor_id=42, temperature=20.0, humidity=50)
 
-        result = filter_and_calibrate(reading, config, state)
+        # Act
+        result = filter_and_calibrate(reading, config, state.filter_bank)
 
-        # First reading through median window passes through unchanged, then offset applied
+        # Assert: first reading passes through median unchanged, then offset applied
         assert result.temperature == pytest.approx(21.0)  # 20.0 + 1.0
         assert result.humidity == 52  # 50 + floor(2.0 + 0.5)
 
@@ -82,12 +84,15 @@ class TestFilterAndCalibrate:
 
         Technique: Equivalence Partitioning — identity calibration.
         """
+        # Arrange
         config = SensorConfig(name="office")
         state = _make_state(sensor_configs=[config], window=3)
         reading = _reading(temperature=22.0, humidity=60)
 
-        result = filter_and_calibrate(reading, config, state)
+        # Act
+        result = filter_and_calibrate(reading, config, state.filter_bank)
 
+        # Assert
         assert result.temperature == pytest.approx(22.0)
         assert result.humidity == 60
 
@@ -96,16 +101,37 @@ class TestFilterAndCalibrate:
 
         Technique: Specification-based — dataclasses.replace contract.
         """
+        # Arrange
         ts = datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC)
         config = SensorConfig(name="office", temp_offset=0.5)
         state = _make_state(sensor_configs=[config], window=3)
         reading = _reading(sensor_id=99, low_battery=True, timestamp=ts)
 
-        result = filter_and_calibrate(reading, config, state)
+        # Act
+        result = filter_and_calibrate(reading, config, state.filter_bank)
 
+        # Assert
         assert result.sensor_id == 99
         assert result.low_battery is True
         assert result.timestamp == ts
+
+    def test_first_call_passthrough(self) -> None:
+        """The first call for a new sensor ID passes the value through unchanged.
+
+        Technique: State Transition Testing — MedianFilter first-call contract.
+        With a window of 3, the first value becomes the initial median.
+        """
+        # Arrange
+        config = SensorConfig(name="office")
+        state = _make_state(sensor_configs=[config], window=3)
+
+        # Act
+        result = filter_and_calibrate(
+            _reading(sensor_id=42, temperature=25.0), config, state.filter_bank
+        )
+
+        # Assert: first reading through an empty window returns the input unchanged
+        assert result.temperature == pytest.approx(25.0)
 
     def test_median_filter_converges_over_window(self) -> None:
         """After filling the median window, outliers are suppressed.
@@ -113,16 +139,22 @@ class TestFilterAndCalibrate:
         Technique: State Transition Testing — filter state accumulates across calls.
         Three readings: 20.0, 100.0, 20.0 → median of the window is 20.0.
         """
+        # Arrange
         config = SensorConfig(name="office")
         state = _make_state(sensor_configs=[config], window=3)
 
-        filter_and_calibrate(_reading(sensor_id=42, temperature=20.0), config, state)
-        filter_and_calibrate(_reading(sensor_id=42, temperature=100.0), config, state)
+        # Act
+        filter_and_calibrate(
+            _reading(sensor_id=42, temperature=20.0), config, state.filter_bank
+        )
+        filter_and_calibrate(
+            _reading(sensor_id=42, temperature=100.0), config, state.filter_bank
+        )
         result = filter_and_calibrate(
-            _reading(sensor_id=42, temperature=20.0), config, state
+            _reading(sensor_id=42, temperature=20.0), config, state.filter_bank
         )
 
-        # Median of [20.0, 100.0, 20.0] = 20.0 — outlier suppressed
+        # Assert: Median of [20.0, 100.0, 20.0] = 20.0 — outlier suppressed
         assert result.temperature == pytest.approx(20.0)
 
     def test_separate_sensor_ids_maintain_independent_filters(self) -> None:
@@ -130,16 +162,20 @@ class TestFilterAndCalibrate:
 
         Technique: Equivalence Partitioning — per-sensor filter isolation.
         """
+        # Arrange
         config_a = SensorConfig(name="office")
         config_b = SensorConfig(name="outdoor")
         state = _make_state(sensor_configs=[config_a, config_b], window=3)
 
-        # Feed sensor 1 with a high value
-        filter_and_calibrate(_reading(sensor_id=1, temperature=50.0), config_a, state)
+        # Act — feed sensor 1 with a high value
+        filter_and_calibrate(
+            _reading(sensor_id=1, temperature=50.0), config_a, state.filter_bank
+        )
 
         # Sensor 2's first reading should not be influenced by sensor 1's history
         result_b = filter_and_calibrate(
-            _reading(sensor_id=2, temperature=20.0), config_b, state
+            _reading(sensor_id=2, temperature=20.0), config_b, state.filter_bank
         )
 
+        # Assert
         assert result_b.temperature == pytest.approx(20.0)

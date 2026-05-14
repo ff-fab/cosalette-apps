@@ -51,7 +51,11 @@ async def publish_sensor_state(
     name: str,
     reading: SensorReading,
 ) -> None:
-    """Publish calibrated sensor state (temperature, humidity, battery, timestamp) for a named sensor (retained)."""
+    """Publish calibrated sensor state for a named sensor (retained).
+
+    Publishes temperature, humidity, battery status, and timestamp as a
+    JSON payload to ``{name}/state``.
+    """
     payload = json.dumps(
         {
             "temperature": round(reading.temperature, 2),
@@ -133,13 +137,13 @@ async def _check_staleness(
             continue
         if state.last_availability.get(name) == "offline":
             continue  # already offline — no duplicate publish
-        await ctx.publish(f"{name}/availability", "offline", retain=True)
+        await publish_availability(ctx, name, "offline")
         # Re-validate: if the receiver processed a fresh reading while the
         # publish was in flight, correct the availability.
         if state.registry.is_stale(name):
             state.last_availability[name] = "offline"
         else:
-            await ctx.publish(f"{name}/availability", "online", retain=True)
+            await publish_availability(ctx, name, "online")
 
 
 async def _maybe_heartbeat(
@@ -170,7 +174,7 @@ async def _maybe_heartbeat(
         if last is not None:
             await publish_sensor_state(ctx, name, last)
 
-        await ctx.publish(f"{name}/availability", "online", retain=True)
+        await publish_availability(ctx, name, "online")
         # Guard: only advance timestamp if receiver hasn't already updated it
         # during the above awaits (TOCTOU guard for concurrent device tasks).
         if state.last_publish_time.get(name) is last_time:

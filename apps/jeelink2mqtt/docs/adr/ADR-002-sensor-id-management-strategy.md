@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -68,10 +68,8 @@ _Scale: 1 (poor) to 5 (excellent)_
 The core logic for handling an unknown sensor ID:
 
 1. **Exactly one configured sensor is stale** (no readings for configurable timeout,
-   default 10 minutes) → auto-assign the new ID to that stale sensor. The mapping
-   change is enqueued as a `MappingEvent`; the `on_registry_events` reactor publishes
-   `mapping/event` + `mapping/state` and persists the registry after the current frame
-   yields.
+   default 10 minutes) → auto-assign the new ID to that stale sensor. Log and publish
+   the mapping change.
 
 2. **Zero sensors are stale** → track the ID as "unmapped". This is likely a
    neighbour's sensor or RF interference. Do not create a mapping.
@@ -103,4 +101,7 @@ auditability.
   opt in)
 - Operators must understand the auto-adopt algorithm to troubleshoot mapping issues
 
-_2026-03-04_
+## Amendment (2026-05-14) — Minor
+
+!!! note "Editorial note (2026-05-14)"
+    Mapping changes now enqueue a `MappingEvent`; the `on_registry_events` reactor publishes `mapping/event` and `mapping/state` and persists the registry after the current frame yields.
