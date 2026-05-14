@@ -31,7 +31,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from collections.abc import Awaitable, Callable
+from collections.abc import AsyncIterator, Callable
 from typing import Literal
 
 import cosalette
@@ -56,7 +56,7 @@ from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
 def make_cover(
     cover_cfg: CoverConfig,
     settings: Velux2MqttSettings,
-) -> Callable[..., Awaitable[None]]:
+) -> Callable[..., AsyncIterator[None]]:
     """Create a cover device function for registration with cosalette.
 
     Returns an async callable with the signature expected by
@@ -71,7 +71,7 @@ def make_cover(
         Async device function suitable for ``app.add_device``.
     """
 
-    async def cover_device(ctx: cosalette.DeviceContext) -> None:
+    async def cover_device(ctx: cosalette.DeviceContext) -> AsyncIterator[None]:
         gpio: GpioSwitchPort = ctx.adapter(GpioSwitchPort)  # type: ignore[type-abstract]
         logger = logging.getLogger(f"cosalette.{ctx.name}")
 
@@ -155,6 +155,7 @@ def make_cover(
                     tracker.stop()
                     drift.reset()
                     await _publish_position(ctx, tracker)
+                    yield
                     continue
 
                 target = command.position
@@ -176,6 +177,7 @@ def make_cover(
                         logger=logger,
                     )
                     await _publish_position(ctx, tracker)
+                yield
 
         finally:
             cal_task.cancel()

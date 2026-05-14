@@ -228,27 +228,32 @@ class TestPyLaCrosseAdapterAsyncContext:
 class TestPyLaCrosseAdapterCallback:
     """Branch/Condition Coverage for register_callback and its wrapper."""
 
-    def test_register_callback_wraps_frame(
+    async def test_register_callback_wraps_frame(
         self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
         """Valid pylacrosse frame string is parsed into a SensorReading.
 
-        Technique: Specification-based — happy-path frame parsing.
+        Technique: Specification-based — happy-path frame parsing via the
+        framework lifecycle: register_callback then start_scan.
         """
         adapter, mock_instance = opened_adapter
 
-        # Arrange
+        # Arrange — framework lifecycle: store callback then start scan
         received: list[SensorReading] = []
         adapter.register_callback(received.append)
+        await adapter.start_scan()
 
-        # Get the wrapper that was passed to register_all
+        # Get the wrapper that was passed to register_all (done inside start_scan)
         wrapper = mock_instance.register_all.call_args[0][0]
 
-        # Act — simulate pylacrosse calling the wrapper
+        # Act — simulate pylacrosse calling the wrapper; the wrapper
+        # schedules a dispatcher on the event loop via call_soon_threadsafe,
+        # so we must yield to the loop before asserting side effects.
         fake_sensor = FakeLaCrosseSensor(
             sensorid=42, temperature=21.5, humidity=55, low_battery=False
         )
         wrapper(fake_sensor, None)
+        await asyncio.sleep(0)  # let the scheduled dispatcher run
 
         # Assert
         assert len(received) == 1
@@ -258,7 +263,7 @@ class TestPyLaCrosseAdapterCallback:
         assert reading.humidity == 55
         assert reading.low_battery is False
 
-    def test_register_callback_parses_low_battery(
+    async def test_register_callback_parses_low_battery(
         self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
         """nbat=1 is parsed as low_battery=True.
@@ -270,6 +275,7 @@ class TestPyLaCrosseAdapterCallback:
         # Arrange
         received: list[SensorReading] = []
         adapter.register_callback(received.append)
+        await adapter.start_scan()
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act
@@ -277,12 +283,13 @@ class TestPyLaCrosseAdapterCallback:
             sensorid=10, temperature=18.0, humidity=70, low_battery=True
         )
         wrapper(fake_sensor, None)
+        await asyncio.sleep(0)  # let the scheduled dispatcher run
 
         # Assert
         assert len(received) == 1
         assert received[0].low_battery is True
 
-    def test_register_callback_parses_negative_temperature(
+    async def test_register_callback_parses_negative_temperature(
         self, opened_adapter: tuple[object, MagicMock]
     ) -> None:
         """Negative temperature is correctly parsed.
@@ -294,6 +301,7 @@ class TestPyLaCrosseAdapterCallback:
         # Arrange
         received: list[SensorReading] = []
         adapter.register_callback(received.append)
+        await adapter.start_scan()
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act
@@ -301,6 +309,7 @@ class TestPyLaCrosseAdapterCallback:
             sensorid=7, temperature=-3.2, humidity=90, low_battery=False
         )
         wrapper(fake_sensor, None)
+        await asyncio.sleep(0)  # let the scheduled dispatcher run
 
         # Assert
         assert len(received) == 1
@@ -320,7 +329,7 @@ class TestPyLaCrosseAdapterCallback:
         with pytest.raises(RuntimeError, match="Adapter not open"):
             adapter.register_callback(lambda r: None)
 
-    def test_register_callback_ignores_unparsable_frame(
+    async def test_register_callback_ignores_unparsable_frame(
         self, opened_adapter: tuple[object, MagicMock], caplog
     ) -> None:
         """Wrapper logs a warning and skips when frame doesn't match regex.
@@ -332,6 +341,7 @@ class TestPyLaCrosseAdapterCallback:
         # Arrange
         received: list[SensorReading] = []
         adapter.register_callback(received.append)
+        await adapter.start_scan()
         wrapper = mock_instance.register_all.call_args[0][0]
 
         # Act
@@ -346,7 +356,7 @@ class TestPyLaCrosseAdapterCallback:
         assert len(received) == 0
         assert "Invalid sensor object" in caplog.text
 
-    def test_register_callback_logs_exception_from_callback(
+    async def test_register_callback_logs_exception_from_callback(
         self, opened_adapter: tuple[object, MagicMock], caplog
     ) -> None:
         """Exception in callback is logged, not propagated.
@@ -362,19 +372,22 @@ class TestPyLaCrosseAdapterCallback:
             raise ValueError(msg)
 
         adapter.register_callback(bad_callback)
+        await adapter.start_scan()
         wrapper = mock_instance.register_all.call_args[0][0]
 
-        # Act — exception does NOT propagate
+        # Act — exception does NOT propagate; dispatcher is scheduled via
+        # call_soon_threadsafe so we yield to the loop inside caplog context.
         fake_sensor = FakeLaCrosseSensor(
             sensorid=1, temperature=20.0, humidity=50, low_battery=False
         )
         with caplog.at_level(logging.ERROR):
             wrapper(fake_sensor, None)
+            await asyncio.sleep(0)  # let the dispatcher run and log
 
-        # Assert — error is logged
-        assert "Error processing sensor reading" in caplog.text
+        # Assert — error is logged by the dispatcher, not asyncio's handler
+        assert "Error dispatching reading to framework callback" in caplog.text
 
-    def test_register_callback_handles_missing_humidity(
+    async def test_register_callback_handles_missing_humidity(
         self, opened_adapter: tuple[object, MagicMock], caplog
     ) -> None:
         """Wrapper logs warning for a sensor missing the humidity attribute.
@@ -385,6 +398,7 @@ class TestPyLaCrosseAdapterCallback:
 
         received: list[SensorReading] = []
         adapter.register_callback(received.append)
+        await adapter.start_scan()
         wrapper = mock_instance.register_all.call_args[0][0]
 
         class IncompleteSensor:
@@ -398,6 +412,43 @@ class TestPyLaCrosseAdapterCallback:
 
         assert "Sensor missing expected attribute" in caplog.text
         assert len(received) == 0
+
+    async def test_framework_lifecycle_callback_receives_reading(
+        self, opened_adapter: tuple[object, MagicMock]
+    ) -> None:
+        """Full framework lifecycle: open → register_callback → start_scan → frame.
+
+        Proves the cosalette 0.4 StreamablePort contract: register_callback
+        stores the callback and start_scan registers exactly ONE wrapper that
+        forwards decoded SensorReadings to that callback (not to the queue).
+
+        Technique: Integration — verifies the framework-path contract end-to-end.
+        """
+        adapter, mock_instance = opened_adapter
+
+        # Arrange — framework path
+        received: list[SensorReading] = []
+        adapter.register_callback(received.append)  # cosalette calls this first
+        await adapter.start_scan()  # then this — only ONE register_all call
+
+        # Exactly one callback registered with pylacrosse
+        assert mock_instance.register_all.call_count == 1
+
+        wrapper = mock_instance.register_all.call_args[0][0]
+
+        # Simulate pylacrosse calling the wrapper with a valid frame.
+        # The wrapper schedules a dispatcher via call_soon_threadsafe, so
+        # we yield to the event loop before asserting the callback result.
+        fake_sensor = FakeLaCrosseSensor(
+            sensorid=7, temperature=23.1, humidity=60, low_battery=False
+        )
+        wrapper(fake_sensor, None)
+        await asyncio.sleep(0)  # let the scheduled dispatcher run
+
+        # Framework callback received the decoded reading
+        assert len(received) == 1
+        assert received[0].sensor_id == 7
+        assert received[0].temperature == 23.1
 
 
 # ======================================================================
