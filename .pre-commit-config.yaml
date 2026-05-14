@@ -91,7 +91,9 @@ repos:
         types: [python]
         pass_filenames: false
 
-  # GPL headers: Ensure GPL-licensed files have copyright headers
+  # GPL headers: Enforce two invariants for all .py and .sh files:
+  #   GPL app source files must have the GPL header;
+  #   non-GPL app source files must not contain it.
   # Reads REUSE.toml to discover GPL paths — scales to any future GPL app.
   - repo: local
     hooks:
