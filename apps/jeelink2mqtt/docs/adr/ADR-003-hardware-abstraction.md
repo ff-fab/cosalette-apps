@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -117,4 +117,7 @@ class JeeLinkPort(Protocol):
 - Fake adapter must produce realistic enough data to exercise edge cases (e.g.,
   out-of-range values, rapid ID changes)
 
-_2026-03-04_
+## Amendment (2026-05-14) — Minor
+
+!!! note "Editorial note (2026-05-14)"
+    The receiver implementation maps to cosalette `@app.stream` with `StreamablePort[SensorReading]`, replacing the earlier `@app.device()` implementation note.

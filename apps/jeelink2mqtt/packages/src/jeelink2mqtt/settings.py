@@ -8,6 +8,7 @@ parameters.  Loaded from environment variables prefixed with
 
 from __future__ import annotations
 
+import re
 from typing import Annotated
 
 import cosalette
@@ -25,6 +26,17 @@ class SensorConfigSettings(BaseModel):
 
     name: str
     """Logical sensor name (e.g. ``"office"``, ``"outdoor"``)."""
+
+    @field_validator("name")
+    @classmethod
+    def name_must_be_valid_topic_segment(cls, value: str) -> str:
+        """Reject names that would form invalid MQTT topic segments."""
+        if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+            raise ValueError(
+                "Sensor name must be a non-empty MQTT topic segment "
+                "matching [A-Za-z0-9_-]+ (no '/', '+', '#', whitespace, or control chars)"
+            )
+        return value
 
     temp_offset: float = 0.0
     """Calibration offset for temperature (°C)."""

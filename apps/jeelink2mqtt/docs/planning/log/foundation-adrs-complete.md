@@ -3,7 +3,7 @@
 Created 4 Architecture Decision Records documenting the foundational design choices
 for jeelink2mqtt: application framework (cosalette), sensor ID management (hybrid
 auto-adopt + raw diagnostic), hardware abstraction (hexagonal port/adapter for
-pylacrosse), and persistence (cosalette JsonFileStore with SaveOnChange).
+pylacrosse), and persistence (cosalette JsonFileStore with application-managed registry persistence).
 
 **Files created/changed:**
 - docs/adr/ADR-001-application-framework.md
@@ -25,4 +25,4 @@ docs: add foundational architecture decision records
 - ADR-001: Choose cosalette as the application framework
 - ADR-002: Hybrid sensor ID management with auto-adopt and diagnostic channel
 - ADR-003: Hexagonal port/adapter wrapping pylacrosse for hardware abstraction
-- ADR-004: cosalette JsonFileStore with SaveOnChange for sensor registry persistence
+- ADR-004: cosalette JsonFileStore with application-managed persistence for sensor registry

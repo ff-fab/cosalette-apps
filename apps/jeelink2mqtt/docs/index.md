@@ -50,25 +50,32 @@ framework.
 ```mermaid
 flowchart TD
     A[🔌 JeeLink USB] --> B[Serial Adapter]
-    B --> C[Frame Parser]
-    C --> D[Registry — auto-adopt]
-    D --> E[Median Filter]
-    E --> F[Calibrate]
-    F --> G[MQTT Broker]
-    G --> H[Home Automation]
+    B --> C[Decode frame]
+    C --> D["raw/state (diagnostic)"]
+    C --> E[Registry — auto-adopt]
+    E -->|mapped| F[Median filter → Calibrate]
+    F --> G["{sensor}/state (retained)"]
+    F --> H["{sensor}/availability"]
+    E -->|mapping change| I[Mapping reactor]
+    I --> J["mapping/event + mapping/state"]
+    I --> K[Persist registry to JsonFileStore]
 
     style A fill:#2d7d9a,color:#fff
-    style D fill:#1a936f,color:#fff
+    style E fill:#1a936f,color:#fff
     style G fill:#c44536,color:#fff
+    style J fill:#c44536,color:#fff
 ```
+
+For each decoded LaCrosse frame the receiver executes these steps in order:
 
 1. The **JeeLink USB** receiver captures 868 MHz LaCrosse frames.
 2. A **serial adapter** (production: `pylacrosse`; dry-run: fake) bridges hardware to Python callbacks.
 3. The **frame parser** decodes raw strings into typed `SensorReading` objects.
-4. The **registry** resolves ephemeral IDs to logical names via auto-adopt or manual assignment.
-5. A **median filter** bank rejects outlier readings per sensor.
-6. **Calibration offsets** are applied per sensor configuration.
-7. Calibrated readings are published as retained JSON to the **MQTT broker**.
+4. Every frame is published non-retained to `jeelink2mqtt/raw/state` as a **raw diagnostic** — before any filtering or mapping.
+5. The **registry** routes the ephemeral sensor ID to a logical name via auto-adopt or manual assignment.
+6. For mapped sensors, `filter_and_calibrate` applies per-sensor **median filtering** (outlier rejection) then **calibration offsets**.
+7. The calibrated reading is published as retained JSON to `jeelink2mqtt/{sensor}/state` and `jeelink2mqtt/{sensor}/availability`.
+8. After each frame yields, the **mapping reactor** drains any queued `MappingEvent` objects, publishes `jeelink2mqtt/mapping/event` and `jeelink2mqtt/mapping/state` to MQTT, and persists the registry snapshot to `JsonFileStore`.
 
 ---
 

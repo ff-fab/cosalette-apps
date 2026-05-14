@@ -16,10 +16,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from jeelink2mqtt.app import SharedState
-from jeelink2mqtt.calibration import apply_calibration
 from jeelink2mqtt.models import SensorConfig, SensorReading
+from jeelink2mqtt.pipeline import filter_and_calibrate
 from jeelink2mqtt.registry import SensorRegistry
+from jeelink2mqtt.state import SharedState
 
 # ======================================================================
 # Helpers
@@ -33,7 +33,8 @@ def _pipeline(
     """Run the registry → filter → calibrate pipeline as the receiver does.
 
     Returns (sensor_name, calibrated_reading) or (None, None) when the
-    reading is unmapped.
+    reading is unmapped.  Delegates the filter/calibrate step to the
+    production seam in :func:`jeelink2mqtt.pipeline.filter_and_calibrate`.
     """
     name = state.registry.record_reading(reading)
     if name is None:
@@ -43,15 +44,7 @@ def _pipeline(
     if config is None:
         return name, None
 
-    filtered_temp, filtered_humidity = state.filter_bank.filter(reading)
-    from dataclasses import replace
-
-    filtered = replace(
-        reading,
-        temperature=filtered_temp,
-        humidity=int(filtered_humidity),
-    )
-    calibrated = apply_calibration(filtered, config)
+    calibrated = filter_and_calibrate(reading, config, state.filter_bank)
     return name, calibrated
 
 

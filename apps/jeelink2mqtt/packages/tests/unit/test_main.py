@@ -29,7 +29,6 @@ from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.state import SharedState
 from tests.fixtures.doubles import FakeDeviceContext
 
-
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 

@@ -1,10 +1,8 @@
 """Unit tests for jeelink2mqtt.receiver — module-level helper functions.
 
 Test Techniques Used:
-- Equivalence Partitioning: valid/invalid/missing data for _restore_registry
 - Specification-based Testing: JSON structure, retain flags, rounding rules
 - Boundary Value Analysis: heartbeat interval thresholds, staleness edge cases
-- State Transition Testing: filter bank + calibration pipeline composition
 - Decision Table Testing: _maybe_heartbeat branch combinations
 """
 
@@ -21,14 +19,13 @@ from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.models import MappingEvent, SensorConfig, SensorReading
 from jeelink2mqtt.receiver import (
-    _apply_pipeline,
     _check_staleness,
     _maybe_heartbeat,
-    _publish_raw,
-    _publish_sensor,
-    _restore_registry,
+    publish_availability,
     publish_mapping_event,
     publish_mapping_state,
+    publish_raw_diagnostic,
+    publish_sensor_state,
 )
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
@@ -100,145 +97,7 @@ def _fixed_reading(
 
 
 # ===========================================================================
-# _apply_pipeline
-# ===========================================================================
-
-
-@pytest.mark.unit
-class TestApplyPipeline:
-    """Verifies filter → calibrate composition in _apply_pipeline."""
-
-    def test_applies_filter_then_calibration(self) -> None:
-        """Pipeline feeds reading through filter bank, then calibrates.
-
-        Technique: Specification-based — verifies composition of two
-        operations (median filter + calibration offset).
-        """
-        # Arrange
-        config = SensorConfig(name="office", temp_offset=1.0, humidity_offset=2.0)
-        state = _make_shared_state(sensor_configs=[config], window=3)
-        reading = _fixed_reading(sensor_id=42, temperature=20.0, humidity=50)
-
-        # Act — first call through window=3 median: output equals input
-        result = _apply_pipeline(reading, config, state)
-
-        # Assert — filter passes through (window not full), offset applied
-        assert result.temperature == pytest.approx(21.0)  # 20.0 + 1.0
-        assert result.humidity == 52  # 50 + floor(2.0 + 0.5)
-
-    def test_preserves_metadata_fields(self) -> None:
-        """Pipeline preserves sensor_id, low_battery, timestamp.
-
-        Technique: Specification-based — dataclasses.replace contract.
-        """
-        # Arrange
-        ts = datetime(2025, 6, 15, 14, 30, 0, tzinfo=UTC)
-        config = SensorConfig(name="office", temp_offset=0.5)
-        state = _make_shared_state(sensor_configs=[config], window=3)
-        reading = _fixed_reading(sensor_id=99, low_battery=True, timestamp=ts)
-
-        # Act
-        result = _apply_pipeline(reading, config, state)
-
-        # Assert
-        assert result.sensor_id == 99
-        assert result.low_battery is True
-        assert result.timestamp == ts
-
-    def test_zero_offsets_only_filters(self) -> None:
-        """With zero calibration offsets, output equals filtered values.
-
-        Technique: Equivalence Partitioning — identity calibration class.
-        """
-        # Arrange
-        config = SensorConfig(name="office")
-        state = _make_shared_state(sensor_configs=[config], window=3)
-        reading = _fixed_reading(temperature=22.0, humidity=60)
-
-        # Act
-        result = _apply_pipeline(reading, config, state)
-
-        # Assert — first through a window=3 median, single value = itself
-        assert result.temperature == pytest.approx(22.0)
-        assert result.humidity == 60
-
-
-# ===========================================================================
-# _restore_registry
-# ===========================================================================
-
-
-@pytest.mark.unit
-class TestRestoreRegistry:
-    """Covers the three branches: None, not-dict, valid dict."""
-
-    def test_no_persisted_data_keeps_fresh_registry(self) -> None:
-        """When store has no 'registry' key, state.registry is unchanged.
-
-        Technique: Equivalence Partitioning — empty/absent data branch.
-        """
-        # Arrange
-        store = _make_device_store()  # No initial data
-        state = _make_shared_state()
-        settings = _make_settings()
-        original_registry = state.registry
-
-        # Act
-        _restore_registry(store, state, settings)
-
-        # Assert — registry object unchanged (same identity)
-        assert state.registry is original_registry
-
-    def test_invalid_data_not_dict_keeps_fresh_registry(self) -> None:
-        """When stored registry is not a dict, state.registry is unchanged.
-
-        Technique: Equivalence Partitioning — invalid data branch.
-        """
-        # Arrange — persist a non-dict value under "registry"
-        store = _make_device_store(initial_data={"registry": "not-a-dict"})
-        state = _make_shared_state()
-        settings = _make_settings()
-        original_registry = state.registry
-
-        # Act
-        _restore_registry(store, state, settings)
-
-        # Assert — registry object unchanged
-        assert state.registry is original_registry
-
-    def test_valid_dict_restores_registry(self) -> None:
-        """When stored registry is a valid dict, a new registry is built.
-
-        Technique: Specification-based — SensorRegistry.from_dict is used.
-        """
-        # Arrange
-        now = datetime.now(UTC)
-        registry_snapshot = {
-            "mappings": {
-                "office": {
-                    "sensor_id": 42,
-                    "sensor_name": "office",
-                    "mapped_at": now.isoformat(),
-                    "last_seen": now.isoformat(),
-                },
-            },
-            "unmapped": {},
-        }
-        store = _make_device_store(initial_data={"registry": registry_snapshot})
-        state = _make_shared_state()
-        settings = _make_settings()
-
-        # Act
-        _restore_registry(store, state, settings)
-
-        # Assert — registry was replaced, mappings restored
-        mappings = state.registry.get_all_mappings()
-        assert "office" in mappings
-        assert mappings["office"].sensor_id == 42
-
-
-# ===========================================================================
-# _publish_raw
+# publish_raw_diagnostic
 # ===========================================================================
 
 
@@ -262,7 +121,7 @@ class TestPublishRaw:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_raw(ctx, reading)
+        await publish_raw_diagnostic(ctx, reading)
 
         # Assert
         assert len(ctx.published) == 1
@@ -287,7 +146,7 @@ class TestPublishRaw:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_raw(ctx, reading)
+        await publish_raw_diagnostic(ctx, reading)
 
         # Assert
         data = json.loads(ctx.published[0][1])
@@ -295,13 +154,13 @@ class TestPublishRaw:
 
 
 # ===========================================================================
-# _publish_sensor
+# publish_sensor_state
 # ===========================================================================
 
 
 @pytest.mark.unit
-class TestPublishSensor:
-    """Verifies calibrated sensor publish format and retain=True."""
+class TestPublishSensorState:
+    """Verifies calibrated sensor state publish format and retain=True."""
 
     async def test_publishes_retained_json(self) -> None:
         """Publishes to '{name}/state' with retain=True.
@@ -314,7 +173,7 @@ class TestPublishSensor:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_sensor(ctx, "office", reading)
+        await publish_sensor_state(ctx, "office", reading)
 
         # Assert
         assert len(ctx.published) == 1
@@ -338,7 +197,7 @@ class TestPublishSensor:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_sensor(ctx, "test", reading)
+        await publish_sensor_state(ctx, "test", reading)
 
         # Assert
         data = json.loads(ctx.published[0][1])
@@ -354,10 +213,60 @@ class TestPublishSensor:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_sensor(ctx, "outdoor", reading)
+        await publish_sensor_state(ctx, "outdoor", reading)
 
         # Assert
         assert ctx.published[0][0] == "outdoor/state"
+
+
+# ===========================================================================
+# publish_availability
+# ===========================================================================
+
+
+@pytest.mark.unit
+class TestPublishAvailability:
+    """Verifies availability publish format and retain=True."""
+
+    async def test_publishes_online_retained(self) -> None:
+        """'online' status is published to '{name}/availability' with retain=True.
+
+        Technique: Specification-based — topic pattern and retain flag.
+        """
+        ctx = FakeDeviceContext()
+
+        await publish_availability(ctx, "office", "online")
+
+        assert len(ctx.published) == 1
+        topic, payload, retain = ctx.published[0]
+        assert topic == "office/availability"
+        assert payload == "online"
+        assert retain is True
+
+    async def test_publishes_offline_retained(self) -> None:
+        """'offline' status is published with retain=True.
+
+        Technique: Equivalence Partitioning — offline branch.
+        """
+        ctx = FakeDeviceContext()
+
+        await publish_availability(ctx, "outdoor", "offline")
+
+        topic, payload, retain = ctx.published[0]
+        assert topic == "outdoor/availability"
+        assert payload == "offline"
+        assert retain is True
+
+    async def test_sensor_name_in_topic(self) -> None:
+        """Topic uses the provided sensor name.
+
+        Technique: Specification-based — topic templating.
+        """
+        ctx = FakeDeviceContext()
+
+        await publish_availability(ctx, "garage", "online")
+
+        assert ctx.published[0][0] == "garage/availability"
 
 
 # ===========================================================================
@@ -799,7 +708,7 @@ class TestMaybeHeartbeat:
             ) -> None:
                 await super().publish(topic, payload, retain=retain)
                 if topic.endswith("/state"):
-                    # Receiver updates the timestamp during _publish_sensor await
+                    # Receiver updates the timestamp during publish_sensor_state await
                     state.last_publish_time["office"] = receiver_time
 
         ctx = CtxWithReceiverSideEffect()
@@ -890,27 +799,23 @@ class TestSharedStateRestoreFrom:
         mappings = state.registry.get_all_mappings()
         assert len(mappings) == 0
 
+    def test_invalid_data_not_dict_keeps_fresh_registry(self) -> None:
+        """When stored registry is not a dict, state.registry is unchanged.
 
-@pytest.mark.unit
-class TestSharedStateApplyPipeline:
-    """Test SharedState.apply_pipeline method."""
-
-    def test_delegates_to_filter_and_calibration(self) -> None:
-        """apply_pipeline performs filter → calibrate composition.
-
-        Technique: Specification-based — verifies delegation.
+        Technique: Equivalence Partitioning — invalid data branch in restore_from.
         """
         # Arrange
-        config = SensorConfig(name="office", temp_offset=1.0, humidity_offset=2.0)
-        state = _make_shared_state(sensor_configs=[config], window=3)
-        reading = _fixed_reading(sensor_id=42, temperature=20.0, humidity=50)
+        config = SensorConfig(name="office")
+        state = _make_shared_state(sensor_configs=[config])
+        store = _make_device_store(initial_data={"registry": "not-a-dict"})
+        settings = _make_settings(sensor_names=["office"])
+        original_registry = state.registry
 
         # Act
-        result = state.apply_pipeline(reading, config)
+        state.restore_from(store, settings)
 
-        # Assert
-        assert result.temperature == pytest.approx(21.0)  # 20.0 + 1.0
-        assert result.humidity == 52  # 50 + 2.0
+        # Assert — registry object unchanged (same identity)
+        assert state.registry is original_registry
 
 
 @pytest.mark.unit

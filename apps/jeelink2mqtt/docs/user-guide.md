@@ -5,6 +5,34 @@ and diagnostics.
 
 ---
 
+## Processing Pipeline
+
+For each decoded LaCrosse frame the receiver executes these steps in order:
+
+| Step | Action | MQTT topic |
+|------|--------|------------|
+| 1 | Publish raw frame | `jeelink2mqtt/raw/state` (not retained) |
+| 2 | Registry: route ephemeral ID → sensor name (auto-adopt / manual) | — |
+| 3 | Median filter: reject outlier readings (default window 7) | — |
+| 4 | Calibration: apply per-sensor temperature/humidity offsets | — |
+| 5 | Publish calibrated state | `jeelink2mqtt/{sensor}/state` (retained) |
+| 6 | Record published reading (heartbeat timer) | — |
+| 7 | Publish availability | `jeelink2mqtt/{sensor}/availability` (retained) |
+
+Steps 3–7 only run for **mapped** sensors. Unknown sensor IDs are tracked silently and
+visible via `list_unknown`.
+
+After step 7 the framework runs the **mapping reactor** if any registry events were
+queued in step 2:
+
+| Reactor step | MQTT topic |
+|--------------|-----------|
+| Publish mapping change | `jeelink2mqtt/mapping/event` |
+| Publish full mapping snapshot | `jeelink2mqtt/mapping/state` |
+| Persist registry to `data/jeelink2mqtt.json` | — |
+
+---
+
 ## How Sensor Mapping Works
 
 LaCrosse TX29DTH-IT sensors transmit a random ID that changes on every
@@ -27,14 +55,17 @@ sequenceDiagram
     participant M as MQTT Broker
 
     S->>R: Frame (new ID 42)
+    R->>M: raw/state {id=42, ...} (diagnostic)
     R->>Reg: record_reading(id=42)
     Reg->>Reg: ID unknown — check stale sensors
     Reg->>Reg: Exactly 1 stale ("office")
-    Reg->>Reg: Auto-adopt: 42 → "office"
+    Reg->>Reg: Auto-adopt: 42 → "office", enqueue MappingEvent
     Reg-->>R: return "office"
-    R->>M: mapping/event {auto_adopt, office, new_id=42}
-    R->>M: office/state {temperature, humidity, ...}
+    R->>M: office/state {temperature, humidity, ...} (retained)
     R->>M: office/availability "online"
+    Note over R,M: After yield — mapping reactor
+    R->>M: mapping/event {auto_adopt, office, new_id=42}
+    R->>M: mapping/state {current mapping snapshot}
 ```
 
 !!! note "Why exactly one?"
@@ -56,7 +87,8 @@ sequenceDiagram
 ## Manual Mapping via MQTT Commands
 
 Send JSON commands to `jeelink2mqtt/mapping/set` to control mappings
-manually.  All mutation commands persist immediately and drain events.
+manually.  Successful mutation commands persist immediately and queue `MappingEvent`
+objects for the mapping reactor; command handlers do not drain events.
 
 ### `assign` — Bind an ID to a Sensor Name
 

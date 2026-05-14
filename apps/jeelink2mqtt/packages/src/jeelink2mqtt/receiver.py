@@ -1,6 +1,6 @@
 """JeeLink receiver device — pipeline helpers.
 
-Provides the helper functions used by the ``@app.device`` receiver
+Provides the helper functions used by the ``@app.stream`` receiver
 registered in :mod:`jeelink2mqtt.main`.  The receiver manages the
 JeeLink adapter lifecycle and routes incoming frames through the
 **filter → calibrate → publish** pipeline.
@@ -13,13 +13,11 @@ from __future__ import annotations
 
 import json
 import logging
-import warnings
 from datetime import UTC, datetime
 
 import cosalette
-from cosalette import DeviceStore
 
-from jeelink2mqtt.models import MappingEvent, SensorConfig, SensorReading
+from jeelink2mqtt.models import MappingEvent, SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 from jeelink2mqtt.state import SharedState
 
@@ -27,57 +25,11 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Pipeline helpers
-# ---------------------------------------------------------------------------
-
-
-def _apply_pipeline(
-    reading: SensorReading,
-    config: SensorConfig,
-    state: SharedState,
-) -> SensorReading:
-    """Filter → calibrate a raw reading, returning a new SensorReading.
-
-    DEPRECATED: This function is kept for backward compatibility.
-    New code should call state.apply_pipeline(reading, config) directly.
-    """
-    warnings.warn(
-        "_apply_pipeline() is deprecated; call state.apply_pipeline(reading, config) directly.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return state.apply_pipeline(reading, config)
-
-
-# ---------------------------------------------------------------------------
-# Persistence
-# ---------------------------------------------------------------------------
-
-
-def _restore_registry(
-    store: DeviceStore,
-    state: SharedState,
-    settings: Jeelink2MqttSettings,
-) -> None:
-    """Restore persisted registry state from the device store.
-
-    DEPRECATED: This function is kept for backward compatibility.
-    New code should call state.restore_from(store, settings) directly.
-    """
-    warnings.warn(
-        "_restore_registry() is deprecated; call state.restore_from(store, settings) directly.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    state.restore_from(store, settings)
-
-
-# ---------------------------------------------------------------------------
 # Publishing helpers
 # ---------------------------------------------------------------------------
 
 
-async def _publish_raw(
+async def publish_raw_diagnostic(
     ctx: cosalette.DeviceContext,
     reading: SensorReading,
 ) -> None:
@@ -94,12 +46,16 @@ async def _publish_raw(
     await ctx.publish("raw/state", payload, retain=False)
 
 
-async def _publish_sensor(
+async def publish_sensor_state(
     ctx: cosalette.DeviceContext,
     name: str,
     reading: SensorReading,
 ) -> None:
-    """Publish calibrated sensor state (retained)."""
+    """Publish calibrated sensor state for a named sensor (retained).
+
+    Publishes temperature, humidity, battery status, and timestamp as a
+    JSON payload to ``{name}/state``.
+    """
     payload = json.dumps(
         {
             "temperature": round(reading.temperature, 2),
@@ -109,6 +65,20 @@ async def _publish_sensor(
         }
     )
     await ctx.publish(f"{name}/state", payload, retain=True)
+
+
+async def publish_availability(
+    ctx: cosalette.DeviceContext,
+    name: str,
+    status: str,
+) -> None:
+    """Publish sensor availability status (retained).
+
+    Args:
+        name: Sensor name used in topic ``{name}/availability``.
+        status: ``"online"`` or ``"offline"``.
+    """
+    await ctx.publish(f"{name}/availability", status, retain=True)
 
 
 async def publish_mapping_event(
@@ -167,13 +137,13 @@ async def _check_staleness(
             continue
         if state.last_availability.get(name) == "offline":
             continue  # already offline — no duplicate publish
-        await ctx.publish(f"{name}/availability", "offline", retain=True)
+        await publish_availability(ctx, name, "offline")
         # Re-validate: if the receiver processed a fresh reading while the
         # publish was in flight, correct the availability.
         if state.registry.is_stale(name):
             state.last_availability[name] = "offline"
         else:
-            await ctx.publish(f"{name}/availability", "online", retain=True)
+            await publish_availability(ctx, name, "online")
 
 
 async def _maybe_heartbeat(
@@ -202,9 +172,9 @@ async def _maybe_heartbeat(
         # Re-publish last known calibrated reading if available
         last = state.last_readings.get(name)
         if last is not None:
-            await _publish_sensor(ctx, name, last)
+            await publish_sensor_state(ctx, name, last)
 
-        await ctx.publish(f"{name}/availability", "online", retain=True)
+        await publish_availability(ctx, name, "online")
         # Guard: only advance timestamp if receiver hasn't already updated it
         # during the above awaits (TOCTOU guard for concurrent device tasks).
         if state.last_publish_time.get(name) is last_time:

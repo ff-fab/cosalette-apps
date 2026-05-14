@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -101,4 +101,7 @@ auditability.
   opt in)
 - Operators must understand the auto-adopt algorithm to troubleshoot mapping issues
 
-_2026-03-04_
+## Amendment (2026-05-14) — Minor
+
+!!! note "Editorial note (2026-05-14)"
+    Mapping changes now enqueue a `MappingEvent`; the `on_registry_events` reactor publishes `mapping/event` and `mapping/state` and persists the registry after the current frame yields.

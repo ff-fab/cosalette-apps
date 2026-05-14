@@ -9,11 +9,10 @@ leaf module avoids circular imports with the composition root.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol, cast
 
-from jeelink2mqtt.calibration import apply_calibration
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.models import SensorConfig, SensorReading
 from jeelink2mqtt.registry import SensorRegistry
@@ -92,14 +91,6 @@ class SharedState:
             "Restored registry with %d mapping(s)",
             len(self.registry.get_all_mappings()),
         )
-
-    def apply_pipeline(
-        self, reading: SensorReading, config: SensorConfig
-    ) -> SensorReading:
-        """Filter → calibrate a raw reading, returning a new SensorReading."""
-        temp, humidity = self.filter_bank.filter(reading)
-        filtered = replace(reading, temperature=temp, humidity=int(humidity))
-        return apply_calibration(filtered, config)
 
     def record_published_reading(
         self, name: str, reading: SensorReading, published_at: datetime

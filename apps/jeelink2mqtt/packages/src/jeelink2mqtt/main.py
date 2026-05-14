@@ -26,6 +26,7 @@ from cosalette.stores import JsonFileStore
 
 from jeelink2mqtt import __version__
 from jeelink2mqtt import commands as _commands
+from jeelink2mqtt import pipeline as _pipeline
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.models import MappingEvent, SensorReading
@@ -119,7 +120,7 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
     try:
         async for reading in stream:
             # 1. Raw diagnostic (every frame, non-retained)
-            await _receiver._publish_raw(ctx, reading)
+            await _receiver.publish_raw_diagnostic(ctx, reading)
 
             # 2. Route through registry
             name = state.registry.record_reading(reading)
@@ -132,10 +133,14 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             if name is not None:
                 config = state.sensor_configs.get(name)
                 if config is not None:
-                    calibrated = state.apply_pipeline(reading, config)
-                    await _receiver._publish_sensor(ctx, name, calibrated)
+                    calibrated = _pipeline.filter_and_calibrate(
+                        reading, config, state.filter_bank
+                    )
+                    # Publish temperature + humidity (environment sensor values)
+                    # and device metadata for this sensor.
+                    await _receiver.publish_sensor_state(ctx, name, calibrated)
                     state.record_published_reading(name, calibrated, now)
-                    await ctx.publish(f"{name}/availability", "online", retain=True)
+                    await _receiver.publish_availability(ctx, name, "online")
 
             # 4. Periodic persistence for last_seen metadata (ADR-004)
             new_persist_time = state.persist_registry_if_due(
@@ -148,7 +153,7 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
 
     finally:
         for sensor_cfg in settings.sensors:
-            await ctx.publish(f"{sensor_cfg.name}/availability", "offline", retain=True)
+            await _receiver.publish_availability(ctx, sensor_cfg.name, "offline")
         logger.info("Receiver stopped")
 
 

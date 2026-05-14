@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-04
+Accepted **Date:** 2026-03-04 | Amended **Date:** 2026-05-14
 
 ## Context
 
@@ -93,4 +93,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Team must learn cosalette's conventions and device archetypes
 - Framework updates may introduce breaking changes that require adaptation
 
-_2026-03-04_
+## Amendment (2026-05-14) — Minor
+
+!!! note "Editorial note (2026-05-14)"
+    cosalette now uses `@app.stream` for the JeeLink stream-backed receiver, while `@app.device`, `@app.telemetry`, and `@app.command` cover long-running tasks, polling, and MQTT commands respectively.
