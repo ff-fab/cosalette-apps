@@ -354,6 +354,27 @@ async def _restore_setpoint(
             }
         )
         yield  # reaction boundary: restoring published
+        # Re-check after yield: shutdown may be requested while the framework
+        # is between reaction steps.  Use the bounded write to avoid hanging
+        # teardown at the elevated temperature.
+        if ctx.shutdown_requested:
+            try:
+                await asyncio.wait_for(
+                    port.write_signal(LEGIONELLA_SETPOINT_SIGNAL, original_setpoint),
+                    timeout=5,
+                )
+            except Exception:  # noqa: BLE001
+                logger.warning(
+                    "Failed to restore setpoint during shutdown; "
+                    "recovery will handle it on next startup",
+                    exc_info=True,
+                )
+            else:
+                store.update(
+                    {_STORE_KEY_ACTIVE: False, _STORE_KEY_ORIGINAL_SETPOINT: None}
+                )
+                store.save()
+            return
         await port.write_signal(LEGIONELLA_SETPOINT_SIGNAL, original_setpoint)
         store.update({_STORE_KEY_ACTIVE: False, _STORE_KEY_ORIGINAL_SETPOINT: None})
         store.save()

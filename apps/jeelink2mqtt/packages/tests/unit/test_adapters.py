@@ -15,7 +15,6 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.models import SensorReading
 
@@ -424,7 +423,8 @@ class TestPyLaCrosseAdapterFrameworkCallback:
         sensor.low_battery = False
 
         # Trigger the wrapper as if running on the pylacrosse serial-reader thread.
-        wrapper(sensor)
+        # Two-argument call matches the real pylacrosse register_all() call signature.
+        wrapper(sensor, None)
 
         # framework_cb must NOT have been called directly from the wrapper.
         assert direct_calls == [], (

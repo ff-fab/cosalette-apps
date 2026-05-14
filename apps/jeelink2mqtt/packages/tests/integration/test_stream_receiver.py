@@ -18,13 +18,12 @@ from datetime import UTC, datetime
 
 import cosalette
 import pytest
-
 from jeelink2mqtt.main import receiver
 from jeelink2mqtt.models import SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import build_shared_state
-from tests.fixtures.doubles import FakeDeviceContext
 
+from tests.fixtures.doubles import FakeDeviceContext
 
 # ======================================================================
 # Helpers
@@ -208,3 +207,77 @@ class TestStreamReceiverHandler:
         # Both sensors should receive offline on shutdown
         assert "office/availability" in offline_topics
         assert "outdoor/availability" in offline_topics
+
+    async def test_mapping_event_published_on_new_sensor(self) -> None:
+        """A reading for a new sensor_id triggers a mapping/event publish.
+
+        Technique: Specification-based — exercises the flush_events path
+        in receiver, verifying the mapping/event + mapping/state MQTT contract.
+
+        ADR-002: auto-adopt fires when exactly one configured sensor is stale.
+        """
+        # One sensor so auto-adopt fires unambiguously (ADR-002)
+        settings = _make_settings(
+            sensors=[SensorConfigSettings(name="office", temp_offset=-0.3)]
+        )
+        state = build_shared_state(settings)
+        ctx = FakeDeviceContext()
+
+        # Sensor ID 99 is not pre-assigned; its first reading triggers auto-adopt
+        reading = _make_reading(sensor_id=99)
+        await _run_receiver([reading], ctx, {}, settings, state)
+
+        topics = [t for t, _, _ in ctx.published]
+        assert "mapping/event" in topics, (
+            "flush_events path not exercised — no mapping/event published"
+        )
+        assert "mapping/state" in topics
+
+    async def test_registry_persisted_after_mapping_event(self) -> None:
+        """A new sensor_id reading persists the registry to the DeviceStore.
+
+        Technique: State Transition Testing — ADR-004 persistence contract.
+        Uses an explicit MemoryStore backend to assert the registry key is
+        written when a mapping event fires.
+        """
+        from cosalette import DeviceStore
+        from cosalette.stores import MemoryStore
+
+        # One sensor so auto-adopt fires unambiguously (ADR-002)
+        settings = _make_settings(
+            sensors=[SensorConfigSettings(name="office", temp_offset=-0.3)]
+        )
+        state = build_shared_state(settings)
+        ctx = FakeDeviceContext()
+        backend = MemoryStore()
+        device_store = DeviceStore(backend, "receiver")
+        device_store.load()
+
+        stream: cosalette.Stream[SensorReading] = cosalette.Stream()
+
+        async def _inject_and_shutdown() -> None:
+            stream.put(_make_reading(sensor_id=99))
+            await asyncio.sleep(0)
+            stream.shutdown()
+
+        gen = receiver(
+            stream=stream,
+            ctx=ctx,  # type: ignore[arg-type]
+            store=device_store,
+            settings=settings,
+            state=state,  # type: ignore[arg-type]
+        )
+
+        async def _drain() -> None:
+            async for _ in gen:
+                pass
+
+        await asyncio.gather(_drain(), _inject_and_shutdown())
+
+        # ADR-004: flush_events writes registry to the DeviceStore in-memory state.
+        # (The framework calls store.save() on shutdown; simulate that here.)
+        device_store.save()
+        assert "receiver" in backend._data, "DeviceStore was never saved"
+        assert "registry" in backend._data["receiver"], (
+            "registry key absent — flush_events did not write to store"
+        )

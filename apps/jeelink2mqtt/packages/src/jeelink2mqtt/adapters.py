@@ -80,9 +80,21 @@ class PyLaCrosseAdapter:
             logger.warning("Sensor attribute type coercion failed: %s", e)
             return None
 
+        if sensor_id < 0:
+            logger.warning(
+                "Invalid sensor_id %d (must be non-negative) — dropping", sensor_id
+            )
+            return None
         if not math.isfinite(temperature):
             logger.warning(
                 "Non-finite temperature %r for sensor %d — dropping",
+                temperature,
+                sensor_id,
+            )
+            return None
+        if not (-50.0 <= temperature <= 100.0):
+            logger.warning(
+                "Implausible temperature %.1f for sensor %d — dropping",
                 temperature,
                 sensor_id,
             )
