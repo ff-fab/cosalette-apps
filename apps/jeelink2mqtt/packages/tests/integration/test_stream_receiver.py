@@ -18,11 +18,11 @@ from datetime import UTC, datetime
 
 import cosalette
 import pytest
+
 from jeelink2mqtt.main import receiver
 from jeelink2mqtt.models import SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
-
 from tests.fixtures.doubles import FakeDeviceContext
 
 # ======================================================================
@@ -71,6 +71,7 @@ async def _run_receiver(
     """
     from cosalette import DeviceStore
     from cosalette.stores import MemoryStore
+
     from jeelink2mqtt.main import on_registry_events
 
     backend = MemoryStore(
@@ -135,7 +136,8 @@ class TestStreamReceiverHandler:
         assert len(raw_publishes) == 1
 
     async def test_mapped_sensor_publishes_state_and_availability(self) -> None:
-        """A reading for a mapped sensor publishes state + availability=online.
+        """A reading for a mapped sensor publishes state + availability=online,
+        and the published state contains the calibrated temperature value.
 
         Technique: Integration Testing — registry → pipeline → publish.
         """
@@ -155,6 +157,14 @@ class TestStreamReceiverHandler:
 
         avail = next(p for t, p, _ in ctx.published if t == "office/availability")
         assert avail == "online"
+
+        # Verify published state contains calibrated temperature (office offset=-0.3)
+        import json as _json
+
+        state_payload = next(p for t, p, _ in ctx.published if t == "office/state")
+        state_data = _json.loads(state_payload)
+        assert state_data["temperature"] == pytest.approx(21.5 - 0.3, abs=0.01)
+        assert state_data["humidity"] == 55
 
     async def test_unmapped_sensor_publishes_only_raw(self) -> None:
         """An unmapped sensor reading publishes only raw, not sensor state.
@@ -256,6 +266,7 @@ class TestStreamReceiverHandler:
         """
         from cosalette import DeviceStore
         from cosalette.stores import MemoryStore
+
         from jeelink2mqtt.main import on_registry_events
 
         # One sensor so auto-adopt fires unambiguously (ADR-002)

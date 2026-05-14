@@ -76,8 +76,9 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 - All MQTT plumbing (connect, reconnect, LWT, graceful shutdown) is handled by the
   framework — zero boilerplate
-- Device archetypes (`@app.device` for push-based, `@app.telemetry` for polling)
-  provide clear patterns for JeeLink integration
+- Device archetypes (`@app.stream` for stream-backed push receivers, `@app.device`
+  for long-running tasks, `@app.telemetry` for polling, `@app.command` for MQTT
+  commands) provide clear patterns for JeeLink integration
 - Hexagonal architecture enforces separation between domain logic and infrastructure,
   making the codebase testable from day one
 - Built-in `--dry-run` flag enables development without hardware

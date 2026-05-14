@@ -71,10 +71,10 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 ### Device Archetype
 
-The JeeLink's push-based nature maps to cosalette's `@app.device()` archetype — a
-long-running coroutine that owns its event loop and yields readings as they arrive. This
-is distinct from `@app.telemetry()`, which is framework-controlled polling on a fixed
-interval.
+The JeeLink's push-based nature maps to cosalette's `@app.stream` archetype — a
+long-running coroutine that receives readings from a `StreamablePort[SensorReading]`
+adapter and yields after processing each frame. This is distinct from
+`@app.telemetry()`, which is framework-controlled polling on a fixed interval.
 
 ### Port Protocol
 
