@@ -133,16 +133,18 @@ cover position doesn't change. velux2mqtt accounts for this:
 
 ### Devices
 
-Each configured cover is registered as a cosalette device using `app.add_device()`. The
-device function owns the full lifecycle:
+Each configured cover is registered as a cosalette device using dict-name
+`@app.device` expansion. The device function owns the full lifecycle:
 
-| Device            | Type           | Description                                           |
-| ----------------- | -------------- | ----------------------------------------------------- |
-| `cover` (per cfg) | `@app.device`  | Command loop: parses commands, executes GPIO moves, tracks position |
+| Device                  | Type           | Description                                           |
+| ----------------------- | -------------- | ----------------------------------------------------- |
+| `cover_device` (per cfg) | `app.device()` | Command loop: parses commands, executes GPIO moves, tracks position |
 
-The device function is created by `make_cover()`, which captures the per-cover
-configuration via closure. Each cover instance has its own `PositionTracker`,
-`DriftCompensator`, and `CalibrationStateMachine`.
+The `name=` callable maps each configured cover name to its `CoverConfig`, and
+cosalette injects that per-cover config into `cover_device()` by dependency injection.
+`cover_device` is registered directly via `app.device(name=_cover_map, ...)(cover_device)`
+in ``main.py`` — no wrapper layer. Each expanded cover instance has its own
+`PositionTracker`, `DriftCompensator`, and `CalibrationStateMachine`.
 
 ---
 
@@ -208,20 +210,19 @@ framework for IoT-to-MQTT bridges. cosalette provides:
 - **Graceful shutdown** --- SIGTERM/SIGINT -> shutdown event -> clean teardown
 
 The module-level `app` object in `main.py` is the composition root --- it registers the
-GPIO adapter, iterates over cover configurations, and registers each cover as a device
-via `app.add_device()`.
+GPIO adapter and declares configured cover devices with `@app.device(name=_cover_map)`.
 
 ---
 
 ## Key Design Decisions
 
 - **One device per cover**: each cover has independent state (position, drift counter,
-  calibration). This is achieved via `app.add_device()` in a loop rather than a single
-  device managing all covers.
+  calibration). This is achieved through cosalette's dict-name device expansion rather
+  than a single device managing all covers.
 - **`@app.device` over `@app.telemetry`**: covers need command handling, multi-step GPIO
   sequences, and long-running state. The full-lifecycle device pattern is the right fit.
-- **Closure-based device creation**: `make_cover()` returns an async callable that
-  captures cover configuration, avoiding the need for a device class or global state.
+- **Settings-driven device expansion**: `_cover_map()` returns the configured cover
+  mapping, and `cover_device()` receives each `CoverConfig` by dependency injection.
 - **GPIO as analog switch driver**: the Raspberry Pi GPIO pins don't directly control the
   Velux motor. They drive an M74HC4066 analog switch IC that bridges the button contacts
   on a KLF 050 radio remote. This means velux2mqtt simulates physical button presses.

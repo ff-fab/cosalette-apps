@@ -13,7 +13,8 @@ import pytest
 from cosalette import App, MockMqttClient
 
 from velux2mqtt.adapters.fake import FakeGpio
-from velux2mqtt.devices.cover import make_cover
+from velux2mqtt.devices.cover import cover_device
+from velux2mqtt.main import _cover_map
 from velux2mqtt.ports import GpioSwitchPort
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
 
@@ -67,8 +68,7 @@ def build_integration_app(
         settings_class=Velux2MqttSettings,
         adapters={GpioSwitchPort: lambda: fake_gpio},
     )
-    for cover_cfg in settings.covers:
-        app.add_device(cover_cfg.name, make_cover(cover_cfg, settings))
+    app.device(name=_cover_map)(cover_device)
     return app
 
 

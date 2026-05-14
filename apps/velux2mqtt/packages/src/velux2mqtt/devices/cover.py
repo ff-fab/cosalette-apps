@@ -2,7 +2,7 @@
 
 A "cover" is Home Assistant's term for blinds, shutters, windows, and
 similar openable devices.  Each cover (e.g. blind, window) is registered
-as a cosalette device via :func:`make_cover`.
+as a cosalette device via :func:`cover_device`.
 The device function owns the MQTT command loop: it parses inbound
 payloads, plans moves through the DriftCompensator, executes GPIO
 button presses, and publishes position state.
@@ -53,140 +53,149 @@ from velux2mqtt.ports import GpioSwitchPort
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
 
 
-def make_cover(
+async def cover_device(
+    ctx: cosalette.DeviceContext,
     cover_cfg: CoverConfig,
     settings: Velux2MqttSettings,
-) -> Callable[..., AsyncIterator[None]]:
-    """Create a cover device function for registration with cosalette.
-
-    Returns an async callable with the signature expected by
-    ``app.add_device(name, func)``.  The returned function captures
-    *cover_cfg* and *settings* via closure.
+) -> AsyncIterator[None]:
+    """Run one configured cover device.
 
     Args:
+        ctx: Device context for the configured cover.
         cover_cfg: Per-cover configuration (pins, travel durations).
         settings: Application-wide settings (button press duration, homing, drift).
-
-    Returns:
-        Async device function suitable for ``app.add_device``.
     """
+    gpio: GpioSwitchPort = ctx.adapter(GpioSwitchPort)  # type: ignore[type-abstract]
+    logger = logging.getLogger(f"cosalette.{ctx.name}")
 
-    async def cover_device(ctx: cosalette.DeviceContext) -> AsyncIterator[None]:
-        gpio: GpioSwitchPort = ctx.adapter(GpioSwitchPort)  # type: ignore[type-abstract]
-        logger = logging.getLogger(f"cosalette.{ctx.name}")
+    tracker = PositionTracker(
+        travel_duration_up=cover_cfg.travel_duration_up,
+        travel_duration_down=cover_cfg.travel_duration_down,
+        travel_time_offset=cover_cfg.travel_time_offset,
+    )
+    drift = DriftCompensator(threshold=settings.drift_recalibration_threshold)
+    calibration = CalibrationStateMachine()
 
-        tracker = PositionTracker(
-            travel_duration_up=cover_cfg.travel_duration_up,
-            travel_duration_down=cover_cfg.travel_duration_down,
-            travel_time_offset=cover_cfg.travel_time_offset,
+    # Internal queue: calibrate sub-topic commands -> calibration background task
+    cal_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
+
+    @ctx.on_command("calibrate")
+    async def _route_calibrate(_sub_topic: str | None, payload: str) -> None:
+        params = _parse_calibrate(payload)
+        if params is not None:
+            await cal_queue.put(params)
+        else:
+            logger.warning("Invalid calibration payload: %s", payload)
+
+    # Background task manages calibration sub_entity lifecycle
+    cal_task = asyncio.create_task(
+        _run_calibration_task(
+            ctx=ctx,
+            gpio=gpio,
+            cover_cfg=cover_cfg,
+            settings=settings,
+            calibration=calibration,
+            cal_queue=cal_queue,
+            logger=logger,
         )
-        drift = DriftCompensator(threshold=settings.drift_recalibration_threshold)
-        calibration = CalibrationStateMachine()
+    )
 
-        # Internal queue: calibrate sub-topic commands → calibration background task
-        _cal_queue: asyncio.Queue[dict[str, object]] = asyncio.Queue()
-
-        @ctx.on_command("calibrate")
-        async def _route_calibrate(_sub_topic: str | None, payload: str) -> None:
-            params = _parse_calibrate(
-                payload
-            )  # Now looks for {"phase": "start/go/mark/cancel"}
-            if params is not None:
-                await _cal_queue.put(params)
-            else:
-                logger.warning("Invalid calibration payload: %s", payload)
-
-        # Background task manages calibration sub_entity lifecycle
-        cal_task = asyncio.create_task(
-            _run_calibration_task(
+    try:
+        # --- Startup homing ---
+        if settings.enable_startup_homing:
+            await _run_homing(
                 ctx=ctx,
                 gpio=gpio,
                 cover_cfg=cover_cfg,
                 settings=settings,
-                calibration=calibration,
-                cal_queue=_cal_queue,
+                tracker=tracker,
                 logger=logger,
             )
-        )
 
-        try:
-            # --- Startup homing ---
-            if settings.enable_startup_homing:
-                await _run_homing(
+        # Publish initial state
+        await _publish_position(ctx, tracker)
+
+        # --- Command loop ---
+        async for cmd in ctx.commands():
+            if cmd is None:  # Type guard for safety
+                continue
+            payload = cmd.payload
+
+            # Block normal commands during active calibration (no intercept anymore)
+            if calibration.state in (
+                CalibrationState.READY,
+                CalibrationState.TIMING_OFFSET,
+                CalibrationState.TIMING_DEAD_BAND,
+                CalibrationState.TIMING,
+            ):
+                logger.warning(
+                    "Calibration active (%s), ignoring command: %s",
+                    calibration.state.name,
+                    payload,
+                )
+                continue
+
+            try:
+                command = parse_command(payload)
+            except InvalidCommandError as exc:
+                logger.warning("Invalid command: %s", exc)
+                continue
+
+            if command.direction is Direction.STOP:
+                await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+                tracker.stop()
+                drift.reset()
+                await _publish_position(ctx, tracker)
+                yield
+                continue
+
+            target = command.position
+            if target is None:
+                logger.warning("Command has no target position, ignoring")
+                continue
+
+            steps = drift.plan_move(tracker.position, target)
+            for step in steps:
+                if ctx.shutdown_requested:
+                    break
+                await _execute_step(
                     ctx=ctx,
                     gpio=gpio,
                     cover_cfg=cover_cfg,
                     settings=settings,
                     tracker=tracker,
+                    step=step,
                     logger=logger,
                 )
+                await _publish_position(ctx, tracker)
+            yield
 
-            # Publish initial state
-            await _publish_position(ctx, tracker)
+    finally:
+        cal_task.cancel()
+        try:
+            await cal_task
+        except asyncio.CancelledError:
+            pass
 
-            # --- Command loop ---
-            async for cmd in ctx.commands():
-                if cmd is None:  # Type guard for safety
-                    continue
-                payload = cmd.payload
 
-                # Block normal commands during active calibration (no intercept anymore)
-                if calibration.state in (
-                    CalibrationState.READY,
-                    CalibrationState.TIMING_OFFSET,
-                    CalibrationState.TIMING_DEAD_BAND,
-                    CalibrationState.TIMING,
-                ):
-                    logger.warning(
-                        "Calibration active (%s), ignoring command: %s",
-                        calibration.state.name,
-                        payload,
-                    )
-                    continue
+def make_cover(
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+) -> Callable[..., AsyncIterator[None]]:
+    """Pre-bind :func:`cover_device` to a specific cover config and settings object.
 
-                try:
-                    command = parse_command(payload)
-                except InvalidCommandError as exc:
-                    logger.warning("Invalid command: %s", exc)
-                    continue
+    Normal app registration calls
+    ``app.device(name=_cover_map, ...)(cover_device)`` in ``main.py``,
+    which registers :func:`cover_device` directly via dict-name expansion.
+    This factory is for focused tests and external callers that need a
+    single-argument cosalette-compatible callable without dict-name expansion.
+    """
 
-                if command.direction is Direction.STOP:
-                    await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
-                    tracker.stop()
-                    drift.reset()
-                    await _publish_position(ctx, tracker)
-                    yield
-                    continue
+    async def configured_cover(ctx: cosalette.DeviceContext) -> AsyncIterator[None]:
+        async for event in cover_device(ctx, cover_cfg, settings):
+            yield event
 
-                target = command.position
-                if target is None:
-                    logger.warning("Command has no target position, ignoring")
-                    continue
-
-                steps = drift.plan_move(tracker.position, target)
-                for step in steps:
-                    if ctx.shutdown_requested:
-                        break
-                    await _execute_step(
-                        ctx=ctx,
-                        gpio=gpio,
-                        cover_cfg=cover_cfg,
-                        settings=settings,
-                        tracker=tracker,
-                        step=step,
-                        logger=logger,
-                    )
-                    await _publish_position(ctx, tracker)
-                yield
-
-        finally:
-            cal_task.cancel()
-            try:
-                await cal_task
-            except asyncio.CancelledError:
-                pass
-
-    return cover_device
+    return configured_cover
 
 
 async def _run_homing(

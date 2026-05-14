@@ -230,3 +230,20 @@ See `cosalette ai help manifest`, `cosalette ai help contracts`.
 
 Refresh this file: `cosalette ai init`
 Inspect registrations: `cosalette manifest myapp.main:app [--table]`
+
+## Settings Callbacks — Narrowing Generic `cosalette.Settings`
+
+Callbacks passed to `name=`, `interval=`, or similar framework parameters receive the
+base `cosalette.Settings` type in their annotation. When the callback reads
+app-specific fields, guard and fail loudly at the top:
+
+```python
+def _cover_map(settings: cosalette.Settings) -> dict[str, CoverConfig]:
+    if not isinstance(settings, MyAppSettings):
+        raise TypeError(f"Expected MyAppSettings, got {type(settings).__name__}")
+    return {cover.name: cover for cover in settings.covers}
+```
+
+**Why:** The framework signature is generic; a missing `isinstance` guard silently
+passes a wrong settings type and produces an `AttributeError` deep in the callback —
+hard to diagnose. Raising `TypeError` immediately surfaces framework misconfiguration.
