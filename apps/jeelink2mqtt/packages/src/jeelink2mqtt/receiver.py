@@ -111,15 +111,11 @@ async def _publish_sensor(
     await ctx.publish(f"{name}/state", payload, retain=True)
 
 
-async def _publish_mapping_event(
+async def publish_mapping_event(
     ctx: cosalette.DeviceContext,
     event: MappingEvent,
 ) -> None:
-    """Publish a mapping change event (non-retained).
-
-    DEPRECATED: This function is kept for backward compatibility.
-    New code should call state methods that handle event publishing directly.
-    """
+    """Publish a mapping change event (non-retained)."""
     payload = json.dumps(
         {
             "event_type": event.event_type,
@@ -133,15 +129,11 @@ async def _publish_mapping_event(
     await ctx.publish("mapping/event", payload, retain=False)
 
 
-async def _publish_mapping_state(
+async def publish_mapping_state(
     ctx: cosalette.DeviceContext,
     state: SharedState,
 ) -> None:
-    """Publish current mapping state snapshot (retained).
-
-    DEPRECATED: This function is kept for backward compatibility.
-    New code should call state methods that handle state publishing directly.
-    """
+    """Publish current mapping state snapshot (retained)."""
     mapping_state = {
         name: {
             "sensor_id": m.sensor_id,
@@ -151,6 +143,11 @@ async def _publish_mapping_state(
         for name, m in state.registry.get_all_mappings().items()
     }
     await ctx.publish("mapping/state", json.dumps(mapping_state), retain=True)
+
+
+# Backward compatibility aliases
+_publish_mapping_event = publish_mapping_event
+_publish_mapping_state = publish_mapping_state
 
 
 # ---------------------------------------------------------------------------

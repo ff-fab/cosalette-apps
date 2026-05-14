@@ -28,7 +28,7 @@ from jeelink2mqtt import __version__
 from jeelink2mqtt import commands as _commands
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
-from jeelink2mqtt.models import SensorReading
+from jeelink2mqtt.models import MappingEvent, SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
 
@@ -60,6 +60,23 @@ def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
         ", ".join(state.sensor_configs.keys()) or "(none)",
     )
     return state
+
+
+@app.react(SharedState, drain=lambda state: state.registry.drain_events())
+async def on_registry_events(
+    events: list[MappingEvent],
+    ctx: cosalette.DeviceContext,
+    store: DeviceStore,
+    state: SharedState,
+) -> None:
+    """Reactor for registry mapping events: publish MQTT updates and persist."""
+    for event in events:
+        await _receiver.publish_mapping_event(ctx, event)
+        if event.old_sensor_id is not None:
+            state.filter_bank.reset(event.old_sensor_id)
+
+    await _receiver.publish_mapping_state(ctx, state)
+    store["registry"] = state.registry.to_dict()
 
 
 @app.stream(
@@ -97,11 +114,7 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
                     state.record_published_reading(name, calibrated, datetime.now(UTC))
                     await ctx.publish(f"{name}/availability", "online", retain=True)
 
-            # 4. Mapping events (only publish state when something changed)
-            if await state.flush_events(ctx, store):
-                last_persist_time = datetime.now(UTC)
-
-            # 5. Periodic persistence for last_seen metadata (ADR-004)
+            # 4. Periodic persistence for last_seen metadata (ADR-004)
             now = datetime.now(UTC)
             new_persist_time = state.persist_registry_if_due(
                 store, now, last_persist_time, 60
