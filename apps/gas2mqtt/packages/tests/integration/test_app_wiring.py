@@ -8,18 +8,23 @@ eager settings with ``enabled=`` for conditional registration.
 Test Techniques Used:
 - Specification-based: App configuration matches expectations
 - Integration: Handler factories exercised end-to-end with real domain objects
-- State Transition: Adapter __aenter__/__aexit__ lifecycle
-- Branch Coverage: Magnetometer conditional registration via enabled=
+- State Transition: Adapter __aenter__/__aexit__ lifecycle; counter persistence
+  restore-from-disk on @app.state provider initialization
+- Branch Coverage: Magnetometer conditional registration via enabled=;
+  consumption tracking enabled/disabled provider paths
 - Error Guessing: __aexit__ closes adapter even on error
 """
 
 from __future__ import annotations
+
+import typing
 
 import cosalette
 import pytest
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.devices.gas_counter import GasCounterState
+from gas2mqtt.domain.schmitt import SchmittTrigger
 from gas2mqtt.main import _make_store, app, create_app
 from tests.fixtures.config import make_gas2mqtt_settings
 
@@ -31,17 +36,16 @@ from tests.fixtures.config import make_gas2mqtt_settings
 def _find_gas_counter_state_factory(fresh_app: cosalette.App):
     """Return the @app.state factory registered for GasCounterState.
 
-    Uses return-annotation inspection to locate the factory among all
-    registered state providers.  Raises AssertionError if not found.
+    Uses typing.get_type_hints() to resolve PEP 563 string annotations
+    to actual types before comparing. Raises AssertionError if not found.
     """
     for factory in fresh_app._state_factories:
-        if hasattr(factory.factory, "__annotations__"):
-            return_annotation = factory.factory.__annotations__.get("return")
-            if (
-                return_annotation is GasCounterState
-                or return_annotation == "GasCounterState"
-            ):
-                return factory
+        try:
+            hints = typing.get_type_hints(factory.factory)
+        except Exception:  # noqa: BLE001
+            continue
+        if hints.get("return") is GasCounterState:
+            return factory
     raise AssertionError("No GasCounterState factory registered in _state_factories")
 
 
@@ -253,9 +257,8 @@ class TestStateProviderRegistration:
         assert hasattr(fresh_app, "_state_factories")
         assert len(fresh_app._state_factories) > 0
 
-        # Assert — correct factory is registered
-        factory = _find_gas_counter_state_factory(fresh_app)
-        assert factory.factory.__name__ == "gas_counter_state"
+        # Assert — correct factory is registered (raises AssertionError if not found)
+        _find_gas_counter_state_factory(fresh_app)
 
     def test_state_provider_builds_gas_counter_state(self, tmp_path) -> None:
         """The registered provider returns a valid GasCounterState.
@@ -273,6 +276,32 @@ class TestStateProviderRegistration:
         # Assert
         assert isinstance(state, GasCounterState)
         assert state.counter == 0
+        assert isinstance(state.trigger, SchmittTrigger)
+        assert (
+            state.consumption is None
+        )  # enable_consumption_tracking defaults to False
+
+    def test_state_provider_builds_state_with_consumption_tracking(
+        self, tmp_path
+    ) -> None:
+        """Provider creates a ConsumptionTracker when tracking is enabled.
+
+        Technique: Branch Coverage — exercises the consumption-enabled
+        path through _restore_consumption.
+        """
+        # Arrange
+        settings = make_gas2mqtt_settings(
+            state_file=tmp_path / "state.json",
+            enable_consumption_tracking=True,
+        )
+        factory = _find_gas_counter_state_factory(create_app())
+
+        # Act
+        state = factory.factory(settings)
+
+        # Assert
+        assert isinstance(state, GasCounterState)
+        assert state.consumption is not None
 
     def test_state_provider_restores_persisted_counter(self, tmp_path) -> None:
         """State provider loads counter from a pre-populated store.

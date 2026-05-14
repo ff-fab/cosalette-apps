@@ -48,7 +48,9 @@ def create_app() -> cosalette.App:
         the same GasCounterState instance via DI, ensuring consistent
         in-process state. Explicit save() in stage_state() handles persistence.
         """
-        logger = logging.getLogger("gas2mqtt.state")
+        logger = logging.getLogger(__name__)
+        # Own store instance — App-level store= serves framework lifecycle;
+        # this one feeds DeviceStore for gas counter DI.
         store_backend = _make_store(settings)
         device_store = DeviceStore(store_backend, "gas_counter")
         return make_gas_counter(settings, device_store, logger)
