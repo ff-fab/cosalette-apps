@@ -133,6 +133,15 @@ async def _shadow_handler(
     return None
 
 
-def create_app() -> cosalette.App:
+def get_app() -> cosalette.App:
     """Return the module-level suncast cosalette application."""
     return app
+
+
+def create_app() -> cosalette.App:
+    """Compatibility alias for ``get_app()``.
+
+    Does **not** construct a new App — always returns the same module-level
+    instance. Prefer calling ``get_app()`` in new code.
+    """
+    return get_app()

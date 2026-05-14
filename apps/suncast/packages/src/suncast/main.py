@@ -22,4 +22,6 @@ from suncast.app import app
 
 def main() -> None:
     """Start the application."""
+    # cli() is used intentionally (not run()) to keep cosalette CLI flags
+    # such as --env-file, --dry-run, and --version available at the entry point.
     app.cli()
