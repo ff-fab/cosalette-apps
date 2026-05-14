@@ -45,7 +45,8 @@ cycle picks up the changed value.
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
+from types import MappingProxyType
 from typing import Any
 
 from vito2mqtt.devices import COMMAND_GROUPS
@@ -57,14 +58,16 @@ from vito2mqtt.ports import OptolinkPort
 __all__ = ["make_command_handler", "COMMAND_SUMMARIES"]
 
 COMMAND_SUMMARIES: dict[str, str] = {
-    "outdoor": "Set outdoor temperature compensation parameters",
     "hot_water": "Set hot water temperature and timer schedules",
-    "burner": "Set boiler temperature setpoints and control parameters",
     "heating_radiator": "Set radiator heating circuit temperatures and schedules",
     "heating_floor": "Set floor heating circuit temperatures and schedules",
     "system": "Set Vitotronic system operational parameters",
-    "diagnosis": "Clear diagnostic error codes and reset system counters",
 }
+
+# Precomputed per-group allowed signal names — avoids rebuilding sets on every call.
+_ALLOWED_COMMAND_NAMES: Mapping[str, frozenset[str]] = MappingProxyType(
+    {group: frozenset(names) for group, names in COMMAND_GROUPS.items()}
+)
 
 
 def _parse_payload(raw: str, group: str) -> tuple[dict[str, Any], bool]:
@@ -103,7 +106,7 @@ def _parse_payload(raw: str, group: str) -> tuple[dict[str, Any], bool]:
         raise InvalidSignalError(msg)
     force = raw_force
 
-    allowed = set(COMMAND_GROUPS[group])
+    allowed = _ALLOWED_COMMAND_NAMES[group]
     unknown = set(data.keys()) - allowed
     if unknown:
         msg = (

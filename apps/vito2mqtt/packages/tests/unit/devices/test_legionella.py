@@ -45,9 +45,9 @@ from vito2mqtt.devices.legionella import (
     LEGIONELLA_SETPOINT_SIGNAL,
     TIMER_SIGNAL_FOR_DAY,
     _heating_countdown,
-    legionella_device,
     _restore_setpoint,
     is_within_heating_window,
+    legionella_device,
 )
 from vito2mqtt.optolink.codec import CycleTimeSchedule
 from vito2mqtt.optolink.commands import COMMANDS

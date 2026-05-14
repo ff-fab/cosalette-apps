@@ -28,6 +28,8 @@ from cosalette import App
 from vito2mqtt import __version__
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
+from vito2mqtt.devices.legionella import legionella_device
+from vito2mqtt.devices.telemetry import INTERVAL_ATTR
 from vito2mqtt.ports import OptolinkPort
 
 
@@ -116,6 +118,31 @@ class TestTelemetryRegistration:
         for reg in app._telemetry:
             assert reg.group == "optolink", f"{reg.name!r} missing group='optolink'"
 
+    def test_telemetry_intervals_are_deferred(self) -> None:
+        """Each telemetry interval must be a deferred callable (setting_ref).
+
+        Intervals must not be resolved at import time — they are read from
+        runtime settings via setting_ref(INTERVAL_ATTR[group]).
+
+        Technique: Specification-based — deferred configuration contract.
+        """
+        from vito2mqtt.main import app
+
+        for reg in app._telemetry:
+            assert callable(reg.interval), (
+                f"{reg.name!r} interval is not callable: {reg.interval!r}"
+            )
+
+    def test_telemetry_interval_attrs_cover_all_groups(self) -> None:
+        """INTERVAL_ATTR must have one entry per registered telemetry name.
+
+        Cross-checks that configure_app passes the correct attribute name
+        for every group — no group may be silently skipped.
+
+        Technique: Cross-reference — INTERVAL_ATTR keys must equal SIGNAL_GROUPS keys.
+        """
+        assert set(INTERVAL_ATTR.keys()) == set(SIGNAL_GROUPS.keys())
+
 
 class TestCommandRegistration:
     """Verify command handlers are registered."""
@@ -167,6 +194,19 @@ class TestDeviceRegistration:
 
         device_names = {d.name for d in app._devices}
         assert "legionella" in device_names
+
+    def test_legionella_uses_legionella_device_function(self) -> None:
+        """The legionella device must be wired to the legionella_device function.
+
+        Prevents silently registering the wrong callable under the
+        'legionella' name.
+
+        Technique: Structural — function identity check.
+        """
+        from vito2mqtt.main import app
+
+        reg = next(d for d in app._devices if d.name == "legionella")
+        assert reg.func is legionella_device
 
 
 class TestStoreConfiguration:

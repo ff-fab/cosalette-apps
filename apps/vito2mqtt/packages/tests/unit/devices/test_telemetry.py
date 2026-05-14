@@ -25,12 +25,9 @@ Test Techniques Used:
 from __future__ import annotations
 
 from datetime import datetime
-from unittest.mock import MagicMock
-
 import pytest
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
-from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
 from vito2mqtt.devices.telemetry import (
@@ -40,24 +37,6 @@ from vito2mqtt.devices.telemetry import (
 )
 from vito2mqtt.optolink.codec import ReturnStatus
 from vito2mqtt.optolink.commands import COMMANDS
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def settings(monkeypatch: pytest.MonkeyPatch) -> Vito2MqttSettings:
-    """Construct Vito2MqttSettings with the required env var set."""
-    monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
-    return Vito2MqttSettings()
-
-
-@pytest.fixture()
-def mock_app() -> MagicMock:
-    """App mock with a tracked add_telemetry."""
-    return MagicMock()
-
 
 # ---------------------------------------------------------------------------
 # Spec-table tests for INTERVAL_ATTR / GROUP_SUMMARIES

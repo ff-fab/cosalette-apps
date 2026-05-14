@@ -28,7 +28,6 @@ from __future__ import annotations
 import json
 from collections.abc import Sequence
 from typing import Any
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -36,23 +35,12 @@ from vito2mqtt.adapters.fake import FakeOptolinkAdapter
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices.commands import (
     COMMAND_SUMMARIES,
-    make_command_handler,
     _parse_payload,
     _validate_payload,
+    make_command_handler,
 )
 from vito2mqtt.errors import InvalidSignalError
 from vito2mqtt.optolink.commands import COMMANDS
-
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest.fixture()
-def mock_app() -> MagicMock:
-    """App mock with a tracked add_command."""
-    return MagicMock()
-
 
 # ---------------------------------------------------------------------------
 # Spec-table tests for COMMAND_SUMMARIES
@@ -62,15 +50,13 @@ def mock_app() -> MagicMock:
 class TestCommandSpecs:
     """Verify that COMMAND_SUMMARIES covers all COMMAND_GROUPS."""
 
-    def test_command_summaries_keys_subset_of_signal_groups(self) -> None:
-        """COMMAND_SUMMARIES keys must be a subset of SIGNAL_GROUPS keys.
+    def test_command_summaries_keys_subset_of_command_groups(self) -> None:
+        """COMMAND_SUMMARIES keys must be a subset of COMMAND_GROUPS keys.
 
-        Technique: Specification-based — summaries document potential command
-        groups; every documented group must be a known signal group.
+        Technique: Specification-based — every documented summary must
+        correspond to a registered command group.
         """
-        from vito2mqtt.devices import SIGNAL_GROUPS
-
-        assert set(COMMAND_SUMMARIES.keys()) <= set(SIGNAL_GROUPS.keys())
+        assert set(COMMAND_SUMMARIES.keys()) <= set(COMMAND_GROUPS.keys())
 
     @pytest.mark.parametrize("group", list(COMMAND_SUMMARIES.keys()))
     def test_command_summary_values_are_strings(self, group: str) -> None:
