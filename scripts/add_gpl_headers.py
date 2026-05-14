@@ -61,6 +61,8 @@ HEADER_EXTENSIONS = frozenset({".py", ".sh"})
 
 SKIP_SUFFIXES = ("_version.py",)
 
+# SKIP_PREFIXES applies to the GPL-presence check (_collect_missing).
+# It is effectively a no-op for _collect_contaminated, which only processes apps/ paths.
 SKIP_PREFIXES = ("docs/planning/legacy/",)
 
 
@@ -93,9 +95,9 @@ def _is_gpl_path(rel_path: str, gpl_globs: list[str]) -> bool:
 
 def _should_skip(rel_path: str) -> bool:
     """Return True if the file should be skipped."""
-    if any(rel_path.startswith(p) for p in SKIP_PREFIXES):
-        return True
-    return any(rel_path.endswith(s) for s in SKIP_SUFFIXES)
+    return any(rel_path.startswith(p) for p in SKIP_PREFIXES) or any(
+        rel_path.endswith(s) for s in SKIP_SUFFIXES
+    )
 
 
 def _git_config(key: str) -> str:
@@ -151,8 +153,8 @@ def add_header(filepath: Path, header: str) -> bool:
     return True
 
 
-def _get_gpl_source_files(gpl_globs: list[str]) -> list[str]:
-    """Return git-tracked .py/.sh files under GPL-annotated paths."""
+def _get_source_files() -> list[str]:
+    """Return all git-tracked .py/.sh files, excluding skip patterns."""
     result = subprocess.run(
         ["git", "ls-files"],
         capture_output=True,
@@ -162,34 +164,41 @@ def _get_gpl_source_files(gpl_globs: list[str]) -> list[str]:
     )
     return [
         f
-        for f in result.stdout.strip().split("\n")
-        if f
-        and Path(f).suffix in HEADER_EXTENSIONS
-        and _is_gpl_path(f, gpl_globs)
-        and not _should_skip(f)
+        for f in result.stdout.splitlines()
+        if f and Path(f).suffix in HEADER_EXTENSIONS and not _should_skip(f)
     ]
 
 
-def _get_non_gpl_app_source_files(gpl_globs: list[str]) -> list[str]:
-    """Return git-tracked .py/.sh files under apps/ that are NOT in GPL-annotated paths.
+def _collect_missing(gpl_globs: list[str], source_files: list[str]) -> list[str]:
+    """Return GPL-path source files that are missing the GPL header."""
+    missing = []
+    for rel in source_files:
+        if not _is_gpl_path(rel, gpl_globs):
+            continue
+        filepath = REPO_ROOT / rel
+        if not filepath.is_file() or filepath.is_symlink():
+            continue
+        if not _has_header(filepath.read_text(encoding="utf-8")):
+            missing.append(rel)
+    return missing
 
-    Excludes files matching any of the provided GPL globs.
+
+def _collect_contaminated(gpl_globs: list[str], source_files: list[str]) -> list[str]:
+    """Return non-GPL app files (under apps/) that contain the GPL header.
+
+    Only apps/ source files are checked; scripts/, packages/, and .github/
+    are MIT by REUSE annotation and excluded by design.
     """
-    result = subprocess.run(
-        ["git", "ls-files", "--", "apps/"],
-        capture_output=True,
-        text=True,
-        check=True,
-        cwd=REPO_ROOT,
-    )
-    return [
-        f
-        for f in result.stdout.strip().split("\n")
-        if f
-        and Path(f).suffix in HEADER_EXTENSIONS
-        and not _is_gpl_path(f, gpl_globs)
-        and not _should_skip(f)
-    ]
+    contaminated = []
+    for rel in source_files:
+        if not rel.startswith("apps/") or _is_gpl_path(rel, gpl_globs):
+            continue
+        filepath = REPO_ROOT / rel
+        if not filepath.is_file() or filepath.is_symlink():
+            continue
+        if _has_header(filepath.read_text(encoding="utf-8")):
+            contaminated.append(rel)
+    return contaminated
 
 
 def cmd_check() -> int:
@@ -198,37 +207,19 @@ def cmd_check() -> int:
     Returns 0 on success, 1 on any violation.
     """
     gpl_globs = _load_gpl_globs()
-    gpl_files: list[str] = []
+    source_files = _get_source_files()
     missing: list[str] = []
 
     if not gpl_globs:
         print("No GPL-annotated paths in REUSE.toml - skipping GPL-presence check.")
     else:
-        gpl_files = _get_gpl_source_files(gpl_globs)
-        for rel in gpl_files:
-            filepath = REPO_ROOT / rel
-            if not filepath.exists():
-                continue
-            content = filepath.read_text(encoding="utf-8")
-            if not _has_header(content):
-                missing.append(rel)
-
+        missing = _collect_missing(gpl_globs, source_files)
         if missing:
             print(f"Missing GPLv3 header in {len(missing)} file(s):")
             for f in missing:
                 print(f"  {f}")
 
-    non_gpl_files = _get_non_gpl_app_source_files(gpl_globs)
-    contaminated: list[str] = []
-
-    for rel in non_gpl_files:
-        filepath = REPO_ROOT / rel
-        if not filepath.exists():
-            continue
-        content = filepath.read_text(encoding="utf-8")
-        if _has_header(content):
-            contaminated.append(rel)
-
+    contaminated = _collect_contaminated(gpl_globs, source_files)
     if contaminated:
         print(f"GPLv3 header found in {len(contaminated)} non-GPL file(s):")
         for f in contaminated:
@@ -237,9 +228,15 @@ def cmd_check() -> int:
     if missing or contaminated:
         return 1
 
-    if gpl_files:
-        print(f"All {len(gpl_files)} GPL-path source files have GPLv3 headers.")
-    print(f"All {len(non_gpl_files)} non-GPL app source files are clean.")
+    if gpl_globs:
+        gpl_count = sum(1 for f in source_files if _is_gpl_path(f, gpl_globs))
+        print(f"All {gpl_count} GPL-path source files have GPLv3 headers.")
+    non_gpl_app_count = sum(
+        1
+        for f in source_files
+        if f.startswith("apps/") and not _is_gpl_path(f, gpl_globs)
+    )
+    print(f"All {non_gpl_app_count} non-GPL app source files are clean.")
     return 0
 
 
@@ -251,7 +248,7 @@ def cmd_all() -> None:
         return
 
     header = _build_header()
-    files = _get_gpl_source_files(gpl_globs)
+    files = [f for f in _get_source_files() if _is_gpl_path(f, gpl_globs)]
     added = 0
     skipped = 0
 
