@@ -13,19 +13,19 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Command handler registration for writable signal groups.
+"""Command handler factory and metadata for writable signal groups.
 
-Registers one command handler per writable domain group with the cosalette
-application.  Each handler listens on ``{prefix}/{device_id}/{group}/set``
-for incoming JSON payloads, validates the signal names, deserializes
-values, and dispatches ``write_signal()`` calls to the Optolink port.
+Exposes :func:`make_command_handler` factory and :data:`COMMAND_SUMMARIES`
+consumed by the composition root.  Each handler listens on
+``{prefix}/{device_id}/{group}/set`` for incoming JSON payloads, validates
+the signal names, deserializes values, and dispatches ``write_signal()``
+calls to the Optolink port.
 
 Architecture
 ------------
-``register_commands(app)`` iterates over :data:`COMMAND_GROUPS` and calls
-``app.add_command()`` for each group.  Handler closures are created via
-the factory function ``_make_handler(group)`` to avoid the classic
-late-binding closure pitfall.
+:func:`make_command_handler` creates a closure per group to avoid the
+classic late-binding closure pitfall.  :data:`COMMAND_SUMMARIES` provides
+human-readable OpenAPI summaries for documented groups.
 
 Read-Before-Write
 -----------------
@@ -45,10 +45,9 @@ cycle picks up the changed value.
 from __future__ import annotations
 
 import json
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
+from types import MappingProxyType
 from typing import Any
-
-from cosalette import App
 
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices._serialization import deserialize_value, serialize_value
@@ -56,17 +55,19 @@ from vito2mqtt.errors import InvalidSignalError
 from vito2mqtt.optolink.commands import COMMANDS, AccessMode
 from vito2mqtt.ports import OptolinkPort
 
-__all__ = ["register_commands"]
+__all__ = ["make_command_handler", "COMMAND_SUMMARIES"]
 
-_COMMAND_SUMMARIES: dict[str, str] = {
-    "outdoor": "Set outdoor temperature compensation parameters",
+COMMAND_SUMMARIES: dict[str, str] = {
     "hot_water": "Set hot water temperature and timer schedules",
-    "burner": "Set boiler temperature setpoints and control parameters",
     "heating_radiator": "Set radiator heating circuit temperatures and schedules",
     "heating_floor": "Set floor heating circuit temperatures and schedules",
     "system": "Set Vitotronic system operational parameters",
-    "diagnosis": "Clear diagnostic error codes and reset system counters",
 }
+
+# Precomputed per-group allowed signal names — avoids rebuilding sets on every call.
+_ALLOWED_COMMAND_NAMES: Mapping[str, frozenset[str]] = MappingProxyType(
+    {group: frozenset(names) for group, names in COMMAND_GROUPS.items()}
+)
 
 
 def _parse_payload(raw: str, group: str) -> tuple[dict[str, Any], bool]:
@@ -105,7 +106,7 @@ def _parse_payload(raw: str, group: str) -> tuple[dict[str, Any], bool]:
         raise InvalidSignalError(msg)
     force = raw_force
 
-    allowed = set(COMMAND_GROUPS[group])
+    allowed = _ALLOWED_COMMAND_NAMES[group]
     unknown = set(data.keys()) - allowed
     if unknown:
         msg = (
@@ -139,7 +140,7 @@ def _validate_payload(raw: str, group: str) -> dict[str, Any]:
     return data
 
 
-def _make_handler(
+def make_command_handler(
     group: str,
 ) -> Callable[..., Awaitable[dict[str, object] | None]]:
     """Create an async command handler closure for a signal group.
@@ -182,25 +183,3 @@ def _make_handler(
         return None
 
     return handler
-
-
-def register_commands(app: App) -> None:
-    """Register command handlers for all writable signal groups.
-
-    Creates one command handler per group defined in
-    :data:`~vito2mqtt.devices.COMMAND_GROUPS`.
-
-    Args:
-        app: The cosalette application instance.
-    """
-    for group_name in COMMAND_GROUPS:
-        # Only register commands for groups that actually exist in COMMAND_GROUPS
-        summary = _COMMAND_SUMMARIES.get(
-            group_name, f"Control {group_name} parameters via Optolink serial"
-        )
-        app.add_command(
-            name=group_name,
-            func=_make_handler(group_name),
-            summary=summary,
-            payload_model=dict,
-        )

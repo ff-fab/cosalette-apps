@@ -24,12 +24,10 @@ from __future__ import annotations
 
 from cosalette import App, JsonFileStore
 
-from vito2mqtt._store_path import resolve_store_path
 from vito2mqtt import __version__
+from vito2mqtt._registration import configure_app
+from vito2mqtt._store_path import resolve_store_path
 from vito2mqtt.config import Vito2MqttSettings
-from vito2mqtt.devices.commands import register_commands
-from vito2mqtt.devices.legionella import register_legionella
-from vito2mqtt.devices.telemetry import register_telemetry
 from vito2mqtt.ports import OptolinkPort
 
 __all__ = ["app", "cli"]
@@ -49,8 +47,6 @@ app = App(
     },
 )
 
-register_telemetry(app)
-register_commands(app)
-register_legionella(app)
+configure_app(app)
 
 cli = app.cli

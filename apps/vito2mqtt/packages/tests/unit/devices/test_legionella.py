@@ -45,10 +45,9 @@ from vito2mqtt.devices.legionella import (
     LEGIONELLA_SETPOINT_SIGNAL,
     TIMER_SIGNAL_FOR_DAY,
     _heating_countdown,
-    _legionella_device,
     _restore_setpoint,
     is_within_heating_window,
-    register_legionella,
+    legionella_device,
 )
 from vito2mqtt.optolink.codec import CycleTimeSchedule
 from vito2mqtt.optolink.commands import COMMANDS
@@ -616,7 +615,7 @@ class TestLegionellaDevice:
 
         # Act
         with _instant_wait_for(ctx):
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — original setpoint written back
@@ -643,7 +642,7 @@ class TestLegionellaDevice:
 
         # Act
         with _instant_wait_for(ctx):
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert
@@ -670,7 +669,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — timer signal for Monday was read
@@ -702,7 +701,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — rejected state published
@@ -743,7 +742,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — target temp written
@@ -798,7 +797,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — original setpoint restored
@@ -841,7 +840,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — store cleared
@@ -884,7 +883,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — heating states have decrementing remaining_minutes
@@ -972,7 +971,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — best-effort restore was attempted: the last write
@@ -1028,7 +1027,7 @@ class TestLegionellaDevice:
             mock_dt.now.return_value = mock_now
             mock_dt.side_effect = lambda *a, **kw: datetime(*a, **kw)
 
-            async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+            async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                 pass  # type: ignore[arg-type]
 
         # Assert — store still active because restore write failed
@@ -1047,7 +1046,7 @@ class TestLegionellaDevice:
 
         async def _run_device():
             with _instant_wait_for(ctx):
-                async for _ in _legionella_device(ctx, store):  # type: ignore[arg-type]
+                async for _ in legionella_device(ctx, store):  # type: ignore[arg-type]
                     pass  # type: ignore[arg-type]
 
         # Inject non-dict JSON commands
@@ -1064,32 +1063,6 @@ class TestLegionellaDevice:
         published = [c.args[0] for c in ctx.publish_state.await_args_list]
         statuses = [p["status"] for p in published]
         assert statuses == ["idle"]
-
-
-# ===========================================================================
-# register_legionella
-# ===========================================================================
-
-
-class TestRegisterLegionella:
-    """Tests for the register_legionella helper function.
-
-    Technique: Specification-based — verify correct device registration.
-    """
-
-    def test_registers_device(self) -> None:
-        """Calls app.add_device with 'legionella' name and correct function.
-
-        Technique: Specification-based — registration contract.
-        """
-        # Arrange
-        app = MagicMock()
-
-        # Act
-        register_legionella(app)
-
-        # Assert
-        app.add_device.assert_called_once_with("legionella", _legionella_device)
 
 
 # ===========================================================================

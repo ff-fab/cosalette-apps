@@ -28,11 +28,9 @@ import pytest
 from cosalette import App, MemoryStore, MockMqttClient
 
 from vito2mqtt import __version__
+from vito2mqtt._registration import configure_app
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
 from vito2mqtt.config import Vito2MqttSettings
-from vito2mqtt.devices.commands import register_commands
-from vito2mqtt.devices.legionella import register_legionella
-from vito2mqtt.devices.telemetry import register_telemetry
 from vito2mqtt.ports import OptolinkPort
 
 TOPIC_PREFIX = "vito2mqtt"
@@ -63,9 +61,7 @@ def build_integration_app(adapter: FakeOptolinkAdapter) -> App:
         store=MemoryStore(),
         adapters={OptolinkPort: lambda: adapter},
     )
-    register_telemetry(app)
-    register_commands(app)
-    register_legionella(app)
+    configure_app(app)
     return app
 
 

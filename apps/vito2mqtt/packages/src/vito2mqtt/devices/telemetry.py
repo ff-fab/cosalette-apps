@@ -13,42 +13,39 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Telemetry handler registration for all signal groups.
+"""Telemetry handler factory and metadata for all signal groups.
 
-Registers one polling handler per signal group with the cosalette
-application.  All handlers share the ``"optolink"`` coalescing group
-so they execute together at coinciding tick boundaries, minimizing
-serial bus sessions.  Each handler reads its group's signals from
-the Optolink port and returns serialized values for MQTT publishing.
+Exports handler factories and spec dicts consumed by the composition
+root.  All handlers share the ``"optolink"`` coalescing group so they
+execute together at coinciding tick boundaries, minimizing serial bus
+sessions.  Each handler reads its group's signals from the Optolink
+port and returns serialized values for MQTT publishing.
 
 Architecture
 ------------
-``register_telemetry(app)`` iterates over :data:`SIGNAL_GROUPS` and calls
-``app.add_telemetry()`` for each group with ``group="optolink"`` to enable
-tick-aligned coalescing (see ADR-007).  Handler closures are created via
-the factory function ``_make_handler(group)`` to avoid the classic
-late-binding closure pitfall.
+:func:`make_telemetry_handler` creates a closure per group to avoid the
+classic late-binding pitfall.  :data:`INTERVAL_ATTR` maps each group to
+its settings attribute name for deferred polling interval resolution.
+:data:`GROUP_SUMMARIES` provides human-readable OpenAPI summaries.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
-from cosalette import App, OnChange, setting_ref
-
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
 from vito2mqtt.optolink.commands import COMMANDS
 from vito2mqtt.ports import OptolinkPort
 
-__all__ = ["register_telemetry"]
+__all__ = ["make_telemetry_handler", "INTERVAL_ATTR", "GROUP_SUMMARIES"]
 
 
 # ---------------------------------------------------------------------------
 # Group → settings attribute mapping
 # ---------------------------------------------------------------------------
 
-_INTERVAL_ATTR: dict[str, str] = {
+INTERVAL_ATTR: dict[str, str] = {
     "outdoor": "polling_outdoor",
     "hot_water": "polling_hot_water",
     "burner": "polling_burner",
@@ -58,7 +55,7 @@ _INTERVAL_ATTR: dict[str, str] = {
     "diagnosis": "polling_diagnosis",
 }
 
-_GROUP_SUMMARIES: dict[str, str] = {
+GROUP_SUMMARIES: dict[str, str] = {
     "outdoor": "Read outdoor temperature sensors via Optolink serial",
     "hot_water": "Read hot water temperature sensors via Optolink serial",
     "burner": "Read burner temperature, modulation and runtime data via Optolink serial",
@@ -74,7 +71,7 @@ _GROUP_SUMMARIES: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
-def _make_handler(
+def make_telemetry_handler(
     group: str,
 ) -> Callable[..., Awaitable[dict[str, object]]]:
     """Create an async handler closure for a signal group.
@@ -98,30 +95,3 @@ def _make_handler(
         }
 
     return handler
-
-
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
-def register_telemetry(app: App) -> None:
-    """Register telemetry handlers for all signal groups.
-
-    Creates one telemetry device per group defined in
-    :data:`~vito2mqtt.devices.SIGNAL_GROUPS`, using deferred polling
-    intervals resolved from settings at runtime and an :class:`OnChange`
-    publish strategy.
-
-    Args:
-        app: The cosalette application instance.
-    """
-    for group_name in SIGNAL_GROUPS:
-        app.add_telemetry(
-            name=group_name,
-            func=_make_handler(group_name),
-            interval=setting_ref(_INTERVAL_ATTR[group_name]),
-            publish=OnChange(),
-            group="optolink",
-            summary=_GROUP_SUMMARIES[group_name],
-        )
