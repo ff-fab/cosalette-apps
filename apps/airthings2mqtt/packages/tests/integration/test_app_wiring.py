@@ -8,18 +8,89 @@ Test Techniques Used:
 - Integration Testing: Full app wiring through cosalette framework
 - Specification-based: MQTT topic structure, telemetry payload shape
 - State Transition Testing: Startup online -> shutdown offline lifecycle
+- Branch Coverage: Scheduled telemetry and on-demand re-read trigger paths
+- Boundary Value Analysis: Deterministic publish-count polling replaces fixed sleeps
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
 from cosalette import App, MockMqttClient
 
+from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.settings import Airthings2MqttSettings
 
-from .conftest import DEVICE_NAME, TOPIC_PREFIX, run_app_briefly
+from .conftest import (
+    DEVICE_NAME,
+    TOPIC_PREFIX,
+    build_integration_app,
+    make_long_poll_settings,
+    run_app_briefly,
+)
+
+
+async def _wait_for_publish_count(
+    mock_mqtt: MockMqttClient,
+    topic: str,
+    count: int,
+    timeout: float = 2.0,
+) -> None:
+    """Poll until ``topic`` has at least ``count`` messages.
+
+    Uses ``asyncio.wait_for`` with bounded polling so the test fails fast
+    rather than hanging indefinitely when the expected publish never arrives.
+    """
+
+    async def _poll() -> None:
+        while len(mock_mqtt.get_messages_for(topic)) < count:
+            await asyncio.sleep(0.01)
+
+    await asyncio.wait_for(_poll(), timeout=timeout)
+
+
+async def _run_with_trigger(
+    test_app: App,
+    mock_mqtt: MockMqttClient,
+    test_settings: Airthings2MqttSettings,
+    *,
+    payload: str = "",
+) -> None:
+    """Start the app, deliver a re-read trigger, then shut down cleanly.
+
+    Uses deterministic synchronization: waits for the initial startup poll to
+    publish to the state topic before delivering the trigger, then waits for
+    the triggered re-read publish before shutting down.
+
+    A try/finally ensures shutdown_event is set and the app task is cancelled
+    if any wait times out, so stray tasks never leak into subsequent tests.
+    """
+    state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+    shutdown_event = asyncio.Event()
+    task = asyncio.create_task(
+        test_app._run_async(
+            mqtt=mock_mqtt,
+            settings=test_settings,
+            shutdown_event=shutdown_event,
+        )
+    )
+    try:
+        await _wait_for_publish_count(mock_mqtt, state_topic, count=1)
+        await mock_mqtt.deliver(f"{TOPIC_PREFIX}/{DEVICE_NAME}/set", payload)
+        await _wait_for_publish_count(mock_mqtt, state_topic, count=2)
+        shutdown_event.set()
+        await task
+    finally:
+        shutdown_event.set()  # idempotent — safe to call twice
+        if not task.done():
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
 
 # ---------------------------------------------------------------------------
 # Startup and health
@@ -138,6 +209,41 @@ class TestTelemetryPublishing:
         assert payload["humidity"] == 45.0
         assert payload["radon_24h_avg"] == 80
         assert payload["radon_long_term_avg"] == 65
+
+
+class TestTriggeredTelemetry:
+    """Verify MQTT /set messages trigger immediate Airthings re-reads."""
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_empty_set_payload_triggers_reread(
+        self,
+        mock_mqtt: MockMqttClient,
+    ) -> None:
+        """Empty /set payload triggers an extra sensor read and state publish.
+
+        Uses a 1-hour poll interval so the second state publish cannot be a
+        scheduled tick — it must be the triggered re-read.
+
+        Technique: Integration — verify MQTT inbound trigger reaches telemetry.
+        """
+        # Arrange
+        fake_reader = FakeAirthingsReader()
+        test_app = build_integration_app(lambda: fake_reader)
+        long_poll = make_long_poll_settings()
+
+        # Act
+        await _run_with_trigger(test_app, mock_mqtt, long_poll)
+
+        # Assert — one startup read plus one triggered re-read
+        assert fake_reader.calls.count(long_poll.device_mac) >= 2
+
+        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+        messages = mock_mqtt.get_messages_for(state_topic)
+        assert len(messages) >= 2, (
+            f"Expected at least 2 state publishes (startup + trigger); "
+            f"got {len(messages)} on {state_topic}"
+        )
 
 
 # ---------------------------------------------------------------------------

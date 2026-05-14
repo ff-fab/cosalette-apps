@@ -6,6 +6,10 @@ adapter, and settings.  The ``main()`` function is the CLI entry point.
 
 from __future__ import annotations
 
+import asyncio
+import logging
+import weakref
+
 import cosalette
 from cosalette import setting_ref
 
@@ -22,19 +26,47 @@ app = cosalette.App(
     },
 )
 
+_read_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
+    weakref.WeakKeyDictionary()
+)
+"""One lock per running event loop.
+
+Production uses a single loop so reads are serialized as expected.
+In pytest each function-scoped loop gets its own fresh lock with no
+cross-test state leakage. The WeakKeyDictionary releases locks when
+their loop is garbage-collected, preventing memory growth.
+"""
+
+
+def _get_read_lock() -> asyncio.Lock:
+    """Return the serialization lock bound to the current running loop."""
+    loop = asyncio.get_running_loop()
+    lock = _read_locks.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _read_locks[loop] = lock
+    return lock
+
 
 @app.telemetry(
     "airthings",
     interval=setting_ref("poll_interval"),
+    triggerable=True,
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )
 async def _telemetry(
     reader: AirthingsReaderPort,
     settings: Airthings2MqttSettings,
+    trigger: cosalette.TriggerPayload,
+    logger: logging.Logger,
 ) -> dict[str, object]:
     """Read all sensor values and return state dict."""
-    reading = await reader.read(settings.device_mac)
+    if trigger.is_triggered:
+        logger.info("On-demand Airthings re-read triggered")
+
+    async with _get_read_lock():
+        reading = await reader.read(settings.device_mac)
     return {
         "temperature": reading.temperature,
         "humidity": reading.humidity,

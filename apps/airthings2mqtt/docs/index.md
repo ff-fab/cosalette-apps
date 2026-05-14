@@ -15,6 +15,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 ## Features
 
 - **BLE sensor polling** — connects to Airthings Wave, Wave Plus, and Wave Mini sensors via BlueZ
+- **On-demand re-read** — publish to MQTT `/set` to refresh readings between scheduled polls
 - **Radon monitoring** — publishes 24-hour and long-term average radon concentrations
 - **Temperature & humidity** — ambient readings alongside air quality data
 - **Health reporting** — automatic heartbeats, per-device availability, and LWT

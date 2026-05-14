@@ -167,6 +167,9 @@ sensor readings:
     shortly after startup; subsequent readings follow the configured interval. See
     [Configuration](configuration.md) to adjust.
 
+  To request a fresh reading on demand, publish an empty payload to the trigger topic:
+  `mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n`.
+
 !!! warning "No messages?"
     - Confirm the broker is reachable:
       `mosquitto_pub -h localhost -t test -m hello`
