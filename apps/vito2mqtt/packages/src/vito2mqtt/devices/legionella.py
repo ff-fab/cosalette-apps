@@ -23,8 +23,6 @@ This module provides:
   an active heating schedule slot with sufficient remaining margin.
 - ``_legionella_device``: Async device function implementing the treatment
   state machine (idle → checking → heating → restoring → idle).
-- ``register_legionella``: Imperatively registers the device on an
-  :class:`~cosalette.App` instance.
 
 References:
     ADR-007 — Telemetry Coalescing Groups
@@ -38,7 +36,7 @@ import logging
 from collections.abc import AsyncIterator
 from datetime import datetime, time, timedelta
 
-from cosalette import App, DeviceContext, DeviceStore
+from cosalette import DeviceContext, DeviceStore
 
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.optolink.codec import CycleTimeSchedule
@@ -145,7 +143,7 @@ def is_within_heating_window(
 # ---------------------------------------------------------------------------
 
 
-async def _legionella_device(
+async def legionella_device(
     ctx: DeviceContext, store: DeviceStore
 ) -> AsyncIterator[None]:
     """Legionella treatment device loop.
@@ -481,25 +479,3 @@ async def _handle_start(
     # -- Restore original setpoint ------------------------------------------
     async for _ in _restore_setpoint(ctx, store, port, original_setpoint):
         yield  # reaction boundary forwarded from restore phase
-
-
-# ---------------------------------------------------------------------------
-# Registration
-# ---------------------------------------------------------------------------
-
-
-def register_legionella(app: App) -> None:
-    """Register the legionella treatment device on *app*.
-
-    This is the imperative entry point called from the application's
-    startup wiring (main.py).  It delegates to
-    :meth:`cosalette.App.add_device` with the correct device name and
-    async handler function.
-
-    Parameters:
-        app: The cosalette application instance.
-    """
-    app.add_device(
-        "legionella",
-        _legionella_device,
-    )

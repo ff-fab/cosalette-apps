@@ -34,8 +34,9 @@ from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
 from vito2mqtt.devices.telemetry import (
-    _make_handler,
-    register_telemetry,
+    GROUP_SUMMARIES,
+    INTERVAL_ATTR,
+    make_telemetry_handler,
 )
 from vito2mqtt.optolink.codec import ReturnStatus
 from vito2mqtt.optolink.commands import COMMANDS
@@ -59,83 +60,38 @@ def mock_app() -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# register_telemetry
+# Spec-table tests for INTERVAL_ATTR / GROUP_SUMMARIES
 # ---------------------------------------------------------------------------
 
 
-class TestRegisterTelemetry:
-    """Verify register_telemetry wires up all 7 signal groups."""
+class TestTelemetrySpecs:
+    """Verify that INTERVAL_ATTR and GROUP_SUMMARIES cover all SIGNAL_GROUPS."""
 
-    def test_registers_all_seven_groups(self, mock_app: MagicMock) -> None:
-        """Must call add_telemetry exactly once per signal group.
+    def test_interval_attr_covers_all_signal_groups(self) -> None:
+        """INTERVAL_ATTR must have one entry per SIGNAL_GROUPS key.
 
-        Technique: Specification-based — one handler per group.
+        Technique: Specification-based — every group needs a polling interval.
         """
-        register_telemetry(mock_app)
+        assert set(INTERVAL_ATTR.keys()) == set(SIGNAL_GROUPS.keys())
 
-        assert mock_app.add_telemetry.call_count == 7
+    def test_group_summaries_covers_all_signal_groups(self) -> None:
+        """GROUP_SUMMARIES must have one entry per SIGNAL_GROUPS key.
 
-        registered_names = {
-            call.kwargs["name"] for call in mock_app.add_telemetry.call_args_list
-        }
-        assert registered_names == set(SIGNAL_GROUPS.keys())
-
-    def test_uses_deferred_polling_intervals(self, mock_app: MagicMock) -> None:
-        """Each group's interval must be a callable (deferred resolver).
-
-        Technique: Specification-based — intervals are callables resolved
-        lazily by cosalette after settings are built.
+        Technique: Specification-based — every group needs a human-readable summary.
         """
-        register_telemetry(mock_app)
+        assert set(GROUP_SUMMARIES.keys()) == set(SIGNAL_GROUPS.keys())
 
-        for call in mock_app.add_telemetry.call_args_list:
-            group = call.kwargs["name"]
-            interval = call.kwargs["interval"]
-            assert callable(interval), (
-                f"Group {group!r}: expected callable interval, "
-                f"got {type(interval).__name__}"
-            )
+    @pytest.mark.parametrize("group", list(SIGNAL_GROUPS.keys()))
+    def test_interval_attr_values_are_strings(self, group: str) -> None:
+        """Each INTERVAL_ATTR value must be a non-empty string (settings attr)."""
+        value = INTERVAL_ATTR[group]
+        assert isinstance(value, str) and value
 
-    def test_uses_on_change_publish_strategy(self, mock_app: MagicMock) -> None:
-        """Every registration must use an OnChange publish strategy.
-
-        Technique: Specification-based — architecture requires OnChange.
-        """
-        from cosalette import OnChange
-
-        register_telemetry(mock_app)
-
-        for call in mock_app.add_telemetry.call_args_list:
-            assert isinstance(call.kwargs["publish"], OnChange), (
-                f"Group {call.kwargs['name']!r}: "
-                f"expected OnChange, got {type(call.kwargs['publish'])}"
-            )
-
-    def test_uses_optolink_coalescing_group(self, mock_app: MagicMock) -> None:
-        """Every handler must be registered with group="optolink".
-
-        Technique: Specification-based — ADR-007 requires coalescing
-        via the "optolink" group for all signal handlers.
-        """
-        register_telemetry(mock_app)
-
-        for call in mock_app.add_telemetry.call_args_list:
-            assert call.kwargs["group"] == "optolink", (
-                f"Group {call.kwargs['name']!r}: "
-                f"expected group='optolink', got {call.kwargs.get('group')!r}"
-            )
-
-    def test_handler_functions_are_callable(self, mock_app: MagicMock) -> None:
-        """Each registered func must be a callable (the handler closure).
-
-        Technique: Specification-based — func must be async callable.
-        """
-        register_telemetry(mock_app)
-
-        for call in mock_app.add_telemetry.call_args_list:
-            assert callable(call.kwargs["func"]), (
-                f"Group {call.kwargs['name']!r}: func is not callable"
-            )
+    @pytest.mark.parametrize("group", list(SIGNAL_GROUPS.keys()))
+    def test_group_summary_values_are_strings(self, group: str) -> None:
+        """Each GROUP_SUMMARIES value must be a non-empty string."""
+        value = GROUP_SUMMARIES[group]
+        assert isinstance(value, str) and value
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +115,7 @@ class TestMakeHandler:
         Technique: Specification-based — handler must read all group signals.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler(group)
+        handler = make_telemetry_handler(group)
         result = await handler(port=fake)
 
         assert isinstance(result, dict)
@@ -177,7 +133,7 @@ class TestMakeHandler:
         serialize_value(fake_default, type_code) for every signal.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler(group)
+        handler = make_telemetry_handler(group)
         result = await handler(port=fake)
 
         # Read the raw defaults independently for comparison.
@@ -211,7 +167,7 @@ class TestHandlerSerializationIntegration:
             "outdoor_temperature_damped": 5.0,
         }
         fake = FakeOptolinkAdapter(responses=responses)
-        handler = _make_handler("outdoor")
+        handler = make_telemetry_handler("outdoor")
         result = await handler(port=fake)
 
         assert result == responses
@@ -232,7 +188,7 @@ class TestHandlerSerializationIntegration:
                 responses[sig] = 20.5
 
         fake = FakeOptolinkAdapter(responses=responses)
-        handler = _make_handler("system")
+        handler = make_telemetry_handler("system")
         result = await handler(port=fake)
 
         rt_signals = [
@@ -259,7 +215,7 @@ class TestHandlerSerializationIntegration:
                 responses[sig] = ["no error", datetime(2026, 1, 1)]
 
         fake = FakeOptolinkAdapter(responses=responses)
-        handler = _make_handler("diagnosis")
+        handler = make_telemetry_handler("diagnosis")
         result = await handler(port=fake)
 
         assert result["error_status"] == "error"
@@ -285,7 +241,7 @@ class TestHandlerSerializationIntegration:
         }
 
         fake = FakeOptolinkAdapter(responses=responses)
-        handler = _make_handler("heating_floor")
+        handler = make_telemetry_handler("heating_floor")
         result = await handler(port=fake)
 
         assert result["flow_temperature_m2"] == 35.5
@@ -307,8 +263,8 @@ class TestHandlerClosureIsolation:
 
         Technique: Error Guessing — classic late-binding closure bug.
         """
-        handler_outdoor = _make_handler("outdoor")
-        handler_hot_water = _make_handler("hot_water")
+        handler_outdoor = make_telemetry_handler("outdoor")
+        handler_hot_water = make_telemetry_handler("hot_water")
 
         fake = FakeOptolinkAdapter()
         result_outdoor = await handler_outdoor(port=fake)

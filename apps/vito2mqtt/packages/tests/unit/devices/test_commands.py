@@ -35,10 +35,10 @@ import pytest
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices.commands import (
-    _make_handler,
+    COMMAND_SUMMARIES,
+    make_command_handler,
     _parse_payload,
     _validate_payload,
-    register_commands,
 )
 from vito2mqtt.errors import InvalidSignalError
 from vito2mqtt.optolink.commands import COMMANDS
@@ -55,38 +55,28 @@ def mock_app() -> MagicMock:
 
 
 # ---------------------------------------------------------------------------
-# register_commands
+# Spec-table tests for COMMAND_SUMMARIES
 # ---------------------------------------------------------------------------
 
 
-class TestRegisterCommands:
-    """Verify register_commands wires up all 4 command groups."""
+class TestCommandSpecs:
+    """Verify that COMMAND_SUMMARIES covers all COMMAND_GROUPS."""
 
-    def test_registers_all_four_groups(self, mock_app: MagicMock) -> None:
-        """Must call add_command exactly once per command group.
+    def test_command_summaries_keys_subset_of_signal_groups(self) -> None:
+        """COMMAND_SUMMARIES keys must be a subset of SIGNAL_GROUPS keys.
 
-        Technique: Specification-based — one handler per group.
+        Technique: Specification-based — summaries document potential command
+        groups; every documented group must be a known signal group.
         """
-        register_commands(mock_app)
+        from vito2mqtt.devices import SIGNAL_GROUPS
 
-        assert mock_app.add_command.call_count == 4
+        assert set(COMMAND_SUMMARIES.keys()) <= set(SIGNAL_GROUPS.keys())
 
-        registered_names = {
-            call.kwargs["name"] for call in mock_app.add_command.call_args_list
-        }
-        assert registered_names == set(COMMAND_GROUPS.keys())
-
-    def test_handler_functions_are_callable(self, mock_app: MagicMock) -> None:
-        """Each registered func must be a callable (the handler closure).
-
-        Technique: Specification-based — func must be async callable.
-        """
-        register_commands(mock_app)
-
-        for call in mock_app.add_command.call_args_list:
-            assert callable(call.kwargs["func"]), (
-                f"Group {call.kwargs['name']!r}: func is not callable"
-            )
+    @pytest.mark.parametrize("group", list(COMMAND_SUMMARIES.keys()))
+    def test_command_summary_values_are_strings(self, group: str) -> None:
+        """Each COMMAND_SUMMARIES value must be a non-empty string."""
+        value = COMMAND_SUMMARIES[group]
+        assert isinstance(value, str) and value
 
 
 # ---------------------------------------------------------------------------
@@ -179,7 +169,7 @@ class TestMakeHandler:
         ensuring the write always happens regardless of defaults.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler(group)
+        handler = make_command_handler(group)
 
         first_signal = COMMAND_GROUPS[group][0]
         type_code = COMMANDS[first_signal].type_code
@@ -200,7 +190,7 @@ class TestMakeHandler:
         Technique: Cross-reference — each payload key triggers a write.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # hot_water_setpoint (IUNON) and hot_water_pump_overrun (IUNON)
         payload = json.dumps(
@@ -221,7 +211,7 @@ class TestMakeHandler:
         Technique: Specification-based — commands don't publish state.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         payload = json.dumps({"hot_water_setpoint": 50})
         result = await handler(payload=payload, port=fake)
@@ -234,7 +224,7 @@ class TestMakeHandler:
         Technique: Equivalence Partitioning — empty payload boundary.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         result = await handler(payload="{}", port=fake)
 
@@ -249,7 +239,7 @@ class TestMakeHandler:
         before passing it to write_signal.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         schedule = [
             [[8, 0], [22, 0]],
@@ -269,7 +259,7 @@ class TestMakeHandler:
 
         Technique: Error Guessing — broken payload passed to handler.
         """
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
         fake = FakeOptolinkAdapter()
 
         with pytest.raises(InvalidSignalError, match="Invalid JSON payload"):
@@ -280,7 +270,7 @@ class TestMakeHandler:
 
         Technique: Error Guessing — payload with non-existent signal.
         """
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
         fake = FakeOptolinkAdapter()
 
         payload = json.dumps({"nonexistent_signal": 99})
@@ -302,8 +292,8 @@ class TestHandlerClosureIsolation:
 
         Technique: Error Guessing — classic late-binding closure bug.
         """
-        handler_hot_water = _make_handler("hot_water")
-        handler_system = _make_handler("system")
+        handler_hot_water = make_command_handler("hot_water")
+        handler_system = make_command_handler("system")
 
         fake_hw = FakeOptolinkAdapter()
         fake_sys = FakeOptolinkAdapter()
@@ -449,7 +439,7 @@ class TestReadBeforeWrite:
         result in zero writes.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # IUNON default from fake adapter is 42
         payload = json.dumps({"hot_water_setpoint": 42})
@@ -463,7 +453,7 @@ class TestReadBeforeWrite:
         Technique: Specification-based — value mismatch triggers write.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # IUNON default is 42, sending 55 should trigger a write
         payload = json.dumps({"hot_water_setpoint": 55})
@@ -477,7 +467,7 @@ class TestReadBeforeWrite:
         Technique: Specification-based — force meta-key bypass.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # Value matches default (42), but __force=true bypasses the read
         payload = json.dumps({"hot_water_setpoint": 42, "__force": True})
@@ -491,7 +481,7 @@ class TestReadBeforeWrite:
         Technique: Equivalence Partitioning — explicit false same as absent.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # Matches default (42) with __force=false — should skip write
         payload = json.dumps({"hot_water_setpoint": 42, "__force": False})
@@ -505,7 +495,7 @@ class TestReadBeforeWrite:
         Technique: Cross-reference — partial write within a multi-signal payload.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # hot_water_setpoint default is 42 (unchanged), pump_overrun default is 42
         payload = json.dumps(
@@ -538,7 +528,7 @@ class TestReadBeforeWrite:
                 return await super().read_signals(names)
 
         adapter = TrackingAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         payload = json.dumps(
             {
@@ -568,7 +558,7 @@ class TestReadBeforeWrite:
                 raise OSError(msg)
 
         adapter = FailingAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         payload = json.dumps({"hot_water_setpoint": 55})
 
@@ -586,7 +576,7 @@ class TestReadBeforeWrite:
         FakeOptolinkAdapter returns 20.5 for IS10 signals.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("heating_radiator")
+        handler = make_command_handler("heating_radiator")
 
         # IS10 default is 20.5 — sending same value should skip write
         payload = json.dumps({"heating_curve_gradient_m1": 20.5})
@@ -600,7 +590,7 @@ class TestReadBeforeWrite:
         Technique: Cross-reference — different float triggers write.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("heating_radiator")
+        handler = make_command_handler("heating_radiator")
 
         payload = json.dumps({"heating_curve_gradient_m1": 15.0})
         await handler(payload=payload, port=fake)
@@ -614,7 +604,7 @@ class TestReadBeforeWrite:
         No reads, no writes, returns None.
         """
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         payload = json.dumps({"__force": True})
         result = await handler(payload=payload, port=fake)
@@ -635,7 +625,7 @@ class TestReadBeforeWrite:
             [[None, None], [None, None]],
         ]
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         # Send the same default CT schedule — should skip write
         payload = json.dumps({"timer_hw_monday": default_schedule})
@@ -655,7 +645,7 @@ class TestReadBeforeWrite:
             [[None, None], [None, None]],
         ]
         fake = FakeOptolinkAdapter()
-        handler = _make_handler("hot_water")
+        handler = make_command_handler("hot_water")
 
         payload = json.dumps({"timer_hw_monday": new_schedule})
         await handler(payload=payload, port=fake)

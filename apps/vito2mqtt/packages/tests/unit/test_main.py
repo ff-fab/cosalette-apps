@@ -27,6 +27,7 @@ from cosalette import App
 
 from vito2mqtt import __version__
 from vito2mqtt.config import Vito2MqttSettings
+from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
 from vito2mqtt.ports import OptolinkPort
 
 
@@ -86,27 +87,57 @@ class TestAdapterRegistration:
 class TestTelemetryRegistration:
     """Verify telemetry handlers are registered."""
 
-    def test_telemetry_handlers_registered(self) -> None:
-        """At least one telemetry handler must be registered.
+    def test_telemetry_handler_count(self) -> None:
+        """Exactly one handler per SIGNAL_GROUPS entry must be registered.
 
-        Technique: Structural — register_telemetry populates _telemetry.
+        Technique: Specification-based — every group needs a telemetry device.
         """
         from vito2mqtt.main import app
 
-        assert len(app._telemetry) > 0
+        assert len(app._telemetry) == len(SIGNAL_GROUPS)
+
+    def test_telemetry_names_match_signal_groups(self) -> None:
+        """Registered telemetry names must match SIGNAL_GROUPS keys exactly.
+
+        Technique: Cross-reference — composition root must mirror the group registry.
+        """
+        from vito2mqtt.main import app
+
+        registered = {r.name for r in app._telemetry}
+        assert registered == set(SIGNAL_GROUPS)
+
+    def test_telemetry_all_use_optolink_group(self) -> None:
+        """All telemetry handlers must use group='optolink'.
+
+        Technique: Specification-based — ADR-007 coalescing group requirement.
+        """
+        from vito2mqtt.main import app
+
+        for reg in app._telemetry:
+            assert reg.group == "optolink", f"{reg.name!r} missing group='optolink'"
 
 
 class TestCommandRegistration:
     """Verify command handlers are registered."""
 
-    def test_command_handlers_registered(self) -> None:
-        """At least one command handler must be registered.
+    def test_command_handler_count(self) -> None:
+        """Exactly one handler per COMMAND_GROUPS entry must be registered.
 
-        Technique: Structural — register_commands populates _commands.
+        Technique: Specification-based — every writable group needs a command.
         """
         from vito2mqtt.main import app
 
-        assert len(app._commands) > 0
+        assert len(app._commands) == len(COMMAND_GROUPS)
+
+    def test_command_names_match_command_groups(self) -> None:
+        """Registered command names must match COMMAND_GROUPS keys exactly.
+
+        Technique: Cross-reference — composition root must mirror the group registry.
+        """
+        from vito2mqtt.main import app
+
+        registered = {r.name for r in app._commands}
+        assert registered == set(COMMAND_GROUPS)
 
     def test_command_names_subset_of_telemetry_names(self) -> None:
         """Command group names must be a subset of telemetry group names.
@@ -130,7 +161,7 @@ class TestDeviceRegistration:
     def test_legionella_device_registered(self) -> None:
         """The legionella device must be registered.
 
-        Technique: Structural — register_legionella populates _devices.
+        Technique: Structural — legionella device is in _devices.
         """
         from vito2mqtt.main import app
 
