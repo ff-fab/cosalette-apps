@@ -17,10 +17,11 @@
 
 from __future__ import annotations
 
-from suncast.app import create_app
+from suncast.app import app
 
 
 def main() -> None:
     """Start the application."""
-    app = create_app()
+    # cli() is used intentionally (not run()) to keep cosalette CLI flags
+    # such as --env-file, --dry-run, and --version available at the entry point.
     app.cli()

@@ -228,8 +228,11 @@ framework for IoT-to-MQTT bridges. cosalette provides:
 - **Graceful shutdown** — SIGTERM/SIGINT → shutdown event → clean teardown
 - **Lifespan hooks** — suncast uses this for the optional HTTP server
 
-The `create_app()` factory in `app.py` is the composition root — it creates the `App`,
-registers the telemetry device with a deferred interval, and wires the HTTP lifespan.
+The module-level `app` in `app.py` is the composition root — it creates the `App`,
+registers the shadow telemetry with `@app.telemetry`, and wires the HTTP lifespan.
+The `get_app()` function is the preferred accessor for the module-level app instance.
+`create_app()` is retained as a compatibility alias — it does not construct a new App
+and always returns the same instance.
 
 ---
 
