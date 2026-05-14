@@ -89,6 +89,16 @@ class GpiozeroAdapter:
         self.initialize(self._collect_pins())
         return self
 
+    async def health_check(self) -> bool:
+        """Return True if the GPIO character device is accessible.
+
+        Probes OS-level device-file existence via a thread pool executor
+        so the check is non-blocking and never toggles any pin.
+        """
+        import os  # noqa: PLC0415 — deferred import
+
+        return await asyncio.to_thread(os.path.exists, "/dev/gpiochip0")
+
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,

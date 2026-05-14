@@ -45,6 +45,8 @@ app = App(
             "vito2mqtt.adapters.fake:FakeOptolinkAdapter",
         ),
     },
+    restart_after_failures=5,
+    max_restarts=3,
 )
 
 configure_app(app)

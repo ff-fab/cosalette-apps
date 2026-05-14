@@ -3,7 +3,7 @@
 Test Techniques Used:
 - State Transition Testing: Adapter lifecycle (open → callback → inject → close)
 - Error Guessing: inject without callback raises RuntimeError
-- Specification-based Testing: No-op methods don't crash
+- Specification-based Testing: No-op methods don't crash; FakeJeeLinkAdapter health_check
 - Mock Testing: Async context manager lifecycle
 - Reopen Semantics: Queue reset between adapter sessions
 - Thread-safety Regression: framework callback dispatched via call_soon_threadsafe
@@ -454,3 +454,58 @@ class TestPyLaCrosseAdapterFrameworkCallback:
         assert reading.temperature == 20.5
         assert reading.humidity == 60
         assert reading.low_battery is False
+
+
+# ======================================================================
+# FakeJeeLinkAdapter health check
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestFakeJeeLinkAdapterHealthCheck:
+    """Specification-based tests for FakeJeeLinkAdapter.health_check."""
+
+    async def test_health_check_returns_true_when_open(self) -> None:
+        """health_check returns True when the adapter is open.
+
+        Technique: Specification-based — open state → healthy.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+        await adapter.open()
+
+        # Act
+        result = await adapter.health_check()
+
+        # Assert
+        assert result is True
+
+    async def test_health_check_returns_false_when_closed(self) -> None:
+        """health_check returns False when the adapter has been closed.
+
+        Technique: State Transition — open → close → health_check unhealthy.
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+        await adapter.open()
+        await adapter.close()
+
+        # Act
+        result = await adapter.health_check()
+
+        # Assert
+        assert result is False
+
+    async def test_health_check_returns_false_when_never_opened(self) -> None:
+        """health_check returns False on a fresh adapter that was never opened.
+
+        Technique: Boundary Value Analysis — initial state (never opened).
+        """
+        # Arrange
+        adapter = FakeJeeLinkAdapter()
+
+        # Act
+        result = await adapter.health_check()
+
+        # Assert
+        assert result is False

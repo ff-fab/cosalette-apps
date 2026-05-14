@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import struct
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 
 from airthings2mqtt.errors import ERROR_TYPE_MAP, BleReadError
 from airthings2mqtt.ports import AirthingsReading
@@ -28,6 +28,18 @@ class BleakAirthingsReader:
     and returns the parsed AirthingsReading. Each read() call is a full
     connect-read-disconnect cycle.
     """
+
+    async def health_check(self) -> bool:
+        """Probe BLE stack availability via a short discovery scan.
+
+        Returns:
+            True when the scan completes without error; False otherwise.
+        """
+        try:
+            await BleakScanner.discover(timeout=2.0)
+            return True
+        except Exception:
+            return False
 
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.

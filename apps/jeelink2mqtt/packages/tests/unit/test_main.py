@@ -339,3 +339,29 @@ class TestOnRegistryEvents:
 
         state_topics = [t for t, _, _ in ctx.published if t == "mapping/state"]
         assert len(state_topics) == 1
+
+
+# ── App restart configuration ─────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestAppRestartConfig:
+    """Verify restart configuration on the App instance."""
+
+    def test_restart_after_failures_is_five(self) -> None:
+        """App is configured to restart after 5 consecutive failures.
+
+        Technique: Specification-based — serial adapter recovery configuration.
+        """
+        from jeelink2mqtt.main import app
+
+        assert app._restart_after_failures == 5
+
+    def test_max_restarts_is_three(self) -> None:
+        """App allows at most 3 restarts before giving up.
+
+        Technique: Specification-based — bounded restart loop prevents runaway.
+        """
+        from jeelink2mqtt.main import app
+
+        assert app._max_restarts == 3

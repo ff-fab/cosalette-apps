@@ -1,7 +1,8 @@
 """Unit tests for airthings2mqtt main — telemetry handler and poll interval.
 
 Test Techniques Used:
-- Specification-based: Handler returns correct sensor dict from reader
+- Specification-based: Handler returns correct sensor dict from reader; retry and
+  restart metadata matches declared configuration
 - Error Guessing: BLE errors propagate through handler (not swallowed)
 - Equivalence Partitioning: Duplicate readings are not deduplicated
 - Branch Coverage: Scheduled and triggered telemetry paths (caplog assertions)
@@ -282,3 +283,63 @@ class TestReadLockSerialization:
         assert max_active_reads == 1
         assert r1["temperature"] == 21.5
         assert r2["temperature"] == 21.5
+
+
+@pytest.mark.unit
+class TestTelemetryRetryConfig:
+    """Verify retry metadata on the airthings telemetry registration."""
+
+    def test_retry_count_is_three(self) -> None:
+        """Telemetry registration has retry=3.
+
+        Technique: Specification-based — verify declared retry configuration.
+        """
+        from airthings2mqtt.main import app
+
+        reg = next(r for r in app._telemetry if r.name == "airthings")
+        assert reg.retry == 3
+
+    def test_retry_on_includes_ble_connection_error(self) -> None:
+        """retry_on tuple contains BleConnectionError.
+
+        Technique: Specification-based — connection failures should be retried.
+        """
+        from airthings2mqtt.errors import BleConnectionError
+        from airthings2mqtt.main import app
+
+        reg = next(r for r in app._telemetry if r.name == "airthings")
+        assert BleConnectionError in reg.retry_on
+
+    def test_retry_on_includes_ble_timeout_error(self) -> None:
+        """retry_on tuple contains BleTimeoutError.
+
+        Technique: Specification-based — timeout failures should be retried.
+        """
+        from airthings2mqtt.errors import BleTimeoutError
+        from airthings2mqtt.main import app
+
+        reg = next(r for r in app._telemetry if r.name == "airthings")
+        assert BleTimeoutError in reg.retry_on
+
+
+@pytest.mark.unit
+class TestAppRestartConfig:
+    """Verify restart configuration on the App instance."""
+
+    def test_restart_after_failures_is_five(self) -> None:
+        """App is configured to restart after 5 consecutive failures.
+
+        Technique: Specification-based — BLE adapter recovery configuration.
+        """
+        from airthings2mqtt.main import app
+
+        assert app._restart_after_failures == 5
+
+    def test_max_restarts_is_three(self) -> None:
+        """App allows at most 3 restarts before giving up.
+
+        Technique: Specification-based — bounded restart loop prevents runaway.
+        """
+        from airthings2mqtt.main import app
+
+        assert app._max_restarts == 3

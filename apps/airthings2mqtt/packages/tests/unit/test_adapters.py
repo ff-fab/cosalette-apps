@@ -3,7 +3,8 @@
 Test Techniques Used:
 - Specification-based: Verify protocol compliance, default behavior, cycling
 - State Transition: raise_on_next → read → error → cleared
-- Error Guessing: BLE exception translation via ERROR_TYPE_MAP
+- Error Guessing: BLE exception translation via ERROR_TYPE_MAP; health_check
+  failure on scanner exception
 """
 
 from __future__ import annotations
@@ -224,3 +225,46 @@ class TestBleakAirthingsReader:
             reading = await reader.read("AA:BB:CC:DD:EE:FF")
 
         assert reading.temperature == -5.0
+
+
+@pytest.mark.unit
+class TestBleakAirthingsReaderHealthCheck:
+    """Verify BleakAirthingsReader.health_check probes the BLE stack."""
+
+    async def test_returns_true_when_scanner_succeeds(self) -> None:
+        """health_check returns True when BleakScanner.discover completes.
+
+        Technique: Specification-based — healthy BLE stack returns True.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakScanner.discover",
+            new_callable=AsyncMock,
+            return_value=[],
+        ):
+            reader = BleakAirthingsReader()
+            result = await reader.health_check()
+
+        assert result is True
+
+    async def test_returns_false_when_scanner_raises(self) -> None:
+        """health_check returns False when BleakScanner.discover raises.
+
+        Technique: Error Guessing — any scanner exception → unhealthy.
+        """
+        from unittest.mock import AsyncMock, patch
+
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakScanner.discover",
+            new_callable=AsyncMock,
+            side_effect=OSError("BLE radio unavailable"),
+        ):
+            reader = BleakAirthingsReader()
+            result = await reader.health_check()
+
+        assert result is False

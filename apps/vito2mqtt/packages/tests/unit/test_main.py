@@ -255,3 +255,68 @@ class TestDunderMain:
         Technique: Structural — python -m vito2mqtt support.
         """
         import vito2mqtt.__main__  # noqa: F401
+
+
+class TestTelemetryRetryConfig:
+    """Verify retry metadata on every Optolink telemetry registration."""
+
+    def test_retry_count_is_three(self) -> None:
+        """All telemetry registrations have retry=3.
+
+        Technique: Specification-based — conservative retry for transient
+        serial/communication errors (workspace-89u).
+        """
+        from vito2mqtt.main import app
+
+        for reg in app._telemetry:
+            assert reg.retry == 3, f"{reg.name!r} retry={reg.retry}, expected 3"
+
+    def test_retry_on_includes_connection_error(self) -> None:
+        """retry_on includes OptolinkConnectionError for all telemetry.
+
+        Technique: Specification-based — serial open failures are transient.
+        """
+        from vito2mqtt.errors import OptolinkConnectionError
+        from vito2mqtt.main import app
+
+        for reg in app._telemetry:
+            assert OptolinkConnectionError in reg.retry_on, (
+                f"{reg.name!r} missing OptolinkConnectionError in retry_on"
+            )
+
+    def test_retry_on_includes_timeout_error(self) -> None:
+        """retry_on includes OptolinkTimeoutError for all telemetry.
+
+        Technique: Specification-based — device non-response is transient.
+        """
+        from vito2mqtt.errors import OptolinkTimeoutError
+        from vito2mqtt.main import app
+
+        for reg in app._telemetry:
+            assert OptolinkTimeoutError in reg.retry_on, (
+                f"{reg.name!r} missing OptolinkTimeoutError in retry_on"
+            )
+
+
+class TestAppRestartConfig:
+    """Verify adapter recovery restart configuration on the App instance."""
+
+    def test_restart_after_failures_is_five(self) -> None:
+        """App is configured to restart after 5 consecutive failures.
+
+        Technique: Specification-based — Optolink adapter recovery
+        configuration (workspace-ovq).
+        """
+        from vito2mqtt.main import app
+
+        assert app._restart_after_failures == 5
+
+    def test_max_restarts_is_three(self) -> None:
+        """App allows at most 3 restarts before giving up.
+
+        Technique: Specification-based — bounded restart loop prevents
+        runaway restart cycles.
+        """
+        from vito2mqtt.main import app
+
+        assert app._max_restarts == 3

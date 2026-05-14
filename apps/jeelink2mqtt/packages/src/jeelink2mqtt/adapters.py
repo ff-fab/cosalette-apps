@@ -217,6 +217,16 @@ class PyLaCrosseAdapter:
         """No-op — pylacrosse doesn't expose a discrete stop-scan; use close."""
         logger.debug("stop_scan() is a no-op for pylacrosse; call close() instead")
 
+    async def health_check(self) -> bool:
+        """Return True if the serial port device file is still present.
+
+        Probes OS-level device-file existence via a thread pool executor so
+        the check is non-blocking and does not disturb the open port.
+        """
+        import os  # noqa: PLC0415 — deferred to avoid import at module level
+
+        return await asyncio.to_thread(os.path.exists, self._port)
+
     def register_callback(
         self,
         callback: Callable[[SensorReading], None],
@@ -325,6 +335,10 @@ class FakeJeeLinkAdapter:
 
     async def stop_scan(self) -> None:
         """No-op — readings are injected manually."""
+
+    async def health_check(self) -> bool:
+        """Return True when the adapter is open."""
+        return self._open
 
     def register_callback(
         self,

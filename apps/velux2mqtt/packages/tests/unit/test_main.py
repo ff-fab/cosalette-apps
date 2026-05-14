@@ -144,3 +144,22 @@ class TestAppComposition:
         assert "cover" in registration.summary.lower()
         assert registration.behavior is not None and len(registration.behavior) > 0
         assert registration.effects is not None and len(registration.effects) > 0
+
+
+@pytest.mark.unit
+class TestAppRestartConfig:
+    """Verify restart configuration on the App instance."""
+
+    def test_restart_after_failures_is_five(self) -> None:
+        """App is configured to restart after 5 consecutive failures.
+
+        Technique: Specification-based — GPIO adapter recovery configuration.
+        """
+        assert app._restart_after_failures == 5
+
+    def test_max_restarts_is_three(self) -> None:
+        """App allows at most 3 restarts before giving up.
+
+        Technique: Specification-based — bounded restart loop prevents runaway.
+        """
+        assert app._max_restarts == 3

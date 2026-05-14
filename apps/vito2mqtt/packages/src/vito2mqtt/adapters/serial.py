@@ -116,6 +116,18 @@ class OptolinkAdapter:
     async def __aexit__(self, *exc: object) -> None:
         pass  # connect-per-cycle — nothing to tear down
 
+    # -- HealthCheckable implementation ------------------------------------
+
+    async def health_check(self) -> bool:
+        """Return True if the serial port device file is still present.
+
+        Probes OS-level device-file existence via a thread pool executor
+        so the check is non-blocking and does not touch the boiler.
+        """
+        import os  # noqa: PLC0415 — deferred import
+
+        return await asyncio.to_thread(os.path.exists, self._serial_port)
+
     # -- OptolinkPort implementation ----------------------------------------
 
     async def read_signal(self, name: str) -> Any:
