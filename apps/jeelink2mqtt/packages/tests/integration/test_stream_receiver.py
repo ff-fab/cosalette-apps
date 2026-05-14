@@ -64,9 +64,15 @@ async def _run_receiver(
     settings: Jeelink2MqttSettings,
     state: object,
 ) -> None:
-    """Run the receiver async generator, injecting readings then shutting down."""
+    """Run the receiver async generator, injecting readings then shutting down.
+
+    Manually invokes the on_registry_events reactor after each yield to simulate
+    framework reactor behavior (integration tests bypass the App harness).
+    """
     from cosalette import DeviceStore
     from cosalette.stores import MemoryStore
+    from jeelink2mqtt.main import on_registry_events
+    from jeelink2mqtt.state import SharedState
 
     backend = MemoryStore(initial={"receiver": store_data} if store_data else None)
     device_store = DeviceStore(backend, "receiver")
@@ -90,7 +96,11 @@ async def _run_receiver(
 
     async def _drain_gen() -> None:
         async for _ in gen:
-            pass
+            # Manually trigger reactor after yield (simulates framework behavior)
+            if isinstance(state, SharedState):
+                events = state.registry.drain_events()
+                if events:
+                    await on_registry_events(events, ctx, device_store, state)  # type: ignore[arg-type]
 
     await asyncio.gather(_drain_gen(), _inject_and_shutdown())
 
@@ -211,7 +221,7 @@ class TestStreamReceiverHandler:
     async def test_mapping_event_published_on_new_sensor(self) -> None:
         """A reading for a new sensor_id triggers a mapping/event publish.
 
-        Technique: Specification-based — exercises the flush_events path
+        Technique: Specification-based — exercises the reactor pattern
         in receiver, verifying the mapping/event + mapping/state MQTT contract.
 
         ADR-002: auto-adopt fires when exactly one configured sensor is stale.
@@ -229,7 +239,7 @@ class TestStreamReceiverHandler:
 
         topics = [t for t, _, _ in ctx.published]
         assert "mapping/event" in topics, (
-            "flush_events path not exercised — no mapping/event published"
+            "reactor pattern not exercised — no mapping/event published"
         )
         assert "mapping/state" in topics
 
@@ -242,6 +252,7 @@ class TestStreamReceiverHandler:
         """
         from cosalette import DeviceStore
         from cosalette.stores import MemoryStore
+        from jeelink2mqtt.main import on_registry_events
 
         # One sensor so auto-adopt fires unambiguously (ADR-002)
         settings = _make_settings(
@@ -270,14 +281,17 @@ class TestStreamReceiverHandler:
 
         async def _drain() -> None:
             async for _ in gen:
-                pass
+                # Manually trigger reactor after yield (simulates framework)
+                events = state.registry.drain_events()
+                if events:
+                    await on_registry_events(events, ctx, device_store, state)  # type: ignore[arg-type]
 
         await asyncio.gather(_drain(), _inject_and_shutdown())
 
-        # ADR-004: flush_events writes registry to the DeviceStore in-memory state.
+        # ADR-004: on_registry_events reactor persists registry to DeviceStore.
         # (The framework calls store.save() on shutdown; simulate that here.)
         device_store.save()
         assert "receiver" in backend._data, "DeviceStore was never saved"
         assert "registry" in backend._data["receiver"], (
-            "registry key absent — flush_events did not write to store"
+            "registry key absent — reactor did not write to store"
         )

@@ -24,11 +24,11 @@ from jeelink2mqtt.receiver import (
     _apply_pipeline,
     _check_staleness,
     _maybe_heartbeat,
-    _publish_mapping_event,
-    _publish_mapping_state,
     _publish_raw,
     _publish_sensor,
     _restore_registry,
+    publish_mapping_event,
+    publish_mapping_state,
 )
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
@@ -361,7 +361,7 @@ class TestPublishSensor:
 
 
 # ===========================================================================
-# _publish_mapping_event
+# publish_mapping_event
 # ===========================================================================
 
 
@@ -387,7 +387,7 @@ class TestPublishMappingEvent:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_mapping_event(ctx, event)
+        await publish_mapping_event(ctx, event)
 
         # Assert
         assert len(ctx.published) == 1
@@ -420,7 +420,7 @@ class TestPublishMappingEvent:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_mapping_event(ctx, event)
+        await publish_mapping_event(ctx, event)
 
         # Assert
         data = json.loads(ctx.published[0][1])
@@ -429,7 +429,7 @@ class TestPublishMappingEvent:
 
 
 # ===========================================================================
-# _publish_mapping_state
+# publish_mapping_state
 # ===========================================================================
 
 
@@ -451,7 +451,7 @@ class TestPublishMappingState:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_mapping_state(ctx, state)
+        await publish_mapping_state(ctx, state)
 
         # Assert
         assert len(ctx.published) == 1
@@ -473,7 +473,7 @@ class TestPublishMappingState:
         ctx = FakeDeviceContext()
 
         # Act
-        await _publish_mapping_state(ctx, state)
+        await publish_mapping_state(ctx, state)
 
         # Assert
         data = json.loads(ctx.published[0][1])
@@ -911,80 +911,6 @@ class TestSharedStateApplyPipeline:
         # Assert
         assert result.temperature == pytest.approx(21.0)  # 20.0 + 1.0
         assert result.humidity == 52  # 50 + 2.0
-
-
-@pytest.mark.unit
-class TestSharedStateFlushEvents:
-    """Test SharedState.flush_events method."""
-
-    async def test_flushes_registry_events_and_persists(self) -> None:
-        """flush_events drains events, publishes to correct topics, and persists.
-
-        Technique: Specification-based — topics, retain flags, JSON structure, store key.
-        """
-        # Arrange
-        config = SensorConfig(name="office")
-        state = _make_shared_state(sensor_configs=[config])
-        ctx = FakeDeviceContext()
-        store = _make_device_store()
-
-        # Trigger an auto-adopt event by recording an unmapped reading
-        reading = _fixed_reading(sensor_id=42)
-        state.registry.record_reading(reading)
-
-        # Act
-        result = await state.flush_events(ctx, store)
-
-        # Assert — return value
-        assert result is True
-
-        # Assert — published topics in order
-        topics = [t for t, _, _ in ctx.published]
-        assert "mapping/event" in topics
-        assert "mapping/state" in topics
-
-        # Assert — mapping/event payload and retain flag
-        event_topic, event_payload, event_retain = next(
-            (t, p, r) for t, p, r in ctx.published if t == "mapping/event"
-        )
-        assert event_retain is False
-        event_data = json.loads(event_payload)
-        assert event_data["sensor_name"] == "office"
-        assert event_data["new_sensor_id"] == 42
-        assert "event_type" in event_data
-        assert "timestamp" in event_data
-
-        # Assert — mapping/state payload and retain flag
-        _state_topic, state_payload, state_retain = next(
-            (t, p, r) for t, p, r in ctx.published if t == "mapping/state"
-        )
-        assert state_retain is True
-        state_data = json.loads(state_payload)
-        assert "office" in state_data
-        assert state_data["office"]["sensor_id"] == 42
-
-        # Assert — registry persisted to store with expected structure
-        assert "registry" in store
-        persisted = store["registry"]
-        assert isinstance(persisted, dict)
-        assert "mappings" in persisted
-
-    async def test_no_events_returns_false(self) -> None:
-        """flush_events returns False when no events to flush.
-
-        Technique: Boundary Value Analysis — zero events.
-        """
-        # Arrange
-        state = _make_shared_state()
-        ctx = FakeDeviceContext()
-        store = _make_device_store()
-
-        # Act
-        result = await state.flush_events(ctx, store)
-
-        # Assert
-        assert result is False
-        assert len(ctx.published) == 0
 
 
 @pytest.mark.unit
