@@ -1,6 +1,7 @@
 """Gas counter telemetry — stateful trigger detection and counting.
 
-Uses shared GasCounterState instance created in lifespan and injected via DI.
+Uses shared GasCounterState instance created by the @app.state provider in
+main.py and injected via DI.
 Telemetry handler is called periodically (poll_interval).
 Command handler processes MQTT consumption updates.
 
@@ -23,9 +24,9 @@ MQTT command payload (on gas2mqtt/consumption/set):
 
 from __future__ import annotations
 
-import math
 import json
 import logging
+import math
 
 from cosalette import DeviceStore
 
@@ -41,8 +42,8 @@ MAX_CONSUMPTION_M3 = 1_000_000.0
 class GasCounterState:
     """Mutable state container for the gas counter.
 
-    Created once by make_gas_counter() init factory, persists across
-    all scheduled and triggered telemetry runs.
+    Created once by make_gas_counter() called from the @app.state provider,
+    persists across all scheduled and triggered telemetry runs.
     """
 
     def __init__(
@@ -132,10 +133,11 @@ def make_gas_counter(
     store: DeviceStore,
     logger: logging.Logger,
 ) -> GasCounterState:
-    """Init factory — creates stateful domain objects.
+    """Factory — creates stateful domain objects.
 
-    Called once before the telemetry loop. The returned GasCounterState
-    is injected into gas_counter() on every scheduled and triggered run.
+    Called once by the @app.state provider before the telemetry loop.
+    The returned GasCounterState is injected into gas_counter() on every
+    scheduled and triggered run.
     """
     store.load()
     trigger = SchmittTrigger(settings.trigger_level, settings.trigger_hysteresis)

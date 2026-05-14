@@ -21,4 +21,4 @@ Implementation details for contributors and deep-dive readers:
 - **[Devices](devices.md)** — cosalette device handlers (gas counter, temperature,
   magnetometer)
 - **[Adapters](adapters.md)** — Hardware adapter implementations (QMC5883L, fake)
-- **[Application](app.md)** — App factory, lifespan, and wiring
+- **[Application](app.md)** — App factory, state provider, and wiring

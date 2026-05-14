@@ -19,8 +19,31 @@ import cosalette
 import pytest
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
+from gas2mqtt.devices.gas_counter import GasCounterState
 from gas2mqtt.main import _make_store, app, create_app
 from tests.fixtures.config import make_gas2mqtt_settings
+
+# ---------------------------------------------------------------------------
+# Test helpers
+# ---------------------------------------------------------------------------
+
+
+def _find_gas_counter_state_factory(fresh_app: cosalette.App):
+    """Return the @app.state factory registered for GasCounterState.
+
+    Uses return-annotation inspection to locate the factory among all
+    registered state providers.  Raises AssertionError if not found.
+    """
+    for factory in fresh_app._state_factories:
+        if hasattr(factory.factory, "__annotations__"):
+            return_annotation = factory.factory.__annotations__.get("return")
+            if (
+                return_annotation is GasCounterState
+                or return_annotation == "GasCounterState"
+            ):
+                return factory
+    raise AssertionError("No GasCounterState factory registered in _state_factories")
+
 
 # ---------------------------------------------------------------------------
 # App creation
@@ -207,3 +230,62 @@ class TestStoreWiring:
         store.save("gas_counter", {"counter": 1})
 
         assert (tmp_path / "xdg-state" / "gas2mqtt" / "state.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# State provider registration (@app.state)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+class TestStateProviderRegistration:
+    """Verify GasCounterState is provided via @app.state, not lifespan."""
+
+    def test_app_registers_gas_counter_state_factory(self) -> None:
+        """create_app() registers a @app.state factory for GasCounterState.
+
+        Technique: Specification-based — verifying cosalette 0.4 provider wiring.
+        """
+        # Arrange
+        fresh_app = create_app()
+
+        # Assert — structural preconditions
+        assert hasattr(fresh_app, "_state_factories")
+        assert len(fresh_app._state_factories) > 0
+
+        # Assert — correct factory is registered
+        factory = _find_gas_counter_state_factory(fresh_app)
+        assert factory.factory.__name__ == "gas_counter_state"
+
+    def test_state_provider_builds_gas_counter_state(self, tmp_path) -> None:
+        """The registered provider returns a valid GasCounterState.
+
+        Technique: Integration — exercise factory with real domain objects,
+        no hardware required.
+        """
+        # Arrange
+        settings = make_gas2mqtt_settings(state_file=tmp_path / "state.json")
+        factory = _find_gas_counter_state_factory(create_app())
+
+        # Act
+        state = factory.factory(settings)
+
+        # Assert
+        assert isinstance(state, GasCounterState)
+        assert state.counter == 0
+
+    def test_state_provider_restores_persisted_counter(self, tmp_path) -> None:
+        """State provider loads counter from a pre-populated store.
+
+        Technique: State Transition — verifying restore-from-disk path.
+        """
+        # Arrange — seed the store file then resolve the registered factory
+        settings = make_gas2mqtt_settings(state_file=tmp_path / "state.json")
+        _make_store(settings).save("gas_counter", {"counter": 99})
+        factory = _find_gas_counter_state_factory(create_app())
+
+        # Act
+        state = factory.factory(settings)
+
+        # Assert
+        assert state.counter == 99

@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager
-from typing import cast
 
 import cosalette
 from cosalette import DeviceStore, OnChange, setting_ref
@@ -31,24 +28,6 @@ def _make_store(settings: Gas2MqttSettings) -> cosalette.Store:
     return cosalette.JsonFileStore(store_path)
 
 
-@asynccontextmanager
-async def _gas_lifespan(
-    ctx: cosalette.AppContext,
-) -> AsyncIterator[GasCounterState]:
-    """Create and yield shared GasCounterState for DI injection.
-
-    Both gas_counter telemetry and update_consumption command receive
-    the same GasCounterState instance, ensuring consistent in-process
-    state. Explicit save() in stage_state() handles persistence.
-    """
-    settings = cast(Gas2MqttSettings, ctx.settings)
-    logger = logging.getLogger("gas2mqtt.lifespan")
-    store_backend = _make_store(settings)
-    device_store = DeviceStore(store_backend, "gas_counter")
-    state = make_gas_counter(settings, device_store, logger)
-    yield state
-
-
 def create_app() -> cosalette.App:
     app = cosalette.App(
         name="gas2mqtt",
@@ -56,18 +35,30 @@ def create_app() -> cosalette.App:
         description="Domestic gas meter reader via QMC5883L magnetometer",
         settings_class=Gas2MqttSettings,
         store=_make_store,
-        lifespan=_gas_lifespan,
         adapters={
             MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
         },
     )
+
+    @app.state
+    def gas_counter_state(settings: Gas2MqttSettings) -> GasCounterState:
+        """State provider for shared GasCounterState.
+
+        Both gas_counter telemetry and update_consumption command receive
+        the same GasCounterState instance via DI, ensuring consistent
+        in-process state. Explicit save() in stage_state() handles persistence.
+        """
+        logger = logging.getLogger("gas2mqtt.state")
+        store_backend = _make_store(settings)
+        device_store = DeviceStore(store_backend, "gas_counter")
+        return make_gas_counter(settings, device_store, logger)
 
     app.telemetry(
         "gas_counter",
         interval=setting_ref("poll_interval"),
         publish=OnChange(),
         # No persist=SaveOnChange() — stage_state() calls store.save() directly
-        # No init=make_gas_counter — GasCounterState injected from lifespan
+        # No init=make_gas_counter — GasCounterState injected from @app.state
         summary="Domestic gas meter counter: pulse counting via QMC5883L Schmitt trigger detection",
         state_model=GasCounterState,
         behavior=[
@@ -85,7 +76,7 @@ def create_app() -> cosalette.App:
 
     app.command(
         "consumption",
-        # No init= — GasCounterState injected from lifespan (same instance as telemetry)
+        # No init= — GasCounterState injected from @app.state (same instance as telemetry)
         summary="Override the accumulated consumption_m3 value for the gas counter",
         payload_model=dict,
         effects=[
