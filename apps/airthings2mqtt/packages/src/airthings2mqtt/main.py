@@ -6,7 +6,9 @@ adapter, and settings.  The ``main()`` function is the CLI entry point.
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import weakref
 
 import cosalette
 from cosalette import setting_ref
@@ -23,6 +25,27 @@ app = cosalette.App(
         AirthingsReaderPort: (BleakAirthingsReader, FakeAirthingsReader),
     },
 )
+
+_read_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
+    weakref.WeakKeyDictionary()
+)
+"""One lock per running event loop.
+
+Production uses a single loop so reads are serialized as expected.
+In pytest each function-scoped loop gets its own fresh lock with no
+cross-test state leakage. The WeakKeyDictionary releases locks when
+their loop is garbage-collected, preventing memory growth.
+"""
+
+
+def _get_read_lock() -> asyncio.Lock:
+    """Return the serialization lock bound to the current running loop."""
+    loop = asyncio.get_running_loop()
+    lock = _read_locks.get(loop)
+    if lock is None:
+        lock = asyncio.Lock()
+        _read_locks[loop] = lock
+    return lock
 
 
 @app.telemetry(
@@ -42,7 +65,8 @@ async def _telemetry(
     if trigger.is_triggered:
         logger.info("On-demand Airthings re-read triggered")
 
-    reading = await reader.read(settings.device_mac)
+    async with _get_read_lock():
+        reading = await reader.read(settings.device_mac)
     return {
         "temperature": reading.temperature,
         "humidity": reading.humidity,

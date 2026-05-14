@@ -101,6 +101,16 @@ async def run_app_briefly(
     await task
 
 
+def make_long_poll_settings() -> Airthings2MqttSettings:
+    """Settings with a 1-hour poll interval for trigger-causality tests.
+
+    A 3600-second poll cannot fire within the test's 2-second window, so
+    the second state publish is guaranteed to be the triggered re-read,
+    not an accidental scheduler tick.
+    """
+    return _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=3600)  # type: ignore[return-value]
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------

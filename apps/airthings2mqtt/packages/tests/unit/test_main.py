@@ -4,11 +4,12 @@ Test Techniques Used:
 - Specification-based: Handler returns correct sensor dict from reader
 - Error Guessing: BLE errors propagate through handler (not swallowed)
 - Equivalence Partitioning: Duplicate readings are not deduplicated
-- Branch Coverage: Scheduled and triggered telemetry paths
+- Branch Coverage: Scheduled and triggered telemetry paths (caplog assertions)
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 import cosalette
@@ -193,4 +194,91 @@ class TestTelemetryTrigger:
         # Assert
         assert reader.calls == ["11:22:33:44:55:66"]
         assert result["temperature"] == 21.5
-        assert "On-demand Airthings re-read triggered" in caplog.text
+        assert "On-demand Airthings re-read triggered" in caplog.messages
+
+    async def test_scheduled_payload_does_not_log_trigger(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Scheduled telemetry returns sensor data without logging trigger intent.
+
+        Technique: Branch Coverage — scheduled path does not enter the
+        ``trigger.is_triggered`` branch; caplog must stay silent.
+        """
+        from airthings2mqtt.main import _telemetry
+
+        # Arrange
+        reader = FakeAirthingsReader()
+        settings = make_airthings2mqtt_settings(device_mac="11:22:33:44:55:66")
+        trigger = cosalette.TriggerPayload.scheduled()
+        logger = logging.getLogger("tests.airthings2mqtt.trigger")
+
+        # Act
+        with caplog.at_level(logging.INFO, logger=logger.name):
+            result = await _telemetry(
+                reader=reader,
+                settings=settings,
+                trigger=trigger,
+                logger=logger,
+            )
+
+        # Assert
+        assert reader.calls == ["11:22:33:44:55:66"]
+        assert result["temperature"] == 21.5
+        assert "On-demand Airthings re-read triggered" not in caplog.messages
+
+
+@pytest.mark.unit
+class TestReadLockSerialization:
+    """Verify _get_read_lock serializes concurrent telemetry reads."""
+
+    async def test_concurrent_reads_are_serialized(self) -> None:
+        """Two concurrent _telemetry calls never overlap inside reader.read.
+
+        Technique: Concurrency — prove the per-loop lock prevents simultaneous
+        reader.read invocations.  A controlled reader gates each call behind an
+        asyncio.Event so we can observe the concurrency counter mid-flight.
+        """
+        from airthings2mqtt.main import _telemetry
+
+        active_reads = 0
+        max_active_reads = 0
+        inside_read = asyncio.Event()
+        gate = asyncio.Event()
+        reading = AirthingsReading(
+            temperature=21.5, humidity=45.0, radon_24h_avg=80, radon_long_term_avg=65
+        )
+
+        class _CountingReader:
+            async def read(self, _mac: str) -> AirthingsReading:
+                nonlocal active_reads, max_active_reads
+                active_reads += 1
+                max_active_reads = max(max_active_reads, active_reads)
+                inside_read.set()  # signal: I am inside read, blocked on gate
+                await gate.wait()
+                active_reads -= 1
+                return reading
+
+        reader = _CountingReader()
+        settings = make_airthings2mqtt_settings()
+        trigger = cosalette.TriggerPayload.scheduled()
+        logger = logging.getLogger(__name__)
+
+        t1 = asyncio.create_task(
+            _telemetry(reader=reader, settings=settings, trigger=trigger, logger=logger)
+        )
+        t2 = asyncio.create_task(
+            _telemetry(reader=reader, settings=settings, trigger=trigger, logger=logger)
+        )
+
+        # Wait for the first task to enter reader.read and block on the gate.
+        # At this point t2 must be waiting for the lock — not inside reader.read.
+        await asyncio.wait_for(inside_read.wait(), timeout=1.0)
+        assert max_active_reads == 1, "Lock must prevent a second concurrent read"
+
+        # Release the gate; both tasks complete serially.
+        gate.set()
+        r1, r2 = await asyncio.wait_for(asyncio.gather(t1, t2), timeout=2.0)
+
+        assert max_active_reads == 1
+        assert r1["temperature"] == 21.5
+        assert r2["temperature"] == 21.5
