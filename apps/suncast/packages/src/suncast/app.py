@@ -13,7 +13,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-"""Cosalette application factory for suncast."""
+"""Cosalette application composition for suncast."""
 
 from __future__ import annotations
 
@@ -93,6 +93,27 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
         yield
 
 
+def _poll_interval(s: cosalette.Settings) -> float:
+    """Deferred interval — resolved after settings are parsed."""
+    if not isinstance(s, SuncastSettings):
+        raise TypeError(f"Expected SuncastSettings, got {type(s).__name__}")
+    return s.poll_interval
+
+
+app = cosalette.App(
+    name="suncast",
+    version=__version__,
+    description="Sun position and shadow visualization service",
+    settings_class=SuncastSettings,
+    lifespan=_lifespan,
+)
+
+
+@app.telemetry(
+    name="shadow",
+    interval=_poll_interval,
+    init=_build_pipeline,
+)
 async def _shadow_handler(
     ctx: cosalette.DeviceContext,
     state: PipelineState,
@@ -112,28 +133,6 @@ async def _shadow_handler(
     return None
 
 
-def _poll_interval(s: cosalette.Settings) -> float:
-    """Deferred interval — resolved after settings are parsed."""
-    if not isinstance(s, SuncastSettings):
-        raise TypeError(f"Expected SuncastSettings, got {type(s).__name__}")
-    return s.poll_interval
-
-
 def create_app() -> cosalette.App:
-    """Create and wire the suncast cosalette application."""
-    app = cosalette.App(
-        name="suncast",
-        version=__version__,
-        description="Sun position and shadow visualization service",
-        settings_class=SuncastSettings,
-        lifespan=_lifespan,
-    )
-
-    app.add_telemetry(
-        name="shadow",
-        func=_shadow_handler,
-        interval=_poll_interval,
-        init=_build_pipeline,
-    )
-
+    """Return the module-level suncast cosalette application."""
     return app

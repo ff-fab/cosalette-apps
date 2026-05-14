@@ -17,10 +17,9 @@
 
 from __future__ import annotations
 
-from suncast.app import create_app
+from suncast.app import app
 
 
 def main() -> None:
     """Start the application."""
-    app = create_app()
     app.cli()

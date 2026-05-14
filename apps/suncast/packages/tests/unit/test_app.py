@@ -16,7 +16,7 @@
 """Unit tests for app.py — composition root and telemetry handler.
 
 Test Techniques Used:
-- Specification-based: factory returns correctly wired App instance
+- Specification-based: module-level App is wired with decorator telemetry
 - State Verification: pipeline state built from settings overrides
 """
 
@@ -28,7 +28,7 @@ from unittest.mock import patch
 import cosalette
 import pytest
 
-from suncast.app import PipelineState, _build_pipeline, _poll_interval, create_app
+from suncast.app import PipelineState, _build_pipeline, _poll_interval, app, create_app
 from suncast.domain.geometry import BuildingConfig, CanvasConfig, GeometryConfig
 from suncast.output import OutputManager
 from suncast.renderer import RenderSettings, ShadowRenderer
@@ -58,19 +58,26 @@ _TEST_GEOMETRY = GeometryConfig(
 
 @pytest.mark.unit
 class TestCreateApp:
-    """create_app() produces a correctly wired cosalette App."""
+    """Module-level app exposes a correctly wired cosalette App."""
 
     def test_returns_app_instance(self) -> None:
-        app = create_app()
         assert isinstance(app, cosalette.App)
 
+    def test_create_app_returns_module_app(self) -> None:
+        assert create_app() is app
+
     def test_app_name(self) -> None:
-        app = create_app()
         assert app._name == "suncast"
 
     def test_settings_class(self) -> None:
-        app = create_app()
         assert app._settings_class is SuncastSettings
+
+    def test_shadow_telemetry_registered_declaratively(self) -> None:
+        registrations = [r for r in app.telemetry_registrations if r.name == "shadow"]
+        assert len(registrations) == 1
+        assert registrations[0].func is not None
+        assert registrations[0].interval is _poll_interval
+        assert registrations[0].init is _build_pipeline
 
 
 @pytest.mark.unit
