@@ -133,7 +133,7 @@ repos:
         stages: [pre-push]
       - id: bd-pull-post-merge
         name: Beads pull (post-merge)
-        entry: bash -c 'if [ ! -d .beads ] || ! command -v bd >/dev/null 2>&1; then exit 0; fi; CHANGED=$(git diff-tree -r --name-only ORIG_HEAD HEAD -- ".beads/" 2>/dev/null); if [ -n "$CHANGED" ]; then echo "Beads data updated by merge, pulling..."; bd dolt pull 2>/dev/null || true; fi'
+        entry: bash -c 'if [ ! -d .beads ] || ! command -v bd >/dev/null 2>&1; then exit 0; fi; CHANGED=$(git diff-tree -r --name-only ORIG_HEAD HEAD -- ".beads/" 2>/dev/null); if [ -n "$CHANGED" ]; then echo "Beads data updated by merge, importing..."; bd import 2>/dev/null || true; fi'
         language: system
         always_run: true
         pass_filenames: false
