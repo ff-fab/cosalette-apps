@@ -136,14 +136,15 @@ cover position doesn't change. velux2mqtt accounts for this:
 Each configured cover is registered as a cosalette device using dict-name
 `@app.device` expansion. The device function owns the full lifecycle:
 
-| Device            | Type           | Description                                           |
-| ----------------- | -------------- | ----------------------------------------------------- |
-| `cover` (per cfg) | `@app.device`  | Command loop: parses commands, executes GPIO moves, tracks position |
+| Device                  | Type           | Description                                           |
+| ----------------------- | -------------- | ----------------------------------------------------- |
+| `cover_device` (per cfg) | `app.device()` | Command loop: parses commands, executes GPIO moves, tracks position |
 
 The `name=` callable maps each configured cover name to its `CoverConfig`, and
-cosalette injects that per-cover config into `cover_device()`. Each expanded cover
-instance has its own `PositionTracker`, `DriftCompensator`, and
-`CalibrationStateMachine`.
+cosalette injects that per-cover config into `cover_device()` by dependency injection.
+`cover_device` is registered directly via `app.device(name=_cover_map, ...)(cover_device)`
+in ``main.py`` — no wrapper layer. Each expanded cover instance has its own
+`PositionTracker`, `DriftCompensator`, and `CalibrationStateMachine`.
 
 ---
 

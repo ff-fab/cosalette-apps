@@ -182,12 +182,13 @@ def make_cover(
     cover_cfg: CoverConfig,
     settings: Velux2MqttSettings,
 ) -> Callable[..., AsyncIterator[None]]:
-    """Create a configured cover device function for legacy callers.
+    """Pre-bind :func:`cover_device` to a specific cover config and settings object.
 
-    The application now registers :func:`cover_device` declaratively via
-    ``@app.device(name=...)``. This wrapper preserves the old factory contract
-    for focused unit tests and external callers that still need a pre-bound
-    device function.
+    Normal app registration calls
+    ``app.device(name=_cover_map, ...)(cover_device)`` in ``main.py``,
+    which registers :func:`cover_device` directly via dict-name expansion.
+    This factory is for focused tests and external callers that need a
+    single-argument cosalette-compatible callable without dict-name expansion.
     """
 
     async def configured_cover(ctx: cosalette.DeviceContext) -> AsyncIterator[None]:

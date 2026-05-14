@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import cosalette
 
+from velux2mqtt import __version__
 from velux2mqtt.devices.cover import cover_device
 from velux2mqtt.ports import GpioSwitchPort
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
@@ -23,7 +24,7 @@ def _cover_map(settings: cosalette.Settings) -> dict[str, CoverConfig]:
 
 app = cosalette.App(
     name="velux2mqtt",
-    version="0.0.0",
+    version=__version__,
     description="Velux cover control via KLF 050 remotes and GPIO",
     settings_class=Velux2MqttSettings,
     adapters={
@@ -34,19 +35,21 @@ app = cosalette.App(
     },
 )
 
-
-@app.device(
+app.device(
     name=_cover_map,
-    summary="Velux cover: open/close/stop control",
-)
-async def cover(
-    ctx: cosalette.DeviceContext,
-    cover_cfg: CoverConfig,
-    settings: Velux2MqttSettings,
-):
-    """Run one configured Velux cover device."""
-    async for event in cover_device(ctx, cover_cfg, settings):
-        yield event
+    summary="Velux cover: GPIO-driven open/close/stop/position control",
+    behavior=[
+        "Startup homing to a known endpoint for reliable position reference",
+        "Open/close/stop commands via GPIO button presses on KLF 050 remote",
+        "Position targeting (0\u2013100%) with time-based position tracking",
+        "Calibration sub-entity (start/go/mark/cancel phases)",
+        "Drift compensation: periodic re-homing after consecutive intermediate moves",
+    ],
+    effects=[
+        "Presses GPIO pins (up/stop/down) via GpioSwitchPort",
+        "Publishes cover position state to MQTT",
+    ],
+)(cover_device)
 
 
 def main() -> None:

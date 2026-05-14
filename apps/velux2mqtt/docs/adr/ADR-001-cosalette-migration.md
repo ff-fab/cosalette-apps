@@ -148,3 +148,49 @@ The application registers the top-level `cover_device()` through `@app.device(na
 
 - Per-cover summary text is now generic at registration time because dict-name expansion does not provide a per-expanded-device summary hook.
 - The top-level handler must expose CoverConfig and Velux2MqttSettings as explicit dependencies instead of relying solely on closure capture.
+
+## Amendment (2026-05-14) — Corrective
+
+**Rationale:** The first 2026-05-14 amendment correctly moved configured covers to cosalette dict-name device registration, but its code example retained a local decorator-facing wrapper in main.py. The final implementation registers cover_device directly with app.device(...)(cover_device) and places the device contract in declarative registration metadata.
+
+> **Justification for amendment (not supersession):** Supersession is not warranted because the primary decision and the earlier corrective amendment still stand: velux2mqtt uses cosalette dict-name device expansion. The impact is confined to clarifying the composition-root registration form and documentation; MQTT topics, domain models, and runtime device behavior remain unchanged.
+
+### Revised Decision
+
+Register configured Velux covers with cosalette dict-name device expansion by applying app.device(...)(cover_device) directly. Use registration metadata (summary, behavior, effects) in main.py to declare the device contract while keeping the command-loop implementation in devices/cover.py.
+
+```python
+def _cover_map(settings: cosalette.Settings) -> dict[str, CoverConfig]:
+    if not isinstance(settings, Velux2MqttSettings):
+        raise TypeError(f"Expected Velux2MqttSettings, got {type(settings).__name__}")
+    return {cover.name: cover for cover in settings.covers}
+
+
+app.device(
+    name=_cover_map,
+    summary="Velux cover: GPIO-driven open/close/stop/position control",
+    behavior=[
+        "Startup homing to a known endpoint for reliable position reference",
+        "Open/close/stop commands via GPIO button presses on KLF 050 remote",
+        "Position targeting (0-100%) with time-based position tracking",
+        "Calibration sub-entity (start/go/mark/cancel phases)",
+    ],
+    effects=[
+        "Presses GPIO pins (up/stop/down) via GpioSwitchPort",
+        "Publishes cover position state to MQTT",
+    ],
+)(cover_device)
+```
+
+### Additional Sub-Decision: Keep make_cover() as a pre-binding helper, not the app registration path
+
+The application registers `cover_device` directly. `make_cover()` remains available for focused tests and external callers that need a single-argument cosalette-compatible device callable with `CoverConfig` and `Velux2MqttSettings` pre-bound.
+
+### Additional Positive Consequences
+
+- main.py now reads declaratively: it exposes configured device expansion plus summary, behavior, and effects metadata without a pass-through wrapper.
+- The registered function identity is the runtime implementation (`cover_device`), so composition tests and manifests point at the actual device handler.
+
+### Additional Negative Consequences
+
+- The registration uses call-form decoration (`app.device(...)(cover_device)`) instead of `@app.device` syntax, because Python decorator syntax requires defining a local wrapper.
