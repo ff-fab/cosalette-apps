@@ -4,10 +4,14 @@ Test Techniques Used:
 - Specification-based: Handler returns correct sensor dict from reader
 - Error Guessing: BLE errors propagate through handler (not swallowed)
 - Equivalence Partitioning: Duplicate readings are not deduplicated
+- Branch Coverage: Scheduled and triggered telemetry paths
 """
 
 from __future__ import annotations
 
+import logging
+
+import cosalette
 import pytest
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
@@ -37,9 +41,16 @@ class TestTelemetryHandler:
         reader = FakeAirthingsReader()
         reader.readings = [reading]
         settings = make_airthings2mqtt_settings()
+        trigger = cosalette.TriggerPayload.scheduled()
+        logger = logging.getLogger(__name__)
 
         # Act
-        result = await _telemetry(reader=reader, settings=settings)
+        result = await _telemetry(
+            reader=reader,
+            settings=settings,
+            trigger=trigger,
+            logger=logger,
+        )
 
         # Assert
         assert result == {
@@ -59,9 +70,16 @@ class TestTelemetryHandler:
         # Arrange
         reader = FakeAirthingsReader()
         settings = make_airthings2mqtt_settings(device_mac="11:22:33:44:55:66")
+        trigger = cosalette.TriggerPayload.scheduled()
+        logger = logging.getLogger(__name__)
 
         # Act
-        await _telemetry(reader=reader, settings=settings)
+        await _telemetry(
+            reader=reader,
+            settings=settings,
+            trigger=trigger,
+            logger=logger,
+        )
 
         # Assert
         assert reader.calls == ["11:22:33:44:55:66"]
@@ -82,10 +100,17 @@ class TestTelemetryHandlerErrorPropagation:
         reader = FakeAirthingsReader()
         reader.raise_on_next = BleConnectionError("device unreachable")
         settings = make_airthings2mqtt_settings()
+        trigger = cosalette.TriggerPayload.scheduled()
+        logger = logging.getLogger(__name__)
 
         # Act & Assert
         with pytest.raises(BleConnectionError, match="device unreachable"):
-            await _telemetry(reader=reader, settings=settings)
+            await _telemetry(
+                reader=reader,
+                settings=settings,
+                trigger=trigger,
+                logger=logger,
+            )
 
 
 @pytest.mark.unit
@@ -109,6 +134,8 @@ class TestTelemetryDuplicateReadings:
         reader = FakeAirthingsReader()
         reader.readings = [reading]
         settings = make_airthings2mqtt_settings()
+        trigger = cosalette.TriggerPayload.scheduled()
+        logger = logging.getLogger(__name__)
         expected = {
             "temperature": 21.5,
             "humidity": 45.0,
@@ -117,9 +144,53 @@ class TestTelemetryDuplicateReadings:
         }
 
         # Act
-        first = await _telemetry(reader=reader, settings=settings)
-        second = await _telemetry(reader=reader, settings=settings)
+        first = await _telemetry(
+            reader=reader,
+            settings=settings,
+            trigger=trigger,
+            logger=logger,
+        )
+        second = await _telemetry(
+            reader=reader,
+            settings=settings,
+            trigger=trigger,
+            logger=logger,
+        )
 
         # Assert
         assert first == expected
         assert second == expected
+
+
+@pytest.mark.unit
+class TestTelemetryTrigger:
+    """Verify on-demand trigger path reads the sensor immediately."""
+
+    async def test_triggered_payload_rereads_sensor(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Triggered telemetry performs a normal sensor read and logs intent.
+
+        Technique: Branch Coverage — exercise TriggerPayload.is_triggered=True.
+        """
+        from airthings2mqtt.main import _telemetry
+
+        # Arrange
+        reader = FakeAirthingsReader()
+        settings = make_airthings2mqtt_settings(device_mac="11:22:33:44:55:66")
+        trigger = cosalette.TriggerPayload.from_mqtt("")
+        logger = logging.getLogger("tests.airthings2mqtt.trigger")
+
+        # Act
+        with caplog.at_level(logging.INFO, logger=logger.name):
+            result = await _telemetry(
+                reader=reader,
+                settings=settings,
+                trigger=trigger,
+                logger=logger,
+            )
+
+        # Assert
+        assert reader.calls == ["11:22:33:44:55:66"]
+        assert result["temperature"] == 21.5
+        assert "On-demand Airthings re-read triggered" in caplog.text

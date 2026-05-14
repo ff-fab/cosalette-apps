@@ -72,7 +72,11 @@ def build_integration_app(
         settings_class=Airthings2MqttSettings,
         adapters={AirthingsReaderPort: adapter},
     )
-    test_app.telemetry("airthings", interval=setting_ref("poll_interval"))(_telemetry)
+    test_app.telemetry(
+        "airthings",
+        interval=setting_ref("poll_interval"),
+        triggerable=True,
+    )(_telemetry)
     return test_app
 
 

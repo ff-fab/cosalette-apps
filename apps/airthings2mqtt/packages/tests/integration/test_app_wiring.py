@@ -8,18 +8,47 @@ Test Techniques Used:
 - Integration Testing: Full app wiring through cosalette framework
 - Specification-based: MQTT topic structure, telemetry payload shape
 - State Transition Testing: Startup online -> shutdown offline lifecycle
+- Branch Coverage: Scheduled telemetry and on-demand re-read trigger paths
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 import pytest
 from cosalette import App, MockMqttClient
 
+from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.settings import Airthings2MqttSettings
 
-from .conftest import DEVICE_NAME, TOPIC_PREFIX, run_app_briefly
+from .conftest import DEVICE_NAME, TOPIC_PREFIX, build_integration_app, run_app_briefly
+
+
+async def _run_with_trigger(
+    test_app: App,
+    mock_mqtt: MockMqttClient,
+    test_settings: Airthings2MqttSettings,
+    *,
+    payload: str = "",
+    startup_wait: float = 0.3,
+    post_trigger_wait: float = 0.2,
+) -> None:
+    """Start the app, deliver a re-read trigger, then shut down cleanly."""
+    shutdown_event = asyncio.Event()
+    task = asyncio.create_task(
+        test_app._run_async(
+            mqtt=mock_mqtt,
+            settings=test_settings,
+            shutdown_event=shutdown_event,
+        )
+    )
+    await asyncio.sleep(startup_wait)
+    await mock_mqtt.deliver(f"{TOPIC_PREFIX}/{DEVICE_NAME}/set", payload)
+    await asyncio.sleep(post_trigger_wait)
+    shutdown_event.set()
+    await task
+
 
 # ---------------------------------------------------------------------------
 # Startup and health
@@ -138,6 +167,38 @@ class TestTelemetryPublishing:
         assert payload["humidity"] == 45.0
         assert payload["radon_24h_avg"] == 80
         assert payload["radon_long_term_avg"] == 65
+
+
+class TestTriggeredTelemetry:
+    """Verify MQTT /set messages trigger immediate Airthings re-reads."""
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_empty_set_payload_triggers_reread(
+        self,
+        mock_mqtt: MockMqttClient,
+        test_settings: Airthings2MqttSettings,
+    ) -> None:
+        """Empty /set payload triggers an extra sensor read and state publish.
+
+        Technique: Integration — verify MQTT inbound trigger reaches telemetry.
+        """
+        # Arrange
+        fake_reader = FakeAirthingsReader()
+        test_app = build_integration_app(lambda: fake_reader)
+
+        # Act
+        await _run_with_trigger(test_app, mock_mqtt, test_settings)
+
+        # Assert — one startup read plus one triggered re-read
+        assert fake_reader.calls.count(test_settings.device_mac) >= 2
+
+        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+        messages = mock_mqtt.get_messages_for(state_topic)
+        assert len(messages) >= 2, (
+            f"Expected at least 2 state publishes (startup + trigger); "
+            f"got {len(messages)} on {state_topic}"
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -6,6 +6,8 @@ adapter, and settings.  The ``main()`` function is the CLI entry point.
 
 from __future__ import annotations
 
+import logging
+
 import cosalette
 from cosalette import setting_ref
 
@@ -26,14 +28,20 @@ app = cosalette.App(
 @app.telemetry(
     "airthings",
     interval=setting_ref("poll_interval"),
+    triggerable=True,
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )
 async def _telemetry(
     reader: AirthingsReaderPort,
     settings: Airthings2MqttSettings,
+    trigger: cosalette.TriggerPayload,
+    logger: logging.Logger,
 ) -> dict[str, object]:
     """Read all sensor values and return state dict."""
+    if trigger.is_triggered:
+        logger.info("On-demand Airthings re-read triggered")
+
     reading = await reader.read(settings.device_mac)
     return {
         "temperature": reading.temperature,

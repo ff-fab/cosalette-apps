@@ -10,6 +10,7 @@ topics under the `airthings2mqtt/` prefix.
 | Topic                                   | Dir      | Payload                          | Retain | QoS |
 | --------------------------------------- | -------- | -------------------------------- | ------ | --- |
 | `airthings2mqtt/airthings/state`        | outbound | Sensor reading JSON              | yes    | 1   |
+| `airthings2mqtt/airthings/set`          | inbound  | Empty payload                    | no     | 1   |
 | `airthings2mqtt/airthings/availability` | outbound | `"online"` / `"offline"`         | yes    | 1   |
 | `airthings2mqtt/airthings/error`        | outbound | Per-device error JSON            | no     | 1   |
 | `airthings2mqtt/status`                 | outbound | Heartbeat JSON + LWT `"offline"` | yes    | 1   |
@@ -47,6 +48,20 @@ Airthings Wave.
     The default polling interval is 1500 seconds (25 minutes), balancing data freshness
     with BLE battery and connection overhead. See [Configuration](configuration.md) to
     adjust.
+
+### On-Demand Re-read
+
+**Topic:** `airthings2mqtt/airthings/set`
+
+Publish an empty payload to trigger an immediate BLE re-read without waiting for the
+next 25-minute polling interval.
+
+```bash
+mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
+```
+
+The fresh reading is published to `airthings2mqtt/airthings/state` using the same schema
+as scheduled polls.
 
 ### Availability
 
