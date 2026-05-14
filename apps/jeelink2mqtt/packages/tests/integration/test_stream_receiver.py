@@ -21,7 +21,7 @@ import pytest
 from jeelink2mqtt.main import receiver
 from jeelink2mqtt.models import SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
-from jeelink2mqtt.state import build_shared_state
+from jeelink2mqtt.state import SharedState, build_shared_state
 
 from tests.fixtures.doubles import FakeDeviceContext
 
@@ -60,15 +60,22 @@ def _make_reading(
 async def _run_receiver(
     readings: list[SensorReading],
     ctx: FakeDeviceContext,
-    store_data: dict[str, object],
+    store_data: dict[str, object] | None,
     settings: Jeelink2MqttSettings,
-    state: object,
+    state: SharedState,
 ) -> None:
-    """Run the receiver async generator, injecting readings then shutting down."""
+    """Run the receiver async generator, injecting readings then shutting down.
+
+    Manually invokes the on_registry_events reactor after each yield to simulate
+    framework reactor behavior (integration tests bypass the App harness).
+    """
     from cosalette import DeviceStore
     from cosalette.stores import MemoryStore
+    from jeelink2mqtt.main import on_registry_events
 
-    backend = MemoryStore(initial={"receiver": store_data} if store_data else None)
+    backend = MemoryStore(
+        initial={"receiver": store_data} if store_data is not None else None
+    )
     device_store = DeviceStore(backend, "receiver")
     device_store.load()
 
@@ -77,7 +84,11 @@ async def _run_receiver(
     async def _inject_and_shutdown() -> None:
         for r in readings:
             stream.put(r)
-        await asyncio.sleep(0)  # let generator process items first
+        # Yield control once so the generator processes all buffered items before
+        # shutdown is signalled.  A single asyncio.sleep(0) is sufficient because
+        # cosalette.Stream.put() wakes the consumer coroutine synchronously; the
+        # consumer then runs to its next yield point before this task resumes.
+        await asyncio.sleep(0)
         stream.shutdown()
 
     gen = receiver(
@@ -85,12 +96,15 @@ async def _run_receiver(
         ctx=ctx,  # type: ignore[arg-type]
         store=device_store,
         settings=settings,
-        state=state,  # type: ignore[arg-type]
+        state=state,
     )
 
     async def _drain_gen() -> None:
         async for _ in gen:
-            pass
+            # Manually trigger reactor after yield (simulates framework behavior)
+            events = state.registry.drain_events()
+            if events:
+                await on_registry_events(events, ctx, device_store, state)
 
     await asyncio.gather(_drain_gen(), _inject_and_shutdown())
 
@@ -115,7 +129,7 @@ class TestStreamReceiverHandler:
         ctx = FakeDeviceContext()
 
         reading = _make_reading(sensor_id=99, temperature=20.0, humidity=50)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         raw_publishes = [t for t, _, _ in ctx.published if t == "raw/state"]
         assert len(raw_publishes) == 1
@@ -133,7 +147,7 @@ class TestStreamReceiverHandler:
 
         ctx = FakeDeviceContext()
         reading = _make_reading(sensor_id=42, temperature=21.5, humidity=55)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         topics = [t for t, _, _ in ctx.published]
         assert "office/state" in topics
@@ -153,7 +167,7 @@ class TestStreamReceiverHandler:
 
         # Sensor ID 77 is not mapped to any name
         reading = _make_reading(sensor_id=77)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         topics = [t for t, _, _ in ctx.published]
         assert "raw/state" in topics
@@ -199,7 +213,7 @@ class TestStreamReceiverHandler:
         ctx = FakeDeviceContext()
 
         # No readings — just shutdown
-        await _run_receiver([], ctx, {}, settings, state)
+        await _run_receiver([], ctx, None, settings, state)
 
         offline_topics = [
             t for t, p, _ in ctx.published if "availability" in t and p == "offline"
@@ -211,7 +225,7 @@ class TestStreamReceiverHandler:
     async def test_mapping_event_published_on_new_sensor(self) -> None:
         """A reading for a new sensor_id triggers a mapping/event publish.
 
-        Technique: Specification-based — exercises the flush_events path
+        Technique: Specification-based — exercises the reactor pattern
         in receiver, verifying the mapping/event + mapping/state MQTT contract.
 
         ADR-002: auto-adopt fires when exactly one configured sensor is stale.
@@ -225,11 +239,11 @@ class TestStreamReceiverHandler:
 
         # Sensor ID 99 is not pre-assigned; its first reading triggers auto-adopt
         reading = _make_reading(sensor_id=99)
-        await _run_receiver([reading], ctx, {}, settings, state)
+        await _run_receiver([reading], ctx, None, settings, state)
 
         topics = [t for t, _, _ in ctx.published]
         assert "mapping/event" in topics, (
-            "flush_events path not exercised — no mapping/event published"
+            "reactor pattern not exercised — no mapping/event published"
         )
         assert "mapping/state" in topics
 
@@ -242,6 +256,7 @@ class TestStreamReceiverHandler:
         """
         from cosalette import DeviceStore
         from cosalette.stores import MemoryStore
+        from jeelink2mqtt.main import on_registry_events
 
         # One sensor so auto-adopt fires unambiguously (ADR-002)
         settings = _make_settings(
@@ -270,14 +285,17 @@ class TestStreamReceiverHandler:
 
         async def _drain() -> None:
             async for _ in gen:
-                pass
+                # Manually trigger reactor after yield (simulates framework)
+                events = state.registry.drain_events()
+                if events:
+                    await on_registry_events(events, ctx, device_store, state)  # type: ignore[arg-type]
 
         await asyncio.gather(_drain(), _inject_and_shutdown())
 
-        # ADR-004: flush_events writes registry to the DeviceStore in-memory state.
+        # ADR-004: on_registry_events reactor persists registry to DeviceStore.
         # (The framework calls store.save() on shutdown; simulate that here.)
         device_store.save()
         assert "receiver" in backend._data, "DeviceStore was never saved"
         assert "registry" in backend._data["receiver"], (
-            "registry key absent — flush_events did not write to store"
+            "registry key absent — reactor did not write to store"
         )

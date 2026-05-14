@@ -28,7 +28,7 @@ from jeelink2mqtt import __version__
 from jeelink2mqtt import commands as _commands
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
-from jeelink2mqtt.models import SensorReading
+from jeelink2mqtt.models import MappingEvent, SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
 
@@ -62,6 +62,42 @@ def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
     return state
 
 
+def _persist_registry(store: DeviceStore, state: SharedState) -> None:
+    """Write the current registry snapshot to the device store.
+
+    Called by both the event-driven reactor (:func:`on_registry_events`) and
+    the mapping command handlers (:func:`mapping_assign`, :func:`mapping_reset`,
+    :func:`mapping_reset_all`).  The periodic writer
+    (:meth:`~jeelink2mqtt.state.SharedState.persist_registry_if_due`) handles
+    background persistence and is a separate code path.
+    """
+    store["registry"] = state.registry.to_dict()
+
+
+@app.react(SharedState, drain=lambda state: state.registry.drain_events())
+async def on_registry_events(
+    events: list[MappingEvent],
+    ctx: cosalette.DeviceContext,
+    store: DeviceStore,
+    state: SharedState,
+) -> None:
+    """Reactor for registry mapping events: publish MQTT updates and persist.
+
+    Event-driven persistence writer — called by the framework after each
+    device yield when :meth:`~jeelink2mqtt.registry.SensorRegistry.drain_events`
+    returns non-empty.  See also
+    :meth:`~jeelink2mqtt.state.SharedState.persist_registry_if_due` for the
+    periodic background writer.
+    """
+    for event in events:
+        await _receiver.publish_mapping_event(ctx, event)
+        if event.old_sensor_id is not None:
+            state.filter_bank.reset(event.old_sensor_id)
+
+    await _receiver.publish_mapping_state(ctx, state)
+    _persist_registry(store, state)
+
+
 @app.stream(
     summary="JeeLink LaCrosse serial receiver: read sensor frames and publish state",
 )
@@ -89,20 +125,19 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             name = state.registry.record_reading(reading)
 
             # 3. Mapped → filter → calibrate → publish
+            # Hoist timestamp: one call shared by record_published_reading (step 3)
+            # and persist_registry_if_due (step 4) to avoid two datetime.now(UTC) calls.
+            now = datetime.now(UTC)
+
             if name is not None:
                 config = state.sensor_configs.get(name)
                 if config is not None:
                     calibrated = state.apply_pipeline(reading, config)
                     await _receiver._publish_sensor(ctx, name, calibrated)
-                    state.record_published_reading(name, calibrated, datetime.now(UTC))
+                    state.record_published_reading(name, calibrated, now)
                     await ctx.publish(f"{name}/availability", "online", retain=True)
 
-            # 4. Mapping events (only publish state when something changed)
-            if await state.flush_events(ctx, store):
-                last_persist_time = datetime.now(UTC)
-
-            # 5. Periodic persistence for last_seen metadata (ADR-004)
-            now = datetime.now(UTC)
+            # 4. Periodic persistence for last_seen metadata (ADR-004)
             new_persist_time = state.persist_registry_if_due(
                 store, now, last_persist_time, 60
             )
@@ -199,7 +234,7 @@ async def mapping_assign(
     result = _commands.handle_assign(state, data)
 
     if "error" not in result:
-        store["registry"] = state.registry.to_dict()
+        _persist_registry(store, state)
 
     return result
 
@@ -227,7 +262,7 @@ async def mapping_reset(
     result = _commands.handle_reset(state, data)
 
     if "error" not in result:
-        store["registry"] = state.registry.to_dict()
+        _persist_registry(store, state)
 
     return result
 
@@ -252,7 +287,7 @@ async def mapping_reset_all(
 
     result = _commands.handle_reset_all(state)
 
-    store["registry"] = state.registry.to_dict()
+    _persist_registry(store, state)
 
     return result
 

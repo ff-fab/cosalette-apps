@@ -8,11 +8,10 @@ leaf module avoids circular imports with the composition root.
 
 from __future__ import annotations
 
-import json
 import logging
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, Protocol, cast
 
 from jeelink2mqtt.calibration import apply_calibration
 from jeelink2mqtt.filters import FilterBank
@@ -20,11 +19,15 @@ from jeelink2mqtt.models import SensorConfig, SensorReading
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 
-if TYPE_CHECKING:
-    from cosalette import DeviceContext as PublishableDeviceContext
-    from cosalette import DeviceStore
-
 logger = logging.getLogger(__name__)
+
+
+class RegistryStore(Protocol):
+    """Minimal persistence surface used by SharedState."""
+
+    def get(self, key: str, default: object = None) -> object: ...
+
+    def __setitem__(self, key: str, value: object) -> None: ...
 
 
 @dataclass
@@ -57,7 +60,9 @@ class SharedState:
     and to correct availability when a sensor recovers mid-publish.
     """
 
-    def restore_from(self, store: DeviceStore, settings: Jeelink2MqttSettings) -> None:
+    def restore_from(
+        self, store: RegistryStore, settings: Jeelink2MqttSettings
+    ) -> None:
         """Restore persisted registry state from the device store.
 
         If the store contains a "registry" key from a previous run,
@@ -104,38 +109,19 @@ class SharedState:
         self.last_publish_time[name] = published_at
         self.last_availability[name] = "online"
 
-    async def flush_events(
-        self,
-        ctx: PublishableDeviceContext,
-        store: DeviceStore,
-    ) -> bool:
-        """Drain registry events, publish mapping state/events, persist registry.
-
-        Returns True if events were flushed.
-        """
-        events = self.registry.drain_events()
-        if not events:
-            return False
-
-        # Publish mapping events and reset filter bank for reassigned sensors
-        for event in events:
-            await self._publish_mapping_event(ctx, event)
-            if event.old_sensor_id is not None:
-                self.filter_bank.reset(event.old_sensor_id)
-
-        # Publish current mapping state and persist registry
-        await self._publish_mapping_state(ctx)
-        store["registry"] = self.registry.to_dict()
-        return True
-
     def persist_registry_if_due(
         self,
-        store: DeviceStore,
+        store: RegistryStore,
         now: datetime,
         last_persist_time: datetime,
         interval_seconds: float = 60.0,
     ) -> datetime | None:
         """Persist registry if interval has elapsed.
+
+        Periodic background writer — fires when *interval_seconds* have elapsed
+        since the last persist.  See also
+        :func:`jeelink2mqtt.main._persist_registry` for the event-driven writer
+        called by the ``on_registry_events`` reactor and mapping command handlers.
 
         Returns the new persist time if persisted, None otherwise.
         """
@@ -143,36 +129,6 @@ class SharedState:
             store["registry"] = self.registry.to_dict()
             return now
         return None
-
-    async def _publish_mapping_event(
-        self,
-        ctx: PublishableDeviceContext,
-        event,
-    ) -> None:
-        """Publish a mapping change event (non-retained)."""
-        payload = json.dumps(
-            {
-                "event_type": event.event_type,
-                "sensor_name": event.sensor_name,
-                "old_sensor_id": event.old_sensor_id,
-                "new_sensor_id": event.new_sensor_id,
-                "timestamp": event.timestamp.isoformat(),
-                "reason": event.reason,
-            }
-        )
-        await ctx.publish("mapping/event", payload, retain=False)
-
-    async def _publish_mapping_state(self, ctx: PublishableDeviceContext) -> None:
-        """Publish current mapping state snapshot (retained)."""
-        mapping_state = {
-            name: {
-                "sensor_id": m.sensor_id,
-                "mapped_at": m.mapped_at.isoformat(),
-                "last_seen": m.last_seen.isoformat(),
-            }
-            for name, m in self.registry.get_all_mappings().items()
-        }
-        await ctx.publish("mapping/state", json.dumps(mapping_state), retain=True)
 
 
 def _build_sensor_configs(settings: Jeelink2MqttSettings) -> list[SensorConfig]:

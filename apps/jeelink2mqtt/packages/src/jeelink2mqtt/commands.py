@@ -19,9 +19,9 @@ Sub-commands::
 
 .. note::
 
-   Events are NOT drained here — the receiver loop is the single owner
-   of ``drain_events()``, ensuring ``mapping/event`` publication and
-   filter cleanup happen in one place.
+    Events are NOT drained here — the ``@app.react`` registry reactor owns
+    ``drain_events()``, ensuring ``mapping/event`` publication and filter
+    cleanup happen in one place.
 """
 
 from __future__ import annotations
