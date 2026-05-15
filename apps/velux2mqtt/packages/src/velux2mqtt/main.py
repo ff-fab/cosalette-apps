@@ -27,6 +27,8 @@ app = cosalette.App(
     version=__version__,
     description="Velux cover control via KLF 050 remotes and GPIO",
     settings_class=Velux2MqttSettings,
+    restart_after_failures=5,
+    max_restarts=3,
     adapters={
         GpioSwitchPort: (
             "velux2mqtt.adapters.gpiozero_adapter:GpiozeroAdapter",

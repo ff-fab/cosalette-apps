@@ -3,7 +3,8 @@
 Test Techniques Used:
 - Specification-based: Verify protocol compliance, default behavior, cycling
 - State Transition: raise_on_next → read → error → cleared
-- Error Guessing: BLE exception translation via ERROR_TYPE_MAP
+- Error Guessing: BLE exception translation via ERROR_TYPE_MAP; health_check
+  false when BLE adapter absent
 """
 
 from __future__ import annotations
@@ -16,6 +17,47 @@ import pytest
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import BleConnectionError, BleReadError, BleTimeoutError
 from airthings2mqtt.ports import AirthingsReading
+
+
+@pytest.mark.unit
+class TestFakeAirthingsReaderHealthCheck:
+    """Specification-based tests for FakeAirthingsReader.health_check."""
+
+    async def test_health_check_returns_true(self) -> None:
+        """health_check always returns True for the fake adapter.
+
+        Technique: Specification-based — test double is unconditionally healthy.
+        """
+        reader = FakeAirthingsReader()
+
+        result = await reader.health_check()
+
+        assert result is True
+
+
+@pytest.mark.unit
+class TestFakeAirthingsReaderProtocol:
+    """FakeAirthingsReader satisfies AirthingsReaderPort and HealthCheckable."""
+
+    def test_isinstance_airthings_reader_port(self) -> None:
+        """FakeAirthingsReader satisfies the AirthingsReaderPort protocol.
+
+        Technique: Specification-based — PEP 544 runtime_checkable check.
+        """
+        from airthings2mqtt.ports import AirthingsReaderPort
+
+        reader = FakeAirthingsReader()
+        assert isinstance(reader, AirthingsReaderPort)
+
+    def test_isinstance_health_checkable(self) -> None:
+        """FakeAirthingsReader satisfies the HealthCheckable protocol.
+
+        Technique: Specification-based — PEP 544 runtime_checkable check.
+        """
+        from cosalette import HealthCheckable
+
+        reader = FakeAirthingsReader()
+        assert isinstance(reader, HealthCheckable)
 
 
 @pytest.mark.unit
@@ -224,3 +266,67 @@ class TestBleakAirthingsReader:
             reading = await reader.read("AA:BB:CC:DD:EE:FF")
 
         assert reading.temperature == -5.0
+
+
+@pytest.mark.unit
+class TestBleakAirthingsReaderHealthCheck:
+    """Verify BleakAirthingsReader.health_check probes the BLE adapter via sysfs."""
+
+    async def test_returns_true_when_hci0_exists(self) -> None:
+        """health_check returns True when /sys/class/bluetooth/hci0 is present.
+
+        Technique: Specification-based — BLE adapter present → healthy.
+        """
+        from unittest.mock import patch
+
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        with patch("airthings2mqtt.adapters.bleak.os.path.exists", return_value=True):
+            reader = BleakAirthingsReader()
+            result = await reader.health_check()
+
+        assert result is True
+
+    async def test_returns_false_when_hci0_absent(self) -> None:
+        """health_check returns False when /sys/class/bluetooth/hci0 is absent.
+
+        Technique: Error Guessing — BLE adapter missing → unhealthy.
+        """
+        from unittest.mock import patch
+
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        with patch("airthings2mqtt.adapters.bleak.os.path.exists", return_value=False):
+            reader = BleakAirthingsReader()
+            result = await reader.health_check()
+
+        assert result is False
+
+    async def test_probes_hci0_sysfs_path(self) -> None:
+        """health_check probes /sys/class/bluetooth/hci0 specifically.
+
+        Technique: Specification-based — confirms the exact probe path.
+        """
+        from unittest.mock import patch
+
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.os.path.exists", return_value=True
+        ) as mock_exists:
+            reader = BleakAirthingsReader()
+            await reader.health_check()
+
+        mock_exists.assert_called_once_with("/sys/class/bluetooth/hci0")
+
+    def test_isinstance_health_checkable(self) -> None:
+        """BleakAirthingsReader satisfies the HealthCheckable protocol.
+
+        Technique: Specification-based — PEP 544 runtime_checkable check.
+        """
+        from cosalette import HealthCheckable
+
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        reader = BleakAirthingsReader()
+        assert isinstance(reader, HealthCheckable)

@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from types import TracebackType
@@ -217,6 +218,13 @@ class PyLaCrosseAdapter:
         """No-op — pylacrosse doesn't expose a discrete stop-scan; use close."""
         logger.debug("stop_scan() is a no-op for pylacrosse; call close() instead")
 
+    async def health_check(self) -> bool:
+        """Return True if the serial port device file is still present.
+
+        Probes OS-level device-file existence without disturbing the open port.
+        """
+        return os.path.exists(self._port)
+
     def register_callback(
         self,
         callback: Callable[[SensorReading], None],
@@ -325,6 +333,10 @@ class FakeJeeLinkAdapter:
 
     async def stop_scan(self) -> None:
         """No-op — readings are injected manually."""
+
+    async def health_check(self) -> bool:
+        """Return True when the adapter is open."""
+        return self._open
 
     def register_callback(
         self,

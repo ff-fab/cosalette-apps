@@ -25,7 +25,7 @@ from __future__ import annotations
 from typing import Literal
 
 from cosalette import Settings
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
 
 
@@ -90,3 +90,14 @@ class Vito2MqttSettings(Settings):
 
     legionella_safety_margin_minutes: int = Field(default=30, ge=0)
     """Minimum remaining heating-window time for treatment to begin (minutes)."""
+
+    # -- Validators ----------------------------------------------------------
+
+    @field_validator("serial_port")
+    @classmethod
+    def _serial_port_must_be_device_path(cls, value: str) -> str:
+        """Ensure the serial port looks like a Unix device path."""
+        if not value.startswith("/dev/"):
+            msg = f"serial_port must start with '/dev/', got {value!r}"
+            raise ValueError(msg)
+        return value

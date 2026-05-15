@@ -607,3 +607,61 @@ class TestPyLaCrosseAdapterAsyncIterator:
         # Subsequent calls must also raise immediately, not block
         with pytest.raises(StopAsyncIteration):
             await anext(adapter)
+
+
+# ======================================================================
+# Health check
+# ======================================================================
+
+
+@pytest.mark.unit
+class TestPyLaCrosseAdapterHealthCheck:
+    """Specification-based tests for health_check serial-port probing."""
+
+    async def test_returns_true_when_port_exists(self, mock_pylacrosse) -> None:
+        """health_check returns True when the serial port device file is present.
+
+        Technique: Specification-based — device file accessible → healthy.
+        """
+        from unittest.mock import patch
+
+        from jeelink2mqtt.adapters import PyLaCrosseAdapter
+
+        adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
+        await adapter.open()
+
+        with patch("jeelink2mqtt.adapters.os.path.exists", return_value=True):
+            result = await adapter.health_check()
+
+        assert result is True
+
+    async def test_returns_false_when_port_missing(self, mock_pylacrosse) -> None:
+        """health_check returns False when the serial port device file is gone.
+
+        Technique: Error Guessing — USB unplug removes device file → unhealthy.
+        """
+        from unittest.mock import patch
+
+        from jeelink2mqtt.adapters import PyLaCrosseAdapter
+
+        adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
+        await adapter.open()
+
+        with patch("jeelink2mqtt.adapters.os.path.exists", return_value=False):
+            result = await adapter.health_check()
+
+        assert result is False
+
+    def test_isinstance_health_checkable(self, mock_pylacrosse) -> None:
+        """PyLaCrosseAdapter satisfies the HealthCheckable protocol.
+
+        Technique: Specification-based — PEP 544 runtime_checkable check.
+        """
+        from cosalette import HealthCheckable
+
+        from jeelink2mqtt.adapters import PyLaCrosseAdapter
+        from jeelink2mqtt.ports import JeeLinkPort
+
+        adapter = PyLaCrosseAdapter(port="/dev/ttyUSB0", baud_rate=57600)
+        assert isinstance(adapter, HealthCheckable)
+        assert isinstance(adapter, JeeLinkPort)

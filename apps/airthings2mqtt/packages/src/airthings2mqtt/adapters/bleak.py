@@ -7,6 +7,8 @@ and returns an AirthingsReading.
 
 from __future__ import annotations
 
+import logging
+import os
 import struct
 
 from bleak import BleakClient
@@ -20,6 +22,10 @@ _UUID_HUMIDITY = "00002a6f-0000-1000-8000-00805f9b34fb"
 _UUID_RADON_24H = "b42e01aa-ade7-11e4-89d3-123b93f75cba"
 _UUID_RADON_LTA = "b42e0a4c-ade7-11e4-89d3-123b93f75cba"
 
+_HCI_SYSFS_PATH = "/sys/class/bluetooth/hci0"
+
+logger = logging.getLogger(__name__)
+
 
 class BleakAirthingsReader:
     """Production adapter for reading Airthings Wave sensors via Bleak.
@@ -28,6 +34,14 @@ class BleakAirthingsReader:
     and returns the parsed AirthingsReading. Each read() call is a full
     connect-read-disconnect cycle.
     """
+
+    async def health_check(self) -> bool:
+        """Probe BLE adapter presence via the kernel sysfs interface.
+
+        Returns:
+            True when the hci0 adapter device node is present; False otherwise.
+        """
+        return os.path.exists(_HCI_SYSFS_PATH)
 
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.

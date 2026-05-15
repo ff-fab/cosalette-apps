@@ -15,6 +15,7 @@ from cosalette import setting_ref
 
 from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
+from airthings2mqtt.errors import BleConnectionError, BleTimeoutError
 from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -24,6 +25,8 @@ app = cosalette.App(
     adapters={
         AirthingsReaderPort: (BleakAirthingsReader, FakeAirthingsReader),
     },
+    restart_after_failures=5,
+    max_restarts=3,
 )
 
 _read_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
@@ -52,6 +55,8 @@ def _get_read_lock() -> asyncio.Lock:
     "airthings",
     interval=setting_ref("poll_interval"),
     triggerable=True,
+    retry=3,
+    retry_on=(BleConnectionError, BleTimeoutError),
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )

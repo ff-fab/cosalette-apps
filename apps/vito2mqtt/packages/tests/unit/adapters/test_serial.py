@@ -514,3 +514,54 @@ class TestAsyncContextManager:
         adapter = OptolinkAdapter(vito2mqtt_settings)
         async with adapter as ctx:
             assert ctx is adapter
+
+
+# ---------------------------------------------------------------------------
+# Health check
+# ---------------------------------------------------------------------------
+
+
+class TestHealthCheck:
+    """Specification-based tests for health_check serial-port probing."""
+
+    def test_health_checkable_protocol(
+        self, vito2mqtt_settings: Vito2MqttSettings
+    ) -> None:
+        """OptolinkAdapter satisfies the HealthCheckable protocol.
+
+        Technique: PEP 544 runtime_checkable isinstance check.
+        """
+        from cosalette import HealthCheckable
+
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        assert isinstance(adapter, HealthCheckable)
+
+    async def test_returns_true_when_port_exists(
+        self, vito2mqtt_settings: Vito2MqttSettings
+    ) -> None:
+        """health_check returns True when the serial port device file is present.
+
+        Technique: Specification-based — device file accessible → healthy.
+        """
+        from unittest.mock import patch
+
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        with patch("vito2mqtt.adapters.serial.os.path.exists", return_value=True):
+            result = await adapter.health_check()
+
+        assert result is True
+
+    async def test_returns_false_when_port_missing(
+        self, vito2mqtt_settings: Vito2MqttSettings
+    ) -> None:
+        """health_check returns False when the serial port device file is gone.
+
+        Technique: Error Guessing — USB unplug removes device file → unhealthy.
+        """
+        from unittest.mock import patch
+
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        with patch("vito2mqtt.adapters.serial.os.path.exists", return_value=False):
+            result = await adapter.health_check()
+
+        assert result is False

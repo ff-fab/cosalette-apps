@@ -55,6 +55,10 @@ class FakeGpio:
         self.initialize(self.initialized_pins)
         return self
 
+    async def health_check(self) -> bool:
+        """Always return True — GPIO is always healthy in the fake."""
+        return True
+
     async def __aexit__(
         self,
         exc_type: type[BaseException] | None,

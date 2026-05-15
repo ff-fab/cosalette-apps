@@ -48,6 +48,8 @@ app = cosalette.App(
     settings_class=Jeelink2MqttSettings,
     store=JsonFileStore(Path("data") / "jeelink2mqtt.json"),
     adapters={StreamablePort[SensorReading]: (_make_adapter, FakeJeeLinkAdapter)},
+    restart_after_failures=5,
+    max_restarts=3,
 )
 
 

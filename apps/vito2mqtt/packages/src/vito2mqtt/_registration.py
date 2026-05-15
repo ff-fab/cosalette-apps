@@ -32,6 +32,7 @@ from vito2mqtt.devices.telemetry import (
     INTERVAL_ATTR,
     make_telemetry_handler,
 )
+from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
 
 __all__ = ["configure_app"]
 
@@ -54,6 +55,8 @@ def configure_app(app: App) -> None:
             publish=OnChange(),
             group="optolink",
             summary=GROUP_SUMMARIES[group],
+            retry=3,
+            retry_on=(OptolinkConnectionError, OptolinkTimeoutError),
         )
     for group in COMMAND_GROUPS:
         app.add_command(

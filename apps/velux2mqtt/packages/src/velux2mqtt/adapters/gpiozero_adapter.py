@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from types import TracebackType
 from typing import Self
 
@@ -88,6 +89,13 @@ class GpiozeroAdapter:
         """Enter async context: initialize all cover GPIO pins."""
         self.initialize(self._collect_pins())
         return self
+
+    async def health_check(self) -> bool:
+        """Return True if the configured GPIO character device is accessible.
+
+        Probes OS-level device-file existence without toggling any pin.
+        """
+        return os.path.exists(self._settings.gpio_chip_device)
 
     async def __aexit__(
         self,

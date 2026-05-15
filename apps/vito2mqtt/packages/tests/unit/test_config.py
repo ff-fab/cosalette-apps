@@ -455,3 +455,45 @@ class TestEnvPrefix:
         monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyACM0")
         settings = Vito2MqttSettings()
         assert settings.serial_port == "/dev/ttyACM0"
+
+
+# ---------------------------------------------------------------------------
+# serial_port validator
+# ---------------------------------------------------------------------------
+
+
+class TestSerialPortValidator:
+    """serial_port must be a Unix device path starting with /dev/."""
+
+    def test_serial_port_valid_dev_path_accepted(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A /dev/ path is accepted without error.
+
+        Technique: Equivalence Partitioning — valid device path class.
+        """
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyUSB0")
+        settings = Vito2MqttSettings()
+        assert settings.serial_port == "/dev/ttyUSB0"
+
+    def test_serial_port_non_dev_path_rejected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A path not starting with /dev/ must be rejected.
+
+        Technique: Error Guessing — misconfigured path bypassing device check.
+        """
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "ttyUSB0")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    def test_serial_port_relative_path_rejected(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A relative path must be rejected.
+
+        Technique: Equivalence Partitioning — invalid non-/dev/ path class.
+        """
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "./ttyUSB0")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()

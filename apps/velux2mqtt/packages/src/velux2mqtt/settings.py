@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Literal
 
 import cosalette
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 
 
@@ -127,6 +127,22 @@ class Velux2MqttSettings(cosalette.Settings):
         description="After this many consecutive intermediate moves, "
         "recalibrate via an endpoint. 0 disables drift compensation.",
     )
+
+    # GPIO hardware
+    gpio_chip_device: str = Field(
+        default="/dev/gpiochip0",
+        description="GPIO character device path (e.g. /dev/gpiochip0 for Pi 4, "
+        "/dev/gpiochip4 for Pi 5)",
+    )
+
+    @field_validator("gpio_chip_device")
+    @classmethod
+    def _gpio_chip_must_be_device_path(cls, value: str) -> str:
+        """Ensure the GPIO chip path looks like a gpiochip device."""
+        if not value.startswith("/dev/gpiochip"):
+            msg = f"gpio_chip_device must start with '/dev/gpiochip', got {value!r}"
+            raise ValueError(msg)
+        return value
 
     @model_validator(mode="after")
     def _covers_unique_names(self) -> Velux2MqttSettings:

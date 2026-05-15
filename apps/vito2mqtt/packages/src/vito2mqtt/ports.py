@@ -26,9 +26,11 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any, Protocol, runtime_checkable
 
+from cosalette import HealthCheckable
+
 
 @runtime_checkable
-class OptolinkPort(Protocol):
+class OptolinkPort(HealthCheckable, Protocol):
     """Async interface for reading and writing Optolink signals.
 
     This is a :pep:`544` structural-subtyping protocol.  Any class that

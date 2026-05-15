@@ -11,9 +11,11 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Protocol, Self, runtime_checkable
 
+from cosalette import HealthCheckable
+
 
 @runtime_checkable
-class GpioSwitchPort(Protocol):
+class GpioSwitchPort(HealthCheckable, Protocol):
     """Port for controlling GPIO-driven analog switches.
 
     Each M74HC4066 analog switch is controlled by a single GPIO pin:

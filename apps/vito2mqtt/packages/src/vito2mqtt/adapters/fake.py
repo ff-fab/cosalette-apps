@@ -142,6 +142,12 @@ class FakeOptolinkAdapter:
     async def __aexit__(self, *exc: object) -> None:
         pass
 
+    # -- HealthCheckable implementation ------------------------------------
+
+    async def health_check(self) -> bool:
+        """Always return True — fake adapter is unconditionally healthy."""
+        return True
+
     # -- OptolinkPort implementation ----------------------------------------
 
     async def read_signal(self, name: str) -> Any:
