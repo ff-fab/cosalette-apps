@@ -16,6 +16,19 @@ from types import TracebackType
 from typing import Protocol, Self, runtime_checkable
 
 
+class WallpanelUnreachableError(ConnectionError):
+    """Raised when the wallpanel cannot be reached over SSH.
+
+    Normalises transport-level errors (asyncssh.DisconnectError, TimeoutError,
+    OSError, ConnectionRefusedError) into a single domain exception so that
+    callers in the device layer remain decoupled from asyncssh internals.
+
+    Inherits ConnectionError so broad platform-level handlers can still
+    recognise unreachable network failures, but device code should catch
+    this specific subclass.
+    """
+
+
 @runtime_checkable
 class WallpanelPort(Protocol):
     """Port for controlling a wall-mounted panel via SSH.
@@ -54,7 +67,7 @@ class WallpanelPort(Protocol):
     async def get_max_brightness(self) -> int:
         """Read maximum brightness from sysfs.
 
-        Called once at startup to determine the brightness range.
+        Callers read and cache the hardware maximum as needed.
 
         Returns:
             Maximum brightness value.
@@ -110,7 +123,12 @@ class WallpanelPort(Protocol):
         ...
 
     async def __aenter__(self) -> Self:
-        """Enter async context: establish connection.
+        """Enter async context: implementations must be lifecycle-safe.
+
+        cosalette enters adapter context managers at bootstrap. Implementations
+        must NOT eagerly connect in ``__aenter__`` — the wallpanel may be
+        off or hibernating at startup, which is a normal state. Connections
+        must be established lazily on first use and cached for reuse.
 
         Enables cosalette adapter lifecycle management via
         ``AsyncExitStack``.

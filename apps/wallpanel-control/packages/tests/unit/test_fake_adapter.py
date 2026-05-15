@@ -11,8 +11,7 @@ from __future__ import annotations
 import pytest
 
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
-from wallpanel_control.ports import WallpanelPort, WolPort
-
+from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError, WolPort
 
 # =============================================================================
 # FakeWallpanel
@@ -171,48 +170,48 @@ class TestFakeWallpanelUnreachable:
         assert result is None
 
     async def test_set_brightness_raises(self) -> None:
-        """set_brightness raises ConnectionError when unreachable."""
+        """set_brightness raises WallpanelUnreachableError when unreachable."""
         # Arrange
         fake = FakeWallpanel(reachable=False)
 
         # Act / Assert
-        with pytest.raises(ConnectionError):
+        with pytest.raises(WallpanelUnreachableError):
             await fake.set_brightness(100)
 
     async def test_screen_on_raises(self) -> None:
-        """screen_on raises ConnectionError when unreachable."""
+        """screen_on raises WallpanelUnreachableError when unreachable."""
         # Arrange
         fake = FakeWallpanel(reachable=False)
 
         # Act / Assert
-        with pytest.raises(ConnectionError):
+        with pytest.raises(WallpanelUnreachableError):
             await fake.screen_on()
 
     async def test_screen_off_raises(self) -> None:
-        """screen_off raises ConnectionError when unreachable."""
+        """screen_off raises WallpanelUnreachableError when unreachable."""
         # Arrange
         fake = FakeWallpanel(reachable=False)
 
         # Act / Assert
-        with pytest.raises(ConnectionError):
+        with pytest.raises(WallpanelUnreachableError):
             await fake.screen_off()
 
     async def test_hibernate_raises(self) -> None:
-        """hibernate raises ConnectionError when unreachable."""
+        """hibernate raises WallpanelUnreachableError when unreachable."""
         # Arrange
         fake = FakeWallpanel(reachable=False)
 
         # Act / Assert
-        with pytest.raises(ConnectionError):
+        with pytest.raises(WallpanelUnreachableError):
             await fake.hibernate()
 
     async def test_suspend_raises(self) -> None:
-        """suspend raises ConnectionError when unreachable."""
+        """suspend raises WallpanelUnreachableError when unreachable."""
         # Arrange
         fake = FakeWallpanel(reachable=False)
 
         # Act / Assert
-        with pytest.raises(ConnectionError):
+        with pytest.raises(WallpanelUnreachableError):
             await fake.suspend()
 
     async def test_is_reachable_returns_false(self) -> None:

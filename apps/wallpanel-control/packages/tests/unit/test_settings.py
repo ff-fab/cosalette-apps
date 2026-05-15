@@ -73,6 +73,15 @@ class TestWallpanelControlSettingsDefaults:
         settings = make_wallpanel_control_settings(wol_mac="11:22:33:44:55:66")
         assert settings.wol_mac == "11:22:33:44:55:66"
 
+    def test_wol_mac_accepts_bare_hex_format(self) -> None:
+        """wol_mac accepts the bare 12-hex-digit format.
+
+        Technique: Equivalence Partitioning — supported MAC formats.
+        """
+        settings = make_wallpanel_control_settings(wol_mac="112233445566")
+
+        assert settings.wol_mac == "112233445566"
+
 
 @pytest.mark.unit
 class TestWallpanelControlSettingsRequired:
@@ -143,3 +152,48 @@ class TestWallpanelControlSettingsValidation:
         """Very small poll interval is valid."""
         settings = make_wallpanel_control_settings(poll_interval=0.001)
         assert settings.poll_interval == 0.001
+
+    def test_backlight_path_rejects_relative_path(self) -> None:
+        """backlight_path must be an absolute sysfs brightness path.
+
+        Technique: Error Guessing — reject path traversal/config mistakes.
+        """
+        with pytest.raises(ValidationError):
+            make_wallpanel_control_settings(backlight_path="brightness")
+
+    def test_backlight_path_rejects_non_sysfs_path(self) -> None:
+        """backlight_path cannot target arbitrary files outside sysfs.
+
+        Technique: Error Guessing — prevent privileged writes outside backlight sysfs.
+        """
+        with pytest.raises(ValidationError):
+            make_wallpanel_control_settings(backlight_path="/tmp/brightness")
+
+    def test_backlight_path_rejects_non_brightness_suffix(self) -> None:
+        """backlight_path must end with /brightness.
+
+        Technique: Boundary Value Analysis — valid prefix with wrong leaf file.
+        """
+        with pytest.raises(ValidationError):
+            make_wallpanel_control_settings(
+                backlight_path="/sys/class/backlight/intel_backlight/max_brightness"
+            )
+
+    def test_backlight_path_accepts_custom_sysfs_brightness_path(self) -> None:
+        """Custom sysfs brightness path is accepted.
+
+        Technique: Equivalence Partitioning — valid custom backlight device.
+        """
+        path = "/sys/class/backlight/acpi_video0/brightness"
+
+        settings = make_wallpanel_control_settings(backlight_path=path)
+
+        assert settings.backlight_path == path
+
+    def test_wol_mac_rejects_invalid_format(self) -> None:
+        """wol_mac must be a valid MAC address at startup.
+
+        Technique: Error Guessing — fail misconfiguration before WAKE command.
+        """
+        with pytest.raises(ValidationError):
+            make_wallpanel_control_settings(wol_mac="not-a-mac")

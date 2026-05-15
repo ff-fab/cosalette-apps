@@ -18,6 +18,7 @@ from typing import Self
 
 import asyncssh
 
+from wallpanel_control.ports import WallpanelUnreachableError
 from wallpanel_control.settings import WallpanelControlSettings
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,10 @@ class SshWallpanel:
     def __init__(self, settings: WallpanelControlSettings) -> None:
         self._settings = settings
         self._conn: asyncssh.SSHClientConnection | None = None
+        self._quoted_brightness_path = shlex.quote(settings.backlight_path)
+        self._quoted_max_brightness_path = shlex.quote(
+            settings.backlight_path.replace("/brightness", "/max_brightness")
+        )
 
     async def _connect(self) -> asyncssh.SSHClientConnection:
         """Open or reuse the SSH connection.
@@ -64,7 +69,6 @@ class SshWallpanel:
                 port=self._settings.ssh_port,
                 username=self._settings.ssh_user,
                 client_keys=[self._settings.ssh_key_path],
-                known_hosts=None,
             ),
             timeout=self._settings.ssh_timeout,
         )
@@ -92,9 +96,9 @@ class SshWallpanel:
             )
             stdout = result.stdout or ""
             return str(stdout).strip()
-        except _UNREACHABLE_ERRORS:
+        except _UNREACHABLE_ERRORS as exc:
             self._conn = None
-            raise
+            raise WallpanelUnreachableError(str(exc)) from exc
 
     async def _run_or_none(self, command: str) -> str | None:
         """Execute a command, returning None if unreachable.
@@ -107,36 +111,32 @@ class SshWallpanel:
         """
         try:
             return await self._run(command)
-        except _UNREACHABLE_ERRORS:
+        except WallpanelUnreachableError:
             logger.debug("Wallpanel unreachable during: %s", command)
-            self._conn = None
             return None
 
     def _brightness_path(self) -> str:
         """Return the sysfs brightness file path."""
-        return self._settings.backlight_path
+        return self._quoted_brightness_path
 
     def _max_brightness_path(self) -> str:
-        """Derive max_brightness path from brightness path."""
-        return self._settings.backlight_path.replace("/brightness", "/max_brightness")
+        """Return the quoted sysfs max_brightness file path."""
+        return self._quoted_max_brightness_path
 
     async def set_brightness(self, value: int) -> None:
         """Set backlight brightness via sysfs echo."""
-        path = shlex.quote(self._brightness_path())
-        await self._run(f"echo {value} | sudo /usr/bin/tee {path}")
+        await self._run(f"echo {value} | sudo /usr/bin/tee {self._brightness_path()}")
 
     async def get_brightness(self) -> int | None:
         """Read backlight brightness from sysfs."""
-        path = shlex.quote(self._brightness_path())
-        output = await self._run_or_none(f"cat {path}")
+        output = await self._run_or_none(f"cat {self._brightness_path()}")
         if output is None:
             return None
         return int(output)
 
     async def get_max_brightness(self) -> int:
         """Read max backlight brightness from sysfs."""
-        path = shlex.quote(self._max_brightness_path())
-        output = await self._run(f"cat {path}")
+        output = await self._run(f"cat {self._max_brightness_path()}")
         return int(output)
 
     async def screen_on(self) -> None:
@@ -169,7 +169,7 @@ class SshWallpanel:
         if output is None:
             return None
         # busctl output format: "i 0" or "i 1"
-        return output.strip().endswith("0")
+        return output.strip() == "i 0"
 
     async def hibernate(self) -> None:
         """Send systemctl hibernate command."""
@@ -189,8 +189,14 @@ class SshWallpanel:
         return True
 
     async def __aenter__(self) -> Self:
-        """Enter async context: establish SSH connection."""
-        await self._connect()
+        """Enter async context: no-op — connection is established lazily on first use.
+
+        cosalette enters adapter context managers at bootstrap. Eagerly
+        connecting here would cause app startup to fail when the wallpanel
+        is powered off or hibernating, which is a normal operating state.
+        The connection is opened on demand in :meth:`_connect` and cached
+        for reuse across calls.
+        """
         return self
 
     async def __aexit__(

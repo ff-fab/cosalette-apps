@@ -12,6 +12,8 @@ import logging
 from types import TracebackType
 from typing import Self
 
+from wallpanel_control.ports import WallpanelUnreachableError
+
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +21,7 @@ class FakeWallpanel:
     """In-memory test double for WallpanelPort.
 
     Tracks brightness, screen state, and reachability. When not reachable,
-    getters return None and mutators raise ConnectionError.
+    getters return None and mutators raise WallpanelUnreachableError.
 
     Attributes:
         brightness: Current brightness value.
@@ -44,10 +46,10 @@ class FakeWallpanel:
         self.power_state = "running"
 
     def _check_reachable(self) -> None:
-        """Raise ConnectionError if wallpanel is not reachable."""
+        """Raise WallpanelUnreachableError if wallpanel is not reachable."""
         if not self.reachable:
             msg = "FakeWallpanel is not reachable"
-            raise ConnectionError(msg)
+            raise WallpanelUnreachableError(msg)
 
     async def set_brightness(self, value: int) -> None:
         """Set brightness in memory."""
@@ -62,7 +64,8 @@ class FakeWallpanel:
         return self.brightness
 
     async def get_max_brightness(self) -> int:
-        """Return max brightness."""
+        """Return max brightness, or raise WallpanelUnreachableError if unreachable."""
+        self._check_reachable()
         return self.max_brightness
 
     async def screen_on(self) -> None:

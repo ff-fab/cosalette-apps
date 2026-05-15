@@ -12,8 +12,7 @@ from typing import Self
 
 import pytest
 
-from wallpanel_control.ports import WallpanelPort, WolPort
-
+from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError, WolPort
 
 # =============================================================================
 # Compliant test doubles
@@ -105,6 +104,29 @@ class TestWallpanelPort:
 
         # Act / Assert
         assert not isinstance(obj, WallpanelPort)
+
+
+@pytest.mark.unit
+class TestWallpanelUnreachableError:
+    """Verify WallpanelUnreachableError domain exception.
+
+    Technique: Specification-based — it must be a ConnectionError subclass
+    so legacy except-ConnectionError guards still work during transition.
+    """
+
+    def test_is_connection_error_subclass(self) -> None:
+        """WallpanelUnreachableError inherits ConnectionError."""
+        assert issubclass(WallpanelUnreachableError, ConnectionError)
+
+    def test_can_be_raised_and_caught_as_connection_error(self) -> None:
+        """Raising WallpanelUnreachableError is caught by except ConnectionError."""
+        with pytest.raises(ConnectionError):
+            raise WallpanelUnreachableError("offline")
+
+    def test_can_be_raised_and_caught_specifically(self) -> None:
+        """WallpanelUnreachableError is catchable by its own type."""
+        with pytest.raises(WallpanelUnreachableError):
+            raise WallpanelUnreachableError("offline")
 
 
 @pytest.mark.unit
