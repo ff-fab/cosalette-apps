@@ -18,6 +18,7 @@ from typing import Self
 
 import asyncssh
 
+from wallpanel_control.ports import WallpanelUnreachableError
 from wallpanel_control.settings import WallpanelControlSettings
 
 logger = logging.getLogger(__name__)
@@ -92,9 +93,9 @@ class SshWallpanel:
             )
             stdout = result.stdout or ""
             return str(stdout).strip()
-        except _UNREACHABLE_ERRORS:
+        except _UNREACHABLE_ERRORS as exc:
             self._conn = None
-            raise
+            raise WallpanelUnreachableError(str(exc)) from exc
 
     async def _run_or_none(self, command: str) -> str | None:
         """Execute a command, returning None if unreachable.
@@ -107,9 +108,8 @@ class SshWallpanel:
         """
         try:
             return await self._run(command)
-        except _UNREACHABLE_ERRORS:
+        except WallpanelUnreachableError:
             logger.debug("Wallpanel unreachable during: %s", command)
-            self._conn = None
             return None
 
     def _brightness_path(self) -> str:
@@ -189,8 +189,14 @@ class SshWallpanel:
         return True
 
     async def __aenter__(self) -> Self:
-        """Enter async context: establish SSH connection."""
-        await self._connect()
+        """Enter async context: no-op — connection is established lazily on first use.
+
+        cosalette enters adapter context managers at bootstrap. Eagerly
+        connecting here would cause app startup to fail when the wallpanel
+        is powered off or hibernating, which is a normal operating state.
+        The connection is opened on demand in :meth:`_connect` and cached
+        for reuse across calls.
+        """
         return self
 
     async def __aexit__(

@@ -336,3 +336,27 @@ class TestSshWallpanelContextManager:
 
         # Act / Assert (should not raise)
         await adapter.__aexit__(None, None, None)
+
+    async def test_enter_does_not_connect(self) -> None:
+        """__aenter__ is a no-op: does not call _connect or asyncssh.connect.
+
+        cosalette enters adapter context managers at bootstrap. The wallpanel
+        may be off or hibernating at that point — connecting eagerly would
+        cause startup failure in a normal operating state.
+
+        Technique: Error Guessing — guard against eager-connect regression.
+        """
+        # Arrange
+        adapter = _make_adapter()
+
+        with patch(
+            "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
+            new_callable=AsyncMock,
+        ) as mock_connect:
+            # Act
+            result = await adapter.__aenter__()
+
+        # Assert
+        mock_connect.assert_not_called()
+        assert adapter._conn is None
+        assert result is adapter
