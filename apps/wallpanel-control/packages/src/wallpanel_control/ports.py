@@ -23,8 +23,8 @@ class WallpanelUnreachableError(ConnectionError):
     OSError, ConnectionRefusedError) into a single domain exception so that
     callers in the device layer remain decoupled from asyncssh internals.
 
-    Inherits ConnectionError so existing ``except ConnectionError`` guards
-    continue to work during a transition period, but callers should catch
+    Inherits ConnectionError so broad platform-level handlers can still
+    recognise unreachable network failures, but device code should catch
     this specific subclass.
     """
 

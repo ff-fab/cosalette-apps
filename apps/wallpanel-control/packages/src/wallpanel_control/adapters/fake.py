@@ -21,7 +21,7 @@ class FakeWallpanel:
     """In-memory test double for WallpanelPort.
 
     Tracks brightness, screen state, and reachability. When not reachable,
-    getters return None and mutators raise ConnectionError.
+    getters return None and mutators raise WallpanelUnreachableError.
 
     Attributes:
         brightness: Current brightness value.

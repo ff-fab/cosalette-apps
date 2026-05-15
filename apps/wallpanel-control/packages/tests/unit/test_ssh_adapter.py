@@ -172,6 +172,28 @@ class TestSshWallpanelReachable:
         # Assert
         assert result is False
 
+    @pytest.mark.parametrize(
+        "output", ["i 10", "i 20", "error"], ids=["ten", "twenty", "malformed"]
+    )
+    async def test_get_screen_state_only_treats_exact_i_zero_as_on(
+        self, output: str
+    ) -> None:
+        """Only exact 'i 0' is screen-on; suffix matches are rejected.
+
+        Technique: Boundary Value Analysis — multi-digit busctl values.
+        """
+        # Arrange
+        adapter = _make_adapter()
+        mock_conn = AsyncMock()
+        mock_conn.run = AsyncMock(return_value=_mock_run_result(output))
+        adapter._conn = mock_conn
+
+        # Act
+        result = await adapter.get_screen_state()
+
+        # Assert
+        assert result is False
+
     async def test_hibernate(self) -> None:
         """hibernate sends systemctl hibernate."""
         # Arrange
@@ -214,6 +236,27 @@ class TestSshWallpanelReachable:
 
         # Assert
         assert result is True
+
+    async def test_connect_uses_asyncssh_known_hosts_default(self) -> None:
+        """_connect omits known_hosts so AsyncSSH verifies host keys by default.
+
+        Technique: Error Guessing — guard against disabling SSH host verification.
+        """
+        # Arrange
+        adapter = _make_adapter()
+        mock_conn = AsyncMock()
+
+        with patch(
+            "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
+            new_callable=AsyncMock,
+            return_value=mock_conn,
+        ) as mock_connect:
+            # Act
+            result = await adapter.is_reachable()
+
+        # Assert
+        assert result is True
+        assert "known_hosts" not in mock_connect.call_args.kwargs
 
 
 # =============================================================================

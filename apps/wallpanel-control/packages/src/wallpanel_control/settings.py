@@ -10,8 +10,10 @@ Priority: CLI > env > .env > defaults.
 from __future__ import annotations
 
 import cosalette
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
+
+from wallpanel_control.adapters.wol_adapter import _parse_mac
 
 
 class WallpanelControlSettings(cosalette.Settings):
@@ -74,3 +76,21 @@ class WallpanelControlSettings(cosalette.Settings):
         default="255.255.255.255",
         description="Broadcast address for Wake-on-LAN packets",
     )
+
+    @field_validator("backlight_path")
+    @classmethod
+    def validate_backlight_path(cls, value: str) -> str:
+        """Validate the privileged backlight write path is constrained to sysfs."""
+        if not value.startswith("/sys/class/backlight/") or not value.endswith(
+            "/brightness"
+        ):
+            msg = "backlight_path must be an absolute /sys/class/backlight/.../brightness path"
+            raise ValueError(msg)
+        return value
+
+    @field_validator("wol_mac")
+    @classmethod
+    def validate_wol_mac(cls, value: str) -> str:
+        """Validate Wake-on-LAN MAC address format at startup."""
+        _parse_mac(value)
+        return value

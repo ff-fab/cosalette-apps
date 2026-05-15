@@ -15,6 +15,7 @@ maximum — subsequent polls reuse the cached value.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 
@@ -37,15 +38,15 @@ class StatusState:
     max_brightness: int | None = None
 
 
+_UNAVAILABLE: dict[str, object] = {
+    "available": False,
+    "brightness": None,
+    "screen": None,
+}
+
+
 def create_status_state() -> StatusState:
-    """Build StatusState.
-
-    Returns an empty state; max_brightness is lazy-initialised on the first
-    successful poll.
-
-    Returns:
-        Fresh StatusState with max_brightness=None.
-    """
+    """Build StatusState without exposing dataclass fields to cosalette DI."""
     return StatusState()
 
 
@@ -98,20 +99,27 @@ async def poll_status(
     if trigger.is_triggered:
         logger.debug("Status poll triggered on demand")
 
+    # Fast availability signal for the common asleep case; reads below still
+    # handle the TOCTOU window where the panel goes offline after this check.
     if not await wallpanel.is_reachable():
-        return {"available": False, "brightness": None, "screen": None}
+        return _UNAVAILABLE
 
     try:
         if state.max_brightness is None:
             state.max_brightness = await wallpanel.get_max_brightness()
-        raw_brightness = await wallpanel.get_brightness()
-        screen_state = await wallpanel.get_screen_state()
+        if state.max_brightness == 0:
+            logger.warning("Wallpanel max_brightness is 0; status unavailable")
+            return _UNAVAILABLE
+        raw_brightness, screen_state = await asyncio.gather(
+            wallpanel.get_brightness(),
+            wallpanel.get_screen_state(),
+        )
     except WallpanelUnreachableError:
         logger.warning("Wallpanel became unreachable during status poll")
-        return {"available": False, "brightness": None, "screen": None}
+        return _UNAVAILABLE
 
     if raw_brightness is None or screen_state is None:
-        return {"available": False, "brightness": None, "screen": None}
+        return _UNAVAILABLE
 
     brightness_pct = round(raw_brightness / state.max_brightness * 100)
     return {

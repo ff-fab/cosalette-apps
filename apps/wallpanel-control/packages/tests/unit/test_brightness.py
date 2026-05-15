@@ -9,7 +9,7 @@ Test Techniques Used:
 - Error Guessing: non-integer payload raises ValueError; out-of-range raises
   ValueError; unreachable wallpanel returns None (suppresses publish).
 - Specification-based Testing: BrightnessState defaults, lazy max_brightness
-  initialization and caching, create_brightness_state factory.
+    initialization and caching, create_brightness_state factory.
 """
 
 from __future__ import annotations
@@ -74,7 +74,7 @@ class TestBrightnessState:
 class TestCreateBrightnessState:
     """Verify factory returns an uninitialised BrightnessState.
 
-    Technique: Specification-based — zero-arg sync factory.
+    Technique: Specification-based — explicit zero-arg factory for cosalette DI.
     """
 
     def test_returns_brightness_state_instance(self) -> None:
@@ -328,6 +328,24 @@ class TestHandleBrightnessRawCalculation:
 
         # Assert
         assert state.last_known_brightness == 42
+
+    async def test_max_brightness_zero_suppresses_publish(
+        self, fake_wallpanel: FakeWallpanel
+    ) -> None:
+        """max_brightness=0 suppresses publish instead of writing raw 0.
+
+        Technique: Boundary Value Analysis — lower boundary of max_brightness.
+        """
+        # Arrange
+        state = _state(max_brightness=0)
+        initial_brightness = fake_wallpanel.brightness
+
+        # Act
+        result = await handle_brightness("50", fake_wallpanel, state)
+
+        # Assert
+        assert result is None
+        assert fake_wallpanel.brightness == initial_brightness
 
 
 # =============================================================================

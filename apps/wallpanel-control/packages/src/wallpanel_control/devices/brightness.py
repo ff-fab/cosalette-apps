@@ -44,14 +44,7 @@ class BrightnessState:
 
 
 def create_brightness_state() -> BrightnessState:
-    """Synchronous zero-arg factory for BrightnessState.
-
-    max_brightness is lazily initialized on the first non-zero brightness
-    command by reading from the wallpanel at command time.
-
-    Returns:
-        A fresh BrightnessState with max_brightness=None.
-    """
+    """Build BrightnessState without exposing dataclass fields to cosalette DI."""
     return BrightnessState()
 
 
@@ -100,12 +93,17 @@ async def handle_brightness(
 
         if state.max_brightness is None:
             state.max_brightness = await wallpanel.get_max_brightness()
+        if state.max_brightness == 0:
+            logger.warning(
+                "Wallpanel max_brightness is 0; brightness command suppressed"
+            )
+            return None
 
         screen_state = await wallpanel.get_screen_state()
         if screen_state is None:
+            # Getter methods return None for normal unreachable states; mutators raise.
             logger.warning(
-                "Wallpanel unreachable (get_screen_state returned None); "
-                "skipping brightness command"
+                "Wallpanel unreachable during screen state check; brightness command suppressed"
             )
             return None
 

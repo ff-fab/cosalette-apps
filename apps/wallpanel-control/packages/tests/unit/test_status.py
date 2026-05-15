@@ -2,7 +2,7 @@
 
 Test Techniques Used:
 - Specification-based Testing: StatusState defaults, _status_interval contract,
-  create_status_state factory, router registration.
+    create_status_state factory, router registration.
 - Branch/Condition Coverage: reachable/unreachable path, max_brightness cached
   vs. uninitialised, None returns from brightness/screen, WallpanelUnreachableError
   during lazy max read.
@@ -445,6 +445,22 @@ class TestPollStatusBrightnessPercentage:
         result = await poll_status(fake_wallpanel, state, _trigger())
 
         assert result["brightness"] == round(1 / 3 * 100)
+
+    async def test_max_brightness_zero_returns_unavailable(self) -> None:
+        """max_brightness=0 returns unavailable instead of dividing by zero.
+
+        Technique: Boundary Value Analysis — lower boundary of max_brightness.
+        """
+        fake = _PartiallyUnreachable(
+            brightness_value=0,
+            screen_value=True,
+            max_brightness_value=0,
+        )
+        state = _state()
+
+        result = await poll_status(fake, state, _trigger())  # type: ignore[arg-type]
+
+        assert result == {"available": False, "brightness": None, "screen": None}
 
 
 # =============================================================================

@@ -25,6 +25,9 @@ from wallpanel_control.settings import WallpanelControlSettings
 class TestAppIdentity:
     """Verify the module-level App instance has correct identity metadata."""
 
+    # Accesses cosalette.App private attributes; no public introspection API
+    # exists in cosalette 0.4 for these composition-root assertions.
+
     def test_app_is_cosalette_app(self) -> None:
         """module-level app is a cosalette App instance.
 
@@ -68,6 +71,9 @@ class TestAppIdentity:
 class TestAdapterRegistry:
     """Verify both ports are registered in the adapter registry."""
 
+    # Accesses cosalette.App private attributes; no public introspection API
+    # exists in cosalette 0.4 for these composition-root assertions.
+
     def test_wallpanel_port_registered(self) -> None:
         """WallpanelPort is present in the adapter registry.
 
@@ -91,6 +97,9 @@ class TestAdapterRegistry:
 class TestCommandRegistration:
     """Verify command handlers are registered with the correct names."""
 
+    # Accesses cosalette.App private attributes; no public introspection API
+    # exists in cosalette 0.4 for these composition-root assertions.
+
     def test_command_names_are_brightness_screen_power(self) -> None:
         """Exactly three commands registered: brightness, screen, power.
 
@@ -105,6 +114,9 @@ class TestCommandRegistration:
 @pytest.mark.unit
 class TestTelemetryRegistration:
     """Verify telemetry handlers are registered with the correct names."""
+
+    # Accesses cosalette.App private attributes; no public introspection API
+    # exists in cosalette 0.4 for these composition-root assertions.
 
     def test_telemetry_name_is_status(self) -> None:
         """Exactly one telemetry registered: status.

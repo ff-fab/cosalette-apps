@@ -11,6 +11,9 @@ MQTT state topic:
                                     {"state": "suspended"},
                                  or {"state": "waking"}
 
+The command vocabulary uses HA-friendly ``SLEEP`` while the published state
+uses the Linux power-management term ``suspended``.
+
 For OFF and SLEEP, None is returned (suppressing publish) if the
 wallpanel is unreachable at command time. WAKE is always attempted
 regardless of reachability because it uses WoL, not SSH.
@@ -70,9 +73,10 @@ async def handle_power(
         if normalised == "OFF":
             await wallpanel.hibernate()
             return {"state": "hibernating"}
-        else:
+        if normalised == "SLEEP":
             await wallpanel.suspend()
             return {"state": "suspended"}
+        raise AssertionError(f"unhandled power payload: {normalised!r}")
     except WallpanelUnreachableError:
         logger.warning("Wallpanel unreachable — power command suppressed")
         return None
