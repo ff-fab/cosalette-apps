@@ -11,6 +11,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
+from cosalette import HealthCheckable
+
 
 @dataclass(frozen=True, slots=True)
 class AirthingsReading:
@@ -30,7 +32,7 @@ class AirthingsReading:
 
 
 @runtime_checkable
-class AirthingsReaderPort(Protocol):
+class AirthingsReaderPort(HealthCheckable, Protocol):
     """Port for reading Airthings Wave BLE sensor data.
 
     Implementations must connect to the BLE device, read the four

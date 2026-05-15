@@ -546,7 +546,7 @@ class TestHealthCheck:
         from unittest.mock import patch
 
         adapter = OptolinkAdapter(vito2mqtt_settings)
-        with patch("os.path.exists", return_value=True):
+        with patch("vito2mqtt.adapters.serial.os.path.exists", return_value=True):
             result = await adapter.health_check()
 
         assert result is True
@@ -561,7 +561,7 @@ class TestHealthCheck:
         from unittest.mock import patch
 
         adapter = OptolinkAdapter(vito2mqtt_settings)
-        with patch("os.path.exists", return_value=False):
+        with patch("vito2mqtt.adapters.serial.os.path.exists", return_value=False):
             result = await adapter.health_check()
 
         assert result is False

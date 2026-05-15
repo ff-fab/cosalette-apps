@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from types import TracebackType
 from typing import Self
 
@@ -90,14 +91,11 @@ class GpiozeroAdapter:
         return self
 
     async def health_check(self) -> bool:
-        """Return True if the GPIO character device is accessible.
+        """Return True if the configured GPIO character device is accessible.
 
-        Probes OS-level device-file existence via a thread pool executor
-        so the check is non-blocking and never toggles any pin.
+        Probes OS-level device-file existence without toggling any pin.
         """
-        import os  # noqa: PLC0415 — deferred import
-
-        return await asyncio.to_thread(os.path.exists, "/dev/gpiochip0")
+        return os.path.exists(self._settings.gpio_chip_device)
 
     async def __aexit__(
         self,

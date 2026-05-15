@@ -7,9 +7,11 @@ and returns an AirthingsReading.
 
 from __future__ import annotations
 
+import logging
+import os
 import struct
 
-from bleak import BleakClient, BleakScanner
+from bleak import BleakClient
 
 from airthings2mqtt.errors import ERROR_TYPE_MAP, BleReadError
 from airthings2mqtt.ports import AirthingsReading
@@ -19,6 +21,10 @@ _UUID_TEMPERATURE = "00002a6e-0000-1000-8000-00805f9b34fb"
 _UUID_HUMIDITY = "00002a6f-0000-1000-8000-00805f9b34fb"
 _UUID_RADON_24H = "b42e01aa-ade7-11e4-89d3-123b93f75cba"
 _UUID_RADON_LTA = "b42e0a4c-ade7-11e4-89d3-123b93f75cba"
+
+_HCI_SYSFS_PATH = "/sys/class/bluetooth/hci0"
+
+logger = logging.getLogger(__name__)
 
 
 class BleakAirthingsReader:
@@ -30,16 +36,12 @@ class BleakAirthingsReader:
     """
 
     async def health_check(self) -> bool:
-        """Probe BLE stack availability via a short discovery scan.
+        """Probe BLE adapter presence via the kernel sysfs interface.
 
         Returns:
-            True when the scan completes without error; False otherwise.
+            True when the hci0 adapter device node is present; False otherwise.
         """
-        try:
-            await BleakScanner.discover(timeout=2.0)
-            return True
-        except Exception:
-            return False
+        return os.path.exists(_HCI_SYSFS_PATH)
 
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.

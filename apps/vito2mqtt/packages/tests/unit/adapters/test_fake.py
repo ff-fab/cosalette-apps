@@ -42,7 +42,7 @@ from vito2mqtt.ports import OptolinkPort
 
 
 class TestProtocolConformance:
-    """FakeOptolinkAdapter must satisfy the OptolinkPort protocol."""
+    """FakeOptolinkAdapter must satisfy the OptolinkPort and HealthCheckable protocols."""
 
     def test_fake_adapter_isinstance_optolink_port(self) -> None:
         """Structural subtyping — adapter implements all protocol methods.
@@ -51,6 +51,27 @@ class TestProtocolConformance:
         """
         adapter = FakeOptolinkAdapter()
         assert isinstance(adapter, OptolinkPort)
+
+    def test_fake_adapter_isinstance_health_checkable(self) -> None:
+        """FakeOptolinkAdapter satisfies the HealthCheckable protocol.
+
+        Technique: Specification-based — PEP 544 runtime_checkable check.
+        """
+        from cosalette import HealthCheckable
+
+        adapter = FakeOptolinkAdapter()
+        assert isinstance(adapter, HealthCheckable)
+
+    async def test_health_check_returns_true(self) -> None:
+        """health_check always returns True for the fake adapter.
+
+        Technique: Specification-based — test double is unconditionally healthy.
+        """
+        adapter = FakeOptolinkAdapter()
+
+        result = await adapter.health_check()
+
+        assert result is True
 
 
 # ---------------------------------------------------------------------------

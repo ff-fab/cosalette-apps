@@ -36,6 +36,10 @@ class FakeAirthingsReader:
         self.raise_on_next: Exception | None = None
         self._index: int = 0
 
+    async def health_check(self) -> bool:
+        """Always return True — fake adapter is unconditionally healthy."""
+        return True
+
     async def read(self, mac: str) -> AirthingsReading:
         """Return the next reading from the cycle.
 

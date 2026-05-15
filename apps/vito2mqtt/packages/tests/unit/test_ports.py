@@ -64,6 +64,9 @@ class _ConformingAdapter:
     async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
         return {}
 
+    async def health_check(self) -> bool:
+        return True
+
 
 class _NonConformingAdapter:
     """Adapter missing required methods."""

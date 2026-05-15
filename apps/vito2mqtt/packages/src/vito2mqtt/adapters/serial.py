@@ -34,6 +34,7 @@ References:
 from __future__ import annotations
 
 import asyncio
+import os
 from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
@@ -121,12 +122,9 @@ class OptolinkAdapter:
     async def health_check(self) -> bool:
         """Return True if the serial port device file is still present.
 
-        Probes OS-level device-file existence via a thread pool executor
-        so the check is non-blocking and does not touch the boiler.
+        Probes OS-level device-file existence without touching the boiler.
         """
-        import os  # noqa: PLC0415 — deferred import
-
-        return await asyncio.to_thread(os.path.exists, self._serial_port)
+        return os.path.exists(self._serial_port)
 
     # -- OptolinkPort implementation ----------------------------------------
 

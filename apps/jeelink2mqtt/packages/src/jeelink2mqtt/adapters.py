@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
+import os
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime
 from types import TracebackType
@@ -220,12 +221,9 @@ class PyLaCrosseAdapter:
     async def health_check(self) -> bool:
         """Return True if the serial port device file is still present.
 
-        Probes OS-level device-file existence via a thread pool executor so
-        the check is non-blocking and does not disturb the open port.
+        Probes OS-level device-file existence without disturbing the open port.
         """
-        import os  # noqa: PLC0415 — deferred to avoid import at module level
-
-        return await asyncio.to_thread(os.path.exists, self._port)
+        return os.path.exists(self._port)
 
     def register_callback(
         self,

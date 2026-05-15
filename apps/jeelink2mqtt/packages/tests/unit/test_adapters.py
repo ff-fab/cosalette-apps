@@ -15,6 +15,7 @@ import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.models import SensorReading
 
@@ -509,3 +510,15 @@ class TestFakeJeeLinkAdapterHealthCheck:
 
         # Assert
         assert result is False
+
+    def test_isinstance_health_checkable(self) -> None:
+        """FakeJeeLinkAdapter satisfies the HealthCheckable protocol.
+
+        Technique: Specification-based — PEP 544 runtime_checkable check.
+        """
+        from cosalette import HealthCheckable
+        from jeelink2mqtt.ports import JeeLinkPort
+
+        adapter = FakeJeeLinkAdapter()
+        assert isinstance(adapter, HealthCheckable)
+        assert isinstance(adapter, JeeLinkPort)

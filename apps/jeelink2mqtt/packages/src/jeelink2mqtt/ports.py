@@ -10,11 +10,13 @@ from collections.abc import AsyncIterator, Callable
 from types import TracebackType
 from typing import Protocol, runtime_checkable
 
+from cosalette import HealthCheckable
+
 from jeelink2mqtt.models import SensorMapping, SensorReading
 
 
 @runtime_checkable
-class JeeLinkPort(Protocol):
+class JeeLinkPort(HealthCheckable, Protocol):
     """Hardware abstraction for the JeeLink USB receiver.
 
     Concrete implementations wrap the serial connection and frame

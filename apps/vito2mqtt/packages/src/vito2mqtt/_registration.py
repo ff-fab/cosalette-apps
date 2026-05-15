@@ -25,7 +25,6 @@ from __future__ import annotations
 from cosalette import App, OnChange, setting_ref
 
 from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
-from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
 from vito2mqtt.devices.commands import COMMAND_SUMMARIES, make_command_handler
 from vito2mqtt.devices.legionella import legionella_device
 from vito2mqtt.devices.telemetry import (
@@ -33,6 +32,7 @@ from vito2mqtt.devices.telemetry import (
     INTERVAL_ATTR,
     make_telemetry_handler,
 )
+from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
 
 __all__ = ["configure_app"]
 
