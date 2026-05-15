@@ -4,8 +4,9 @@ Test Techniques Used:
 - Specification-based: Verify app is constructed with correct identity (name,
   version, description, settings class)
 - Structural: Verify adapter registry contains both ports (WallpanelPort, WolPort)
-- Structural: Verify command names are exactly {brightness, screen, power}
-- Structural: Verify telemetry name is exactly {status}
+- Structural: Verify no devices are registered
+- Structural: Verify commands (command/state) are exactly {display, system/action}
+- Structural: Verify no telemetry is registered
 - Specification-based: main() delegates to app.run() — verified with monkeypatch
 """
 
@@ -94,39 +95,58 @@ class TestAdapterRegistry:
 
 
 @pytest.mark.unit
+class TestDeviceRegistration:
+    """Verify no device handlers are registered (display is now a command)."""
+
+    # Accesses cosalette.App private attributes; no public introspection API
+    # exists in cosalette 0.4 for these composition-root assertions.
+
+    def test_no_devices_registered(self) -> None:
+        """No devices registered; display is handled as a command.
+
+        Technique: Structural — display/set is served by a typed command handler.
+        """
+        from wallpanel_control.main import app
+
+        assert len(app._devices) == 0
+
+
+@pytest.mark.unit
 class TestCommandRegistration:
     """Verify command handlers are registered with the correct names."""
 
     # Accesses cosalette.App private attributes; no public introspection API
     # exists in cosalette 0.4 for these composition-root assertions.
 
-    def test_command_names_are_brightness_screen_power(self) -> None:
-        """Exactly three commands registered: brightness, screen, power.
+    def test_command_names_are_display_and_system_action(self) -> None:
+        """Exactly two commands registered: display and system/action.
 
         Technique: Structural — command names drive MQTT /set topic suffixes.
+        display → wallpanel-control/display/set.
+        system/action → wallpanel-control/system/action/set.
         """
         from wallpanel_control.main import app
 
         registered = {r.name for r in app._commands}
-        assert registered == {"brightness", "screen", "power"}
+        assert registered == {"display", "system/action"}
 
 
 @pytest.mark.unit
 class TestTelemetryRegistration:
-    """Verify telemetry handlers are registered with the correct names."""
+    """Verify no standalone telemetry handlers are registered."""
 
-    # Accesses cosalette.App private attributes; no public introspection API
-    # exists in cosalette 0.4 for these composition-root assertions.
+    # Display state is published by the display command handler, not as a
+    # separate telemetry registration.
 
-    def test_telemetry_name_is_status(self) -> None:
-        """Exactly one telemetry registered: status.
+    def test_no_telemetry_registered(self) -> None:
+        """No standalone telemetry registered; display state is published on command.
 
-        Technique: Structural — telemetry name drives MQTT /state topic suffix.
+        Technique: Structural — display state is published after accepted commands,
+        not on a polling timer.
         """
         from wallpanel_control.main import app
 
-        registered = {r.name for r in app._telemetry}
-        assert registered == {"status"}
+        assert len(app._telemetry) == 0
 
 
 @pytest.mark.unit
