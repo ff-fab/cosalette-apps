@@ -1,17 +1,25 @@
 """Entry point for wallpanel-control.
 
 Composition root: wires cosalette App with SSH/WoL adapters and the
-router modules for brightness, screen, power, and status.
+router modules for display and system actions.
 
 Topic layout::
 
-    wallpanel-control/brightness/set    ← integer 0-100
-    wallpanel-control/brightness/state  ← {"brightness": <int 0-100>}
-    wallpanel-control/screen/set        ← ON|OFF
-    wallpanel-control/screen/state      ← {"state": "ON"|"OFF"}
-    wallpanel-control/power/set         ← OFF|SLEEP|WAKE
-    wallpanel-control/power/state       ← {"state": "hibernating"|"suspended"|"waking"}
-    wallpanel-control/status/state      ← {"available": bool, "brightness": int|null, "screen": str|null}
+    wallpanel-control/display/set
+        ← {"state": "on"|"off"}
+        ← {"brightness_percent": <1-100>}
+        ← {"state": "on", "brightness_percent": <1-100>}
+
+    wallpanel-control/display/state
+        → published once after each accepted display command
+        ← {"available": true, "state": "on"|"off", "brightness_percent": <int>}
+        ← {"available": false, "state": null, "brightness_percent": null}
+
+    wallpanel-control/system/action/set
+        ← {"action": "wake"|"suspend"|"hibernate"}
+
+    wallpanel-control/system/action/state
+        ← {"accepted": bool, "action": "wake"|"suspend"|"hibernate"}
 """
 
 from __future__ import annotations
@@ -22,7 +30,7 @@ from wallpanel_control import __version__
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.adapters.ssh_adapter import SshWallpanel
 from wallpanel_control.adapters.wol_adapter import UdpWol
-from wallpanel_control.devices import brightness, power, screen, status
+from wallpanel_control.devices import display, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
 
@@ -35,7 +43,7 @@ def _make_ssh_wallpanel(settings: WallpanelControlSettings) -> SshWallpanel:
 app = cosalette.App(
     name="wallpanel-control",
     version=__version__,
-    description="Wall panel brightness, screen and power control via SSH",
+    description="Wall panel display and system control via SSH",
     settings_class=WallpanelControlSettings,
     adapters={
         WallpanelPort: (_make_ssh_wallpanel, FakeWallpanel),
@@ -43,10 +51,8 @@ app = cosalette.App(
     },
 )
 
-app.include_router(brightness.router)
-app.include_router(screen.router)
-app.include_router(power.router)
-app.include_router(status.router)
+app.include_router(display.router)
+app.include_router(system.router)
 
 
 def main() -> None:
