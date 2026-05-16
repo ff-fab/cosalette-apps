@@ -185,7 +185,9 @@ async def _execute_display_command(
             if not screen_state:
                 await wallpanel.screen_on()
 
-        assert cmd.brightness_percent is not None  # validated by DisplayCommand
+        brightness_percent = cmd.brightness_percent
+        if brightness_percent is None:
+            raise ValueError("brightness_percent must be set for brightness commands")
         if state.max_brightness is None:
             state.max_brightness = await wallpanel.get_max_brightness()
         if state.max_brightness == 0:
@@ -194,7 +196,7 @@ async def _execute_display_command(
             )
             return _UNAVAILABLE
 
-        raw = round(state.max_brightness * cmd.brightness_percent / 100)
+        raw = round(state.max_brightness * brightness_percent / 100)
         await wallpanel.set_brightness(raw)
         # Compute output brightness from raw and cached max — no read-back needed.
         brightness_pct = round(raw / state.max_brightness * 100)
