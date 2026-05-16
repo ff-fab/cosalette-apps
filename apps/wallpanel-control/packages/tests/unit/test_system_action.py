@@ -280,3 +280,19 @@ class TestRouterRegistration:
     def test_action_in_registered_names(self) -> None:
         """Router has a command registered as 'action' (becomes system/action after prefix)."""
         assert "action" in router.registered_names
+
+    def test_action_command_payload_model(self) -> None:
+        """payload_model is SystemActionCommand.
+
+        Technique: Structural — payload_model drives AsyncAPI manifest schema.
+        """
+        reg = next(r for r in router._commands if r.name == "action")
+        assert reg.payload_model is SystemActionCommand
+
+    def test_action_command_state_model(self) -> None:
+        """state_model is SystemActionState.
+
+        Technique: Structural — state_model drives AsyncAPI manifest schema.
+        """
+        reg = next(r for r in router._commands if r.name == "action")
+        assert reg.state_model is SystemActionState

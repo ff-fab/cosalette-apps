@@ -16,6 +16,9 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+from types import TracebackType
+from typing import Self
+
 import pytest
 from pydantic import ValidationError
 
@@ -38,14 +41,59 @@ from wallpanel_control.ports import WallpanelUnreachableError
 # ---------------------------------------------------------------------------
 
 
-def _state(
-    max_brightness: int | None = 7812,
-    last_brightness_percent: int | None = None,
-) -> _DisplayHandlerState:
-    return _DisplayHandlerState(
-        max_brightness=max_brightness,
-        last_brightness_percent=last_brightness_percent,
-    )
+def _state(max_brightness: int | None = 7812) -> _DisplayHandlerState:
+    return _DisplayHandlerState(max_brightness=max_brightness)
+
+
+class _StubWallpanel:
+    """Base wallpanel stub for edge-case polling tests."""
+
+    async def is_reachable(self) -> bool:
+        return True
+
+    async def get_max_brightness(self) -> int:
+        return 7812
+
+    async def get_brightness(self) -> int | None:
+        return 7812
+
+    async def get_screen_state(self) -> bool | None:
+        return True
+
+    async def set_brightness(self, value: int) -> None:  # noqa: ARG002
+        ...
+
+    async def screen_on(self) -> None: ...
+
+    async def screen_off(self) -> None: ...
+
+    async def hibernate(self) -> None: ...
+
+    async def suspend(self) -> None: ...
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None: ...
+
+
+class _BrightnessNoneStub(_StubWallpanel):
+    """Stub returning None from get_brightness (simulates TOCTOU unreachable)."""
+
+    async def get_brightness(self) -> int | None:
+        return None
+
+
+class _BrightnessRaisesStub(_StubWallpanel):
+    """Stub raising WallpanelUnreachableError from get_brightness."""
+
+    async def get_brightness(self) -> int | None:
+        raise WallpanelUnreachableError("gone")
 
 
 # =============================================================================
@@ -177,6 +225,15 @@ class TestDisplayState:
         assert s.state is None
         assert s.brightness_percent is None
 
+    def test_brightness_percent_zero_is_valid_in_output(self) -> None:
+        """brightness_percent=0 is valid in DisplayState (screen off or fully dim).
+
+        Technique: Boundary Value Analysis — output lower bound distinct from
+        command input which rejects 0.
+        """
+        s = DisplayState(available=True, state="off", brightness_percent=0)
+        assert s.brightness_percent == 0
+
 
 # =============================================================================
 # _poll_display_state — polling logic
@@ -252,15 +309,15 @@ class TestPollDisplayState:
         state = _state(max_brightness=None)
 
         await _poll_display_state(fake_wallpanel, state)
-        # Make get_max_brightness raise to confirm it is not called again
-        fake_wallpanel.reachable = False
-        fake_wallpanel.reachable = True
+        assert state.max_brightness == 1000
 
-        state_copy = _DisplayHandlerState(max_brightness=1000)
-        result = await _poll_display_state(fake_wallpanel, state_copy)
+        # Change hardware max; if re-read, percent would be 25 instead of 50.
+        fake_wallpanel.max_brightness = 2000
 
-        assert state_copy.max_brightness == 1000  # unchanged
-        assert result.available is True
+        result = await _poll_display_state(fake_wallpanel, state)
+
+        assert state.max_brightness == 1000  # unchanged — cached
+        assert result.brightness_percent == 50  # proves 1000 was used, not 2000
 
     async def test_max_brightness_zero_returns_unavailable(
         self, fake_wallpanel: FakeWallpanel
@@ -280,50 +337,7 @@ class TestPollDisplayState:
         self, fake_wallpanel: FakeWallpanel
     ) -> None:
         """None from get_brightness (TOCTOU unreachable) returns unavailable."""
-        fake_wallpanel.brightness = 500
-        fake_wallpanel.screen_state = True
-
-        # Simulate None return by making wallpanel unreachable mid-poll.
-        # Use the _PartiallyUnreachable helper pattern.
-        from dataclasses import dataclass
-        from types import TracebackType
-        from typing import Self
-
-        @dataclass
-        class _PartialUnreachable:
-            async def is_reachable(self) -> bool:
-                return True
-
-            async def get_max_brightness(self) -> int:
-                return 7812
-
-            async def get_brightness(self) -> int | None:
-                return None  # simulates TOCTOU
-
-            async def get_screen_state(self) -> bool | None:
-                return True
-
-            async def set_brightness(self, value: int) -> None: ...  # noqa: ARG002
-
-            async def screen_on(self) -> None: ...
-
-            async def screen_off(self) -> None: ...
-
-            async def hibernate(self) -> None: ...
-
-            async def suspend(self) -> None: ...
-
-            async def __aenter__(self) -> Self:
-                return self
-
-            async def __aexit__(
-                self,
-                exc_type: type[BaseException] | None,
-                exc_val: BaseException | None,
-                exc_tb: TracebackType | None,
-            ) -> None: ...
-
-        result = await _poll_display_state(_PartialUnreachable(), _state())
+        result = await _poll_display_state(_BrightnessNoneStub(), _state())
 
         assert result.available is False
 
@@ -334,60 +348,11 @@ class TestPollDisplayState:
 
         Technique: Error Guessing — panel goes offline between is_reachable() and reads.
         """
-        from dataclasses import dataclass
-        from types import TracebackType
-        from typing import Self
-
-        @dataclass
-        class _RaisesOnBrightness:
-            async def is_reachable(self) -> bool:
-                return True
-
-            async def get_max_brightness(self) -> int:
-                return 7812
-
-            async def get_brightness(self) -> int | None:
-                raise WallpanelUnreachableError("gone")
-
-            async def get_screen_state(self) -> bool | None:
-                return True
-
-            async def set_brightness(self, value: int) -> None: ...  # noqa: ARG002
-
-            async def screen_on(self) -> None: ...
-
-            async def screen_off(self) -> None: ...
-
-            async def hibernate(self) -> None: ...
-
-            async def suspend(self) -> None: ...
-
-            async def __aenter__(self) -> Self:
-                return self
-
-            async def __aexit__(
-                self,
-                exc_type: type[BaseException] | None,
-                exc_val: BaseException | None,
-                exc_tb: TracebackType | None,
-            ) -> None: ...
-
         result = await _poll_display_state(
-            _RaisesOnBrightness(), _state(max_brightness=7812)
+            _BrightnessRaisesStub(), _state(max_brightness=7812)
         )
 
         assert result.available is False
-
-    async def test_updates_last_brightness_percent(
-        self, fake_wallpanel: FakeWallpanel
-    ) -> None:
-        """Successful poll updates last_brightness_percent in handler state."""
-        fake_wallpanel.brightness = 7812  # 100%
-        state = _state(max_brightness=7812)
-
-        await _poll_display_state(fake_wallpanel, state)
-
-        assert state.last_brightness_percent == 100
 
 
 # =============================================================================
@@ -430,7 +395,7 @@ class TestExecuteDisplayCommandOff:
         """state='off' publishes observed brightness in the response."""
         fake_wallpanel.brightness = 500
         fake_wallpanel.max_brightness = 1000
-        state = _state(max_brightness=1000, last_brightness_percent=60)
+        state = _state(max_brightness=1000)
 
         result = await _execute_display_command(
             DisplayCommand(state="off"), fake_wallpanel, state
@@ -487,7 +452,7 @@ class TestExecuteDisplayCommandOn:
         """state='on' only publishes current brightness, not cached intent."""
         fake_wallpanel.brightness = 500
         fake_wallpanel.max_brightness = 1000
-        state = _state(max_brightness=1000, last_brightness_percent=40)
+        state = _state(max_brightness=1000)
 
         result = await _execute_display_command(
             DisplayCommand(state="on"), fake_wallpanel, state
@@ -523,13 +488,29 @@ class TestExecuteDisplayCommandOn:
         """
         fake_wallpanel.brightness = 900
         fake_wallpanel.max_brightness = 1000
-        state = _state(max_brightness=1000, last_brightness_percent=10)
+        state = _state(max_brightness=1000)
 
         result = await _execute_display_command(
             DisplayCommand(state="on"), fake_wallpanel, state
         )
 
         assert result.brightness_percent == 90
+
+    async def test_on_unreachable_returns_unavailable(
+        self, fake_wallpanel: FakeWallpanel
+    ) -> None:
+        """state='on' when wallpanel unreachable returns unavailable state.
+
+        Technique: Branch/Condition Coverage — unreachable path.
+        """
+        fake_wallpanel.set_reachable(False)
+        state = _state()
+
+        result = await _execute_display_command(
+            DisplayCommand(state="on"), fake_wallpanel, state
+        )
+
+        assert result.available is False
 
 
 @pytest.mark.unit
@@ -583,19 +564,6 @@ class TestExecuteDisplayCommandBrightness:
         )
 
         assert fake_wallpanel.screen_state is True
-
-    async def test_brightness_updates_handler_state(
-        self, fake_wallpanel: FakeWallpanel
-    ) -> None:
-        """Successful brightness command updates last_brightness_percent."""
-        fake_wallpanel.screen_state = True
-        state = _state()
-
-        await _execute_display_command(
-            DisplayCommand(brightness_percent=42), fake_wallpanel, state
-        )
-
-        assert state.last_brightness_percent == 42
 
     async def test_brightness_unreachable_returns_unavailable(
         self, fake_wallpanel: FakeWallpanel
@@ -652,6 +620,22 @@ class TestExecuteDisplayCommandOnWithBrightness:
         assert result.available is True
         assert result.state == "on"
         assert result.brightness_percent == 80
+
+    async def test_on_with_brightness_unreachable_returns_unavailable(
+        self, fake_wallpanel: FakeWallpanel
+    ) -> None:
+        """state='on' + brightness_percent when unreachable returns unavailable.
+
+        Technique: Branch/Condition Coverage — unreachable path.
+        """
+        fake_wallpanel.set_reachable(False)
+        state = _state()
+
+        result = await _execute_display_command(
+            DisplayCommand(state="on", brightness_percent=50), fake_wallpanel, state
+        )
+
+        assert result.available is False
 
 
 # =============================================================================
@@ -726,12 +710,6 @@ class TestCreateDisplayHandlerState:
         state = create_display_handler_state()
 
         assert state.max_brightness is None
-
-    def test_last_brightness_percent_initially_none(self) -> None:
-        """last_brightness_percent is None before any command."""
-        state = create_display_handler_state()
-
-        assert state.last_brightness_percent is None
 
 
 # =============================================================================

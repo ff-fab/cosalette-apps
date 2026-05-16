@@ -44,7 +44,7 @@ class DisplayCommand(BaseModel):
     brightness_percent: int | None = Field(default=None, ge=1, le=100)
 
     @model_validator(mode="after")
-    def _validate_fields(self) -> "DisplayCommand":
+    def _validate_command_constraints(self) -> "DisplayCommand":
         if self.state is None and self.brightness_percent is None:
             raise ValueError(
                 "At least one of 'state' or 'brightness_percent' must be provided"
@@ -59,7 +59,7 @@ class DisplayState(BaseModel):
 
     available: bool
     state: Literal["on", "off"] | None
-    brightness_percent: int | None
+    brightness_percent: int | None = Field(ge=0, le=100)
 
 
 _UNAVAILABLE = DisplayState(available=False, state=None, brightness_percent=None)
@@ -70,7 +70,6 @@ class _DisplayHandlerState:
     """Mutable state for the display command handler."""
 
     max_brightness: int | None = None
-    last_brightness_percent: int | None = None
 
 
 def create_display_handler_state() -> _DisplayHandlerState:
@@ -119,12 +118,32 @@ async def _poll_display_state(
         return _UNAVAILABLE
 
     brightness_pct = round(raw_brightness / state.max_brightness * 100)
-    state.last_brightness_percent = brightness_pct
     return DisplayState(
         available=True,
         state="on" if screen_state else "off",
         brightness_percent=brightness_pct,
     )
+
+
+async def _read_brightness_percent(
+    wallpanel: WallpanelPort,
+    state: _DisplayHandlerState,
+) -> int | None:
+    """Read current brightness as a percent, using cached max_brightness.
+
+    Ensures max_brightness is lazily loaded and cached.  Returns None if
+    max_brightness is 0 or raw brightness is unavailable.  Propagates
+    WallpanelUnreachableError to the caller.
+    """
+    if state.max_brightness is None:
+        state.max_brightness = await wallpanel.get_max_brightness()
+    if state.max_brightness == 0:
+        logger.warning("Wallpanel max_brightness is 0; display unavailable")
+        return None
+    raw = await wallpanel.get_brightness()
+    if raw is None:
+        return None
+    return round(raw / state.max_brightness * 100)
 
 
 async def _execute_display_command(
@@ -151,7 +170,11 @@ async def _execute_display_command(
         if cmd.state == "on":
             await wallpanel.screen_on()
             if cmd.brightness_percent is None:
-                return await _poll_display_state(wallpanel, state)
+                # Turn on only — read current brightness; skip redundant screen read.
+                pct = await _read_brightness_percent(wallpanel, state)
+                if pct is None:
+                    return _UNAVAILABLE
+                return DisplayState(available=True, state="on", brightness_percent=pct)
 
         # brightness_percent is set (state="on"+bp or bp-only).
         if cmd.state is None:
@@ -162,6 +185,7 @@ async def _execute_display_command(
             if not screen_state:
                 await wallpanel.screen_on()
 
+        assert cmd.brightness_percent is not None  # validated by DisplayCommand
         if state.max_brightness is None:
             state.max_brightness = await wallpanel.get_max_brightness()
         if state.max_brightness == 0:
@@ -170,13 +194,13 @@ async def _execute_display_command(
             )
             return _UNAVAILABLE
 
-        brightness_percent = cmd.brightness_percent
-        if brightness_percent is None:
-            return await _poll_display_state(wallpanel, state)
-
-        raw = round(state.max_brightness * brightness_percent / 100)
+        raw = round(state.max_brightness * cmd.brightness_percent / 100)
         await wallpanel.set_brightness(raw)
-        return await _poll_display_state(wallpanel, state)
+        # Compute output brightness from raw and cached max — no read-back needed.
+        brightness_pct = round(raw / state.max_brightness * 100)
+        return DisplayState(
+            available=True, state="on", brightness_percent=brightness_pct
+        )
 
     except WallpanelUnreachableError:
         logger.warning("Wallpanel unreachable during display command")
