@@ -5,13 +5,17 @@ services:
       dockerfile: apps/wallpanel-control/Dockerfile
     image: ghcr.io/ff-fab/wallpanel-control:latest
     restart: unless-stopped
+    # env_file imports all WALLPANEL_CONTROL_* settings from .env.
+    # Move the MQTT password to a Docker secret in production deployments
+    # where environment variable exposure is a concern.
     env_file: .env
     environment:
       WALLPANEL_CONTROL_MQTT__HOST: mosquitto
       WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
     volumes:
       - wallpanel_control-data:/app/data
-      - ${HOST_WALLPANEL_SSH_KEY_PATH:-${HOME}/.ssh/wallpanel}:/run/secrets/wallpanel_ssh_key:ro
+    secrets:
+      - wallpanel_ssh_key
     depends_on:
       - mosquitto
 
@@ -29,3 +33,11 @@ volumes:
   wallpanel_control-data:
   mosquitto-data:
   mosquitto-log:
+
+# The SSH private key is mounted as a Docker secret (tmpfs, service-scoped,
+# ephemeral) rather than a bind-mount volume, which keeps the key off the
+# container filesystem and invisible to other services.
+# Set HOST_WALLPANEL_SSH_KEY_PATH in .env (or export it) to override the key path.
+secrets:
+  wallpanel_ssh_key:
+    file: ${HOST_WALLPANEL_SSH_KEY_PATH:-${HOME}/.ssh/wallpanel}

@@ -71,7 +71,8 @@ class TestSubscriptions:
             )
         finally:
             harness.shutdown_event.set()
-            await task
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
         assert DISPLAY_SET in harness.mqtt.subscriptions
         assert SYSTEM_ACTION_SET in harness.mqtt.subscriptions
@@ -96,7 +97,8 @@ class TestDisplayCommand:
     ) -> None:
         """Display command state=on+brightness_percent=60 updates FakeWallpanel.
 
-        Arrange: fresh reachable FakeWallpanel (max_brightness=7812).
+        Arrange: FakeWallpanel with screen off (screen_state=False) to exercise
+            the screen off → on transition path.
         Act: deliver {"state": "on", "brightness_percent": 60}.
         Assert:
           - FakeWallpanel.screen_state is True
@@ -106,6 +108,7 @@ class TestDisplayCommand:
 
         Technique: State Transition — screen off → on with brightness applied.
         """
+        fake_wallpanel.screen_state = False
         await run_with_commands(
             harness,
             [(DISPLAY_SET, '{"state": "on", "brightness_percent": 60}')],
@@ -140,6 +143,91 @@ class TestDisplayCommand:
         await run_with_commands(
             harness,
             [(DISPLAY_SET, '{"state": "on", "brightness_percent": 60}')],
+        )
+
+        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
+        assert messages, f"No publish on {DISPLAY_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["available"] is False
+        assert payload["state"] is None
+        assert payload["brightness_percent"] is None
+
+    async def test_display_state_off_turns_screen_off_and_publishes_state(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """Display command state=off turns screen off and publishes available state.
+
+        Arrange: FakeWallpanel with screen on (default screen_state=True).
+        Act: deliver {"state": "off"}.
+        Assert:
+          - FakeWallpanel.screen_state is False
+          - Published display state has available=true, state="off"
+
+        Technique: Equivalence Partitioning — off as a distinct valid input partition.
+        """
+        await run_with_commands(
+            harness,
+            [(DISPLAY_SET, '{"state": "off"}')],
+        )
+
+        assert fake_wallpanel.screen_state is False
+
+        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
+        assert messages, f"No publish on {DISPLAY_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["available"] is True
+        assert payload["state"] == "off"
+
+    async def test_brightness_only_command_sets_brightness_without_state_change(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """Brightness-only command sets brightness without turning screen on.
+
+        Arrange: FakeWallpanel with screen already on (default screen_state=True).
+        Act: deliver {"brightness_percent": 75} (no state field).
+        Assert:
+          - FakeWallpanel.brightness \u2248 round(7812 * 75 / 100) = 5859
+          - Published display state has available=true, state="on", brightness_percent=75
+
+        Technique: Equivalence Partitioning — brightness-only as third valid command variant.
+        """
+        await run_with_commands(
+            harness,
+            [(DISPLAY_SET, '{"brightness_percent": 75}')],
+        )
+
+        assert fake_wallpanel.brightness == 5859
+
+        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
+        assert messages, f"No publish on {DISPLAY_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["available"] is True
+        assert payload["state"] == "on"
+        assert payload["brightness_percent"] == 75
+
+    async def test_brightness_only_command_while_unreachable_publishes_unavailable(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """Brightness-only command while unreachable publishes available=false.
+
+        Arrange: FakeWallpanel marked unreachable.
+        Act: deliver {"brightness_percent": 75}.
+        Assert: published state has available=false, null state and brightness.
+
+        Technique: Equivalence Partitioning — brightness-only unreachable sub-path
+        (distinct from state+brightness unreachable path).
+        """
+        fake_wallpanel.set_reachable(False)
+
+        await run_with_commands(
+            harness,
+            [(DISPLAY_SET, '{"brightness_percent": 75}')],
         )
 
         messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
@@ -211,7 +299,8 @@ class TestDisplayCommand:
 
         finally:
             harness.shutdown_event.set()
-            await task
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------
@@ -312,3 +401,64 @@ class TestSystemAction:
         payload = json.loads(messages[-1][0])
         assert payload["accepted"] is False
         assert payload["action"] == "hibernate"
+
+    async def test_suspend_action_calls_fake_wallpanel_and_publishes_accepted(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """Suspend action calls wallpanel.suspend() and publishes accepted=true.
+
+        Arrange: reachable FakeWallpanel.
+        Act: deliver {"action": "suspend"}.
+        Assert:
+          - FakeWallpanel.power_state == "suspended"
+          - Published state has accepted=true, action="suspend"
+
+        Technique: Equivalence Partitioning — suspend as a distinct action partition
+        from hibernate (same SSH path, different command).
+        """
+        await run_with_commands(
+            harness,
+            [(SYSTEM_ACTION_SET, '{"action": "suspend"}')],
+        )
+
+        assert fake_wallpanel.power_state == "suspended"
+
+        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
+        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["accepted"] is True
+        assert payload["action"] == "suspend"
+
+    async def test_wake_while_unreachable_still_publishes_accepted_true(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+        fake_wol: FakeWol,
+    ) -> None:
+        """Wake succeeds even when wallpanel SSH is unreachable (WoL bypass).
+
+        Arrange: FakeWallpanel marked unreachable (simulating powered-off state).
+        Act: deliver {"action": "wake"}.
+        Assert:
+          - FakeWol.calls contains one entry (WoL sent regardless of SSH state)
+          - Published state has accepted=true, action="wake"
+
+        Technique: Specification-based — pins the WoL-vs-SSH contract: wake
+        never requires SSH connectivity.
+        """
+        fake_wallpanel.set_reachable(False)
+
+        await run_with_commands(
+            harness,
+            [(SYSTEM_ACTION_SET, '{"action": "wake"}')],
+        )
+
+        assert len(fake_wol.calls) == 1
+
+        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
+        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["accepted"] is True
+        assert payload["action"] == "wake"

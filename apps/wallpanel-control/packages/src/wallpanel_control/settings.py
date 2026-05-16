@@ -9,6 +9,9 @@ Priority: CLI > env > .env > defaults.
 
 from __future__ import annotations
 
+import os
+import re
+
 import cosalette
 from pydantic import Field, field_validator
 from pydantic_settings import SettingsConfigDict
@@ -73,13 +76,25 @@ class WallpanelControlSettings(cosalette.Settings):
     @field_validator("backlight_path")
     @classmethod
     def validate_backlight_path(cls, value: str) -> str:
-        """Validate the privileged backlight write path is constrained to sysfs."""
-        if not value.startswith("/sys/class/backlight/") or not value.endswith(
-            "/brightness"
-        ):
-            msg = "backlight_path must be an absolute /sys/class/backlight/.../brightness path"
+        """Validate the privileged backlight write path is constrained to sysfs.
+
+        Normalises the path (collapses ``..`` without filesystem access) then
+        enforces the exact shape ``/sys/class/backlight/<device>/brightness``
+        where ``<device>`` contains only safe alphanumeric characters.
+        """
+        normalized = os.path.normpath(value)
+        if not normalized.startswith(
+            "/sys/class/backlight/"
+        ) or not normalized.endswith("/brightness"):
+            msg = "backlight_path must be an absolute /sys/class/backlight/<device>/brightness path"
             raise ValueError(msg)
-        return value
+        device = normalized.removeprefix("/sys/class/backlight/").removesuffix(
+            "/brightness"
+        )
+        if not device or not re.fullmatch(r"[a-zA-Z0-9._-]+", device):
+            msg = "backlight_path device name must contain only alphanumeric, _, -, . characters"
+            raise ValueError(msg)
+        return normalized
 
     @field_validator("wol_mac")
     @classmethod

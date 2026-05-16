@@ -39,6 +39,9 @@ def _state_topic_for(command_topic: str) -> str:
     ``<prefix>/<name>/set`` → ``<prefix>/<name>/state``.
     Works for both ``display/set`` and ``system/action/set``.
     """
+    assert command_topic.endswith("/set"), (
+        f"Expected /set suffix, got {command_topic!r}"
+    )
     return command_topic.removesuffix("/set") + "/state"
 
 
@@ -69,42 +72,29 @@ def build_integration_app(
     return app
 
 
-def make_harness(
-    fake_wallpanel: FakeWallpanel,
-    fake_wol: FakeWol,
-) -> AppHarness:
-    """Wrap a fresh integration app in an AppHarness."""
-    return AppHarness(
-        app=build_integration_app(fake_wallpanel, fake_wol),
-        mqtt=MockMqttClient(),
-        clock=FakeClock(),
-        settings=make_wallpanel_control_settings(),
-        shutdown_event=asyncio.Event(),
-    )
-
-
 async def run_with_commands(
     harness: AppHarness,
     commands: list[tuple[str, str]],
 ) -> None:
     """Start harness, deliver commands sequentially, then shut down.
 
-    Waits until command subscriptions are registered before the first
-    delivery.  After each delivery, waits for at least one new publish
-    before moving to the next command.  Always cleans up in a
-    ``finally`` block so tests stay isolated.
+    Waits until all command topics in ``commands`` are subscribed before
+    the first delivery.  If ``commands`` is empty, waits for both routers.
+    After each delivery, waits for at least one new publish before moving
+    to the next command.  Always cleans up in a ``finally`` block so tests
+    stay isolated.
 
     Args:
         harness: Pre-built AppHarness wrapping the integration app.
         commands: Ordered ``(topic, payload)`` pairs to deliver.
     """
+    expected_subs: frozenset[str] = frozenset(t for t, _ in commands) or frozenset(
+        [DISPLAY_SET, SYSTEM_ACTION_SET]
+    )
     task = asyncio.create_task(harness.run())
     try:
         await wait_for_condition(
-            lambda: (
-                DISPLAY_SET in harness.mqtt.subscriptions
-                and SYSTEM_ACTION_SET in harness.mqtt.subscriptions
-            ),
+            lambda: all(t in harness.mqtt.subscriptions for t in expected_subs),
             timeout=2.0,
             description="command subscriptions registered",
         )
@@ -121,7 +111,8 @@ async def run_with_commands(
             )
     finally:
         harness.shutdown_event.set()
-        await task
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------
@@ -132,4 +123,10 @@ async def run_with_commands(
 @pytest.fixture
 def harness(fake_wallpanel: FakeWallpanel, fake_wol: FakeWol) -> AppHarness:
     """Fresh AppHarness wired with FakeWallpanel and FakeWol."""
-    return make_harness(fake_wallpanel, fake_wol)
+    return AppHarness(
+        app=build_integration_app(fake_wallpanel, fake_wol),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=make_wallpanel_control_settings(),
+        shutdown_event=asyncio.Event(),
+    )
