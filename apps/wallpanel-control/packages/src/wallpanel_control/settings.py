@@ -18,6 +18,8 @@ from pydantic_settings import SettingsConfigDict
 
 from wallpanel_control.adapters.wol_adapter import _parse_mac
 
+_DEVICE_RE = re.compile(r"[a-zA-Z0-9._-]+")
+
 
 class WallpanelControlSettings(cosalette.Settings):
     """Wallpanel control settings.
@@ -45,6 +47,10 @@ class WallpanelControlSettings(cosalette.Settings):
     ssh_key_path: str = Field(
         default="~/.ssh/wallpanel",
         description="Path to SSH private key file",
+    )
+    ssh_known_hosts: str = Field(
+        default="~/.ssh/known_hosts",
+        description="Path to SSH known_hosts file for host-key verification",
     )
     ssh_port: int = Field(
         default=22,
@@ -91,7 +97,7 @@ class WallpanelControlSettings(cosalette.Settings):
         device = normalized.removeprefix("/sys/class/backlight/").removesuffix(
             "/brightness"
         )
-        if not device or not re.fullmatch(r"[a-zA-Z0-9._-]+", device):
+        if not device or not _DEVICE_RE.fullmatch(device):
             msg = "backlight_path device name must contain only alphanumeric, _, -, . characters"
             raise ValueError(msg)
         return normalized

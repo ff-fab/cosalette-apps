@@ -13,6 +13,7 @@ unknown fields are rejected with an error publication.
 | `wallpanel-control/display/state`       | Publish   | 1   | Yes      | Current display state                 |
 | `wallpanel-control/system/action/set`   | Subscribe | 1   | No       | Trigger a power action                |
 | `wallpanel-control/system/action/state` | Publish   | 1   | Yes      | Action acknowledgement                |
+| `wallpanel-control/status`              | Publish   | 1   | Yes      | cosalette framework health/heartbeat  |
 | `wallpanel-control/error`               | Publish   | 1   | No       | Global app-level error event       |
 | `wallpanel-control/<command>/error`     | Publish   | 1   | No       | Per-command error event            |
 
@@ -20,9 +21,10 @@ unknown fields are rejected with an error publication.
     `wallpanel-control` is the default topic prefix. It can be changed via
     `WALLPANEL_CONTROL_MQTT__TOPIC_PREFIX`.
 
-!!! note "No periodic telemetry"
-    wallpanel-control is command-driven. State is published only after a command is
-    accepted -- there is no background polling or periodic status publication.
+!!! note "No periodic telemetry from hardware"
+    wallpanel-control does not poll wallpanel hardware on a timer. State is published
+    only in response to commands. The cosalette framework independently publishes its
+    own health/heartbeat to `{prefix}/status` regardless of command activity.
 
 ---
 

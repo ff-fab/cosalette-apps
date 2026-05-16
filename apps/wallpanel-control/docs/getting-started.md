@@ -7,7 +7,8 @@ sending your first MQTT commands.
 
 | Requirement        | Details                                                         |
 | ------------------ | --------------------------------------------------------------- |
-| **Wall panel**     | Linux device reachable over SSH (Intel NUC, SBC, mini-PC, ...) |
+| **Wall panel**     | Linux device with a GNOME desktop session (Intel NUC, SBC, mini-PC, ...) |
+| **GNOME session**  | Required for screen on/off (D-Bus/Mutter); brightness uses sysfs and works without GNOME |
 | **SSH access**     | Public-key login enabled on the wall panel                      |
 | **WoL-capable NIC**| Required only for the `wake` system action                     |
 | **MQTT broker**    | Mosquitto, EMQX, or any MQTT 3.1.1+ broker                     |
@@ -36,6 +37,19 @@ Verify the connection works before running the container:
 ssh -i ~/.ssh/wallpanel jl4@wallpanel.lan "echo ok"
 ```
 
+Capture the wall panel's host key in your local `known_hosts` (this step also seeds the
+file that will be mounted into the container):
+
+```bash
+ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
+```
+
+!!! warning "Container host-key verification"
+    The container user (`appuser`) has no SSH history. The Compose file mounts your
+    host `~/.ssh/known_hosts` read-only into the container, so the `ssh-keyscan` step
+    above is required before starting the container. Without a `known_hosts` entry the
+    container will refuse the connection.
+
 !!! tip "Run as a dedicated user"
     Create a locked-down system user on the wall panel that only has permission to write
     to the sysfs backlight path and run `systemctl suspend` / `systemctl hibernate`.
@@ -63,9 +77,12 @@ ssh -i ~/.ssh/wallpanel jl4@wallpanel.lan "echo ok"
         environment:
           WALLPANEL_CONTROL_MQTT__HOST: mosquitto
           WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
+          WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
         volumes:
           - wallpanel_control-data:/app/data
-          - ${HOST_WALLPANEL_SSH_KEY_PATH:-${HOME}/.ssh/wallpanel}:/run/secrets/wallpanel_ssh_key:ro
+        secrets:
+          - wallpanel_ssh_key
+          - wallpanel_known_hosts
         depends_on:
           - mosquitto
 
@@ -83,6 +100,12 @@ ssh -i ~/.ssh/wallpanel jl4@wallpanel.lan "echo ok"
       wallpanel_control-data:
       mosquitto-data:
       mosquitto-log:
+
+    secrets:
+      wallpanel_ssh_key:
+        file: ${HOST_WALLPANEL_SSH_KEY_PATH:-${HOME}/.ssh/wallpanel}
+      wallpanel_known_hosts:
+        file: ${HOST_WALLPANEL_KNOWN_HOSTS_PATH:-${HOME}/.ssh/known_hosts}
     ```
 
     From the app directory, create your env file:
@@ -103,9 +126,12 @@ ssh -i ~/.ssh/wallpanel jl4@wallpanel.lan "echo ok"
         Replace `latest` with a release tag (e.g. `0.2.0`) in the `image:` line to pin
         the deployment and avoid surprises on restart.
 
-    !!! note "Custom SSH key location"
-        Set `HOST_WALLPANEL_SSH_KEY_PATH` in `.env` to point to your key file on the host.
-        The container always reads from `/run/secrets/wallpanel_ssh_key`.
+    !!! note "SSH key and known-hosts location"
+        Export `HOST_WALLPANEL_SSH_KEY_PATH` and/or `HOST_WALLPANEL_KNOWN_HOSTS_PATH`
+        in your shell to override the host-side paths for these Docker secrets. Do not
+        set them in `.env` (they would be injected into the container as env vars).
+        The container always reads from `/run/secrets/wallpanel_ssh_key` and
+        `/run/secrets/wallpanel_known_hosts`.
 
 === "Manual (pip/uv)"
 

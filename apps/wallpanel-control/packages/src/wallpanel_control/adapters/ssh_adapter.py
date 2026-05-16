@@ -69,6 +69,7 @@ class SshWallpanel:
                 port=self._settings.ssh_port,
                 username=self._settings.ssh_user,
                 client_keys=[self._settings.ssh_key_path],
+                known_hosts=self._settings.ssh_known_hosts,
             ),
             timeout=self._settings.ssh_timeout,
         )

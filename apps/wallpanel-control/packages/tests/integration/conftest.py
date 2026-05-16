@@ -14,13 +14,12 @@ import pytest
 from cosalette import MockMqttClient
 from cosalette.testing import AppHarness, FakeClock
 
+from tests.fixtures.async_utils import wait_for_condition
+from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.devices import display, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
-
-from tests.fixtures.async_utils import wait_for_condition
-from tests.fixtures.config import make_wallpanel_control_settings
 
 TOPIC_PREFIX = "wallpanel-control"
 DISPLAY_SET = f"{TOPIC_PREFIX}/display/set"
@@ -39,9 +38,9 @@ def _state_topic_for(command_topic: str) -> str:
     ``<prefix>/<name>/set`` → ``<prefix>/<name>/state``.
     Works for both ``display/set`` and ``system/action/set``.
     """
-    assert command_topic.endswith("/set"), (
-        f"Expected /set suffix, got {command_topic!r}"
-    )
+    if not command_topic.endswith("/set"):
+        msg = f"Expected /set suffix, got {command_topic!r}"
+        raise ValueError(msg)
     return command_topic.removesuffix("/set") + "/state"
 
 
@@ -88,13 +87,15 @@ async def run_with_commands(
         harness: Pre-built AppHarness wrapping the integration app.
         commands: Ordered ``(topic, payload)`` pairs to deliver.
     """
-    expected_subs: frozenset[str] = frozenset(t for t, _ in commands) or frozenset(
-        [DISPLAY_SET, SYSTEM_ACTION_SET]
-    )
+    if commands:
+        expected_subs: frozenset[str] = frozenset(t for t, _ in commands)
+    else:
+        # No commands — wait for both routers to register their subscriptions.
+        expected_subs = frozenset([DISPLAY_SET, SYSTEM_ACTION_SET])
     task = asyncio.create_task(harness.run())
     try:
         await wait_for_condition(
-            lambda: all(t in harness.mqtt.subscriptions for t in expected_subs),
+            lambda: expected_subs.issubset(harness.mqtt.subscriptions),
             timeout=2.0,
             description="command subscriptions registered",
         )

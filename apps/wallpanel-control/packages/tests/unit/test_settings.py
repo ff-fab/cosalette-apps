@@ -13,7 +13,6 @@ from pydantic import ValidationError
 
 from tests.fixtures.config import make_wallpanel_control_settings
 
-
 # =============================================================================
 # Tests
 # =============================================================================

@@ -53,17 +53,28 @@ you need.
 | Host         | `WALLPANEL_CONTROL_SSH_HOST`                | `wallpanel.lan`                      | Hostname or IP of the wall panel     |
 | User         | `WALLPANEL_CONTROL_SSH_USER`                | `jl4`                                | SSH login username                   |
 | Key path     | `WALLPANEL_CONTROL_SSH_KEY_PATH`            | `~/.ssh/wallpanel`                   | Path to SSH private key file         |
+| Known hosts  | `WALLPANEL_CONTROL_SSH_KNOWN_HOSTS`         | `~/.ssh/known_hosts`                 | Path to SSH known_hosts file         |
 | Port         | `WALLPANEL_CONTROL_SSH_PORT`                | `22`                                 | SSH port number                      |
 | Timeout      | `WALLPANEL_CONTROL_SSH_TIMEOUT`             | `5.0`                                | Connection timeout in seconds        |
 | Backlight path | `WALLPANEL_CONTROL_BACKLIGHT_PATH`        | `/sys/class/backlight/intel_backlight/brightness` | Sysfs brightness file |
 
-!!! note "Docker key path"
-    In the Docker Compose setup the key is mounted read-only at
-    `/run/secrets/wallpanel_ssh_key`. The Compose environment block overrides
-    `WALLPANEL_CONTROL_SSH_KEY_PATH` to this path automatically. The host-side
-    path is controlled by the separate `HOST_WALLPANEL_SSH_KEY_PATH` variable
-    (not a `WALLPANEL_CONTROL_` variable) which is only used by Compose for the
-    volume mount source.
+!!! note "Docker key and known-hosts paths"
+    In the Docker Compose setup the SSH key is mounted read-only at
+    `/run/secrets/wallpanel_ssh_key` and the known_hosts file at
+    `/run/secrets/wallpanel_known_hosts`. The Compose `environment:` block
+    overrides `WALLPANEL_CONTROL_SSH_KEY_PATH` and
+    `WALLPANEL_CONTROL_SSH_KNOWN_HOSTS` to these paths automatically.
+
+    `HOST_WALLPANEL_SSH_KEY_PATH` and `HOST_WALLPANEL_KNOWN_HOSTS_PATH` control
+    the **host-side** source paths for these secrets. They are Compose
+    interpolation variables only — **do not put them in `.env`**. Because `.env`
+    is also the service `env_file:`, any variable there is injected into the
+    container environment. Export them in your shell instead:
+
+    ```bash
+    export HOST_WALLPANEL_SSH_KEY_PATH=/home/you/.ssh/wallpanel
+    export HOST_WALLPANEL_KNOWN_HOSTS_PATH=/home/you/.ssh/known_hosts
+    ```
 
 !!! warning "Backlight path validation"
     `WALLPANEL_CONTROL_BACKLIGHT_PATH` must be an absolute path starting with

@@ -22,13 +22,15 @@ model and rejects unknown fields automatically. State publications use the state
 ```python
 @router.command("display", payload_model=DisplayCommand, state_model=DisplayState)
 async def handle_display(
-    cmd: DisplayCommand,
-    ctx: DeviceContext[DisplayState],
+    cmd: Annotated[DisplayCommand, Payload()],
+    wallpanel: WallpanelPort,
+    state: _DisplayHandlerState,
+) -> DisplayState:
     ...
-) -> None:
-    ...
-    await ctx.publish_state(DisplayState(...))
+    return DisplayState(...)
 ```
+
+The framework publishes the returned state model automatically via `state_model`.
 
 **Impact:** Eliminates hand-written validation. Schema errors are published to the error
 topic automatically.
@@ -132,16 +134,18 @@ Enables richer Home Assistant button/switch integrations.
 
 ### 3. Harness Helpers for Publish/Subscription Assertions
 
-**Context:** wallpanel-control tests verify MQTT publish calls using manual mock
-inspection (`mock_mqtt.publish.assert_called_with(...)`). As the topic and payload
-schema grows, test boilerplate grows proportionally.
+**Context:** wallpanel-control tests verify MQTT publish calls using
+`AppHarness` + `harness.mqtt.get_messages_for()` from `cosalette.testing`.
+Unit tests exercise handler functions directly via `FakeWallpanel`.
+As the topic and payload schema grows, assertion boilerplate grows proportionally.
 
-**Current behavior:** Each test captures `publish` calls and asserts topic, QoS,
-retain, and payload individually. There are no shared fixtures for MQTT interaction
-patterns.
+**Current behavior:** Integration tests use `AppHarness` (which manages the full
+cosalette event loop) and `MockMqttClient.get_messages_for(topic)` to retrieve
+published payloads. Subscription assertions are manual `in harness.mqtt.subscriptions`
+checks. There are no built-in matchers for partial payload comparison or topic patterns.
 
-**Workaround:** Test module-level helpers decode JSON payloads from the mock before
-asserting. This is functional but brittle when topic or payload structure changes.
+**Workaround:** Test helpers decode JSON payloads from the mock before asserting field
+by field. This is functional but adds noise when verifying only a subset of fields.
 
 **Proposed improvement:** A `cosalette.testing` harness with subscription/publish
 matchers:

@@ -24,11 +24,11 @@ import asyncio
 import json
 
 import pytest
-
-from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from cosalette.testing import AppHarness
 
 from tests.fixtures.async_utils import wait_for_condition
+from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
+
 from .conftest import (
     DISPLAY_SET,
     DISPLAY_STATE,
@@ -36,7 +36,6 @@ from .conftest import (
     SYSTEM_ACTION_STATE,
     run_with_commands,
 )
-
 
 # ---------------------------------------------------------------------------
 # TestSubscriptions
@@ -179,6 +178,43 @@ class TestDisplayCommand:
         payload = json.loads(messages[-1][0])
         assert payload["available"] is True
         assert payload["state"] == "off"
+        assert payload["brightness_percent"] is not None
+
+    async def test_state_on_only_reads_current_brightness_without_setting_it(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """State=on command without brightness reads current brightness, does not set it.
+
+        Arrange: FakeWallpanel with screen off (screen_state=False), brightness=4000.
+        Act: deliver {"state": "on"} (no brightness_percent field).
+        Assert:
+          - FakeWallpanel.screen_state is True (screen turned on)
+          - FakeWallpanel.brightness unchanged at 4000 (no set_brightness call)
+          - Published display state has available=true, state="on",
+            brightness_percent=51 (round(4000/7812*100))
+
+        Technique: Equivalence Partitioning — state=on without brightness as a
+        distinct branch from state=on+brightness (read vs write path).
+        """
+        fake_wallpanel.screen_state = False
+        fake_wallpanel.brightness = 4000
+
+        await run_with_commands(
+            harness,
+            [(DISPLAY_SET, '{"state": "on"}')],
+        )
+
+        assert fake_wallpanel.screen_state is True
+        assert fake_wallpanel.brightness == 4000  # unchanged
+
+        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
+        assert messages, f"No publish on {DISPLAY_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["available"] is True
+        assert payload["state"] == "on"
+        assert payload["brightness_percent"] == 51  # round(4000/7812*100)
 
     async def test_brightness_only_command_sets_brightness_without_state_change(
         self,
@@ -191,8 +227,7 @@ class TestDisplayCommand:
         Act: deliver {"brightness_percent": 75} (no state field).
         Assert:
           - FakeWallpanel.brightness \u2248 round(7812 * 75 / 100) = 5859
-          - Published display state has available=true, state="on", brightness_percent=75
-
+          - Published display state has available=true, state="on", brightness_percent=75          - FakeWallpanel.screen_state remains True (no redundant screen toggle)
         Technique: Equivalence Partitioning — brightness-only as third valid command variant.
         """
         await run_with_commands(
@@ -208,6 +243,42 @@ class TestDisplayCommand:
         assert payload["available"] is True
         assert payload["state"] == "on"
         assert payload["brightness_percent"] == 75
+
+        assert fake_wallpanel.screen_state is True
+
+    async def test_brightness_only_command_with_screen_off_turns_screen_on(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """Brightness-only command with screen off auto-turns screen on.
+
+        Arrange: FakeWallpanel with screen off (screen_state=False).
+        Act: deliver {"brightness_percent": 50} (no state field).
+        Assert:
+          - FakeWallpanel.screen_state is True (auto screen-on triggered)
+          - FakeWallpanel.brightness ≈ round(7812 * 50 / 100) = 3906
+          - Published display state has available=true, state="on", brightness_percent=50
+
+        Technique: State Transition — screen off → on triggered implicitly by
+        brightness-only command (distinct from explicit state=on command).
+        """
+        fake_wallpanel.screen_state = False
+
+        await run_with_commands(
+            harness,
+            [(DISPLAY_SET, '{"brightness_percent": 50}')],
+        )
+
+        assert fake_wallpanel.screen_state is True
+        assert fake_wallpanel.brightness == 3906
+
+        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
+        assert messages, f"No publish on {DISPLAY_STATE}"
+        payload = json.loads(messages[-1][0])
+        assert payload["available"] is True
+        assert payload["state"] == "on"
+        assert payload["brightness_percent"] == 50
 
     async def test_brightness_only_command_while_unreachable_publishes_unavailable(
         self,

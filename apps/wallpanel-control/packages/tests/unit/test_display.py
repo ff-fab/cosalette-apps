@@ -24,10 +24,10 @@ from pydantic import ValidationError
 
 from wallpanel_control.adapters.fake import FakeWallpanel
 from wallpanel_control.devices.display import (
+    _UNAVAILABLE,
     DisplayCommand,
     DisplayState,
     _DisplayHandlerState,
-    _UNAVAILABLE,
     _execute_display_command,
     _poll_display_state,
     create_display_handler_state,

@@ -34,8 +34,9 @@ power-on for the suspend/hibernate use case.
 
 | Component         | Details                                              |
 | ----------------- | ---------------------------------------------------- |
-| Wall panel device | Any Linux SBC or mini-PC (Intel NUC, x86 board, ...) |
+| Wall panel device | Linux device with a GNOME desktop session (Intel NUC, x86 board, ...) |
 | Display backlight | Intel backlight via sysfs (configurable path)        |
+| Screen on/off     | GNOME Mutter via `busctl --user set-property org.gnome.Mutter.DisplayConfig` |
 | Network           | Ethernet or Wi-Fi with WoL support for power-on      |
 | SSH access        | Public-key authentication required                   |
 
