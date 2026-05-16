@@ -14,7 +14,7 @@
 
 [project]
 site_name = "wallpanel-control"
-site_description = "Wall panel brightness, screen and power control via SSH"
+site_description = "MQTT bridge for controlling a wall-panel display and system via SSH and Wake-on-LAN."
 
 # Canonical URL for the deployed site. Used for sitemap and social cards.
 site_url = "https://ff-fab.github.io/cosalette-apps/wallpanel-control/"
@@ -29,6 +29,8 @@ extra_javascript = ["javascripts/click-zoom.js", "javascripts/version-fetch.js",
 # Navigation
 # ---------------------------------------------------------------------------
 
+# Explicit nav keeps planning/ pages out of the published top-level navigation.
+# Zensical does not support exclude_docs, so explicit nav is the workaround.
 nav = [
     { "Home" = "index.md" },
     { "Getting Started" = "getting-started.md" },

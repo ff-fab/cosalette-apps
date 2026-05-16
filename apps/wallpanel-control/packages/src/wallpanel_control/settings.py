@@ -1,8 +1,8 @@
 """Application settings for wallpanel-control.
 
 Extends cosalette's Settings with wallpanel-specific configuration
-for SSH connectivity, backlight hardware paths, polling intervals,
-and Wake-on-LAN. All settings are loaded from environment variables
+for SSH connectivity, backlight hardware paths, and Wake-on-LAN.
+All settings are loaded from environment variables
 (WALLPANEL_CONTROL_ prefix), .env files, or CLI flags.
 Priority: CLI > env > .env > defaults.
 """
@@ -20,7 +20,7 @@ class WallpanelControlSettings(cosalette.Settings):
     """Wallpanel control settings.
 
     Extends cosalette base settings with SSH connection, hardware
-    paths, polling, and Wake-on-LAN configuration.
+    paths, and Wake-on-LAN configuration.
     """
 
     model_config = SettingsConfigDict(
@@ -59,13 +59,6 @@ class WallpanelControlSettings(cosalette.Settings):
     backlight_path: str = Field(
         default="/sys/class/backlight/intel_backlight/brightness",
         description="Sysfs path to backlight brightness file",
-    )
-
-    # Polling configuration
-    poll_interval: float = Field(
-        default=180.0,
-        gt=0,
-        description="Telemetry polling interval in seconds",
     )
 
     # Wake-on-LAN

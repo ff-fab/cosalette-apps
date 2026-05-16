@@ -3,11 +3,15 @@ services:
     build:
       context: ../..
       dockerfile: apps/wallpanel-control/Dockerfile
+    image: ghcr.io/ff-fab/wallpanel-control:latest
     restart: unless-stopped
-    volumes:
-      - wallpanel_control-data:/app/data
+    env_file: .env
     environment:
       WALLPANEL_CONTROL_MQTT__HOST: mosquitto
+      WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
+    volumes:
+      - wallpanel_control-data:/app/data
+      - ${HOST_WALLPANEL_SSH_KEY_PATH:-${HOME}/.ssh/wallpanel}:/run/secrets/wallpanel_ssh_key:ro
     depends_on:
       - mosquitto
 

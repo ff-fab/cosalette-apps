@@ -1,4 +1,4 @@
-"""wallpanel-control — Wall panel brightness, screen and power control via SSH."""
+"""wallpanel-control — MQTT bridge for wall-panel display and system control via SSH and Wake-on-LAN."""
 
 from importlib.metadata import PackageNotFoundError, version
 
