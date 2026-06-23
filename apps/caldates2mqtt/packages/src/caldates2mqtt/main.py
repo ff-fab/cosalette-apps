@@ -14,6 +14,7 @@ import cosalette
 
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.adapters.fake import FakeCalDavReader
+from caldates2mqtt.errors import CalDavConnectionError, CalDavTimeoutError
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
 
@@ -37,6 +38,8 @@ def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
     name=_calendar_map,
     schedule=lambda cal: cal.schedule,
     triggerable=True,
+    retry=3,
+    retry_on=(CalDavConnectionError, CalDavTimeoutError),
 )
 async def calendar(
     cal: CalendarConfig,
