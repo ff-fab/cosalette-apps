@@ -25,6 +25,16 @@ you need.
 | Username | `WALLPANEL_CONTROL_MQTT__USERNAME`          | --           | Broker username                    |
 | Password | `WALLPANEL_CONTROL_MQTT__PASSWORD`          | --           | Broker password                    |
 | Topic prefix | `WALLPANEL_CONTROL_MQTT__TOPIC_PREFIX`  | `wallpanel-control` | Root prefix for all MQTT topics |
+| TLS          | `WALLPANEL_CONTROL_MQTT__TLS`           | `false`             | Enable TLS for broker connection |
+| TLS CA file  | `WALLPANEL_CONTROL_MQTT__TLS_CA_FILE`   | --                  | CA bundle for broker certificate verification |
+| TLS cert     | `WALLPANEL_CONTROL_MQTT__TLS_CERT_FILE` | --                  | Client certificate for mutual TLS |
+| TLS key      | `WALLPANEL_CONTROL_MQTT__TLS_KEY_FILE`  | --                  | Client private key for mutual TLS |
+
+!!! tip "Secure broker connections"
+    Set `WALLPANEL_CONTROL_MQTT__TLS=true` when connecting to a broker outside
+    localhost. Provide `TLS_CA_FILE` to verify the broker's certificate.
+    For mutual TLS (client authentication), also set `TLS_CERT_FILE` and
+    `TLS_KEY_FILE`. See `.env.example` for commented examples.
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables use

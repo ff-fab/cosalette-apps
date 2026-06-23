@@ -71,6 +71,23 @@ def build_integration_app(
     return app
 
 
+async def wait_for_subscriptions(harness: AppHarness) -> None:
+    """Wait until both command routers have registered their subscriptions.
+
+    Use this when a test needs to verify subscription state without
+    delivering any commands.  ``run_with_commands`` handles subscription
+    readiness automatically when delivering commands.
+    """
+    await wait_for_condition(
+        lambda: (
+            DISPLAY_SET in harness.mqtt.subscriptions
+            and SYSTEM_ACTION_SET in harness.mqtt.subscriptions
+        ),
+        timeout=2.0,
+        description="command subscriptions registered",
+    )
+
+
 async def run_with_commands(
     harness: AppHarness,
     commands: list[tuple[str, str]],
@@ -78,20 +95,24 @@ async def run_with_commands(
     """Start harness, deliver commands sequentially, then shut down.
 
     Waits until all command topics in ``commands`` are subscribed before
-    the first delivery.  If ``commands`` is empty, waits for both routers.
-    After each delivery, waits for at least one new publish before moving
-    to the next command.  Always cleans up in a ``finally`` block so tests
-    stay isolated.
+    the first delivery.  After each delivery, waits for at least one new
+    publish before moving to the next command.  Always cleans up in a
+    ``finally`` block so tests stay isolated.
 
     Args:
         harness: Pre-built AppHarness wrapping the integration app.
         commands: Ordered ``(topic, payload)`` pairs to deliver.
+            Must not be empty; use ``wait_for_subscriptions`` for
+            subscription-only checks.
+
+    Raises:
+        ValueError: If ``commands`` is empty.
     """
-    if commands:
-        expected_subs: frozenset[str] = frozenset(t for t, _ in commands)
-    else:
-        # No commands — wait for both routers to register their subscriptions.
-        expected_subs = frozenset([DISPLAY_SET, SYSTEM_ACTION_SET])
+    if not commands:
+        raise ValueError(
+            "commands must not be empty; use wait_for_subscriptions for subscription-only checks"
+        )
+    expected_subs: frozenset[str] = frozenset(t for t, _ in commands)
     task = asyncio.create_task(harness.run())
     try:
         await wait_for_condition(
