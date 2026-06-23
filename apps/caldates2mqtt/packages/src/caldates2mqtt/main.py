@@ -8,12 +8,11 @@ from __future__ import annotations
 
 import logging
 
-from typing import cast
-
 import cosalette
 
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.adapters.fake import FakeCalDavReader
+from caldates2mqtt.errors import CalDavConnectionError, CalDavTimeoutError
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
 
@@ -30,13 +29,17 @@ app = cosalette.App(
 
 
 def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
-    return {cal.key: cal for cal in cast(CalDates2MqttSettings, s).calendars}
+    if not isinstance(s, CalDates2MqttSettings):
+        raise TypeError(f"Expected CalDates2MqttSettings, got {type(s).__name__}")
+    return {cal.key: cal for cal in s.calendars}
 
 
 @app.telemetry(
     name=_calendar_map,
     schedule=lambda cal: cal.schedule,
     triggerable=True,
+    retry=3,
+    retry_on=(CalDavConnectionError, CalDavTimeoutError),
 )
 async def calendar(
     cal: CalendarConfig,
