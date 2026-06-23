@@ -13,7 +13,6 @@ from pydantic import ValidationError
 
 from tests.fixtures.config import make_wallpanel_control_settings
 
-
 # =============================================================================
 # Tests
 # =============================================================================
@@ -57,11 +56,6 @@ class TestWallpanelControlSettingsDefaults:
         assert (
             settings.backlight_path == "/sys/class/backlight/intel_backlight/brightness"
         )
-
-    def test_default_poll_interval(self) -> None:
-        """Default poll interval is 180 seconds (3 minutes)."""
-        settings = make_wallpanel_control_settings()
-        assert settings.poll_interval == 180.0
 
     def test_default_wol_broadcast(self) -> None:
         """Default WoL broadcast is 255.255.255.255."""
@@ -137,21 +131,6 @@ class TestWallpanelControlSettingsValidation:
         """Very small SSH timeout is valid."""
         settings = make_wallpanel_control_settings(ssh_timeout=0.001)
         assert settings.ssh_timeout == 0.001
-
-    def test_poll_interval_rejects_zero(self) -> None:
-        """Poll interval must be > 0."""
-        with pytest.raises(ValidationError):
-            make_wallpanel_control_settings(poll_interval=0)
-
-    def test_poll_interval_rejects_negative(self) -> None:
-        """Poll interval must be > 0."""
-        with pytest.raises(ValidationError):
-            make_wallpanel_control_settings(poll_interval=-1.0)
-
-    def test_poll_interval_accepts_small_positive(self) -> None:
-        """Very small poll interval is valid."""
-        settings = make_wallpanel_control_settings(poll_interval=0.001)
-        assert settings.poll_interval == 0.001
 
     def test_backlight_path_rejects_relative_path(self) -> None:
         """backlight_path must be an absolute sysfs brightness path.

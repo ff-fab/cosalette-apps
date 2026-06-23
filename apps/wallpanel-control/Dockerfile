@@ -17,7 +17,9 @@ RUN uv pip install --system --no-cache ./apps/wallpanel-control
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \
-    && mkdir -p /app/data && chown appuser:appuser /app/data
+    && mkdir -p /app/data /home/appuser/.ssh \
+    && chown appuser:appuser /app/data /home/appuser/.ssh \
+    && chmod 700 /home/appuser/.ssh
 USER appuser
 
 VOLUME /app/data

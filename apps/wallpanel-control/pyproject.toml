@@ -1,7 +1,7 @@
 [project]
 name = "wallpanel-control"
 version = "0.1.0"
-description = "Wall panel brightness, screen and power control via SSH"
+description = "MQTT bridge for controlling a wall-panel display and system via SSH and Wake-on-LAN."
 readme = "README.md"
 requires-python = ">=3.14"
 license = { text = "MIT" }

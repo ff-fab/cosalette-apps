@@ -24,7 +24,6 @@ from wallpanel_control.devices.system import (
 )
 from wallpanel_control.settings import WallpanelControlSettings
 
-
 # =============================================================================
 # SystemActionCommand — validation
 # =============================================================================

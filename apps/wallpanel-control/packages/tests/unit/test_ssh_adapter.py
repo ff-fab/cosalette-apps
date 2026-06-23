@@ -237,10 +237,10 @@ class TestSshWallpanelReachable:
         # Assert
         assert result is True
 
-    async def test_connect_uses_asyncssh_known_hosts_default(self) -> None:
-        """_connect omits known_hosts so AsyncSSH verifies host keys by default.
+    async def test_connect_passes_known_hosts_to_asyncssh(self) -> None:
+        """_connect passes ssh_known_hosts so host-key verification is explicit.
 
-        Technique: Error Guessing — guard against disabling SSH host verification.
+        Technique: Error Guessing — guard against omitting host verification.
         """
         # Arrange
         adapter = _make_adapter()
@@ -256,7 +256,7 @@ class TestSshWallpanelReachable:
 
         # Assert
         assert result is True
-        assert "known_hosts" not in mock_connect.call_args.kwargs
+        assert mock_connect.call_args.kwargs["known_hosts"] == "~/.ssh/known_hosts"
 
 
 # =============================================================================
