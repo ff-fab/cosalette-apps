@@ -61,6 +61,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
     Controls a Viessmann Vitodens gas boiler over the Optolink serial interface,
     publishing telemetry and accepting commands via MQTT.
 
+-   **[wallpanel-control](wallpanel-control/)** <span class="card-license">MIT</span>
+
+    ---
+
+    Controls a wall-panel display and system via SSH and Wake-on-LAN, publishing
+    state and accepting commands via MQTT.
+
 </div>
 
 ## Architecture
