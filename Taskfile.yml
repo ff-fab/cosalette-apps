@@ -78,6 +78,7 @@ includes:
     vars:
       APP_NAME: suncast
       MODULE_NAME: suncast
+      APP_SPEC: suncast.app:app
 
   wallpanel-control:
     taskfile: ./taskfiles/PythonApp.yml

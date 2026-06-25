@@ -1,0 +1,183 @@
+asyncapi: 3.0.0
+info:
+  title: vito2mqtt
+  version: 0.1.1
+  x-cosalette-contract-version: '1'
+channels:
+  burnerState:
+    address: vito2mqtt/burner/state
+    messages:
+      message:
+        payload: &id001
+          additionalProperties: true
+          type: object
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read burner temperature, modulation and runtime data via
+      Optolink serial
+  diagnosisState:
+    address: vito2mqtt/diagnosis/state
+    messages:
+      message:
+        payload: *id001
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read diagnostic error codes and system health data via Optolink
+      serial
+  heating_floorCommand:
+    address: vito2mqtt/heating_floor/set
+    messages:
+      message:
+        payload: &id002
+          additionalProperties: true
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: Set floor heating circuit temperatures and schedules
+  heating_floorState:
+    address: vito2mqtt/heating_floor/state
+    messages:
+      message:
+        payload:
+          oneOf:
+          - *id001
+          - &id003
+            anyOf:
+            - additionalProperties: true
+              type: object
+            - type: 'null'
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read floor heating circuit temperatures and pump status via
+      Optolink serial
+  heating_radiatorCommand:
+    address: vito2mqtt/heating_radiator/set
+    messages:
+      message:
+        payload: *id002
+    x-cosalette-archetype: command
+    x-cosalette-summary: Set radiator heating circuit temperatures and schedules
+  heating_radiatorState:
+    address: vito2mqtt/heating_radiator/state
+    messages:
+      message:
+        payload:
+          oneOf:
+          - *id001
+          - *id003
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read radiator heating circuit temperatures and pump status
+      via Optolink serial
+  hot_waterCommand:
+    address: vito2mqtt/hot_water/set
+    messages:
+      message:
+        payload: *id002
+    x-cosalette-archetype: command
+    x-cosalette-summary: Set hot water temperature and timer schedules
+  hot_waterState:
+    address: vito2mqtt/hot_water/state
+    messages:
+      message:
+        payload:
+          oneOf:
+          - *id001
+          - *id003
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read hot water temperature sensors via Optolink serial
+  legionellaState:
+    address: vito2mqtt/legionella/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: device
+  outdoorState:
+    address: vito2mqtt/outdoor/state
+    messages:
+      message:
+        payload: *id001
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read outdoor temperature sensors via Optolink serial
+  systemCommand:
+    address: vito2mqtt/system/set
+    messages:
+      message:
+        payload: *id002
+    x-cosalette-archetype: command
+    x-cosalette-summary: Set Vitotronic system operational parameters
+  systemState:
+    address: vito2mqtt/system/state
+    messages:
+      message:
+        payload:
+          oneOf:
+          - *id001
+          - *id003
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read Vitotronic system status and operational parameters
+      via Optolink serial
+operations:
+  publishBurnerState:
+    action: send
+    channel:
+      $ref: '#/channels/burnerState'
+    summary: Read burner temperature, modulation and runtime data via Optolink serial
+  publishDiagnosisState:
+    action: send
+    channel:
+      $ref: '#/channels/diagnosisState'
+    summary: Read diagnostic error codes and system health data via Optolink serial
+  publishHeatingFloorState:
+    action: send
+    channel:
+      $ref: '#/channels/heating_floorState'
+    summary: Read floor heating circuit temperatures and pump status via Optolink
+      serial
+  publishHeatingRadiatorState:
+    action: send
+    channel:
+      $ref: '#/channels/heating_radiatorState'
+    summary: Read radiator heating circuit temperatures and pump status via Optolink
+      serial
+  publishHotWaterState:
+    action: send
+    channel:
+      $ref: '#/channels/hot_waterState'
+    summary: Read hot water temperature sensors via Optolink serial
+  publishLegionellaState:
+    action: send
+    channel:
+      $ref: '#/channels/legionellaState'
+  publishOutdoorState:
+    action: send
+    channel:
+      $ref: '#/channels/outdoorState'
+    summary: Read outdoor temperature sensors via Optolink serial
+  publishSystemState:
+    action: send
+    channel:
+      $ref: '#/channels/systemState'
+    summary: Read Vitotronic system status and operational parameters via Optolink
+      serial
+  receiveHeatingFloorCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/heating_floorCommand'
+    summary: Set floor heating circuit temperatures and schedules
+  receiveHeatingRadiatorCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/heating_radiatorCommand'
+    summary: Set radiator heating circuit temperatures and schedules
+  receiveHotWaterCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/hot_waterCommand'
+    summary: Set hot water temperature and timer schedules
+  receiveSystemCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/systemCommand'
+    summary: Set Vitotronic system operational parameters
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

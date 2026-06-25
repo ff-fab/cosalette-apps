@@ -1,0 +1,139 @@
+asyncapi: 3.0.0
+info:
+  title: wallpanel-control
+  version: 0.1.0
+  x-cosalette-contract-version: '1'
+channels:
+  displayCommand:
+    address: wallpanel-control/display/set
+    messages:
+      message:
+        payload:
+          additionalProperties: false
+          description: Typed payload for wallpanel-control/display/set commands.
+          properties:
+            state:
+              anyOf:
+              - enum:
+                - 'on'
+                - 'off'
+                type: string
+              - type: 'null'
+              default: null
+              title: State
+            brightness_percent:
+              anyOf:
+              - maximum: 100
+                minimum: 1
+                type: integer
+              - type: 'null'
+              default: null
+              title: Brightness Percent
+          title: DisplayCommand
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: Control display state and brightness
+  displayState:
+    address: wallpanel-control/display/state
+    messages:
+      message:
+        payload:
+          description: Typed state for wallpanel-control/display/state.
+          properties:
+            available:
+              title: Available
+              type: boolean
+            state:
+              anyOf:
+              - enum:
+                - 'on'
+                - 'off'
+                type: string
+              - type: 'null'
+              title: State
+            brightness_percent:
+              anyOf:
+              - maximum: 100
+                minimum: 0
+                type: integer
+              - type: 'null'
+              title: Brightness Percent
+          required:
+          - available
+          - state
+          - brightness_percent
+          title: DisplayState
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: Control display state and brightness
+  systemActionCommand:
+    address: wallpanel-control/system/action/set
+    messages:
+      message:
+        payload:
+          additionalProperties: false
+          description: Typed payload for wallpanel-control/system/action/set commands.
+          properties:
+            action:
+              enum:
+              - wake
+              - suspend
+              - hibernate
+              title: Action
+              type: string
+          required:
+          - action
+          title: SystemActionCommand
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
+  systemActionState:
+    address: wallpanel-control/system/action/state
+    messages:
+      message:
+        payload:
+          description: Typed state for wallpanel-control/system/action/state.
+          properties:
+            accepted:
+              title: Accepted
+              type: boolean
+            action:
+              enum:
+              - wake
+              - suspend
+              - hibernate
+              title: Action
+              type: string
+          required:
+          - accepted
+          - action
+          title: SystemActionState
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
+operations:
+  publishDisplayState:
+    action: send
+    channel:
+      $ref: '#/channels/displayState'
+    summary: Control display state and brightness
+  publishSystemActionState:
+    action: send
+    channel:
+      $ref: '#/channels/systemActionState'
+    summary: 'System power action: wake (WoL), suspend, or hibernate'
+  receiveDisplayCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/displayCommand'
+    summary: Control display state and brightness
+  receiveSystemActionCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/systemActionCommand'
+    summary: 'System power action: wake (WoL), suspend, or hibernate'
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

@@ -41,6 +41,19 @@ jobs:
           run-cmd: task ${{ inputs.app }}:typecheck
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  schema:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - name: Validate AsyncAPI schema inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task ${{ inputs.app }}:schema:check
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   test:
     runs-on: ubuntu-latest
     permissions:

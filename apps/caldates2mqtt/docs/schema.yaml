@@ -1,0 +1,24 @@
+asyncapi: 3.0.0
+info:
+  title: caldates2mqtt
+  version: 0.0.0
+  x-cosalette-contract-version: '1'
+channels:
+  calendarState:
+    address: caldates2mqtt/calendar/state
+    messages:
+      message:
+        payload:
+          additionalProperties: true
+          type: object
+    x-cosalette-archetype: telemetry
+operations:
+  publishCalendarState:
+    action: send
+    channel:
+      $ref: '#/channels/calendarState'
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

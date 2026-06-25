@@ -6,6 +6,9 @@ version: '3'
 vars:
   APP_NAME: '{{.APP_NAME}}'
   MODULE_NAME: '{{.MODULE_NAME | default .APP_NAME}}'
+  # App import spec for cosalette introspection (module:attribute).
+  # Resolved in task commands as `<module>.main:app` unless overridden
+  # per-app from the root Taskfile (e.g. suncast uses `suncast.app:app`).
   PKG: packages
 
 tasks:
@@ -91,7 +94,23 @@ tasks:
     cmds:
       - task: lint
       - task: typecheck
+      - task: schema:check
       - task: test
+
+  schema:check:
+    desc: 'Validate {{.APP_NAME}} registrations against docs/schema.yaml'
+    cmds:
+      - uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
+
+  schema:generate:
+    desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} (overwrites consumer metadata)'
+    cmds:
+      - uv run --package {{.APP_NAME}} cosalette schema init --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml
+
+  schema:ha-discovery:
+    desc: 'Generate Home Assistant MQTT discovery payloads for {{.APP_NAME}}'
+    cmds:
+      - uv run --package {{.APP_NAME}} cosalette schema ha-discovery docs/schema.yaml
 
   complexity:
     desc: 'Check code complexity for {{.APP_NAME}}'
