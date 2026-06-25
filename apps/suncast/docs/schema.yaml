@@ -1,0 +1,26 @@
+asyncapi: 3.0.0
+info:
+  title: suncast
+  version: 0.1.0
+  x-cosalette-contract-version: '1'
+channels:
+  shadowState:
+    address: suncast/shadow/state
+    messages:
+      message:
+        payload:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+    x-cosalette-archetype: telemetry
+operations:
+  publishShadowState:
+    action: send
+    channel:
+      $ref: '#/channels/shadowState'
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

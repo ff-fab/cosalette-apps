@@ -27,6 +27,11 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:lint
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate AsyncAPI schema inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task ${{ inputs.app }}:schema:check
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   typecheck:
     runs-on: ubuntu-latest

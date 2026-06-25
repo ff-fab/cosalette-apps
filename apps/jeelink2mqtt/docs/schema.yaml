@@ -1,0 +1,67 @@
+asyncapi: 3.0.0
+info:
+  title: jeelink2mqtt
+  version: 0.1.1
+  x-cosalette-contract-version: '1'
+channels:
+  heartbeatState:
+    address: jeelink2mqtt/heartbeat/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: 'Heartbeat publisher: re-publish sensor state at configured
+      interval'
+  mappingCommand:
+    address: jeelink2mqtt/mapping/set
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: Return recently-seen sensor IDs that are not yet mapped
+  mappingState:
+    address: jeelink2mqtt/mapping/state
+    messages:
+      message:
+        payload:
+          additionalProperties: true
+          type: object
+    x-cosalette-archetype: command
+    x-cosalette-summary: Manually assign an ephemeral sensor ID to a logical name
+  stalenessState:
+    address: jeelink2mqtt/staleness/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: 'Staleness checker: publish offline availability for stale
+      sensors'
+operations:
+  publishHeartbeatState:
+    action: send
+    channel:
+      $ref: '#/channels/heartbeatState'
+    summary: 'Heartbeat publisher: re-publish sensor state at configured interval'
+  publishMappingState:
+    action: send
+    channel:
+      $ref: '#/channels/mappingState'
+    summary: Manually assign an ephemeral sensor ID to a logical name
+  publishStalenessState:
+    action: send
+    channel:
+      $ref: '#/channels/stalenessState'
+    summary: 'Staleness checker: publish offline availability for stale sensors'
+  receiveMappingCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/mappingCommand'
+    summary: Return recently-seen sensor IDs that are not yet mapped
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

@@ -1,0 +1,66 @@
+asyncapi: 3.0.0
+info:
+  title: airthings2mqtt
+  # version reflects the installed package at schema-init time;
+  # 0.0.0 is the setuptools-scm placeholder in dev (not a deployed release).
+  version: 0.0.0
+  x-cosalette-contract-version: '1'
+channels:
+  airthingsState:
+    address: airthings2mqtt/airthings/state
+    messages:
+      message:
+        payload:
+          properties:
+            temperature:
+              title: Temperature
+              type: number
+              x-cosalette-consumer:
+                device_class: temperature
+                unit: "°C"
+                state_class: measurement
+            humidity:
+              title: Humidity
+              type: number
+              x-cosalette-consumer:
+                device_class: humidity
+                unit: "%"
+                state_class: measurement
+            radon_24h_avg:
+              title: Radon 24H Avg
+              type: integer
+              x-cosalette-consumer:
+                display_name: Radon (24h avg)
+                unit: "Bq/m³"
+                state_class: measurement
+                icon: "mdi:radioactive"
+            radon_long_term_avg:
+              title: Radon Long Term Avg
+              type: integer
+              x-cosalette-consumer:
+                display_name: Radon (long-term avg)
+                unit: "Bq/m³"
+                state_class: measurement
+                icon: "mdi:radioactive"
+          required:
+          - temperature
+          - humidity
+          - radon_24h_avg
+          - radon_long_term_avg
+          title: AirthingsReading
+          type: object
+    x-cosalette-app: airthings2mqtt
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Read Airthings BLE sensor values (temperature, humidity,
+      radon)
+operations:
+  publishAirthingsState:
+    action: send
+    channel:
+      $ref: '#/channels/airthingsState'
+    summary: Read Airthings BLE sensor values (temperature, humidity, radon)
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

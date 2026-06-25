@@ -91,7 +91,29 @@ tasks:
     cmds:
       - task: lint
       - task: typecheck
+      - task: schema:check
       - task: test
+
+  schema:check:
+    desc: 'Validate {{.APP_NAME}} registrations against docs/schema.yaml'
+    cmds:
+      - uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
+
+  schema:generate:
+    desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} — ERASES x-cosalette-consumer enrichment'
+    # WARNING: strips all hand-authored consumer metadata (x-cosalette-consumer,
+    # x-cosalette-app). Re-enrich manually after running this task.
+    prompt: 'This will overwrite docs/schema.yaml and erase consumer metadata enrichment for {{.APP_NAME}}. Continue?'
+    cmds:
+      - |
+        uv run --package {{.APP_NAME}} cosalette schema init \
+          --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml.tmp
+        mv docs/schema.yaml.tmp docs/schema.yaml
+
+  schema:ha-discovery:
+    desc: 'Generate Home Assistant MQTT discovery payloads for {{.APP_NAME}}'
+    cmds:
+      - uv run --package {{.APP_NAME}} cosalette schema ha-discovery docs/schema.yaml
 
   complexity:
     desc: 'Check code complexity for {{.APP_NAME}}'

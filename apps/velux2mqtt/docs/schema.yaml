@@ -1,0 +1,34 @@
+asyncapi: 3.0.0
+info:
+  title: velux2mqtt
+  version: 0.1.1
+  x-cosalette-contract-version: '1'
+channels:
+  cover_deviceState:
+    address: velux2mqtt/cover_device/state
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: 'Velux cover: GPIO-driven open/close/stop/position control'
+    x-cosalette-behavior:
+    - Startup homing to a known endpoint for reliable position reference
+    - Open/close/stop commands via GPIO button presses on KLF 050 remote
+    - "Position targeting (0\u2013100%) with time-based position tracking"
+    - Calibration sub-entity (start/go/mark/cancel phases)
+    - 'Drift compensation: periodic re-homing after consecutive intermediate moves'
+    x-cosalette-effects:
+    - Presses GPIO pins (up/stop/down) via GpioSwitchPort
+    - Publishes cover position state to MQTT
+operations:
+  publishCoverDeviceState:
+    action: send
+    channel:
+      $ref: '#/channels/cover_deviceState'
+    summary: 'Velux cover: GPIO-driven open/close/stop/position control'
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false
