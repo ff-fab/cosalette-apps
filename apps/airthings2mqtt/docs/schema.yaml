@@ -1,6 +1,8 @@
 asyncapi: 3.0.0
 info:
   title: airthings2mqtt
+  # version reflects the installed package at schema-init time;
+  # 0.0.0 is the setuptools-scm placeholder in dev (not a deployed release).
   version: 0.0.0
   x-cosalette-contract-version: '1'
 channels:

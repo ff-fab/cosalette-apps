@@ -6,9 +6,6 @@ version: '3'
 vars:
   APP_NAME: '{{.APP_NAME}}'
   MODULE_NAME: '{{.MODULE_NAME | default .APP_NAME}}'
-  # App import spec for cosalette introspection (module:attribute).
-  # Resolved in task commands as `<module>.main:app` unless overridden
-  # per-app from the root Taskfile (e.g. suncast uses `suncast.app:app`).
   PKG: packages
 
 tasks:
@@ -103,9 +100,15 @@ tasks:
       - uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
 
   schema:generate:
-    desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} (overwrites consumer metadata)'
+    desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} — ERASES x-cosalette-consumer enrichment'
+    # WARNING: strips all hand-authored consumer metadata (x-cosalette-consumer,
+    # x-cosalette-app). Re-enrich manually after running this task.
+    prompt: 'This will overwrite docs/schema.yaml and erase consumer metadata enrichment for {{.APP_NAME}}. Continue?'
     cmds:
-      - uv run --package {{.APP_NAME}} cosalette schema init --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml
+      - |
+        uv run --package {{.APP_NAME}} cosalette schema init \
+          --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml.tmp
+        mv docs/schema.yaml.tmp docs/schema.yaml
 
   schema:ha-discovery:
     desc: 'Generate Home Assistant MQTT discovery payloads for {{.APP_NAME}}'
