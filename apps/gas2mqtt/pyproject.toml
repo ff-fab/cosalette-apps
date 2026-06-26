@@ -1,6 +1,6 @@
 [project]
 name = "gas2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 description = "An app to read a domestic gas meter using a digital magnetometer."
 readme = "README.md"
 requires-python = ">=3.14"
