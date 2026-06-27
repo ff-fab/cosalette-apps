@@ -4,6 +4,7 @@
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": true,
   "separate-pull-requests": true,
+  "sequential-order": true,
   "include-component-in-tag": true,
   "packages": {
     "apps/gas2mqtt": {
