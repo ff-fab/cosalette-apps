@@ -9,6 +9,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import logging
 import struct
 from unittest.mock import AsyncMock, patch
 
@@ -175,6 +176,41 @@ class TestBleakAirthingsReader:
             radon_24h_avg=80,
             radon_long_term_avg=65,
         )
+
+    async def test_logs_successful_read(self, caplog: pytest.LogCaptureFixture) -> None:
+        """A successful read emits one INFO log with the MAC and parsed values.
+
+        Technique: Specification-based — guards smoke-test finding A-3 (a
+        successful BLE read produced no log line, making the data path invisible
+        from logs alone).
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        encoded = self._encode_reading(temp=21.5, hum=45.0, radon_24h=80, radon_lta=65)
+        mock_client = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(side_effect=lambda uuid: encoded[uuid])
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+        ):
+            reader = BleakAirthingsReader()
+            with caplog.at_level(logging.INFO, logger="airthings2mqtt.adapters.bleak"):
+                await reader.read("AA:BB:CC:DD:EE:FF")
+
+        info_records = [r for r in caplog.records if r.levelno == logging.INFO]
+        # Use existence check rather than exact count: future adapter instrumentation
+        # adding extra INFO lines won't cause a spurious failure here.
+        assert info_records, "Expected at least one INFO log record on successful read"
+        message = info_records[0].getMessage()
+        assert "AA:BB:CC:DD:EE:FF" in message
+        # Key-presence assertions for all five fields; avoids coupling to the
+        # exact %-format precision so log-format tweaks don't break this test.
+        assert "temperature=" in message
+        assert "humidity=" in message
+        assert "radon_24h_avg=" in message
+        assert "radon_long_term_avg=" in message
 
     async def test_translates_connection_error(self) -> None:
         """ConnectionError is translated to BleConnectionError."""

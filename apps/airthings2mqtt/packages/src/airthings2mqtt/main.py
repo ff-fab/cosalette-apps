@@ -13,6 +13,7 @@ import weakref
 import cosalette
 from cosalette import setting_ref
 
+from airthings2mqtt import __version__
 from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import BleConnectionError, BleTimeoutError
@@ -21,6 +22,7 @@ from airthings2mqtt.settings import Airthings2MqttSettings
 
 app = cosalette.App(
     name="airthings2mqtt",
+    version=__version__,
     settings_class=Airthings2MqttSettings,
     adapters={
         AirthingsReaderPort: (BleakAirthingsReader, FakeAirthingsReader),

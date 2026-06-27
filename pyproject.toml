@@ -202,5 +202,5 @@ dev = [
     # Platform Compatibility Workarounds
     "urllib3>=2.7.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
     # AI/MCP tooling support (cosalette ai mcp serve)
-    "cosalette[mcp]>=0.4.4,<0.5",
+    "cosalette[mcp]>=0.4.5,<0.5",
 ]
