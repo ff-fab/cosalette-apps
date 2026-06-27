@@ -1,6 +1,6 @@
 [project]
 name = "wallpanel-control"
-version = "0.2.0"
+version = "0.2.1"
 description = "MQTT bridge for controlling a wall-panel display and system via SSH and Wake-on-LAN."
 readme = "README.md"
 requires-python = ">=3.14"
