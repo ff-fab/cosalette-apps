@@ -343,3 +343,20 @@ class TestAppRestartConfig:
         from airthings2mqtt.main import app
 
         assert app._max_restarts == 3
+
+
+@pytest.mark.unit
+class TestAppVersion:
+    """Verify the app reports its package version (not the 0.0.0 default)."""
+
+    def test_app_version_matches_package(self) -> None:
+        """App version is stamped from package metadata, not the 0.0.0 default.
+
+        Technique: Cross-reference — guards smoke-test finding A-1 (status/log
+        reported version 0.0.0 because version= was never passed to App()).
+        """
+        from airthings2mqtt import __version__
+        from airthings2mqtt.main import app
+
+        assert app.version == __version__
+        assert app.version != "0.0.0"

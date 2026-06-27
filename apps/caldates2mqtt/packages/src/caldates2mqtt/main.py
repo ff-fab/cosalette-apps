@@ -10,6 +10,7 @@ import logging
 
 import cosalette
 
+from caldates2mqtt import __version__
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import CalDavConnectionError, CalDavTimeoutError
@@ -21,6 +22,7 @@ _DAYS_MAX = 365
 
 app = cosalette.App(
     name="caldates2mqtt",
+    version=__version__,
     settings_class=CalDates2MqttSettings,
     adapters={
         CalDavPort: (CalDavReader, FakeCalDavReader),
