@@ -7,6 +7,7 @@ and returns an AirthingsReading.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import struct
@@ -27,6 +28,20 @@ _HCI_SYSFS_PATH = "/sys/class/bluetooth/hci0"
 logger = logging.getLogger(__name__)
 
 
+def _redact_mac(mac: str) -> str:
+    """Return a redacted form of *mac* showing only the last two octets.
+
+    Supports colon-separated (``AA:BB:CC:DD:EE:FF``) and dash-separated
+    (``AA-BB-CC-DD-EE-FF``) formats.  For any unrecognised format returns
+    ``??:??`` so the full configured value is never echoed in logs.
+    """
+    for sep in (":", "-"):
+        parts = mac.split(sep)
+        if len(parts) == 6:  # standard MAC: 6 octets with 5 separators
+            return f"{parts[-2]}:{parts[-1]}"
+    return "??:??"
+
+
 class BleakAirthingsReader:
     """Production adapter for reading Airthings Wave sensors via Bleak.
 
@@ -41,7 +56,7 @@ class BleakAirthingsReader:
         Returns:
             True when the hci0 adapter device node is present; False otherwise.
         """
-        return os.path.exists(_HCI_SYSFS_PATH)
+        return await asyncio.to_thread(os.path.exists, _HCI_SYSFS_PATH)
 
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.
@@ -80,9 +95,9 @@ class BleakAirthingsReader:
             raise BleReadError(str(exc)) from exc
 
         logger.info(
-            "Airthings read ok: mac=%s temperature=%.2f humidity=%.2f "
+            "Airthings read ok: mac=**:%s temperature=%.2f humidity=%.2f "
             "radon_24h_avg=%d radon_long_term_avg=%d",
-            mac,
+            _redact_mac(mac),
             reading.temperature,
             reading.humidity,
             reading.radon_24h_avg,

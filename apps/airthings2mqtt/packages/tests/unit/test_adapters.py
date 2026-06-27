@@ -136,6 +136,32 @@ class TestFakeAirthingsReader:
 
 
 @pytest.mark.unit
+class TestRedactMac:
+    """Verify _redact_mac redacts BLE MACs without leaking the full identifier."""
+
+    @pytest.mark.parametrize(
+        "mac, expected",
+        [
+            ("AA:BB:CC:DD:EE:FF", "EE:FF"),  # standard colon format
+            ("aa:bb:cc:dd:ee:ff", "ee:ff"),  # lowercase colon format
+            ("AA-BB-CC-DD-EE-FF", "EE:FF"),  # dash-separated format
+            ("AABBCCDDEEFF", "??:??"),  # no separator — placeholder
+            ("abc", "??:??"),  # short/invalid — placeholder
+            ("", "??:??"),  # empty — placeholder
+        ],
+    )
+    def test_redact_mac(self, mac: str, expected: str) -> None:
+        """_redact_mac shows last two octets for valid formats, placeholder otherwise.
+
+        Technique: Equivalence Partitioning — colon format, dash format,
+        separatorless hex, short/invalid, empty.
+        """
+        from airthings2mqtt.adapters.bleak import _redact_mac
+
+        assert _redact_mac(mac) == expected
+
+
+@pytest.mark.unit
 class TestBleakAirthingsReader:
     """Verify BleakAirthingsReader parses GATT data and translates errors."""
 
@@ -204,7 +230,9 @@ class TestBleakAirthingsReader:
         # adding extra INFO lines won't cause a spurious failure here.
         assert info_records, "Expected at least one INFO log record on successful read"
         message = info_records[0].getMessage()
-        assert "AA:BB:CC:DD:EE:FF" in message
+        # Full redacted token guards both the **:prefix and the last-octet suffix.
+        assert "mac=**:EE:FF" in message
+        assert "AA:BB:CC:DD:EE:FF" not in message
         # Key-presence assertions for all five fields; avoids coupling to the
         # exact %-format precision so log-format tweaks don't break this test.
         assert "temperature=" in message
@@ -212,8 +240,14 @@ class TestBleakAirthingsReader:
         assert "radon_24h_avg=" in message
         assert "radon_long_term_avg=" in message
 
-    async def test_translates_connection_error(self) -> None:
-        """ConnectionError is translated to BleConnectionError."""
+    async def test_translates_connection_error(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """ConnectionError is translated to BleConnectionError; no INFO log on error.
+
+        Technique: Error Guessing + Condition Coverage — error path exits before
+        the logger.info call so the success log is suppressed on failure.
+        """
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         mock_client = AsyncMock()
@@ -224,8 +258,12 @@ class TestBleakAirthingsReader:
             "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
         ):
             reader = BleakAirthingsReader()
-            with pytest.raises(BleConnectionError, match="refused"):
-                await reader.read("AA:BB:CC:DD:EE:FF")
+            with caplog.at_level(logging.INFO, logger="airthings2mqtt.adapters.bleak"):
+                with pytest.raises(BleConnectionError, match="refused"):
+                    await reader.read("AA:BB:CC:DD:EE:FF")
+
+        info_logs = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert not info_logs, "No INFO log should be emitted when a BLE error occurs"
 
     async def test_translates_timeout_error(self) -> None:
         """TimeoutError is translated to BleTimeoutError."""
