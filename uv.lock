@@ -139,7 +139,7 @@ wheels = [
 
 [[package]]
 name = "airthings2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/airthings2mqtt" }
 dependencies = [
     { name = "bleak" },
@@ -350,7 +350,7 @@ wheels = [
 
 [[package]]
 name = "caldates2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
@@ -973,7 +973,7 @@ wheels = [
 
 [[package]]
 name = "gas2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -1178,7 +1178,7 @@ wheels = [
 
 [[package]]
 name = "jeelink2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/jeelink2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -2728,7 +2728,7 @@ wheels = [
 
 [[package]]
 name = "suncast"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/suncast" }
 dependencies = [
     { name = "astral" },
@@ -2951,7 +2951,7 @@ wheels = [
 
 [[package]]
 name = "velux2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -2985,7 +2985,7 @@ wheels = [
 
 [[package]]
 name = "vito2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3006,7 +3006,7 @@ requires-dist = [
 
 [[package]]
 name = "wallpanel-control"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "apps/wallpanel-control" }
 dependencies = [
     { name = "asyncssh" },

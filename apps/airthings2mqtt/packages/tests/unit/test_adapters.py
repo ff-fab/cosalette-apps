@@ -204,7 +204,9 @@ class TestBleakAirthingsReader:
         # adding extra INFO lines won't cause a spurious failure here.
         assert info_records, "Expected at least one INFO log record on successful read"
         message = info_records[0].getMessage()
-        assert "AA:BB:CC:DD:EE:FF" in message
+        # Only the last two octets are logged to avoid exposing a full device identifier.
+        assert "EE:FF" in message
+        assert "AA:BB:CC:DD:EE:FF" not in message
         # Key-presence assertions for all five fields; avoids coupling to the
         # exact %-format precision so log-format tweaks don't break this test.
         assert "temperature=" in message
