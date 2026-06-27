@@ -65,4 +65,4 @@ class TestAppVersion:
         from caldates2mqtt.main import app
 
         assert app.version == __version__
-        assert app.version != "0.0.0"
+        assert not app.version.startswith("0.0.0")
