@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.1.3...airthings2mqtt-v0.1.4) (2026-06-27)
+
+
+### Bug Fixes
+
+* trigger releases for cosalette 0.4.5 upgrade across all apps ([#146](https://github.com/ff-fab/cosalette-apps/issues/146)) ([5e3100f](https://github.com/ff-fab/cosalette-apps/commit/5e3100f3b4e128955adb3fb93d7dc5a7c9c19768))
+
 ## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.1.2...airthings2mqtt-v0.1.3) (2026-06-27)
 
 
