@@ -1,5 +1,11 @@
 FROM python:3.14-alpine
 
+# bluez provides `bluetoothctl`, which bleak uses to detect the host BlueZ
+# version over D-Bus. Without it bleak warns and blindly assumes BlueZ 5.55+,
+# which could select an incompatible code path against an older host stack.
+# Small image-size cost in exchange for reliable BlueZ version detection.
+RUN apk add --no-cache bluez
+
 # Install uv for fast dependency resolution
 COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
 

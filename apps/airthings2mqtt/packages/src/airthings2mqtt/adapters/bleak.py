@@ -70,7 +70,7 @@ class BleakAirthingsReader:
             raise BleReadError(str(exc)) from exc
 
         try:
-            return AirthingsReading(
+            reading = AirthingsReading(
                 temperature=struct.unpack("<h", raw_temp)[0] / 100.0,
                 humidity=struct.unpack("<H", raw_hum)[0] / 100.0,
                 radon_24h_avg=struct.unpack("<H", raw_radon_24h)[0],
@@ -78,3 +78,14 @@ class BleakAirthingsReader:
             )
         except struct.error as exc:
             raise BleReadError(str(exc)) from exc
+
+        logger.info(
+            "Airthings read ok: mac=%s temperature=%.2f humidity=%.2f "
+            "radon_24h_avg=%d radon_long_term_avg=%d",
+            mac,
+            reading.temperature,
+            reading.humidity,
+            reading.radon_24h_avg,
+            reading.radon_long_term_avg,
+        )
+        return reading
