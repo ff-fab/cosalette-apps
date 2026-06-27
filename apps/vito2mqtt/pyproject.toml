@@ -1,6 +1,6 @@
 [project]
 name = "vito2mqtt"
-version = "0.1.1"
+version = "0.1.2"
 description = "A smart home app to control a Vitodens gas heating."
 readme = "README.md"
 requires-python = ">=3.14"
