@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.1.2...airthings2mqtt-v0.1.3) (2026-06-27)
+
+
+### Bug Fixes
+
+* **airthings2mqtt:** redact BLE MAC in log + make health_check async ([#144](https://github.com/ff-fab/cosalette-apps/issues/144)) ([ed5b027](https://github.com/ff-fab/cosalette-apps/commit/ed5b0278bb6b1ecf0b1c8d7c51ab2ca6c5ce2034))
+
 ## [0.1.2](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.1.1...airthings2mqtt-v0.1.2) (2026-06-25)
 
 
