@@ -22,6 +22,7 @@ from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.errors import (
     CalDavAuthError,
     CalDavConnectionError,
+    CalDavNotFoundError,
     CalDavReadError,
     CalDavTimeoutError,
 )
@@ -49,13 +50,15 @@ class _FakeEvent:
     """Minimal CalDAV event double matching the adapter's expectations."""
 
     def __init__(self, title: str, dtstart: datetime.date | datetime.datetime) -> None:
-        self.instance = SimpleNamespace(
-            vevent=SimpleNamespace(
-                summary=SimpleNamespace(value=title),
-                dtstart=SimpleNamespace(value=dtstart),
-            )
-        )
+        self._icalendar_component = {
+            "SUMMARY": title,
+            "DTSTART": SimpleNamespace(dt=dtstart),
+        }
         self.loaded = False
+
+    @property
+    def icalendar_component(self) -> dict[str, object]:
+        return self._icalendar_component
 
     def load(self) -> None:
         self.loaded = True
@@ -130,6 +133,30 @@ class TestCalDavReaderAsyncBoundary:
             await reader.read_events(
                 "https://example.com/dav/",
                 "abfall",
+                "user",
+                "pass",
+                14,
+            )
+
+    async def test_read_events_passes_through_not_found_error(self) -> None:
+        """CalDavNotFoundError raised by _read_sync is NOT wrapped in CalDavReadError."""
+        reader = CalDavReader(_make_settings())
+
+        def _raise(
+            url: str,
+            calendar_name: str,
+            username: str,
+            password: str,
+            days: int,
+        ) -> list[CalendarEvent]:
+            raise CalDavNotFoundError("calendar 'x' not found")
+
+        reader._read_sync = _raise  # type: ignore[method-assign]
+
+        with pytest.raises(CalDavNotFoundError):
+            await reader.read_events(
+                "https://example.com/dav/",
+                "x",
                 "user",
                 "pass",
                 14,
@@ -235,3 +262,34 @@ class TestCalDavReaderSyncParsing:
         assert calls["search"]["expand"] is True
         assert (calls["search"]["end"] - calls["search"]["start"]).days == 10
         assert all(event.loaded for event in events)
+
+    def test_read_sync_raises_not_found_error_on_404(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """NotFoundError from caldav is translated to CalDavNotFoundError with context."""
+        import caldav.lib.error as caldav_error
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _FailingCalendar:
+            def __init__(self, client: object, url: str) -> None:
+                pass
+
+            def date_search(self, **kwargs: object) -> list[object]:
+                raise caldav_error.NotFoundError("404")
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _FailingCalendar)
+
+        reader = CalDavReader(_make_settings())
+
+        with pytest.raises(CalDavNotFoundError, match="contact_birthdays"):
+            reader._read_sync(
+                "https://example.com/dav/",
+                "contact_birthdays",
+                "user",
+                "pass",
+                14,
+            )

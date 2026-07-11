@@ -26,6 +26,10 @@ class CalDavConnectionError(CalDavError):
     """Raised when the CalDAV server is unreachable."""
 
 
+class CalDavNotFoundError(CalDavError):
+    """Raised when a CalDAV calendar does not exist on the server."""
+
+
 class CalDavTimeoutError(CalDavError):
     """Raised when a CalDAV request times out."""
 

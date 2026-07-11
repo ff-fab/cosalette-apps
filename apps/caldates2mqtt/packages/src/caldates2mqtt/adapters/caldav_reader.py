@@ -10,8 +10,14 @@ import asyncio
 import datetime
 
 import caldav
+import caldav.lib.error
 
-from caldates2mqtt.errors import ERROR_TYPE_MAP, CalDavReadError
+from caldates2mqtt.errors import (
+    ERROR_TYPE_MAP,
+    CalDavError,
+    CalDavNotFoundError,
+    CalDavReadError,
+)
 from caldates2mqtt.ports import CalendarEvent
 from caldates2mqtt.settings import CalDates2MqttSettings
 
@@ -57,6 +63,8 @@ class CalDavReader:
                 self._read_sync, url, calendar_name, username, password, days
             )
         except Exception as exc:
+            if isinstance(exc, CalDavError):
+                raise
             mapped = ERROR_TYPE_MAP.get(type(exc))
             if mapped is not None:
                 raise mapped(str(exc)) from exc
@@ -83,18 +91,24 @@ class CalDavReader:
         )
 
         today = datetime.date.today()
-        events = calendar.date_search(
-            start=today,
-            end=today + datetime.timedelta(days=days),
-            expand=True,
-        )
+        try:
+            events = calendar.date_search(
+                start=today,
+                end=today + datetime.timedelta(days=days),
+                expand=True,
+            )
+        except caldav.lib.error.NotFoundError as exc:
+            raise CalDavNotFoundError(
+                f"calendar '{calendar_name}' not found at {url}{calendar_name} — "
+                "check config or confirm the calendar exists server-side"
+            ) from exc
 
         result: list[CalendarEvent] = []
         for event in events:
             event.load()
-            vevent = event.instance.vevent
-            summary = vevent.summary.value.strip()
-            dtstart = vevent.dtstart.value
+            component = event.icalendar_component
+            summary = str(component["SUMMARY"]).strip()
+            dtstart = component["DTSTART"].dt
 
             # Filter to all-day events only: date but not datetime
             if isinstance(dtstart, datetime.datetime):

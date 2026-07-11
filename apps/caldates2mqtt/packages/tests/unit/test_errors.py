@@ -17,6 +17,7 @@ from caldates2mqtt.errors import (
     CalDavAuthError,
     CalDavConnectionError,
     CalDavError,
+    CalDavNotFoundError,
     CalDavReadError,
     CalDavTimeoutError,
 )
@@ -28,7 +29,13 @@ class TestErrorHierarchy:
 
     @pytest.mark.parametrize(
         "error_class",
-        [CalDavAuthError, CalDavConnectionError, CalDavTimeoutError, CalDavReadError],
+        [
+            CalDavAuthError,
+            CalDavConnectionError,
+            CalDavNotFoundError,
+            CalDavTimeoutError,
+            CalDavReadError,
+        ],
     )
     def test_inherits_from_caldav_error(self, error_class: type[CalDavError]) -> None:
         """All domain errors inherit from CalDavError."""
@@ -40,7 +47,13 @@ class TestErrorHierarchy:
 
     @pytest.mark.parametrize(
         "error_class",
-        [CalDavAuthError, CalDavConnectionError, CalDavTimeoutError, CalDavReadError],
+        [
+            CalDavAuthError,
+            CalDavConnectionError,
+            CalDavNotFoundError,
+            CalDavTimeoutError,
+            CalDavReadError,
+        ],
     )
     def test_error_can_carry_message(self, error_class: type[CalDavError]) -> None:
         """Domain errors carry a message."""
