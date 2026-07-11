@@ -13,6 +13,7 @@ import datetime
 import re
 import socket
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import caldav.lib.error
 import niquests
@@ -355,7 +356,12 @@ class TestCalDavReaderSyncParsing:
             )
 
         msg = str(exc_info.value)
-        assert "example.com:8443" in msg, f"Expected host:port in message, got: {msg}"
+        # Parse the sanitized URL out of the known message format rather than
+        # using substring matching — avoids py/incomplete-url-substring-sanitization.
+        safe_url_in_msg = msg.split(" not found on ", 1)[1].split(" — ", 1)[0]
+        parsed_safe = urlparse(safe_url_in_msg)
+        assert parsed_safe.hostname == "example.com"
+        assert parsed_safe.port == 8443
         assert "s3cr3t" not in msg, (
             f"Credential must not appear in error message, got: {msg}"
         )
