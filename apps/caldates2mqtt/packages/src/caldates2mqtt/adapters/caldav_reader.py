@@ -9,7 +9,7 @@ from __future__ import annotations
 import asyncio
 import datetime
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import caldav
 import caldav.lib.error
@@ -112,10 +112,15 @@ class CalDavReader:
             )
         except caldav.lib.error.NotFoundError as exc:
             parsed = urlparse(url)
+            # Re-bracket IPv6 addresses (urlparse.hostname strips square brackets).
             netloc = parsed.hostname or ""
+            if ":" in netloc:
+                netloc = f"[{netloc}]"
             if parsed.port:
                 netloc += f":{parsed.port}"
-            safe_url = parsed._replace(netloc=netloc).geturl()
+            # Allowlist: keep scheme + sanitized host:port + path; strip query,
+            # params, and fragment so tokens in query strings are never logged.
+            safe_url = urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
             raise CalDavNotFoundError(
                 f"calendar '{calendar_name}' not found on {safe_url} — "
                 "check config or confirm the calendar exists server-side"
@@ -123,14 +128,15 @@ class CalDavReader:
 
         result: list[CalendarEvent] = []
         for event in events:
-            # event.load() only if data not already populated (expand=True returns inline data).
-            if not event.data:
-                event.load()
             try:
+                # Only load if inline data is absent (expand=True populates it from
+                # the REPORT response). If load() itself raises a parse error, skip.
+                if not event.data:
+                    event.load()
                 component = event.icalendar_component
                 summary = str(component["SUMMARY"]).strip()
                 dtstart = component["DTSTART"].dt
-            except (KeyError, AttributeError) as exc:
+            except (KeyError, AttributeError, ValueError) as exc:
                 _logger.warning(
                     "Skipping malformed event in calendar '%s': %s",
                     calendar_name,

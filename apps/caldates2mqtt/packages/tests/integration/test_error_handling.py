@@ -194,6 +194,9 @@ class TestErrorPublishing:
         error_topic = f"{TOPIC_PREFIX}/garbage/error"
         messages = mock_mqtt.get_messages_for(error_topic)
         assert messages, f"Expected error on {error_topic}"
+        payload = json.loads(messages[0][0])
+        assert "message" in payload
+        assert "not found" in payload["message"]
 
 
 # ---------------------------------------------------------------------------
