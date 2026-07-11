@@ -22,6 +22,7 @@ from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.errors import (
     CalDavAuthError,
     CalDavConnectionError,
+    CalDavError,
     CalDavNotFoundError,
     CalDavReadError,
     CalDavTimeoutError,
@@ -138,8 +139,19 @@ class TestCalDavReaderAsyncBoundary:
                 14,
             )
 
-    async def test_read_events_passes_through_not_found_error(self) -> None:
-        """CalDavNotFoundError raised by _read_sync is NOT wrapped in CalDavReadError."""
+    @pytest.mark.parametrize(
+        ("domain_exc", "expected_type"),
+        [
+            (CalDavNotFoundError("calendar 'x' not found"), CalDavNotFoundError),
+            (CalDavAuthError("denied"), CalDavAuthError),
+        ],
+    )
+    async def test_read_events_passes_through_caldav_errors(
+        self,
+        domain_exc: CalDavError,
+        expected_type: type[CalDavError],
+    ) -> None:
+        """CalDavError subclasses raised by _read_sync are NOT re-wrapped in CalDavReadError."""
         reader = CalDavReader(_make_settings())
 
         def _raise(
@@ -149,11 +161,11 @@ class TestCalDavReaderAsyncBoundary:
             password: str,
             days: int,
         ) -> list[CalendarEvent]:
-            raise CalDavNotFoundError("calendar 'x' not found")
+            raise domain_exc
 
         reader._read_sync = _raise  # type: ignore[method-assign]
 
-        with pytest.raises(CalDavNotFoundError):
+        with pytest.raises(expected_type):
             await reader.read_events(
                 "https://example.com/dav/",
                 "x",
@@ -285,7 +297,9 @@ class TestCalDavReaderSyncParsing:
 
         reader = CalDavReader(_make_settings())
 
-        with pytest.raises(CalDavNotFoundError, match="contact_birthdays"):
+        with pytest.raises(
+            CalDavNotFoundError, match=r"contact_birthdays.*https://example\.com/dav/"
+        ):
             reader._read_sync(
                 "https://example.com/dav/",
                 "contact_birthdays",
