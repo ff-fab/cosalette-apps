@@ -25,6 +25,7 @@ from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import (
     CalDavAuthError,
     CalDavConnectionError,
+    CalDavNotFoundError,
     CalDavTimeoutError,
 )
 from caldates2mqtt.settings import CalDates2MqttSettings
@@ -167,6 +168,35 @@ class TestErrorPublishing:
         payload = json.loads(messages[0][0])
         assert "message" in payload
         assert "server unreachable" in payload["message"]
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_not_found_error_published_to_error_topic(
+        self,
+        fake_reader: FakeCalDavReader,
+        mock_mqtt: MockMqttClient,
+        test_settings: CalDates2MqttSettings,
+    ) -> None:
+        """CalDavNotFoundError is published to the per-device error topic.
+
+        Technique: Error Guessing — calendar-not-found (404) is caught by framework.
+        """
+        # Arrange
+        fake_reader.raise_on_next = CalDavNotFoundError(
+            "calendar 'abfall' not found on cloud.example.com"
+        )
+        app = build_integration_app(fake_reader, test_settings.calendars)
+
+        # Act
+        await run_app_briefly(app, mock_mqtt, test_settings)
+
+        # Assert
+        error_topic = f"{TOPIC_PREFIX}/garbage/error"
+        messages = mock_mqtt.get_messages_for(error_topic)
+        assert messages, f"Expected error on {error_topic}"
+        payload = json.loads(messages[0][0])
+        assert "message" in payload
+        assert "not found" in payload["message"]
 
 
 # ---------------------------------------------------------------------------

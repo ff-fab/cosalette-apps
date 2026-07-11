@@ -51,6 +51,7 @@ path = [
     ".secrets.baseline",
     "LICENSE",
     "LICENSES/**",
+    "tmp/**",
 ]
 SPDX-FileCopyrightText = "2026 Fabian Koerner <mail@fabiankoerner.com>"
 SPDX-License-Identifier = "MIT"

@@ -10,8 +10,10 @@ Test Techniques Used:
 from __future__ import annotations
 
 import datetime
+import re
 import socket
 from types import SimpleNamespace
+from urllib.parse import urlparse
 
 import caldav.lib.error
 import niquests
@@ -22,6 +24,8 @@ from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.errors import (
     CalDavAuthError,
     CalDavConnectionError,
+    CalDavError,
+    CalDavNotFoundError,
     CalDavReadError,
     CalDavTimeoutError,
 )
@@ -49,13 +53,16 @@ class _FakeEvent:
     """Minimal CalDAV event double matching the adapter's expectations."""
 
     def __init__(self, title: str, dtstart: datetime.date | datetime.datetime) -> None:
-        self.instance = SimpleNamespace(
-            vevent=SimpleNamespace(
-                summary=SimpleNamespace(value=title),
-                dtstart=SimpleNamespace(value=dtstart),
-            )
-        )
+        self._icalendar_component = {
+            "SUMMARY": title,
+            "DTSTART": SimpleNamespace(dt=dtstart),
+        }
         self.loaded = False
+        self.data: bytes | None = None  # simulate server not returning inline data
+
+    @property
+    def icalendar_component(self) -> dict[str, object]:
+        return self._icalendar_component
 
     def load(self) -> None:
         self.loaded = True
@@ -130,6 +137,44 @@ class TestCalDavReaderAsyncBoundary:
             await reader.read_events(
                 "https://example.com/dav/",
                 "abfall",
+                "user",
+                "pass",
+                14,
+            )
+
+    @pytest.mark.parametrize(
+        ("domain_exc", "expected_type"),
+        [
+            (CalDavNotFoundError("calendar 'x' not found"), CalDavNotFoundError),
+            (CalDavAuthError("denied"), CalDavAuthError),
+            (CalDavConnectionError("offline"), CalDavConnectionError),
+            (CalDavTimeoutError("slow"), CalDavTimeoutError),
+            (CalDavReadError("parse error"), CalDavReadError),
+        ],
+    )
+    async def test_read_events_passes_through_caldav_errors(
+        self,
+        domain_exc: CalDavError,
+        expected_type: type[CalDavError],
+    ) -> None:
+        """CalDavError subclasses raised by _read_sync are NOT re-wrapped in CalDavReadError."""
+        reader = CalDavReader(_make_settings())
+
+        def _raise(
+            url: str,
+            calendar_name: str,
+            username: str,
+            password: str,
+            days: int,
+        ) -> list[CalendarEvent]:
+            raise domain_exc
+
+        reader._read_sync = _raise  # type: ignore[method-assign]
+
+        with pytest.raises(expected_type, match=re.escape(str(domain_exc))):
+            await reader.read_events(
+                "https://example.com/dav/",
+                "x",
                 "user",
                 "pass",
                 14,
@@ -235,3 +280,249 @@ class TestCalDavReaderSyncParsing:
         assert calls["search"]["expand"] is True
         assert (calls["search"]["end"] - calls["search"]["start"]).days == 10
         assert all(event.loaded for event in events)
+
+    def test_read_sync_raises_not_found_error_on_404(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """NotFoundError from caldav is translated to CalDavNotFoundError with context."""
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _FailingCalendar:
+            def __init__(self, client: object, url: str) -> None:
+                pass
+
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[object]:
+                raise caldav.lib.error.NotFoundError("404")
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _FailingCalendar)
+
+        reader = CalDavReader(_make_settings())
+
+        with pytest.raises(
+            CalDavNotFoundError, match=r"contact_birthdays.*https://example\.com/dav/"
+        ):
+            reader._read_sync(
+                "https://example.com/dav/",
+                "contact_birthdays",
+                "user",
+                "pass",
+                14,
+            )
+
+    def test_read_sync_not_found_strips_credentials_from_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """CalDavNotFoundError message contains host:port but NOT embedded credentials."""
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _FailingCalendar:
+            def __init__(self, client: object, url: str) -> None:
+                pass
+
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[object]:
+                raise caldav.lib.error.NotFoundError("404")
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _FailingCalendar)
+
+        reader = CalDavReader(_make_settings())
+
+        with pytest.raises(CalDavNotFoundError) as exc_info:
+            reader._read_sync(
+                "https://admin:s3cr3t@example.com:8443/dav/",
+                "cal",
+                "admin",
+                "s3cr3t",
+                7,
+            )
+
+        msg = str(exc_info.value)
+        # Parse the sanitized URL out of the known message format rather than
+        # using substring matching — avoids py/incomplete-url-substring-sanitization.
+        safe_url_in_msg = msg.split(" not found on ", 1)[1].split(" — ", 1)[0]
+        parsed_safe = urlparse(safe_url_in_msg)
+        assert parsed_safe.hostname == "example.com"
+        assert parsed_safe.port == 8443
+        assert "s3cr3t" not in msg, (
+            f"Credential must not appear in error message, got: {msg}"
+        )
+        assert "admin:" not in msg, (
+            f"Credential must not appear in error message, got: {msg}"
+        )
+
+    def test_read_sync_skips_malformed_events(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Malformed events (missing SUMMARY or DTSTART) are skipped with a warning."""
+
+        class _MalformedEvent:
+            data = b"fake"  # pretend inline data already populated
+
+            @property
+            def icalendar_component(self) -> dict[str, object]:
+                return {}  # missing SUMMARY and DTSTART
+
+            def load(self) -> None:
+                pass  # pragma: no cover
+
+        class _GoodEvent:
+            data = b"fake"
+
+            @property
+            def icalendar_component(self) -> dict[str, object]:
+                return {
+                    "SUMMARY": "Good Event",
+                    "DTSTART": SimpleNamespace(dt=datetime.date(2026, 4, 1)),
+                }
+
+            def load(self) -> None:
+                pass  # pragma: no cover
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _Calendar:
+            def __init__(self, client: object, url: str) -> None:
+                pass
+
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[object]:
+                return [_MalformedEvent(), _GoodEvent()]
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _Calendar)
+
+        reader = CalDavReader(_make_settings())
+        result = reader._read_sync(
+            "https://example.com/dav/",
+            "abfall",
+            "user",
+            "pass",
+            10,
+        )
+
+        assert result == [
+            CalendarEvent(title="Good Event", date=datetime.date(2026, 4, 1))
+        ]
+        assert any("Skipping malformed event" in r.message for r in caplog.records), (
+            "Expected a warning about the skipped malformed event"
+        )
+
+    def test_read_sync_does_not_load_when_data_already_populated(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Events with inline data (from expand=True) do not trigger an extra load()."""
+        event = _FakeEvent("Event", datetime.date(2026, 4, 1))
+        event.data = b"BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"  # simulate populated
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _FakeCalendar:
+            def __init__(self, client: object, url: str) -> None:
+                pass
+
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[_FakeEvent]:
+                return [event]
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _FakeCalendar)
+
+        reader = CalDavReader(_make_settings())
+        reader._read_sync("https://example.com/dav/", "abfall", "user", "pass", 10)
+
+        assert not event.loaded, (
+            "load() must not be called when event.data is already populated"
+        )
+
+    @pytest.mark.parametrize(
+        ("url", "calendar_name", "expected_url"),
+        [
+            (
+                "https://example.com/dav/",
+                "abfall",
+                "https://example.com/dav/abfall",
+            ),
+            (
+                "https://example.com/dav",  # no trailing slash
+                "abfall",
+                "https://example.com/dav/abfall",
+            ),
+            (
+                "https://example.com/dav/",
+                "/abfall",  # leading slash
+                "https://example.com/dav/abfall",
+            ),
+            (
+                "https://example.com/dav",  # both cases
+                "/abfall",
+                "https://example.com/dav/abfall",
+            ),
+        ],
+    )
+    def test_read_sync_constructs_calendar_url(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        url: str,
+        calendar_name: str,
+        expected_url: str,
+    ) -> None:
+        """calendar_url is correctly formed regardless of trailing/leading slash conventions."""
+        captured: dict[str, str] = {}
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _CapturingCalendar:
+            def __init__(self, client: object, url: str) -> None:
+                captured["url"] = url
+
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[object]:
+                return []
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _CapturingCalendar)
+
+        reader = CalDavReader(_make_settings())
+        reader._read_sync(url, calendar_name, "user", "pass", 7)
+
+        assert captured["url"] == expected_url
