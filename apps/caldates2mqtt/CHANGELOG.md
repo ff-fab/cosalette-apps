@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.1.3...caldates2mqtt-v0.1.4) (2026-07-11)
+
+
+### Bug Fixes
+
+* **caldates2mqtt:** resolve smoke-test findings A-1 and A-2 ([#163](https://github.com/ff-fab/cosalette-apps/issues/163)) ([86f29e9](https://github.com/ff-fab/cosalette-apps/commit/86f29e929e909a455ba6edc021ed91b6920ad1f4))
+
 ## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.1.2...caldates2mqtt-v0.1.3) (2026-06-27)
 
 
