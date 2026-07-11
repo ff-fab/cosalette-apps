@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import asyncio
 import datetime
+import logging
+from urllib.parse import urlparse
 
 import caldav
 import caldav.lib.error
@@ -21,12 +23,18 @@ from caldates2mqtt.errors import (
 from caldates2mqtt.ports import CalendarEvent
 from caldates2mqtt.settings import CalDates2MqttSettings
 
+_logger = logging.getLogger(__name__)
+
 
 class CalDavReader:
     """Production adapter implementing CalDavPort.
 
     Creates a fresh DAVClient per call (stateless, no connection reuse).
     Runs the synchronous caldav library in a thread executor.
+
+    Note: A fresh DAVClient (TCP+TLS handshake) is created per call. This is
+    acceptable at the default ≥2-hour polling cadence. If polling is tightened
+    to sub-minute intervals, introduce a cached session with lazy reconnect.
     """
 
     def __init__(self, settings: CalDates2MqttSettings) -> None:
@@ -56,15 +64,16 @@ class CalDavReader:
             CalDavAuthError: If authentication fails.
             CalDavConnectionError: If the server is unreachable.
             CalDavTimeoutError: If the request times out.
+            CalDavNotFoundError: If the calendar path does not exist on the server.
             CalDavReadError: For other CalDAV protocol errors.
         """
         try:
             return await asyncio.to_thread(
                 self._read_sync, url, calendar_name, username, password, days
             )
+        except CalDavError:
+            raise
         except Exception as exc:
-            if isinstance(exc, CalDavError):
-                raise
             mapped = ERROR_TYPE_MAP.get(type(exc))
             if mapped is not None:
                 raise mapped(str(exc)) from exc
@@ -85,9 +94,13 @@ class CalDavReader:
             password=password,
             timeout=self._timeout,
         )
+        # Normalise URL: ensure one slash between base URL and calendar name.
+        # Caught explicitly here (not via ERROR_TYPE_MAP) because the message
+        # needs calendar_name and URL context unavailable at the async boundary.
+        calendar_url = url.rstrip("/") + "/" + calendar_name.lstrip("/")
         calendar = caldav.Calendar(  # type: ignore
             client=client,
-            url=f"{url}{calendar_name}",
+            url=calendar_url,
         )
 
         today = datetime.date.today()
@@ -98,17 +111,32 @@ class CalDavReader:
                 expand=True,
             )
         except caldav.lib.error.NotFoundError as exc:
+            parsed = urlparse(url)
+            netloc = parsed.hostname or ""
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            safe_url = parsed._replace(netloc=netloc).geturl()
             raise CalDavNotFoundError(
-                f"calendar '{calendar_name}' not found at {url}{calendar_name} — "
+                f"calendar '{calendar_name}' not found on {safe_url} — "
                 "check config or confirm the calendar exists server-side"
             ) from exc
 
         result: list[CalendarEvent] = []
         for event in events:
-            event.load()
-            component = event.icalendar_component
-            summary = str(component["SUMMARY"]).strip()
-            dtstart = component["DTSTART"].dt
+            # event.load() only if data not already populated (expand=True returns inline data).
+            if not event.data:
+                event.load()
+            try:
+                component = event.icalendar_component
+                summary = str(component["SUMMARY"]).strip()
+                dtstart = component["DTSTART"].dt
+            except (KeyError, AttributeError) as exc:
+                _logger.warning(
+                    "Skipping malformed event in calendar '%s': %s",
+                    calendar_name,
+                    exc,
+                )
+                continue
 
             # Filter to all-day events only: date but not datetime
             if isinstance(dtstart, datetime.datetime):

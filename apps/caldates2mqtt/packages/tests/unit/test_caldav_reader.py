@@ -10,6 +10,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import datetime
+import re
 import socket
 from types import SimpleNamespace
 
@@ -56,6 +57,7 @@ class _FakeEvent:
             "DTSTART": SimpleNamespace(dt=dtstart),
         }
         self.loaded = False
+        self.data: bytes | None = None  # simulate server not returning inline data
 
     @property
     def icalendar_component(self) -> dict[str, object]:
@@ -144,6 +146,9 @@ class TestCalDavReaderAsyncBoundary:
         [
             (CalDavNotFoundError("calendar 'x' not found"), CalDavNotFoundError),
             (CalDavAuthError("denied"), CalDavAuthError),
+            (CalDavConnectionError("offline"), CalDavConnectionError),
+            (CalDavTimeoutError("slow"), CalDavTimeoutError),
+            (CalDavReadError("parse error"), CalDavReadError),
         ],
     )
     async def test_read_events_passes_through_caldav_errors(
@@ -165,7 +170,7 @@ class TestCalDavReaderAsyncBoundary:
 
         reader._read_sync = _raise  # type: ignore[method-assign]
 
-        with pytest.raises(expected_type):
+        with pytest.raises(expected_type, match=re.escape(str(domain_exc))):
             await reader.read_events(
                 "https://example.com/dav/",
                 "x",
@@ -289,7 +294,13 @@ class TestCalDavReaderSyncParsing:
             def __init__(self, client: object, url: str) -> None:
                 pass
 
-            def date_search(self, **kwargs: object) -> list[object]:
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[object]:
                 raise caldav_error.NotFoundError("404")
 
         monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
@@ -307,3 +318,65 @@ class TestCalDavReaderSyncParsing:
                 "pass",
                 14,
             )
+
+    def test_read_sync_skips_malformed_events(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Malformed events (missing SUMMARY or DTSTART) are skipped with a warning."""
+        from types import SimpleNamespace
+
+        class _MalformedEvent:
+            data = b"fake"  # pretend inline data already populated
+
+            @property
+            def icalendar_component(self) -> dict[str, object]:
+                return {}  # missing SUMMARY and DTSTART
+
+            def load(self) -> None:
+                pass  # pragma: no cover
+
+        class _GoodEvent:
+            data = b"fake"
+
+            @property
+            def icalendar_component(self) -> dict[str, object]:
+                return {
+                    "SUMMARY": "Good Event",
+                    "DTSTART": SimpleNamespace(dt=datetime.date(2026, 4, 1)),
+                }
+
+            def load(self) -> None:
+                pass  # pragma: no cover
+
+        def fake_dav_client(**kwargs: object) -> object:
+            return object()
+
+        class _Calendar:
+            def __init__(self, client: object, url: str) -> None:
+                pass
+
+            def date_search(
+                self,
+                *,
+                start: datetime.date,
+                end: datetime.date,
+                expand: bool,
+            ) -> list[object]:
+                return [_MalformedEvent(), _GoodEvent()]
+
+        monkeypatch.setattr(caldav_reader_module.caldav, "DAVClient", fake_dav_client)
+        monkeypatch.setattr(caldav_reader_module.caldav, "Calendar", _Calendar)
+
+        reader = CalDavReader(_make_settings())
+        result = reader._read_sync(
+            "https://example.com/dav/",
+            "abfall",
+            "user",
+            "pass",
+            10,
+        )
+
+        assert result == [
+            CalendarEvent(title="Good Event", date=datetime.date(2026, 4, 1))
+        ]

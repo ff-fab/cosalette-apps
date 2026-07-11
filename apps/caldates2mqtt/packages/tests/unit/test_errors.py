@@ -63,7 +63,13 @@ class TestErrorHierarchy:
 
 @pytest.mark.unit
 class TestErrorTypeMap:
-    """Verify ERROR_TYPE_MAP maps expected upstream exceptions."""
+    """Verify ERROR_TYPE_MAP maps expected upstream exceptions.
+
+    Note: caldav.lib.error.NotFoundError is intentionally absent from this map.
+    It is caught explicitly in _read_sync (not via ERROR_TYPE_MAP) because the
+    error message needs calendar_name and URL context unavailable at the
+    ERROR_TYPE_MAP dispatch level.
+    """
 
     def test_authorization_error_mapped(self) -> None:
         """caldav AuthorizationError maps to CalDavAuthError."""
