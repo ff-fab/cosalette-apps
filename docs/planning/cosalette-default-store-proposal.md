@@ -2,9 +2,9 @@
 
 **Date:** 2026-07-12
 **Author:** caldates2mqtt / airthings2mqtt maintainer
-**Status:** Proposal — awaiting framework review and implementation
-**Context:** Follows cosalette 0.5.0 (ADR-048 retained-topic cleanup, opt-in via `store=`)
-**Tracked by:** (beads issue to be filed)
+**Status:** ✅ Implemented in cosalette 0.5.1 — this document is retained as the historical proposal
+**Context:** Followed cosalette 0.5.0 (ADR-048 retained-topic cleanup, opt-in via `store=`); shipped in 0.5.1 via [#326](https://github.com/ff-fab/cosalette/issues/326) (auto-resolved default store path) and [#328](https://github.com/ff-fab/cosalette/issues/328) (configurable default backend + ephemeral-store warning)
+**Follow-up:** A residual refinement (scope the ephemeral-store warning to apps with removable entities) is tracked separately — see beads `cap-2gj`.
 
 ---
 
