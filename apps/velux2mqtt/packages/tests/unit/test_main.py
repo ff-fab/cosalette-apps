@@ -163,3 +163,18 @@ class TestAppRestartConfig:
         Technique: Specification-based — bounded restart loop prevents runaway.
         """
         assert app._max_restarts == 3
+
+
+@pytest.mark.unit
+class TestStoreConfiguration:
+    """Verify the app's default-store configuration."""
+
+    def test_store_uses_default(self) -> None:
+        """App keeps the auto-resolved default store (dynamic covers need cleanup).
+
+        Technique: Specification-based — velux omits store=, so cosalette 0.5.1
+        auto-creates a default store enabling ADR-048 retained-topic cleanup when
+        a cover is removed from config. No public App.store accessor exists, so
+        app._store is the only inspection point.
+        """
+        assert app._store is not None
