@@ -167,3 +167,14 @@ class TestMainEntryPoint:
         main_module.main()
 
         mock_run.assert_called_once_with()
+
+
+@pytest.mark.unit
+class TestStoreOptOut:
+    """Verify app opts out of the default store."""
+
+    def test_store_opt_out(self) -> None:
+        """App opts out of the default store (no config-removable entities)."""
+        from wallpanel_control.main import app
+
+        assert app._store is None
