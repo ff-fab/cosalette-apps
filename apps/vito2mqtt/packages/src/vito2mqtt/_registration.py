@@ -56,7 +56,7 @@ def configure_app(app: App) -> None:
             group="optolink",
             summary=GROUP_SUMMARIES[group],
             retry=3,
-            retry_on=(OptolinkConnectionError, OptolinkTimeoutError),
+            retry_on=(OptolinkConnectionError, OptolinkTimeoutError, TimeoutError),
         )
     for group in COMMAND_GROUPS:
         app.add_command(

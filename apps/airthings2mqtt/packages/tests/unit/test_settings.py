@@ -65,3 +65,23 @@ class TestAirthings2MqttSettingsValidation:
         """Custom MAC address is stored."""
         settings = make_airthings2mqtt_settings(device_mac="11:22:33:44:55:66")
         assert settings.device_mac == "11:22:33:44:55:66"
+
+    def test_default_poll_timeout(self) -> None:
+        """Default poll timeout is 120.0 seconds."""
+        settings = make_airthings2mqtt_settings()
+        assert settings.poll_timeout == 120.0
+
+    def test_poll_timeout_rejects_zero(self) -> None:
+        """Poll timeout must be > 0; zero is rejected."""
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(poll_timeout=0.0)
+
+    def test_poll_timeout_rejects_negative(self) -> None:
+        """Poll timeout must be > 0; negative values are rejected."""
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(poll_timeout=-1.0)
+
+    def test_poll_timeout_accepts_positive(self) -> None:
+        """Any positive float is a valid poll timeout."""
+        settings = make_airthings2mqtt_settings(poll_timeout=60.0)
+        assert settings.poll_timeout == 60.0

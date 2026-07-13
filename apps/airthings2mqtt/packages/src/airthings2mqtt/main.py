@@ -56,9 +56,10 @@ def _get_read_lock() -> asyncio.Lock:
 @app.telemetry(
     "airthings",
     interval=setting_ref("poll_interval"),
+    timeout=setting_ref("poll_timeout"),
     triggerable=True,
     retry=3,
-    retry_on=(BleConnectionError, BleTimeoutError),
+    retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )

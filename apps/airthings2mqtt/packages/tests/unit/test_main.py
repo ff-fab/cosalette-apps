@@ -321,6 +321,29 @@ class TestTelemetryRetryConfig:
         reg = next(r for r in app._telemetry if r.name == "airthings")
         assert BleTimeoutError in reg.retry_on
 
+    def test_retry_on_includes_framework_timeout_error(self) -> None:
+        """retry_on tuple contains TimeoutError for cosalette F-3 auto-timeout.
+
+        Technique: Specification-based — framework-injected TimeoutError from
+        asyncio.wait_for must self-heal via the retry mechanism.
+        """
+        from airthings2mqtt.main import app
+
+        reg = next(r for r in app._telemetry if r.name == "airthings")
+        assert TimeoutError in reg.retry_on
+
+    def test_timeout_configured_from_poll_timeout_setting(self) -> None:
+        """Telemetry timeout= resolves via setting_ref("poll_timeout").
+
+        Technique: Specification-based — timeout must be a SettingRef bound
+        to poll_timeout so the framework applies the per-poll budget.
+        """
+        from airthings2mqtt.main import app
+
+        reg = next(r for r in app._telemetry if r.name == "airthings")
+        assert reg.timeout is not None
+        assert reg.timeout.field_name == "poll_timeout"
+
 
 @pytest.mark.unit
 class TestAppRestartConfig:

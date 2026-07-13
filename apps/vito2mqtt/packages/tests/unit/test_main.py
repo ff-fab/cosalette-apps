@@ -297,6 +297,19 @@ class TestTelemetryRetryConfig:
                 f"{reg.name!r} missing OptolinkTimeoutError in retry_on"
             )
 
+    def test_retry_on_includes_framework_timeout_error(self) -> None:
+        """retry_on includes TimeoutError for cosalette F-3 framework timeout.
+
+        Technique: Specification-based — asyncio.wait_for TimeoutError from
+        the framework must be treated as transient and trigger retry.
+        """
+        from vito2mqtt.main import app
+
+        for reg in app._telemetry:
+            assert TimeoutError in reg.retry_on, (
+                f"{reg.name!r} missing TimeoutError in retry_on"
+            )
+
 
 class TestAppRestartConfig:
     """Verify adapter recovery restart configuration on the App instance."""

@@ -38,3 +38,12 @@ class Airthings2MqttSettings(cosalette.Settings):
         ge=60,
         description="Polling interval in seconds (minimum 60)",
     )
+    poll_timeout: float = Field(
+        default=120.0,
+        gt=0,
+        description=(
+            "Per-invocation timeout in seconds bounding each BLE poll. Backs the "
+            "cosalette telemetry timeout so a wedged read raises TimeoutError "
+            "instead of hanging indefinitely."
+        ),
+    )
