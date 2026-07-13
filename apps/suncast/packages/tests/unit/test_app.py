@@ -151,3 +151,12 @@ class TestPollInterval:
         wrong = cosalette.Settings()
         with pytest.raises(TypeError, match="Expected SuncastSettings"):
             _poll_interval(wrong)
+
+
+@pytest.mark.unit
+class TestStoreOptOut:
+    """Verify app opts out of the default store."""
+
+    def test_store_opt_out(self) -> None:
+        """App opts out of the default store (no config-removable entities)."""
+        assert app._store is None

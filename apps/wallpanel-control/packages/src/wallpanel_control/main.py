@@ -49,6 +49,10 @@ app = cosalette.App(
         WallpanelPort: (_make_ssh_wallpanel, FakeWallpanel),
         WolPort: (UdpWol, FakeWol),
     },
+    # Fixed command handlers for a single target — no config-removable entities
+    # for ADR-048 cleanup. Opt out of the default store (and its container
+    # ephemeral-store warning) explicitly.
+    store=None,
 )
 
 app.include_router(display.router)

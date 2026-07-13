@@ -106,6 +106,10 @@ app = cosalette.App(
     description="Sun position and shadow visualization service",
     settings_class=SuncastSettings,
     lifespan=_lifespan,
+    # Single fixed telemetry entity — no config-removable entities for ADR-048
+    # cleanup to manage. Opt out of the default store (and its container
+    # ephemeral-store warning) explicitly.
+    store=None,
 )
 
 
