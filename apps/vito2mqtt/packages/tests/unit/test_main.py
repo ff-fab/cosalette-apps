@@ -297,17 +297,20 @@ class TestTelemetryRetryConfig:
                 f"{reg.name!r} missing OptolinkTimeoutError in retry_on"
             )
 
-    def test_retry_on_includes_framework_timeout_error(self) -> None:
-        """retry_on includes TimeoutError for cosalette F-3 framework timeout.
+    def test_retry_on_excludes_framework_timeout_error(self) -> None:
+        """retry_on deliberately excludes bare framework TimeoutError.
 
-        Technique: Specification-based — asyncio.wait_for TimeoutError from
-        the framework must be treated as transient and trigger retry.
+        Technique: Specification-based — vito sets no explicit timeout=, so the
+        cosalette F-3 backstop equals the (long) poll interval. A framework
+        TimeoutError signals an already-wedged serial bus and must fail fast
+        rather than retry for another interval-sized budget. Transient serial
+        read timeouts are covered by OptolinkTimeoutError instead.
         """
         from vito2mqtt.main import app
 
         for reg in app._telemetry:
-            assert TimeoutError in reg.retry_on, (
-                f"{reg.name!r} missing TimeoutError in retry_on"
+            assert TimeoutError not in reg.retry_on, (
+                f"{reg.name!r} should not retry bare framework TimeoutError"
             )
 
 
