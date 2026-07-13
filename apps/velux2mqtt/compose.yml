@@ -12,6 +12,7 @@ services:
     env_file: .env
     environment:
       VELUX2MQTT_MQTT__HOST: mosquitto
+      VELUX2MQTT_STORE_PATH: /app/data/store.json
     volumes:
       - velux2mqtt-data:/app/data
     depends_on:
