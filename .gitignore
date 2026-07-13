@@ -256,3 +256,6 @@ legacy/
 
 # QA task logs
 .qa-logs/
+
+# Scratch/working artifacts (smoke-test findings, handover notes, etc.)
+tmp/
