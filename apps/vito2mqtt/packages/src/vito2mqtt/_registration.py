@@ -56,6 +56,13 @@ def configure_app(app: App) -> None:
             group="optolink",
             summary=GROUP_SUMMARIES[group],
             retry=3,
+            # Deliberately excludes bare TimeoutError. vito sets no explicit
+            # timeout=, so cosalette's F-3 backstop equals the poll interval
+            # (up to polling_system=3600s). Retrying a framework timeout would
+            # burn interval-sized budgets (3x interval before the failure is
+            # counted) on an already-wedged serial bus that will not self-heal
+            # on an immediate retry. Let F-3 fail fast; OptolinkTimeoutError
+            # still retries transient serial read timeouts.
             retry_on=(OptolinkConnectionError, OptolinkTimeoutError),
         )
     for group in COMMAND_GROUPS:

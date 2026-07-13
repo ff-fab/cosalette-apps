@@ -8,6 +8,7 @@ services:
     env_file: .env
     environment:
       CALDATES2MQTT_MQTT__HOST: mosquitto
+      CALDATES2MQTT_STORE_PATH: /app/data/store.json
     volumes:
       - caldates2mqtt-data:/app/data
     depends_on:

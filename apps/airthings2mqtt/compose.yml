@@ -15,6 +15,7 @@ services:
     environment:
       # With network_mode: host, use localhost (or the IP of your broker)
       AIRTHINGS2MQTT_MQTT__HOST: localhost
+      AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
       # AIRTHINGS2MQTT_DEVICE_MAC: "XX:XX:XX:XX:XX:XX"
       # AIRTHINGS2MQTT_POLL_INTERVAL: "1500"
     volumes:

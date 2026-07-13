@@ -65,3 +65,52 @@ class TestAirthings2MqttSettingsValidation:
         """Custom MAC address is stored."""
         settings = make_airthings2mqtt_settings(device_mac="11:22:33:44:55:66")
         assert settings.device_mac == "11:22:33:44:55:66"
+
+    def test_default_poll_timeout(self) -> None:
+        """Default poll timeout is 120.0 seconds.
+
+        Technique: Specification-based — verify the documented default.
+        """
+        settings = make_airthings2mqtt_settings()
+        assert settings.poll_timeout == 120.0
+
+    def test_poll_timeout_accepts_minimum(self) -> None:
+        """Poll timeout accepts the 5.0s floor (inclusive boundary).
+
+        Technique: Boundary Value Analysis — minimum valid value at the ge=5.0
+        boundary.
+        """
+        settings = make_airthings2mqtt_settings(poll_timeout=5.0)
+        assert settings.poll_timeout == 5.0
+
+    def test_poll_timeout_rejects_below_minimum(self) -> None:
+        """Poll timeout just below the 5.0s floor is rejected (e.g. a '1.2' typo).
+
+        Technique: Boundary Value Analysis — just below the ge=5.0 boundary.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(poll_timeout=4.9)
+
+    def test_poll_timeout_rejects_zero(self) -> None:
+        """Poll timeout of zero is rejected (below the 5.0s floor).
+
+        Technique: Boundary Value Analysis — zero is well below the minimum.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(poll_timeout=0.0)
+
+    def test_poll_timeout_rejects_negative(self) -> None:
+        """Negative poll timeout is rejected.
+
+        Technique: Error Guessing — negative durations are invalid.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(poll_timeout=-1.0)
+
+    def test_poll_timeout_accepts_positive(self) -> None:
+        """An interior positive float is a valid poll timeout.
+
+        Technique: Equivalence Partitioning — representative in-range value.
+        """
+        settings = make_airthings2mqtt_settings(poll_timeout=60.0)
+        assert settings.poll_timeout == 60.0
