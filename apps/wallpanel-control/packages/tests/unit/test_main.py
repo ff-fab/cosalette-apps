@@ -174,7 +174,12 @@ class TestStoreOptOut:
     """Verify app opts out of the default store."""
 
     def test_store_opt_out(self) -> None:
-        """App opts out of the default store (no config-removable entities)."""
+        """App opts out of the default store (no config-removable entities).
+
+        Technique: Specification-based — the composition root passes store=None
+        so cosalette 0.5.1 skips default-store creation. No public App.store
+        accessor exists, so app._store is the only inspection point.
+        """
         from wallpanel_control.main import app
 
         assert app._store is None
