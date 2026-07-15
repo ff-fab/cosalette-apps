@@ -73,5 +73,6 @@ def configure_app(app: App) -> None:
                 group, f"Control {group} parameters via Optolink serial"
             ),
             payload_model=dict,
+            unavailable_on=(OptolinkConnectionError, OptolinkTimeoutError),
         )
     app.add_device("legionella", legionella_device)

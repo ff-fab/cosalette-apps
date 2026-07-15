@@ -23,6 +23,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import pytest
 from cosalette import App
 
 from vito2mqtt import __version__
@@ -336,3 +337,51 @@ class TestAppRestartConfig:
         from vito2mqtt.main import app
 
         assert app._max_restarts == 3
+
+
+@pytest.mark.unit
+class TestCommandUnavailableOnConfig:
+    """Verify unavailable_on metadata on all command registrations."""
+
+    def test_all_commands_have_unavailable_on(self) -> None:
+        """All command registrations declare unavailable_on.
+
+        Technique: Specification-based — every Optolink command must mark the
+        device unavailable when the serial adapter raises a connection or
+        timeout error, ensuring operators see an offline state rather than
+        silence when the Optolink bus is disconnected.
+        """
+        from vito2mqtt.main import app
+
+        for reg in app._commands:
+            assert reg.unavailable_on is not None, (
+                f"Command {reg.name!r} missing unavailable_on"
+            )
+
+    def test_commands_unavailable_on_includes_connection_error(self) -> None:
+        """unavailable_on includes OptolinkConnectionError.
+
+        Technique: Specification-based — serial bus disconnection must surface
+        as device unavailability, not a silent error.
+        """
+        from vito2mqtt.errors import OptolinkConnectionError
+        from vito2mqtt.main import app
+
+        for reg in app._commands:
+            assert OptolinkConnectionError in reg.unavailable_on, (
+                f"Command {reg.name!r} missing OptolinkConnectionError in unavailable_on"
+            )
+
+    def test_commands_unavailable_on_includes_timeout_error(self) -> None:
+        """unavailable_on includes OptolinkTimeoutError.
+
+        Technique: Specification-based — serial bus timeout must surface as
+        device unavailability.
+        """
+        from vito2mqtt.errors import OptolinkTimeoutError
+        from vito2mqtt.main import app
+
+        for reg in app._commands:
+            assert OptolinkTimeoutError in reg.unavailable_on, (
+                f"Command {reg.name!r} missing OptolinkTimeoutError in unavailable_on"
+            )

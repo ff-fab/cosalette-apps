@@ -55,6 +55,7 @@ router = cosalette.Router(prefix="system")
     summary="System power action: wake (WoL), suspend, or hibernate",
     payload_model=SystemActionCommand,
     state_model=SystemActionState,
+    unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_system_action(
     cmd: Annotated[SystemActionCommand, Payload()],
