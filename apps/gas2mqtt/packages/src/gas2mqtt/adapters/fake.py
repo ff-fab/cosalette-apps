@@ -26,6 +26,10 @@ class FakeMagnetometer:
         temperature_raw: Configurable raw temperature value (default 0).
         initialized: Whether initialize() has been called.
         closed: Whether close() has been called.
+        error_on_read: If set, read() always raises this exception (permanent
+            failure). Takes precedence over remaining_failures.
+        remaining_failures: Remaining transient failures; read() raises OSError
+            and decrements until zero, then succeeds.
     """
 
     def __init__(self) -> None:
@@ -36,7 +40,7 @@ class FakeMagnetometer:
         self.initialized: bool = False
         self.closed: bool = False
         self.error_on_read: Exception | None = None
-        self.fail_times: int = 0
+        self.remaining_failures: int = 0
 
     def initialize(self) -> None:
         """Mark the fake sensor as initialized."""
@@ -46,8 +50,8 @@ class FakeMagnetometer:
         """Return a MagneticReading with the current configured values."""
         if self.error_on_read is not None:
             raise self.error_on_read
-        if self.fail_times > 0:
-            self.fail_times -= 1
+        if self.remaining_failures > 0:
+            self.remaining_failures -= 1
             raise OSError("simulated transient I2C failure")
         return MagneticReading(
             bx=self.bx,
