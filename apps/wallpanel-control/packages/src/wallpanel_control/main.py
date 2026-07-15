@@ -50,8 +50,9 @@ app = cosalette.App(
         WolPort: (UdpWol, FakeWol),
     },
     # Fixed command handlers for a single target — no config-removable entities
-    # for ADR-048 cleanup. Opt out of the default store (and its container
-    # ephemeral-store warning) explicitly.
+    # for ADR-048 cleanup. cosalette >=0.5.2 auto-suppresses the ephemeral-store
+    # warning for static apps (ADR-049); store=None additionally skips creating
+    # the unused default store object.
     store=None,
 )
 

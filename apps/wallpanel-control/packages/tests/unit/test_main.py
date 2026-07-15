@@ -176,10 +176,24 @@ class TestStoreOptOut:
     def test_store_opt_out(self) -> None:
         """App opts out of the default store (no config-removable entities).
 
-        Technique: Specification-based — the composition root passes store=None
-        so cosalette 0.5.1 skips default-store creation. No public App.store
-        accessor exists, so app._store is the only inspection point.
+        Technique: Specification-based — the composition root passes store=None,
+        which prevents cosalette from creating the default store object. On
+        cosalette >=0.5.2 the ephemeral-store warning is auto-suppressed for
+        static apps (ADR-049), so store=None is an explicit belt-and-braces
+        opt-out. app._store is a private inspection point pending a public
+        accessor (cap-951).
         """
         from wallpanel_control.main import app
 
         assert app._store is None
+
+    def test_app_is_static(self) -> None:
+        """App is classified static, so cosalette skips the ephemeral warning.
+
+        Technique: Specification-based — command-only handlers with static names
+        and no @app.on_configure are static under cosalette >=0.5.2 (ADR-049).
+        Private predicate pending cap-951.
+        """
+        from wallpanel_control.main import app
+
+        assert app._has_dynamic_entity_set() is False
