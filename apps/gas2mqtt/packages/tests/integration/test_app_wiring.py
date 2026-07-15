@@ -12,7 +12,8 @@ Test Techniques Used:
   restore-from-disk on @app.state provider initialization
 - Branch Coverage: Magnetometer conditional registration via enabled=;
   consumption tracking enabled/disabled provider paths
-- Error Guessing: __aexit__ closes adapter even on error
+- Error Guessing: __aexit__ closes adapter even on error; transient OSError
+  retried by framework before telemetry publishes (retry-path test)
 """
 
 from __future__ import annotations
@@ -21,12 +22,17 @@ import typing
 
 import cosalette
 import pytest
+from cosalette import App, FixedBackoff, MemoryStore, MockMqttClient, setting_ref
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.devices.gas_counter import GasCounterState
+from gas2mqtt.devices.magnetometer import magnetometer
 from gas2mqtt.domain.schmitt import SchmittTrigger
 from gas2mqtt.main import _make_store, app, create_app
+from gas2mqtt.ports import MagnetometerPort
+from gas2mqtt.settings import Gas2MqttSettings
 from tests.fixtures.config import make_gas2mqtt_settings
+from .conftest import run_app_briefly
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -318,3 +324,89 @@ class TestStateProviderRegistration:
 
         # Assert
         assert state.counter == 99
+
+
+# ---------------------------------------------------------------------------
+# Retry-path: transient OSError retried by framework
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+@pytest.mark.parametrize(
+    ("remaining_failures", "should_publish"),
+    [
+        (2, True),  # 2 failures < 3 retries → succeeds on attempt 3
+        (4, False),  # failures exceed budget AND persistent → never publishes
+    ],
+)
+class TestTelemetryRetryPath:
+    """Prove framework retries transient OSError; exhausted budget prevents publish.
+
+    Builds a minimal test app with retry=3, retry_on=(OSError,) and
+    backoff=FixedBackoff(delay=0.05) (fast retries for test speed), backed by a
+    FakeMagnetometer with a configurable transient-failure counter.
+
+    Coverage split: this test proves the retry *mechanism* works end-to-end.
+    The production registration *values* (retry=3, retry_on=(OSError,),
+    backoff=FixedBackoff(delay=0.05)) are asserted separately by the
+    TestHandlerRetryConfig unit tests in test_main.py.
+    """
+
+    async def test_retry_path(
+        self,
+        remaining_failures: int,
+        should_publish: bool,
+    ) -> None:
+        """Transient OSErrors are retried; budget exhaustion prevents publish.
+
+        Technique: Equivalence Partitioning — two partitions:
+        (a) failures within retry budget → state published after retries;
+        (b) failures exceed budget → state topic receives no message.
+
+        Note: the False partition uses error_on_read (permanent failure) so the
+        sensor never recovers across poll cycles; a transient remaining_failures
+        counter would deplete and succeed on the next cycle, invalidating the
+        negative assertion.
+        """
+        # Arrange: magnetometer with configurable failure mode
+        failing_mag = FakeMagnetometer()
+        if should_publish:
+            # Transient: fails remaining_failures times then succeeds
+            failing_mag.remaining_failures = remaining_failures
+        else:
+            # Permanent: error_on_read never depletes, so every poll cycle fails
+            failing_mag.error_on_read = OSError("simulated persistent I2C failure")
+
+        test_app = App(
+            name="gas2mqtt",
+            settings_class=Gas2MqttSettings,
+            adapters={MagnetometerPort: lambda: failing_mag},
+            store=MemoryStore(),
+        )
+        test_app.telemetry(
+            "magnetometer",
+            interval=setting_ref("poll_interval"),
+            retry=3,
+            retry_on=(OSError,),
+            backoff=FixedBackoff(delay=0.05),
+        )(magnetometer)
+
+        mock_mqtt = MockMqttClient()
+        test_settings = make_gas2mqtt_settings(poll_interval=0.1)
+
+        # Act: run briefly — one poll cycle (0.1s) with fast retries fits in 0.5s
+        await run_app_briefly(test_app, mock_mqtt, test_settings)
+
+        # Assert
+        messages = mock_mqtt.get_messages_for("gas2mqtt/magnetometer/state")
+        if should_publish:
+            assert messages, (
+                f"Expected state published after {remaining_failures} retried failures; "
+                f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+            )
+        else:
+            assert not messages, (
+                f"Expected no state with {remaining_failures} failures exceeding "
+                f"retry budget; published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+            )
