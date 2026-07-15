@@ -363,9 +363,12 @@ class TestTelemetryRetryPath:
     The framework must retry and ultimately succeed, publishing to the state
     topic.
 
-    These tests FAIL if retry=3 / retry_on=(OSError,) are removed from the
-    magnetometer registration in ``main.py`` because without retry the first
-    OSError propagates and no state message is published within the wait window.
+    Coverage split: this test proves the retry *mechanism* works end-to-end for
+    the gas magnetometer handler (two OSErrors are retried, the third succeeds
+    and publishes). The production registration *values* (retry=3,
+    retry_on=(OSError,)) are asserted separately by the ``Test*RetryConfig``
+    unit tests in ``test_main.py``, which read ``app._telemetry`` from the
+    production app singleton.
     """
 
     async def test_transient_i2c_failure_retried_and_published(self) -> None:
