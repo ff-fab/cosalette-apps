@@ -55,10 +55,16 @@ def create_app() -> cosalette.App:
         device_store = DeviceStore(store_backend, "gas_counter")
         return make_gas_counter(settings, device_store, logger)
 
+    # Telemetry handlers do a single ~10ms I2C read plus in-memory processing;
+    # runtime is far below the poll intervals, so no explicit timeout= is set —
+    # they rely on cosalette's F-3 implicit backstop (timeout=interval). retry=3
+    # on OSError covers transient I2C bus failures (cap-65e, workspace-658).
     app.telemetry(
         "gas_counter",
         interval=setting_ref("poll_interval"),
         publish=OnChange(),
+        retry=3,
+        retry_on=(OSError,),
         # No persist=SaveOnChange() — stage_state() calls store.save() directly
         # No init=make_gas_counter — GasCounterState injected from @app.state
         summary="Domestic gas meter counter: pulse counting via QMC5883L Schmitt trigger detection",
@@ -92,12 +98,16 @@ def create_app() -> cosalette.App:
         "temperature",
         interval=setting_ref("temperature_interval"),
         publish=OnChange(threshold={"temperature": 0.05}),
+        retry=3,
+        retry_on=(OSError,),
         init=make_pt1,
     )(temperature)
 
     app.telemetry(
         "magnetometer",
         interval=setting_ref("poll_interval"),
+        retry=3,
+        retry_on=(OSError,),
         enabled=lambda s: s.enable_debug_device,
     )(magnetometer)
 

@@ -12,20 +12,26 @@ Test Techniques Used:
   restore-from-disk on @app.state provider initialization
 - Branch Coverage: Magnetometer conditional registration via enabled=;
   consumption tracking enabled/disabled provider paths
-- Error Guessing: __aexit__ closes adapter even on error
+- Error Guessing: __aexit__ closes adapter even on error; transient OSError
+  retried by framework before telemetry publishes (retry-path test)
 """
 
 from __future__ import annotations
 
+import asyncio
 import typing
 
 import cosalette
 import pytest
+from cosalette import App, FixedBackoff, MemoryStore, MockMqttClient, setting_ref
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.devices.gas_counter import GasCounterState
+from gas2mqtt.devices.magnetometer import magnetometer
 from gas2mqtt.domain.schmitt import SchmittTrigger
 from gas2mqtt.main import _make_store, app, create_app
+from gas2mqtt.ports import MagnetometerPort
+from gas2mqtt.settings import Gas2MqttSettings
 from tests.fixtures.config import make_gas2mqtt_settings
 
 # ---------------------------------------------------------------------------
@@ -318,3 +324,84 @@ class TestStateProviderRegistration:
 
         # Assert
         assert state.counter == 99
+
+
+# ---------------------------------------------------------------------------
+# Retry-path: transient OSError retried by framework
+# ---------------------------------------------------------------------------
+
+
+async def _run_app_briefly(
+    test_app: App,
+    mock_mqtt: MockMqttClient,
+    test_settings: Gas2MqttSettings,
+    *,
+    wait: float = 0.5,
+) -> None:
+    """Start the app as a background task, wait, then shut it down cleanly."""
+    shutdown_event = asyncio.Event()
+    task = asyncio.create_task(
+        test_app._run_async(
+            mqtt=mock_mqtt,
+            settings=test_settings,
+            shutdown_event=shutdown_event,
+        )
+    )
+    await asyncio.sleep(wait)
+    shutdown_event.set()
+    await task
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestTelemetryRetryPath:
+    """Prove framework retries transient OSError before publishing telemetry.
+
+    Builds a minimal test app that mirrors the magnetometer registration in
+    ``main.py`` (retry=3, retry_on=(OSError,)) and uses a FakeMagnetometer
+    with fail_times=2 to simulate two consecutive transient I2C failures.
+    The framework must retry and ultimately succeed, publishing to the state
+    topic.
+
+    These tests FAIL if retry=3 / retry_on=(OSError,) are removed from the
+    magnetometer registration in ``main.py`` because without retry the first
+    OSError propagates and no state message is published within the wait window.
+    """
+
+    async def test_transient_i2c_failure_retried_and_published(self) -> None:
+        """Fail-twice-then-succeed: state topic receives a message after retries.
+
+        Technique: Error Guessing — two consecutive OSErrors are silently retried;
+        the third attempt succeeds and publishes {"bx", "by", "bz"} to MQTT.
+        """
+        # Arrange: magnetometer that fails its first 2 reads then succeeds
+        failing_mag = FakeMagnetometer()
+        failing_mag.initialize()
+        failing_mag.fail_times = 2
+
+        test_app = App(
+            name="gas2mqtt",
+            settings_class=Gas2MqttSettings,
+            adapters={MagnetometerPort: lambda: failing_mag},
+            store=MemoryStore(),
+        )
+        test_app.telemetry(
+            "magnetometer",
+            interval=setting_ref("poll_interval"),
+            retry=3,
+            retry_on=(OSError,),
+            backoff=FixedBackoff(delay=0.05),
+        )(magnetometer)
+
+        mock_mqtt = MockMqttClient()
+        test_settings = make_gas2mqtt_settings(poll_interval=0.1)
+
+        # Act: run briefly — one poll cycle (0.1s) with retries fits in 0.5s
+        await _run_app_briefly(test_app, mock_mqtt, test_settings)
+
+        # Assert: state was published despite 2 initial failures
+        messages = mock_mqtt.get_messages_for("gas2mqtt/magnetometer/state")
+        assert messages, (
+            "Expected state published after 2 retried failures; "
+            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+        )
