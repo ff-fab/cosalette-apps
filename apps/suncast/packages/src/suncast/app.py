@@ -107,8 +107,9 @@ app = cosalette.App(
     settings_class=SuncastSettings,
     lifespan=_lifespan,
     # Single fixed telemetry entity — no config-removable entities for ADR-048
-    # cleanup to manage. Opt out of the default store (and its container
-    # ephemeral-store warning) explicitly.
+    # cleanup to manage. cosalette >=0.5.2 auto-suppresses the ephemeral-store
+    # warning for static apps (ADR-049); store=None additionally skips creating
+    # the unused default store object.
     store=None,
 )
 
