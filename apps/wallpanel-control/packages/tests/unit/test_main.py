@@ -197,3 +197,33 @@ class TestStoreOptOut:
         from wallpanel_control.main import app
 
         assert app._has_dynamic_entity_set() is False
+
+
+@pytest.mark.unit
+class TestCommandUnavailableOnConfig:
+    """Verify unavailable_on metadata on command registrations."""
+
+    def test_display_command_has_unavailable_on(self) -> None:
+        """display command declares unavailable_on=(WallpanelUnreachableError,).
+
+        Technique: Specification-based — SSH unreachability must surface as
+        device unavailability rather than a silent error when the wallpanel
+        is off or hibernating.
+        """
+        from wallpanel_control.main import app
+        from wallpanel_control.ports import WallpanelUnreachableError
+
+        reg = next(r for r in app._commands if r.name == "display")
+        assert reg.unavailable_on == (WallpanelUnreachableError,)
+
+    def test_system_action_command_has_unavailable_on(self) -> None:
+        """system/action command declares unavailable_on=(WallpanelUnreachableError,).
+
+        Technique: Specification-based — SSH unreachability during system
+        power commands must surface as device unavailability.
+        """
+        from wallpanel_control.main import app
+        from wallpanel_control.ports import WallpanelUnreachableError
+
+        reg = next(r for r in app._commands if "action" in r.name)
+        assert reg.unavailable_on == (WallpanelUnreachableError,)

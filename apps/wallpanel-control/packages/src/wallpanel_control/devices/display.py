@@ -215,6 +215,7 @@ async def _execute_display_command(
     state_model=DisplayState,
     init=create_display_handler_state,
     summary="Control display state and brightness",
+    unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_display(
     cmd: Annotated[DisplayCommand, Payload()],
