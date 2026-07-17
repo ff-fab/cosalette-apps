@@ -53,7 +53,7 @@ class TestAppConstruction:
         """
         from vito2mqtt.main import app
 
-        assert app._name == "vito2mqtt"
+        assert app.name == "vito2mqtt"
 
     def test_app_version(self) -> None:
         """App version must match _version.__version__.
@@ -62,7 +62,7 @@ class TestAppConstruction:
         """
         from vito2mqtt.main import app
 
-        assert app._version == __version__
+        assert app.version == __version__
 
     def test_app_settings_type(self) -> None:
         """App must use Vito2MqttSettings as its settings class.
@@ -71,6 +71,7 @@ class TestAppConstruction:
         """
         from vito2mqtt.main import app
 
+        # No public app.settings_class accessor in cosalette 0.5.3 — tracking as tech debt (cap-5cy family).
         assert app._settings_class is Vito2MqttSettings
 
 

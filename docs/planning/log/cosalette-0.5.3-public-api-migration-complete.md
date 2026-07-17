@@ -49,8 +49,7 @@ closing cap-b7b and cap-951 in a single coherent change.
 1638 unit/integration tests pass across all 8 apps, plus lint, typecheck,
 complexity, similarity, and security audit.
 
-**Review Status:** APPROVED — verified independently (zero app-level privates
-remain, exactly 6 `router._commands` preserved, no cap-951 docstring residue).
+**Review Status:** APPROVED — the 6 targeted private attrs (_telemetry/_commands/_devices/_adapters/_store/_has_dynamic_entity_set) are fully migrated. Known remaining exceptions with no public accessor in 0.5.3: `app._streams` and `app._state_factories` in jeelink2mqtt (tracked in cap-5cy follow-up family), and `app._settings_class` in vito2mqtt/wallpanel-control (to be filed). The 6 `router._commands` carve-outs are documented in PR #172 / cap-5cy.
 
 **Git Commit Message:**
 

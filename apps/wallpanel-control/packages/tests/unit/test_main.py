@@ -45,7 +45,7 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
-        assert app._name == "wallpanel-control"
+        assert app.name == "wallpanel-control"
 
     def test_app_version_matches_package_metadata(self) -> None:
         """App version matches __version__ from package metadata.
@@ -55,7 +55,7 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
-        assert app._version == __version__
+        assert app.version == __version__
 
     def test_app_settings_class(self) -> None:
         """App uses WallpanelControlSettings.
@@ -65,6 +65,7 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
+        # No public app.settings_class accessor in cosalette 0.5.3 — tracking as tech debt (cap-5cy family).
         assert app._settings_class is WallpanelControlSettings
 
 
