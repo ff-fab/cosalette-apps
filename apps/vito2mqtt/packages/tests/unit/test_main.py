@@ -53,7 +53,7 @@ class TestAppConstruction:
         """
         from vito2mqtt.main import app
 
-        assert app._name == "vito2mqtt"
+        assert app.name == "vito2mqtt"
 
     def test_app_version(self) -> None:
         """App version must match _version.__version__.
@@ -62,7 +62,7 @@ class TestAppConstruction:
         """
         from vito2mqtt.main import app
 
-        assert app._version == __version__
+        assert app.version == __version__
 
     def test_app_settings_type(self) -> None:
         """App must use Vito2MqttSettings as its settings class.
@@ -71,6 +71,7 @@ class TestAppConstruction:
         """
         from vito2mqtt.main import app
 
+        # No public app.settings_class accessor in cosalette 0.5.3 — tracking as tech debt (cap-5cy family).
         assert app._settings_class is Vito2MqttSettings
 
 
@@ -84,7 +85,7 @@ class TestAdapterRegistration:
         """
         from vito2mqtt.main import app
 
-        assert OptolinkPort in app._adapters
+        assert OptolinkPort in app.adapters
 
 
 class TestTelemetryRegistration:
@@ -97,7 +98,7 @@ class TestTelemetryRegistration:
         """
         from vito2mqtt.main import app
 
-        assert len(app._telemetry) == len(SIGNAL_GROUPS)
+        assert len(app.telemetry_registrations) == len(SIGNAL_GROUPS)
 
     def test_telemetry_names_match_signal_groups(self) -> None:
         """Registered telemetry names must match SIGNAL_GROUPS keys exactly.
@@ -106,7 +107,7 @@ class TestTelemetryRegistration:
         """
         from vito2mqtt.main import app
 
-        registered = {r.name for r in app._telemetry}
+        registered = {r.name for r in app.telemetry_registrations}
         assert registered == set(SIGNAL_GROUPS)
 
     def test_telemetry_all_use_optolink_group(self) -> None:
@@ -116,7 +117,7 @@ class TestTelemetryRegistration:
         """
         from vito2mqtt.main import app
 
-        for reg in app._telemetry:
+        for reg in app.telemetry_registrations:
             assert reg.group == "optolink", f"{reg.name!r} missing group='optolink'"
 
     def test_telemetry_intervals_are_deferred(self) -> None:
@@ -129,7 +130,7 @@ class TestTelemetryRegistration:
         """
         from vito2mqtt.main import app
 
-        for reg in app._telemetry:
+        for reg in app.telemetry_registrations:
             assert callable(reg.interval), (
                 f"{reg.name!r} interval is not callable: {reg.interval!r}"
             )
@@ -155,7 +156,7 @@ class TestCommandRegistration:
         """
         from vito2mqtt.main import app
 
-        assert len(app._commands) == len(COMMAND_GROUPS)
+        assert len(app.commands) == len(COMMAND_GROUPS)
 
     def test_command_names_match_command_groups(self) -> None:
         """Registered command names must match COMMAND_GROUPS keys exactly.
@@ -164,7 +165,7 @@ class TestCommandRegistration:
         """
         from vito2mqtt.main import app
 
-        registered = {r.name for r in app._commands}
+        registered = {r.name for r in app.commands}
         assert registered == set(COMMAND_GROUPS)
 
     def test_command_names_subset_of_telemetry_names(self) -> None:
@@ -178,8 +179,8 @@ class TestCommandRegistration:
         """
         from vito2mqtt.main import app
 
-        telemetry_names = {r.name for r in app._telemetry}
-        command_names = {r.name for r in app._commands}
+        telemetry_names = {r.name for r in app.telemetry_registrations}
+        command_names = {r.name for r in app.commands}
         assert command_names <= telemetry_names
 
 
@@ -193,7 +194,7 @@ class TestDeviceRegistration:
         """
         from vito2mqtt.main import app
 
-        device_names = {d.name for d in app._devices}
+        device_names = {d.name for d in app.devices}
         assert "legionella" in device_names
 
     def test_legionella_uses_legionella_device_function(self) -> None:
@@ -206,7 +207,7 @@ class TestDeviceRegistration:
         """
         from vito2mqtt.main import app
 
-        reg = next(d for d in app._devices if d.name == "legionella")
+        reg = next(d for d in app.devices if d.name == "legionella")
         assert reg.func is legionella_device
 
 
@@ -220,7 +221,7 @@ class TestStoreConfiguration:
         """
         from vito2mqtt.main import app
 
-        assert app._store is not None
+        assert app.store is not None
 
     def test_store_is_json_file_store(self) -> None:
         """The store must be a JsonFileStore instance.
@@ -231,7 +232,7 @@ class TestStoreConfiguration:
 
         from vito2mqtt.main import app
 
-        assert isinstance(app._store, JsonFileStore)
+        assert isinstance(app.store, JsonFileStore)
 
 
 class TestCliEntryPoint:
@@ -269,7 +270,7 @@ class TestTelemetryRetryConfig:
         """
         from vito2mqtt.main import app
 
-        for reg in app._telemetry:
+        for reg in app.telemetry_registrations:
             assert reg.retry == 3, f"{reg.name!r} retry={reg.retry}, expected 3"
 
     def test_retry_on_includes_connection_error(self) -> None:
@@ -280,7 +281,7 @@ class TestTelemetryRetryConfig:
         from vito2mqtt.errors import OptolinkConnectionError
         from vito2mqtt.main import app
 
-        for reg in app._telemetry:
+        for reg in app.telemetry_registrations:
             assert OptolinkConnectionError in reg.retry_on, (
                 f"{reg.name!r} missing OptolinkConnectionError in retry_on"
             )
@@ -293,7 +294,7 @@ class TestTelemetryRetryConfig:
         from vito2mqtt.errors import OptolinkTimeoutError
         from vito2mqtt.main import app
 
-        for reg in app._telemetry:
+        for reg in app.telemetry_registrations:
             assert OptolinkTimeoutError in reg.retry_on, (
                 f"{reg.name!r} missing OptolinkTimeoutError in retry_on"
             )
@@ -309,7 +310,7 @@ class TestTelemetryRetryConfig:
         """
         from vito2mqtt.main import app
 
-        for reg in app._telemetry:
+        for reg in app.telemetry_registrations:
             assert TimeoutError not in reg.retry_on, (
                 f"{reg.name!r} should not retry bare framework TimeoutError"
             )
@@ -353,7 +354,7 @@ class TestCommandUnavailableOnConfig:
         """
         from vito2mqtt.main import app
 
-        for reg in app._commands:
+        for reg in app.commands:
             assert reg.unavailable_on is not None, (
                 f"Command {reg.name!r} missing unavailable_on"
             )
@@ -367,7 +368,7 @@ class TestCommandUnavailableOnConfig:
         from vito2mqtt.errors import OptolinkConnectionError
         from vito2mqtt.main import app
 
-        for reg in app._commands:
+        for reg in app.commands:
             assert OptolinkConnectionError in reg.unavailable_on, (
                 f"Command {reg.name!r} missing OptolinkConnectionError in unavailable_on"
             )
@@ -381,7 +382,7 @@ class TestCommandUnavailableOnConfig:
         from vito2mqtt.errors import OptolinkTimeoutError
         from vito2mqtt.main import app
 
-        for reg in app._commands:
+        for reg in app.commands:
             assert OptolinkTimeoutError in reg.unavailable_on, (
                 f"Command {reg.name!r} missing OptolinkTimeoutError in unavailable_on"
             )

@@ -23,7 +23,7 @@ class TestHandlerRetryConfig:
         """
         from gas2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == handler_name)
+        reg = next(r for r in app.telemetry_registrations if r.name == handler_name)
         assert reg.retry == 3
 
     def test_retry_on_is_exactly_oserror_tuple(self, handler_name: str) -> None:
@@ -35,5 +35,5 @@ class TestHandlerRetryConfig:
         """
         from gas2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == handler_name)
+        reg = next(r for r in app.telemetry_registrations if r.name == handler_name)
         assert reg.retry_on == (OSError,)

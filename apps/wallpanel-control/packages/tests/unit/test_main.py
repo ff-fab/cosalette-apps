@@ -45,7 +45,7 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
-        assert app._name == "wallpanel-control"
+        assert app.name == "wallpanel-control"
 
     def test_app_version_matches_package_metadata(self) -> None:
         """App version matches __version__ from package metadata.
@@ -55,7 +55,7 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
-        assert app._version == __version__
+        assert app.version == __version__
 
     def test_app_settings_class(self) -> None:
         """App uses WallpanelControlSettings.
@@ -65,15 +65,13 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
+        # No public app.settings_class accessor in cosalette 0.5.3 — tracking as tech debt (cap-5cy family).
         assert app._settings_class is WallpanelControlSettings
 
 
 @pytest.mark.unit
 class TestAdapterRegistry:
     """Verify both ports are registered in the adapter registry."""
-
-    # Accesses cosalette.App private attributes; no public introspection API
-    # exists in cosalette 0.4 for these composition-root assertions.
 
     def test_wallpanel_port_registered(self) -> None:
         """WallpanelPort is present in the adapter registry.
@@ -82,7 +80,7 @@ class TestAdapterRegistry:
         """
         from wallpanel_control.main import app
 
-        assert WallpanelPort in app._adapters
+        assert WallpanelPort in app.adapters
 
     def test_wol_port_registered(self) -> None:
         """WolPort is present in the adapter registry.
@@ -91,15 +89,12 @@ class TestAdapterRegistry:
         """
         from wallpanel_control.main import app
 
-        assert WolPort in app._adapters
+        assert WolPort in app.adapters
 
 
 @pytest.mark.unit
 class TestDeviceRegistration:
     """Verify no device handlers are registered (display is now a command)."""
-
-    # Accesses cosalette.App private attributes; no public introspection API
-    # exists in cosalette 0.4 for these composition-root assertions.
 
     def test_no_devices_registered(self) -> None:
         """No devices registered; display is handled as a command.
@@ -108,15 +103,12 @@ class TestDeviceRegistration:
         """
         from wallpanel_control.main import app
 
-        assert len(app._devices) == 0
+        assert len(app.devices) == 0
 
 
 @pytest.mark.unit
 class TestCommandRegistration:
     """Verify command handlers are registered with the correct names."""
-
-    # Accesses cosalette.App private attributes; no public introspection API
-    # exists in cosalette 0.4 for these composition-root assertions.
 
     def test_command_names_are_display_and_system_action(self) -> None:
         """Exactly two commands registered: display and system/action.
@@ -127,7 +119,7 @@ class TestCommandRegistration:
         """
         from wallpanel_control.main import app
 
-        registered = {r.name for r in app._commands}
+        registered = {r.name for r in app.commands}
         assert registered == {"display", "system/action"}
 
 
@@ -146,7 +138,7 @@ class TestTelemetryRegistration:
         """
         from wallpanel_control.main import app
 
-        assert len(app._telemetry) == 0
+        assert len(app.telemetry_registrations) == 0
 
 
 @pytest.mark.unit
@@ -180,23 +172,23 @@ class TestStoreOptOut:
         which prevents cosalette from creating the default store object. On
         cosalette >=0.5.2 the ephemeral-store warning is auto-suppressed for
         static apps (ADR-049), so store=None is an explicit belt-and-braces
-        opt-out. app._store is a private inspection point pending a public
-        accessor (cap-951).
+        opt-out. app.store is the public store accessor (None when the store is
+        opted out).
         """
         from wallpanel_control.main import app
 
-        assert app._store is None
+        assert app.store is None
 
     def test_app_is_static(self) -> None:
         """App is classified static, so cosalette skips the ephemeral warning.
 
         Technique: Specification-based — command-only handlers with static names
         and no @app.on_configure are static under cosalette >=0.5.2 (ADR-049).
-        Private predicate pending cap-951.
+        app.has_dynamic_entities is the public dynamic-entity predicate.
         """
         from wallpanel_control.main import app
 
-        assert app._has_dynamic_entity_set() is False
+        assert app.has_dynamic_entities is False
 
 
 @pytest.mark.unit
@@ -213,7 +205,7 @@ class TestCommandUnavailableOnConfig:
         from wallpanel_control.main import app
         from wallpanel_control.ports import WallpanelUnreachableError
 
-        reg = next(r for r in app._commands if r.name == "display")
+        reg = next(r for r in app.commands if r.name == "display")
         assert reg.unavailable_on == (WallpanelUnreachableError,)
 
     def test_system_action_command_has_unavailable_on(self) -> None:
@@ -225,5 +217,5 @@ class TestCommandUnavailableOnConfig:
         from wallpanel_control.main import app
         from wallpanel_control.ports import WallpanelUnreachableError
 
-        reg = next(r for r in app._commands if "action" in r.name)
+        reg = next(r for r in app.commands if "action" in r.name)
         assert reg.unavailable_on == (WallpanelUnreachableError,)

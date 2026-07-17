@@ -164,10 +164,10 @@ class TestStoreOptOut:
         which prevents cosalette from creating the default store object. On
         cosalette >=0.5.2 the ephemeral-store warning is auto-suppressed for
         static apps (ADR-049), so store=None is an explicit belt-and-braces
-        opt-out. app._store is a private inspection point pending a public
-        accessor (cap-951).
+        opt-out. app.store is the public store accessor (None when the store is
+        opted out).
         """
-        assert app._store is None
+        assert app.store is None
 
     def test_app_is_static(self) -> None:
         """App is classified static, so cosalette skips the ephemeral warning.
@@ -175,7 +175,7 @@ class TestStoreOptOut:
         Technique: Specification-based — a single string-named @app.telemetry
         with no callable name=/enabled= and no @app.on_configure is static under
         cosalette >=0.5.2 (ADR-049); if it regressed to dynamic the framework
-        would resume the ephemeral-store warning and snapshot I/O. Private
-        predicate pending cap-951.
+        would resume the ephemeral-store warning and snapshot I/O.
+        app.has_dynamic_entities is the public dynamic-entity predicate.
         """
-        assert app._has_dynamic_entity_set() is False
+        assert app.has_dynamic_entities is False

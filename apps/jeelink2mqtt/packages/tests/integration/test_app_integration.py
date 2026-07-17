@@ -151,7 +151,7 @@ def _extract_handler(app: cosalette.App, kind: str, name: str, sub: str | None =
     Returns:
         The handler's async function.
     """
-    registry = app._commands if kind == "command" else app._devices
+    registry = app.commands if kind == "command" else app.devices
     for reg in registry:
         if reg.name == name:
             if sub is None:
@@ -396,14 +396,15 @@ class TestApp:
 
         Technique: Specification-based — identity attribute.
         """
-        assert app._name == "jeelink2mqtt"
+        assert app.name == "jeelink2mqtt"
 
     def test_app_uses_state_factories(self) -> None:
         """The App uses @app.state decorator, not lifespan.
 
         Technique: Specification-based — verifies the cosalette 0.3.13 refactor.
         """
-        # Check that the app has state factories registered
+        # No public app.state_factories accessor in cosalette 0.5.3 — structural wiring
+        # covered behaviourally by TestLifespan; tracking as tech debt (cap-5cy family).
         assert hasattr(app, "_state_factories")
         assert len(app._state_factories) > 0
 
@@ -427,12 +428,15 @@ class TestApp:
         """app registers both the receiver stream handler and mapping command.
 
         Technique: Integration Testing — wiring completeness.
+        Uses app.registered_names() (flat frozenset spanning all handler types)
+        to verify presence, with companion negative assertions to confirm
+        type-specificity (receiver must not be a command or device).
         """
-        assert len(app._streams) >= 1
-        assert len(app._commands) >= 1
-        stream_names = [s.name for s in app._streams]
-        command_names = [c.name for c in app._commands]
-        assert "receiver" in stream_names
+        assert "receiver" in app.registered_names()
+        assert "receiver" not in {c.name for c in app.commands}
+        assert "receiver" not in {d.name for d in app.devices}
+        assert len(app.commands) >= 1
+        command_names = [c.name for c in app.commands]
         assert "mapping" in command_names
 
     def test_app_registers_periodic_handlers(self) -> None:
@@ -442,7 +446,7 @@ class TestApp:
         Ensures staleness_checker and heartbeat_publisher are registered
         as named device handlers.
         """
-        device_names = [d.name for d in app._devices]
+        device_names = [d.name for d in app.devices]
         assert "staleness" in device_names, "staleness handler not registered"
         assert "heartbeat" in device_names, "heartbeat handler not registered"
 
@@ -570,9 +574,7 @@ class TestMappingSubCommands:
         """
         # Find all mapping command registrations
         mapping_commands = [
-            reg
-            for reg in app._commands
-            if reg.name == "mapping" and hasattr(reg, "sub")
+            reg for reg in app.commands if reg.name == "mapping" and hasattr(reg, "sub")
         ]
 
         # Extract sub-command names
