@@ -151,7 +151,7 @@ def _extract_handler(app: cosalette.App, kind: str, name: str, sub: str | None =
     Returns:
         The handler's async function.
     """
-    registry = app._commands if kind == "command" else app._devices
+    registry = app.commands if kind == "command" else app.devices
     for reg in registry:
         if reg.name == name:
             if sub is None:
@@ -429,9 +429,9 @@ class TestApp:
         Technique: Integration Testing — wiring completeness.
         """
         assert len(app._streams) >= 1
-        assert len(app._commands) >= 1
+        assert len(app.commands) >= 1
         stream_names = [s.name for s in app._streams]
-        command_names = [c.name for c in app._commands]
+        command_names = [c.name for c in app.commands]
         assert "receiver" in stream_names
         assert "mapping" in command_names
 
@@ -442,7 +442,7 @@ class TestApp:
         Ensures staleness_checker and heartbeat_publisher are registered
         as named device handlers.
         """
-        device_names = [d.name for d in app._devices]
+        device_names = [d.name for d in app.devices]
         assert "staleness" in device_names, "staleness handler not registered"
         assert "heartbeat" in device_names, "heartbeat handler not registered"
 
@@ -570,9 +570,7 @@ class TestMappingSubCommands:
         """
         # Find all mapping command registrations
         mapping_commands = [
-            reg
-            for reg in app._commands
-            if reg.name == "mapping" and hasattr(reg, "sub")
+            reg for reg in app.commands if reg.name == "mapping" and hasattr(reg, "sub")
         ]
 
         # Extract sub-command names

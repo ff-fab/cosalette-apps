@@ -174,17 +174,17 @@ class TestStoreConfiguration:
 
         Technique: Specification-based — velux omits store=, so cosalette
         auto-creates a default store enabling ADR-048 retained-topic cleanup when
-        a cover is removed from config. app._store is a private inspection point
-        pending a public accessor (cap-951).
+        a cover is removed from config. app.store is the public store accessor
+        (non-None when a store is configured).
         """
-        assert app._store is not None
+        assert app.store is not None
 
     def test_app_is_dynamic(self) -> None:
         """App is classified dynamic, so it needs a durable pinned store path.
 
         Technique: Specification-based — the callable name=_cover_map makes velux
         dynamic under cosalette >=0.5.2 (ADR-049), so the ephemeral-store warning
-        applies and VELUX2MQTT_STORE_PATH must be pinned in containers. Private
-        predicate pending cap-951.
+        applies and VELUX2MQTT_STORE_PATH must be pinned in containers.
+        app.has_dynamic_entities is the public dynamic-entity predicate.
         """
-        assert app._has_dynamic_entity_set() is True
+        assert app.has_dynamic_entities is True

@@ -296,7 +296,7 @@ class TestTelemetryRetryConfig:
         """
         from airthings2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == "airthings")
+        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
         assert reg.retry == 3
 
     def test_retry_on_includes_ble_connection_error(self) -> None:
@@ -307,7 +307,7 @@ class TestTelemetryRetryConfig:
         from airthings2mqtt.errors import BleConnectionError
         from airthings2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == "airthings")
+        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
         assert BleConnectionError in reg.retry_on
 
     def test_retry_on_includes_ble_timeout_error(self) -> None:
@@ -318,7 +318,7 @@ class TestTelemetryRetryConfig:
         from airthings2mqtt.errors import BleTimeoutError
         from airthings2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == "airthings")
+        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
         assert BleTimeoutError in reg.retry_on
 
     def test_retry_on_includes_framework_timeout_error(self) -> None:
@@ -329,7 +329,7 @@ class TestTelemetryRetryConfig:
         """
         from airthings2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == "airthings")
+        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
         assert TimeoutError in reg.retry_on
 
     def test_timeout_configured_from_poll_timeout_setting(self) -> None:
@@ -340,7 +340,7 @@ class TestTelemetryRetryConfig:
         """
         from airthings2mqtt.main import app
 
-        reg = next(r for r in app._telemetry if r.name == "airthings")
+        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
         assert reg.timeout is not None
         assert reg.timeout.field_name == "poll_timeout"
 

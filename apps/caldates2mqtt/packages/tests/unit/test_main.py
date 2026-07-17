@@ -14,7 +14,7 @@ class TestTelemetryRetryConfig:
     """Verify retry metadata on the calendar telemetry registration.
 
     caldates2mqtt uses name=_calendar_map (a callable), not a string constant,
-    so app._telemetry[0] is used instead of the name-based lookup used in
+    so app.telemetry_registrations[0] is used instead of the name-based lookup used in
     airthings2mqtt.
     """
 
@@ -25,7 +25,7 @@ class TestTelemetryRetryConfig:
         """
         from caldates2mqtt.main import app
 
-        reg = app._telemetry[0]
+        reg = app.telemetry_registrations[0]
         assert reg.retry == 3
 
     def test_retry_on_includes_caldav_connection_error(self) -> None:
@@ -36,7 +36,7 @@ class TestTelemetryRetryConfig:
         from caldates2mqtt.errors import CalDavConnectionError
         from caldates2mqtt.main import app
 
-        reg = app._telemetry[0]
+        reg = app.telemetry_registrations[0]
         assert CalDavConnectionError in reg.retry_on
 
     def test_retry_on_includes_caldav_timeout_error(self) -> None:
@@ -47,7 +47,7 @@ class TestTelemetryRetryConfig:
         from caldates2mqtt.errors import CalDavTimeoutError
         from caldates2mqtt.main import app
 
-        reg = app._telemetry[0]
+        reg = app.telemetry_registrations[0]
         assert CalDavTimeoutError in reg.retry_on
 
 
