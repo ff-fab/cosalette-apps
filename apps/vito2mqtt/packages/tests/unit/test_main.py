@@ -64,7 +64,7 @@ class TestAppConstruction:
 
         assert app.version == __version__
 
-    def test_app_settings_type(self) -> None:
+    def test_app_settings_class(self) -> None:
         """App must use Vito2MqttSettings as its settings class.
 
         Technique: Specification-based.

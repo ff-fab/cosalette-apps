@@ -29,11 +29,15 @@ method→property change.
 - `app.registered_names` — now a `frozenset` **property** in 0.5.4 (was a method in
   0.5.3); the single parenthesized call site was corrected
 
-**Out of scope (no public accessor in 0.5.4) — tracked in cap-7cp:**
+**Out of scope in 0.5.4 (no public accessor) — tracked in cap-7cp:**
 
 - `app._settings_class` (vito2mqtt, wallpanel-control)
 - `app._state_factories` (jeelink2mqtt, gas2mqtt)
 - typed stream registrations (jeelink2mqtt)
+
+> **Superseded by cosalette 0.5.5 (PR #176):** all three gaps above were resolved
+> upstream; app tests migrated to `app.settings_class`, `app.state_factories`,
+> and `app.stream_registrations`. cap-7cp and cap-g7o both closed.
 
 **Tests:** No new tests; 6 assertions migrated in place. Full `task pre-pr` gate green —
 all apps' unit/integration suites, lint, typecheck, complexity, similarity, and security

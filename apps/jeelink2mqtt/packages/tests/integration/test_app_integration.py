@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import typing
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
@@ -405,18 +406,17 @@ class TestApp:
         """
         assert len(app.state_factories) > 0
 
-        # Find the SharedState factory
+        # Find the SharedState factory using typing.get_type_hints() so PEP 563
+        # string annotations are resolved to actual types (mirrors gas2mqtt pattern).
         shared_state_factory = None
         for factory in app.state_factories:
-            if hasattr(factory.factory, "__annotations__"):
-                return_annotation = factory.factory.__annotations__.get("return")
-                # Handle both string annotation and class annotation
-                if (
-                    return_annotation == SharedState
-                    or return_annotation == "SharedState"
-                ):
-                    shared_state_factory = factory
-                    break
+            try:
+                hints = typing.get_type_hints(factory.factory)
+            except Exception:  # noqa: BLE001
+                continue
+            if hints.get("return") is SharedState:
+                shared_state_factory = factory
+                break
 
         assert shared_state_factory is not None, "No SharedState factory found"
         assert shared_state_factory.factory.__name__ == "shared_state"

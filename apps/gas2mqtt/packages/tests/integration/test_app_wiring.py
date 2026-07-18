@@ -43,7 +43,7 @@ def _find_gas_counter_state_factory(fresh_app: cosalette.App):
     """Return the @app.state factory registered for GasCounterState.
 
     Uses typing.get_type_hints() to resolve PEP 563 string annotations
-    to actual types before comparing. Raises AssertionError if not found.
+    to actual types before comparing. Calls pytest.fail() if not found.
     """
     for factory in fresh_app.state_factories:
         try:
@@ -52,7 +52,7 @@ def _find_gas_counter_state_factory(fresh_app: cosalette.App):
             continue
         if hints.get("return") is GasCounterState:
             return factory
-    raise AssertionError("No GasCounterState factory registered in state_factories")
+    pytest.fail("No GasCounterState factory registered in state_factories")
 
 
 # ---------------------------------------------------------------------------
