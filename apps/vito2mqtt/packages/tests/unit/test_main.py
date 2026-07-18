@@ -64,15 +64,14 @@ class TestAppConstruction:
 
         assert app.version == __version__
 
-    def test_app_settings_type(self) -> None:
+    def test_app_settings_class(self) -> None:
         """App must use Vito2MqttSettings as its settings class.
 
         Technique: Specification-based.
         """
         from vito2mqtt.main import app
 
-        # No public app.settings_class accessor in cosalette 0.5.4 — tracking as tech debt (cap-7cp).
-        assert app._settings_class is Vito2MqttSettings
+        assert app.settings_class is Vito2MqttSettings
 
 
 class TestAdapterRegistration:
