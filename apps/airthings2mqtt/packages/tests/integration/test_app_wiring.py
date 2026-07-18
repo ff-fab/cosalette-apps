@@ -15,13 +15,12 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
-import json
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette import MockMqttClient
+from cosalette.testing import AppHarness, FakeClock
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.settings import Airthings2MqttSettings
 
 from .conftest import (
     DEVICE_NAME,
@@ -33,7 +32,7 @@ from .conftest import (
 
 
 async def _wait_for_publish_count(
-    mock_mqtt: MockMqttClient,
+    harness: AppHarness,
     topic: str,
     count: int,
     timeout: float = 2.0,
@@ -45,16 +44,14 @@ async def _wait_for_publish_count(
     """
 
     async def _poll() -> None:
-        while len(mock_mqtt.get_messages_for(topic)) < count:
+        while len(harness.mqtt.get_messages_for(topic)) < count:
             await asyncio.sleep(0.01)
 
     await asyncio.wait_for(_poll(), timeout=timeout)
 
 
 async def _run_with_trigger(
-    test_app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: Airthings2MqttSettings,
+    harness: AppHarness,
     *,
     payload: str = "",
 ) -> None:
@@ -68,22 +65,17 @@ async def _run_with_trigger(
     if any wait times out, so stray tasks never leak into subsequent tests.
     """
     state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        test_app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
-    )
+    task = asyncio.create_task(harness.run())
     try:
-        await _wait_for_publish_count(mock_mqtt, state_topic, count=1)
-        await mock_mqtt.deliver(f"{TOPIC_PREFIX}/{DEVICE_NAME}/set", payload)
-        await _wait_for_publish_count(mock_mqtt, state_topic, count=2)
-        shutdown_event.set()
+        await _wait_for_publish_count(harness, state_topic, count=1)
+        await harness.inject_command(
+            DEVICE_NAME, payload, topic=f"{TOPIC_PREFIX}/{DEVICE_NAME}/set"
+        )
+        await _wait_for_publish_count(harness, state_topic, count=2)
+        harness.shutdown_event.set()
         await task
     finally:
-        shutdown_event.set()  # idempotent — safe to call twice
+        harness.shutdown_event.set()  # idempotent — safe to call twice
         if not task.done():
             task.cancel()
             try:
@@ -104,46 +96,33 @@ class TestAppStartup:
     @pytest.mark.slow
     async def test_health_online_published_on_startup(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Airthings2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status topic contains an 'online' payload after startup.
 
         Technique: Integration — verify cosalette health reporter fires.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert messages, f"Expected at least one message on {TOPIC_PREFIX}/status"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("online" in p or "available" in p for p in payloads), (
-            f"No 'online'/'available' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="online")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_health_offline_published_on_shutdown(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Airthings2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status contains 'offline' payload after clean shutdown.
 
         Technique: State Transition — startup -> shutdown lifecycle.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("offline" in p or "unavailable" in p for p in payloads), (
-            f"No 'offline'/'unavailable' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="offline")
 
 
 # ---------------------------------------------------------------------------
@@ -158,57 +137,49 @@ class TestTelemetryPublishing:
     @pytest.mark.slow
     async def test_telemetry_publishes_sensor_data(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Airthings2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Telemetry handler publishes sensor dict to device state topic.
 
         Technique: Integration — verify full pipeline from reader to MQTT.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
-        # Assert — telemetry published to device state topic
-        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert messages, (
-            f"Expected telemetry on {state_topic}; published: {mock_mqtt.published}"
+        # Assert — telemetry published to device state topic with sensor keys
+        harness.assert_state(
+            f"{TOPIC_PREFIX}/{DEVICE_NAME}/state",
+            {
+                "temperature": 21.5,
+                "humidity": 45.0,
+                "radon_24h_avg": 80,
+                "radon_long_term_avg": 65,
+            },
         )
-
-        # Verify payload is valid JSON with expected sensor keys
-        payload = json.loads(messages[0][0])
-        assert isinstance(payload, dict)
-        assert "temperature" in payload
-        assert "humidity" in payload
-        assert "radon_24h_avg" in payload
-        assert "radon_long_term_avg" in payload
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_telemetry_payload_matches_fake_reader_defaults(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Airthings2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Published values match FakeAirthingsReader default readings.
 
         Technique: Specification-based — verify wiring from fake adapter to MQTT.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — values match FakeAirthingsReader defaults
-        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert messages, f"Expected telemetry on {state_topic}"
-
-        payload = json.loads(messages[0][0])
-        assert payload["temperature"] == 21.5
-        assert payload["humidity"] == 45.0
-        assert payload["radon_24h_avg"] == 80
-        assert payload["radon_long_term_avg"] == 65
+        harness.assert_state(
+            f"{TOPIC_PREFIX}/{DEVICE_NAME}/state",
+            {
+                "temperature": 21.5,
+                "humidity": 45.0,
+                "radon_24h_avg": 80,
+                "radon_long_term_avg": 65,
+            },
+        )
 
 
 class TestTriggeredTelemetry:
@@ -216,10 +187,7 @@ class TestTriggeredTelemetry:
 
     @pytest.mark.integration
     @pytest.mark.slow
-    async def test_empty_set_payload_triggers_reread(
-        self,
-        mock_mqtt: MockMqttClient,
-    ) -> None:
+    async def test_empty_set_payload_triggers_reread(self) -> None:
         """Empty /set payload triggers an extra sensor read and state publish.
 
         Uses a 1-hour poll interval so the second state publish cannot be a
@@ -229,20 +197,28 @@ class TestTriggeredTelemetry:
         """
         # Arrange
         fake_reader = FakeAirthingsReader()
-        test_app = build_integration_app(lambda: fake_reader)
         long_poll = make_long_poll_settings()
+        trigger_harness = AppHarness(
+            app=build_integration_app(lambda: fake_reader),
+            mqtt=MockMqttClient(),
+            clock=FakeClock(),
+            settings=long_poll,
+            shutdown_event=asyncio.Event(),
+        )
 
         # Act
-        await _run_with_trigger(test_app, mock_mqtt, long_poll)
+        await _run_with_trigger(trigger_harness)
 
         # Assert — one startup read plus one triggered re-read
         assert fake_reader.calls.count(long_poll.device_mac) >= 2
-
-        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert len(messages) >= 2, (
-            f"Expected at least 2 state publishes (startup + trigger); "
-            f"got {len(messages)} on {state_topic}"
+        trigger_harness.assert_state(
+            f"{TOPIC_PREFIX}/{DEVICE_NAME}/state",
+            {
+                "temperature": 21.5,
+                "humidity": 45.0,
+                "radon_24h_avg": 80,
+                "radon_long_term_avg": 65,
+            },
         )
 
 
@@ -258,49 +234,34 @@ class TestAvailability:
     @pytest.mark.slow
     async def test_availability_online_on_start(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Airthings2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Device availability published as 'online' on startup.
 
         Technique: Specification-based — verify cosalette availability wiring.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — check availability topic for online message
-        avail_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
-        messages = mock_mqtt.get_messages_for(avail_topic)
-        assert messages, (
-            f"Expected availability on {avail_topic}; "
-            f"published topics: {[t for t, *_ in mock_mqtt.published]}"
-        )
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("online" in p for p in payloads), (
-            f"No 'online' availability found; got: {payloads}"
+        harness.assert_published(
+            f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability", contains="online"
         )
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_availability_offline_on_shutdown(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Airthings2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Device availability published as 'offline' on graceful shutdown.
 
         Technique: State Transition — verify offline published on shutdown.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — check availability topic for offline message
-        avail_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
-        messages = mock_mqtt.get_messages_for(avail_topic)
-        assert messages, f"Expected availability on {avail_topic}"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("offline" in p for p in payloads), (
-            f"No 'offline' availability found; got: {payloads}"
+        harness.assert_published(
+            f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability", contains="offline"
         )

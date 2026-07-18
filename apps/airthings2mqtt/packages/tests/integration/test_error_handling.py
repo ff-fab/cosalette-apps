@@ -12,10 +12,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from cosalette import MockMqttClient
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import BleConnectionError
@@ -25,7 +22,7 @@ from airthings2mqtt.settings import Airthings2MqttSettings
 from .conftest import (
     DEVICE_NAME,
     TOPIC_PREFIX,
-    build_integration_app,
+    make_harness,
     run_app_briefly,
 )
 
@@ -78,7 +75,6 @@ class TestErrorPublishing:
     @pytest.mark.slow
     async def test_ble_error_published_to_device_error_topic(
         self,
-        mock_mqtt: MockMqttClient,
         test_settings: Airthings2MqttSettings,
     ) -> None:
         """BleConnectionError is published to per-device error topic.
@@ -86,24 +82,19 @@ class TestErrorPublishing:
         Technique: Error Guessing — verify error routing through full stack.
         """
         # Arrange
-        app = build_integration_app(adapter=_AlwaysRaisingReader)
+        harness = make_harness(adapter=_AlwaysRaisingReader, settings=test_settings)
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — per-device error topic has messages
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages, (
-            f"Expected error on {error_topic}; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        harness.assert_published(error_topic)
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_ble_error_published_to_global_error_topic(
         self,
-        mock_mqtt: MockMqttClient,
         test_settings: Airthings2MqttSettings,
     ) -> None:
         """BleConnectionError is also published to the global error topic.
@@ -111,23 +102,18 @@ class TestErrorPublishing:
         Technique: Specification-based — global error topic contract.
         """
         # Arrange
-        app = build_integration_app(adapter=_AlwaysRaisingReader)
+        harness = make_harness(adapter=_AlwaysRaisingReader, settings=test_settings)
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — global error topic has messages
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/error")
-        assert messages, (
-            f"Expected error on {TOPIC_PREFIX}/error; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/error")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_error_payload_is_valid_json_with_message(
         self,
-        mock_mqtt: MockMqttClient,
         test_settings: Airthings2MqttSettings,
     ) -> None:
         """Error payload is valid JSON containing the error message.
@@ -135,18 +121,14 @@ class TestErrorPublishing:
         Technique: Specification-based — error payload structure.
         """
         # Arrange
-        app = build_integration_app(adapter=_AlwaysRaisingReader)
+        harness = make_harness(adapter=_AlwaysRaisingReader, settings=test_settings)
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
-        # Assert — parse error payload
+        # Assert — error payload contains the error message
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages
-        payload = json.loads(messages[0][0])
-        assert "message" in payload
-        assert "device unreachable" in payload["message"]
+        harness.assert_published(error_topic, contains="device unreachable")
 
 
 # ---------------------------------------------------------------------------
@@ -161,7 +143,6 @@ class TestErrorRecovery:
     @pytest.mark.slow
     async def test_recovery_publishes_valid_telemetry_after_error(
         self,
-        mock_mqtt: MockMqttClient,
         test_settings: Airthings2MqttSettings,
     ) -> None:
         """After first-call error, second poll publishes valid sensor state.
@@ -169,34 +150,24 @@ class TestErrorRecovery:
         Technique: State Transition — error -> recovery -> telemetry published.
         """
         # Arrange
-        app = build_integration_app(adapter=_ErrorThenRecoverReader)
+        harness = make_harness(adapter=_ErrorThenRecoverReader, settings=test_settings)
 
         # Act — wait long enough for at least 2 poll cycles (interval=1s)
-        await run_app_briefly(app, mock_mqtt, test_settings, wait=1.5)
+        await run_app_briefly(harness, wait=1.5)
 
         # Assert — error was published
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
-        error_msgs = mock_mqtt.get_messages_for(error_topic)
-        assert error_msgs, f"Expected error on {error_topic}"
+        harness.assert_published(error_topic)
 
-        # Assert — valid telemetry was also published (recovery)
+        # Assert — valid telemetry was also published (recovery) with sensor keys
         state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
-        state_msgs = mock_mqtt.get_messages_for(state_topic)
-        assert state_msgs, (
-            f"Expected recovery telemetry on {state_topic} after transient error; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
-
-        # Assert — payload has expected sensor keys
-        payload = json.loads(state_msgs[0][0])
-        assert "temperature" in payload
-        assert "humidity" in payload
+        harness.assert_published(state_topic, contains="temperature")
+        harness.assert_published(state_topic, contains="humidity")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_app_stays_alive_through_error_and_recovery(
         self,
-        mock_mqtt: MockMqttClient,
         test_settings: Airthings2MqttSettings,
     ) -> None:
         """App publishes health status even after experiencing an error.
@@ -204,14 +175,13 @@ class TestErrorRecovery:
         Technique: State Transition — app does not crash on transient error.
         """
         # Arrange
-        app = build_integration_app(adapter=_ErrorThenRecoverReader)
+        harness = make_harness(adapter=_ErrorThenRecoverReader, settings=test_settings)
 
         # Act — wait long enough for at least 2 poll cycles (interval=1s)
-        await run_app_briefly(app, mock_mqtt, test_settings, wait=1.5)
+        await run_app_briefly(harness, wait=1.5)
 
         # Assert — health status published (app was alive)
-        status_msgs = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert status_msgs, "Expected health status after error and recovery"
+        harness.assert_published(f"{TOPIC_PREFIX}/status")
 
 
 # ---------------------------------------------------------------------------
@@ -226,7 +196,6 @@ class TestErrorDeduplication:
     @pytest.mark.slow
     async def test_consecutive_identical_errors_are_deduplicated(
         self,
-        mock_mqtt: MockMqttClient,
         test_settings: Airthings2MqttSettings,
     ) -> None:
         """Consecutive identical BleConnectionErrors publish only one error message.
@@ -236,16 +205,11 @@ class TestErrorDeduplication:
         not be flooded with duplicates.
         """
         # Arrange
-        app = build_integration_app(adapter=_AlwaysRaisingReader)
+        harness = make_harness(adapter=_AlwaysRaisingReader, settings=test_settings)
 
         # Act — run long enough for multiple poll cycles (>= 2 intervals)
-        await run_app_briefly(app, mock_mqtt, test_settings, wait=2.5)
+        await run_app_briefly(harness, wait=2.5)
 
         # Assert — error topic should have exactly 1 message (deduplicated)
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages, f"Expected at least one error on {error_topic}"
-        assert len(messages) == 1, (
-            f"Expected exactly 1 deduplicated error message, got {len(messages)}; "
-            "cosalette should suppress consecutive identical errors"
-        )
+        harness.assert_published(error_topic, count=1)
