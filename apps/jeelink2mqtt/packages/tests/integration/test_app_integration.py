@@ -435,7 +435,7 @@ class TestApp:
         assert "receiver" in app.registered_names
         assert "receiver" not in {c.name for c in app.commands}
         assert "receiver" not in {d.name for d in app.devices}
-        assert len(app.commands) >= 1
+        assert {c.name for c in app.commands} == {"mapping"}
         command_names = [c.name for c in app.commands]
         assert "mapping" in command_names
 

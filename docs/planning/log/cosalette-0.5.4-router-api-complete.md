@@ -39,9 +39,11 @@ method→property change.
 all apps' unit/integration suites, lint, typecheck, complexity, similarity, and security
 audit pass.
 
-**Review Status:** APPROVED — verified independently: zero `router._commands` remain,
-6 `router.commands` present, no `registered_names()` call sites remain, no `cap-5cy` or
-`cosalette 0.5.3` residue in tests.
+**Author verification checklist:**
+- ☑ zero `router._commands` remain (grep clean)
+- ☑ 6 `router.commands` present in wallpanel tests
+- ☑ zero `registered_names()` call sites remain
+- ☑ zero `cap-5cy` or `cosalette 0.5.3` residue in tests
 
 **Git Commit Message:**
 
