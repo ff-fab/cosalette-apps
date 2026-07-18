@@ -23,7 +23,7 @@ adapter.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
 from cosalette import HealthCheckable
@@ -66,5 +66,17 @@ class OptolinkPort(HealthCheckable, Protocol):
 
         Returns:
             Mapping of signal name → decoded value.
+        """
+        ...
+
+    async def write_signals(self, signals: Mapping[str, Any]) -> None:
+        """Batch-write multiple signals.
+
+        Writes are applied in iteration order. Implementations SHOULD
+        validate all signals before performing any write so that an
+        invalid signal fails the whole batch without a partial write.
+
+        Args:
+            signals: Mapping of signal name → value to write.
         """
         ...

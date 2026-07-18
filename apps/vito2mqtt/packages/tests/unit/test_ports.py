@@ -23,7 +23,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 import pytest
@@ -63,6 +63,9 @@ class _ConformingAdapter:
 
     async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
         return {}
+
+    async def write_signals(self, signals: Mapping[str, Any]) -> None:
+        pass
 
     async def health_check(self) -> bool:
         return True
@@ -107,7 +110,7 @@ class TestMethodSignatures:
 
     @pytest.mark.parametrize(
         "method_name",
-        ["read_signal", "write_signal", "read_signals"],
+        ["read_signal", "write_signal", "read_signals", "write_signals"],
     )
     def test_ports_protocol_has_method(self, method_name: str) -> None:
         """Protocol must declare the expected methods.

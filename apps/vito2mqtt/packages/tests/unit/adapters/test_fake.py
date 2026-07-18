@@ -318,6 +318,47 @@ class TestLanguageSupport:
 
 
 # ---------------------------------------------------------------------------
+# Batch write
+# ---------------------------------------------------------------------------
+
+
+class TestWriteSignals:
+    """Verify write_signals records all entries and validates upfront."""
+
+    async def test_write_signals_records_all_entries(self) -> None:
+        """Batch write stores all signals into adapter.writes."""
+        adapter = FakeOptolinkAdapter()
+        await adapter.write_signals(
+            {"hot_water_setpoint": 55, "hot_water_pump_overrun": 120}
+        )
+        assert adapter.writes == {
+            "hot_water_setpoint": 55,
+            "hot_water_pump_overrun": 120,
+        }
+
+    async def test_write_signals_read_only_raises_and_records_nothing(self) -> None:
+        """Read-only signal raises CommandNotWritableError; no writes recorded.
+
+        outdoor_temperature is AccessMode.READ — the batch is fully
+        rejected and self.writes must remain empty (atomic validation).
+        """
+        adapter = FakeOptolinkAdapter()
+
+        with pytest.raises(CommandNotWritableError, match="read-only"):
+            await adapter.write_signals(
+                {"hot_water_setpoint": 55, "outdoor_temperature": 20.0}
+            )
+
+        assert adapter.writes == {}
+
+    async def test_write_signals_empty_mapping_is_noop(self) -> None:
+        """Empty mapping leaves writes untouched."""
+        adapter = FakeOptolinkAdapter()
+        await adapter.write_signals({})
+        assert adapter.writes == {}
+
+
+# ---------------------------------------------------------------------------
 # Async context manager
 # ---------------------------------------------------------------------------
 
