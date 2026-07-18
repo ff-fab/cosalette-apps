@@ -399,6 +399,117 @@ class TestReadSignals:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Batch write
+# ---------------------------------------------------------------------------
+
+
+class TestWriteSignals:
+    """Verify write_signals encodes and sends all signals in one session."""
+
+    async def test_write_signals_encodes_and_writes_both_signals(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """Batch-write two signals — each gets one write call with correct bytes.
+
+        hot_water_setpoint (IUNON, 1 byte): 50 → b'\\x32'
+        heating_curve_gradient_m1 (IS10, 1 byte): 1.4 → b'\\x0e'
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
+
+        await adapter.write_signals(
+            {"hot_water_setpoint": 50, "heating_curve_gradient_m1": 1.4}
+        )
+
+        cmd_hw = COMMANDS["hot_water_setpoint"]
+        cmd_hcg = COMMANDS["heating_curve_gradient_m1"]
+        assert mock_session.write.await_count == 2
+        mock_session.write.assert_any_await(cmd_hw.address, b"\x32")
+        mock_session.write.assert_any_await(cmd_hcg.address, b"\x0e")
+
+    async def test_write_signals_single_session_for_batch(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """Only one session is opened for the entire batch (N+1 fix proof).
+
+        Technique: Wrap ``_open_session`` to count invocations — mirrors
+        ``test_read_signals_single_session_for_batch`` exactly.
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        call_count = 0
+        original_patch = make_open_session_patch(mock_session)
+
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _counting_open() -> AsyncIterator[MockP300Session]:
+            nonlocal call_count
+            call_count += 1
+            async with original_patch() as s:
+                yield s
+
+        adapter._open_session = _counting_open  # type: ignore[assignment]
+
+        await adapter.write_signals(
+            {"hot_water_setpoint": 50, "heating_curve_gradient_m1": 1.4}
+        )
+
+        assert call_count == 1
+
+    async def test_write_signals_read_only_rejects_batch_before_any_write(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """Read-only signal in batch raises CommandNotWritableError with NO writes.
+
+        outdoor_temperature is AccessMode.READ — mixing it with a writable
+        signal must fail upfront without sending any bytes to hardware.
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
+
+        with pytest.raises(CommandNotWritableError, match="read-only"):
+            await adapter.write_signals(
+                {"hot_water_setpoint": 50, "outdoor_temperature": 20.0}
+            )
+
+        mock_session.write.assert_not_awaited()
+
+    async def test_write_signals_empty_mapping_is_noop(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """Empty mapping opens no session and returns None."""
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        session_opened = False
+        original_patch = make_open_session_patch(mock_session)
+
+        from collections.abc import AsyncIterator
+        from contextlib import asynccontextmanager
+
+        @asynccontextmanager
+        async def _tracking_open() -> AsyncIterator[MockP300Session]:
+            nonlocal session_opened
+            session_opened = True
+            async with original_patch() as s:
+                yield s
+
+        adapter._open_session = _tracking_open  # type: ignore[assignment]
+
+        result = await adapter.write_signals({})
+
+        assert result is None
+        assert not session_opened
+
+
 class TestErrorMapping:
     """Verify transport-level errors are mapped to domain exceptions."""
 

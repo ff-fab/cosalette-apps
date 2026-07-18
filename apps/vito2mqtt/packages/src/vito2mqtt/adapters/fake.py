@@ -27,7 +27,7 @@ This adapter is ideal for:
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
@@ -190,6 +190,26 @@ class FakeOptolinkAdapter:
             msg = f"Signal {name!r} is read-only"
             raise CommandNotWritableError(msg)
         self.writes[name] = value
+
+    async def write_signals(self, signals: Mapping[str, Any]) -> None:
+        """Batch-record writes, validating every signal upfront.
+
+        Validates all signals before recording any, matching
+        :meth:`OptolinkAdapter.write_signals` atomic-validation semantics.
+
+        Args:
+            signals: Mapping of signal name → value.
+
+        Raises:
+            InvalidSignalError: If any name is unknown.
+            CommandNotWritableError: If any signal is read-only.
+        """
+        for name in signals:
+            cmd = lookup_command(name)
+            if cmd.access_mode == AccessMode.READ:
+                msg = f"Signal {name!r} is read-only"
+                raise CommandNotWritableError(msg)
+        self.writes.update(signals)
 
     async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
         """Batch-read multiple signals.

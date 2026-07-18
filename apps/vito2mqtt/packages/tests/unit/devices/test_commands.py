@@ -637,3 +637,117 @@ class TestReadBeforeWrite:
         await handler(payload=payload, port=fake)
 
         assert fake.writes["timer_hw_monday"] == new_schedule
+
+
+# ---------------------------------------------------------------------------
+# Batch write — cap-7xk
+# ---------------------------------------------------------------------------
+
+
+class TestBatchWrite:
+    """Prove handler uses write_signals (single batch) not write_signal per key."""
+
+    async def test_handler_issues_single_batch_write_for_multi_signal_payload(
+        self,
+    ) -> None:
+        """Multi-signal payload results in ONE write_signals call.
+
+        Technique: Spy subclass counts write_signals invocations and
+        captures the payload — proves the N+1 fix is in effect.
+        """
+
+        class SpyAdapter(FakeOptolinkAdapter):
+            """Adapter that counts write_signals calls."""
+
+            def __init__(self) -> None:
+                super().__init__()
+                self.write_signals_calls: list[dict[str, Any]] = []
+
+            async def write_signals(self, signals: dict[str, Any]) -> None:
+                self.write_signals_calls.append(dict(signals))
+                await super().write_signals(signals)
+
+        spy = SpyAdapter()
+        handler = make_command_handler("hot_water")
+
+        payload = json.dumps(
+            {
+                "hot_water_setpoint": 55,
+                "hot_water_pump_overrun": 120,
+                "__force": True,
+            }
+        )
+
+        await handler(payload=payload, port=spy)
+
+        # Exactly one batch call — not two individual write_signal calls
+        assert len(spy.write_signals_calls) == 1
+
+        batch = spy.write_signals_calls[0]
+        assert batch["hot_water_setpoint"] == 55
+        assert batch["hot_water_pump_overrun"] == 120
+
+        # Confirm writes were actually recorded
+        assert spy.writes["hot_water_setpoint"] == 55
+        assert spy.writes["hot_water_pump_overrun"] == 120
+
+    async def test_all_changed_signals_collected_in_one_batch(self) -> None:
+        """All signals that differ from current values appear in one write_signals call.
+
+        Technique: Spy + read-before-write — only changed signals batched.
+        """
+
+        class SpyAdapter(FakeOptolinkAdapter):
+            def __init__(self) -> None:
+                super().__init__()
+                self.write_signals_calls: list[dict[str, Any]] = []
+
+            async def write_signals(self, signals: dict[str, Any]) -> None:
+                self.write_signals_calls.append(dict(signals))
+                await super().write_signals(signals)
+
+        spy = SpyAdapter()
+        handler = make_command_handler("hot_water")
+
+        # Default for IUNON is 42 — send 42 (unchanged) and 55 (changed)
+        payload = json.dumps(
+            {
+                "hot_water_setpoint": 42,  # unchanged → skipped
+                "hot_water_pump_overrun": 999,  # changed → batched
+            }
+        )
+
+        await handler(payload=payload, port=spy)
+
+        assert len(spy.write_signals_calls) == 1
+        batch = spy.write_signals_calls[0]
+        assert "hot_water_setpoint" not in batch
+        assert batch["hot_water_pump_overrun"] == 999
+
+    async def test_all_unchanged_signals_produce_no_batch_call(self) -> None:
+        """When all signals are unchanged, write_signals is not called at all."""
+
+        class SpyAdapter(FakeOptolinkAdapter):
+            def __init__(self) -> None:
+                super().__init__()
+                self.write_signals_calls: list[dict[str, Any]] = []
+
+            async def write_signals(self, signals: dict[str, Any]) -> None:
+                self.write_signals_calls.append(dict(signals))
+                await super().write_signals(signals)
+
+        spy = SpyAdapter()
+        handler = make_command_handler("hot_water")
+
+        # Default for IUNON is 42 — send identical values
+        payload = json.dumps(
+            {
+                "hot_water_setpoint": 42,
+                "hot_water_pump_overrun": 42,
+            }
+        )
+
+        await handler(payload=payload, port=spy)
+
+        assert spy.write_signals_calls == []
+        assert spy.writes == {}

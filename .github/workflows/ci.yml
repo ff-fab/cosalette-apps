@@ -29,16 +29,35 @@ jobs:
       - name: Discover apps
         id: discover
         run: |
-          apps=$(ls -d apps/*/pyproject.toml 2>/dev/null | xargs -I{} dirname {} | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          # Use a glob loop (not ls|xargs) so directory names with spaces or
+          # newlines are never word-split before validation (cap-8tf).
+          app_names=()
+          for pyproject in apps/*/pyproject.toml; do
+            [[ -f "$pyproject" ]] || continue
+            app_names+=("$(basename "$(dirname "$pyproject")")")
+          done
+          apps=$(printf '%s\n' "${app_names[@]}" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          # Security (cap-8tf): app names flow into run-cmd strings in ci-app.yml
+          # via GitHub Actions expression interpolation. Reject any name that is
+          # not a strict slug before it can reach the matrix or a shell command.
+          # Leading hyphens are also rejected (^[a-z0-9][a-z0-9-]*$) so names
+          # cannot be mistaken for CLI flags downstream.
+          invalid=$(printf '%s' "$apps" | jq -r '.[] | select(test("^[a-z0-9][a-z0-9-]*$") | not)')
+          if [ -n "$invalid" ]; then
+            echo "::error::Rejected app name(s) failing ^[a-z0-9][a-z0-9-]*$ pattern: $invalid"
+            exit 1
+          fi
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
       # Build dorny/paths-filter config dynamically from discovered apps
       - name: Build path filters
         id: build-filters
+        env:
+          DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
           filters="shared:"$'\n'"  - 'pyproject.toml'"$'\n'"  - 'uv.lock'"$'\n'"  - '.github/**'"$'\n'"  - 'taskfiles/**'"$'\n'"  - '.pre-commit-config.yaml'"$'\n'"  - 'REUSE.toml'"
           filters="$filters"$'\n'"  - 'Taskfile.yml'"$'\n'"  - 'scripts/**'"$'\n'"  - 'packages/**'"
-          for app in $(echo '${{ steps.discover.outputs.apps }}' | jq -r '.[]'); do
+          for app in $(printf '%s' "$DISCOVERED_APPS" | jq -r '.[]'); do
             filters="$filters"$'\n'"${app}:"$'\n'"  - 'apps/${app}/**'"
           done
           echo "$filters" > /tmp/path-filters.yml
@@ -50,10 +69,12 @@ jobs:
 
       - name: Build app list (exclude non-app filters)
         id: apps
+        env:
+          FILTER_CHANGES: ${{ steps.filter.outputs.changes }}
         run: |
           # dorny/paths-filter outputs a JSON array of all matched filter names.
           # Remove 'shared' since it is not an app — it has its own dedicated job.
-          apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "shared")]')
+          apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "shared")]')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
   # Shared infrastructure check (REUSE, pre-commit on shared files)

@@ -169,6 +169,7 @@ def make_command_handler(
             if readable_names:
                 current_values = await port.read_signals(readable_names)
 
+        writes: dict[str, Any] = {}
         for name, value in data.items():
             type_code = COMMANDS[name].type_code
             deserialized = deserialize_value(value, type_code)
@@ -178,7 +179,12 @@ def make_command_handler(
                 if current_serialized == value:
                     continue  # Skip write — value unchanged
 
-            await port.write_signal(name, deserialized)
+            writes[name] = deserialized
+
+        if writes:
+            # Batch all writes into a single serial session (cap-7xk) — avoids
+            # N+1 connect-per-write round-trips on slow serial links.
+            await port.write_signals(writes)
 
         return None
 

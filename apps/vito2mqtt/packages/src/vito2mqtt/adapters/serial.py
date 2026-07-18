@@ -35,7 +35,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator, Sequence
+from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -222,6 +222,46 @@ class OptolinkAdapter:
                 )
 
         return results
+
+    async def write_signals(self, signals: Mapping[str, Any]) -> None:
+        """Batch-write multiple signals in a single serial session.
+
+        Validates and encodes every signal upfront, then opens ONE session
+        for the entire batch — reducing connection overhead from *N*
+        sessions to one. Writes are issued sequentially within the session,
+        preserving the payload's iteration order.
+
+        Args:
+            signals: Mapping of signal name → value to write.
+
+        Raises:
+            InvalidSignalError: If any name is unknown.
+            CommandNotWritableError: If any signal is read-only.
+            OptolinkConnectionError: On serial or device errors.
+            OptolinkTimeoutError: If the device does not respond in time.
+        """
+        if not signals:
+            return
+
+        # Validate + encode everything before touching hardware so a bad
+        # signal fails the batch before any partial write occurs.
+        encoded_writes: list[tuple[int, bytes]] = []
+        for name, value in signals.items():
+            cmd = lookup_command(name)
+            if cmd.access_mode == AccessMode.READ:
+                msg = f"Signal {name!r} is read-only"
+                raise CommandNotWritableError(msg)
+            encoded = codec.encode(
+                cmd.type_code,
+                value,
+                language=self._language,
+                byte_length=cmd.length,
+            )
+            encoded_writes.append((cmd.address, encoded))
+
+        async with self._lock, self._open_session() as session:
+            for address, encoded in encoded_writes:
+                await session.write(address, encoded)
 
     # -- private helpers ----------------------------------------------------
 
