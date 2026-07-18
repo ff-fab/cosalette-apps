@@ -36,10 +36,9 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
-from vito2mqtt.config import Vito2MqttSettings
 
 from .conftest import TOPIC_PREFIX
 
@@ -49,15 +48,13 @@ from .conftest import TOPIC_PREFIX
 
 
 async def _run_with_commands(
-    app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: Vito2MqttSettings,
-    commands: list[tuple[str, str]],
+    harness: AppHarness,
+    commands: list[tuple[str, dict]],
     *,
     startup_wait: float = 0.15,
     per_command_wait: float = 0.1,
 ) -> None:
-    """Start the app, deliver commands, then shut down cleanly.
+    """Start the harness, deliver commands, then shut down cleanly.
 
     The app is given ``startup_wait`` seconds to start up and wire the
     TopicRouter before the first command is delivered.  Each command is
@@ -65,37 +62,33 @@ async def _run_with_commands(
     to allow the handler coroutine to complete.
 
     Args:
-        app: Fully-wired App instance.
-        mock_mqtt: MockMqttClient to use for MQTT I/O.
-        test_settings: Settings with short polling intervals.
-        commands: Ordered list of ``(topic, payload)`` pairs to deliver.
+        harness: Pre-built AppHarness wrapping the integration app.
+        commands: Ordered list of ``(topic, payload_dict)`` pairs to deliver.
         startup_wait: Seconds to wait after task creation before delivering.
         per_command_wait: Seconds to wait after each delivered command.
     """
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
-    )
-    await asyncio.sleep(startup_wait)
-    for topic, payload in commands:
-        await mock_mqtt.deliver(topic, payload)
-        await asyncio.sleep(per_command_wait)
-    shutdown_event.set()
-    await task
+    task = asyncio.create_task(harness.run())
+    try:
+        await asyncio.sleep(startup_wait)
+        for topic, payload in commands:
+            await harness.inject_command(None, payload, topic=topic)
+            await asyncio.sleep(per_command_wait)
+        harness.shutdown_event.set()
+        await task
+    finally:
+        harness.shutdown_event.set()
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
-def _has_error_message(mock_mqtt: MockMqttClient, group: str = "hot_water") -> bool:
+def _has_error_message(harness: AppHarness, group: str = "hot_water") -> bool:
     """Return True if an error was published on the global or per-group topic."""
     error_topics = [
         f"{TOPIC_PREFIX}/error",
         f"{TOPIC_PREFIX}/{group}/error",
     ]
-    published_topics = {topic for topic, *_ in mock_mqtt.published}
-    return any(t in published_topics for t in error_topics)
+    return any(harness.mqtt.get_messages_for(t) for t in error_topics)
 
 
 # ---------------------------------------------------------------------------
@@ -114,9 +107,7 @@ class TestCommandDispatch:
     @pytest.mark.slow
     async def test_hot_water_setpoint_write_dispatched(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """A setpoint command is written to the adapter.
@@ -129,10 +120,8 @@ class TestCommandDispatch:
         so the read-before-write guard does NOT suppress the write.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
-            [(f"{TOPIC_PREFIX}/hot_water/set", '{"hot_water_setpoint": 60}')],
+            harness,
+            [(f"{TOPIC_PREFIX}/hot_water/set", {"hot_water_setpoint": 60})],
         )
 
         assert "hot_water_setpoint" in fake_adapter.writes, (
@@ -144,9 +133,7 @@ class TestCommandDispatch:
     @pytest.mark.slow
     async def test_write_skipped_when_value_unchanged(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """The read-before-write guard suppresses a write when value is unchanged.
@@ -161,10 +148,8 @@ class TestCommandDispatch:
         at the desired setpoint, no write command is issued over the Optolink.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
-            [(f"{TOPIC_PREFIX}/hot_water/set", '{"hot_water_setpoint": 42}')],
+            harness,
+            [(f"{TOPIC_PREFIX}/hot_water/set", {"hot_water_setpoint": 42})],
         )
 
         assert "hot_water_setpoint" not in fake_adapter.writes, (
@@ -176,9 +161,7 @@ class TestCommandDispatch:
     @pytest.mark.slow
     async def test_force_flag_bypasses_read_before_write(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """The ``__force`` flag causes a write even when value is unchanged.
@@ -192,13 +175,11 @@ class TestCommandDispatch:
         read-before-write comparison entirely.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
+            harness,
             [
                 (
                     f"{TOPIC_PREFIX}/hot_water/set",
-                    '{"hot_water_setpoint": 42, "__force": true}',
+                    {"hot_water_setpoint": 42, "__force": True},
                 )
             ],
         )
@@ -213,9 +194,7 @@ class TestCommandDispatch:
     @pytest.mark.slow
     async def test_heating_radiator_command_dispatched(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """A command on the heating_radiator group is routed correctly.
@@ -232,13 +211,11 @@ class TestCommandDispatch:
         does not suppress the write.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
+            harness,
             [
                 (
                     f"{TOPIC_PREFIX}/heating_radiator/set",
-                    '{"heating_curve_gradient_m1": 1.4}',
+                    {"heating_curve_gradient_m1": 1.4},
                 )
             ],
         )
@@ -267,9 +244,7 @@ class TestCommandErrors:
     @pytest.mark.slow
     async def test_invalid_json_publishes_error(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """A non-parseable payload causes an error message to be published.
@@ -280,24 +255,20 @@ class TestCommandErrors:
                 ``vito2mqtt/hot_water/error`` is present.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
+            harness,
             [(f"{TOPIC_PREFIX}/hot_water/set", "not-valid-json{{")],
         )
 
-        assert _has_error_message(mock_mqtt, "hot_water"), (
+        assert _has_error_message(harness, "hot_water"), (
             "Expected an error message after invalid JSON; "
-            f"published topics: {[t for t, *_ in mock_mqtt.published]}"
+            f"published topics: {[t for t, *_ in harness.mqtt.published]}"
         )
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_unknown_signal_in_payload_publishes_error(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """A payload with an unrecognised signal name causes an error message.
@@ -311,24 +282,20 @@ class TestCommandErrors:
         is raised and must be reported over MQTT rather than propagated.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
-            [(f"{TOPIC_PREFIX}/hot_water/set", '{"nonexistent_signal": 99}')],
+            harness,
+            [(f"{TOPIC_PREFIX}/hot_water/set", {"nonexistent_signal": 99})],
         )
 
-        assert _has_error_message(mock_mqtt, "hot_water"), (
+        assert _has_error_message(harness, "hot_water"), (
             "Expected an error message after unknown signal; "
-            f"published topics: {[t for t, *_ in mock_mqtt.published]}"
+            f"published topics: {[t for t, *_ in harness.mqtt.published]}"
         )
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_non_dict_json_publishes_error(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """A JSON payload that is not a dict causes an error message.
@@ -342,15 +309,13 @@ class TestCommandErrors:
         reject it gracefully rather than raising ``AttributeError``.
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
+            harness,
             [(f"{TOPIC_PREFIX}/hot_water/set", "[1, 2, 3]")],
         )
 
-        assert _has_error_message(mock_mqtt, "hot_water"), (
+        assert _has_error_message(harness, "hot_water"), (
             "Expected an error for non-dict JSON payload; "
-            f"published topics: {[t for t, *_ in mock_mqtt.published]}"
+            f"published topics: {[t for t, *_ in harness.mqtt.published]}"
         )
         assert not fake_adapter.writes, (
             "No writes should occur for a non-dict payload; "
@@ -374,9 +339,7 @@ class TestCommandIsolation:
     @pytest.mark.slow
     async def test_command_error_does_not_crash_app(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
         fake_adapter: FakeOptolinkAdapter,
     ) -> None:
         """The app processes a valid command after a preceding bad command.
@@ -391,14 +354,12 @@ class TestCommandIsolation:
         and affect other handlers (Open/Closed from SOLID).
         """
         await _run_with_commands(
-            integration_app,
-            mock_mqtt,
-            test_settings,
+            harness,
             [
                 # Bad command first — must not crash the app
                 (f"{TOPIC_PREFIX}/hot_water/set", "not-valid-json{{"),
                 # Valid command second — must still be processed
-                (f"{TOPIC_PREFIX}/hot_water/set", '{"hot_water_setpoint": 55}'),
+                (f"{TOPIC_PREFIX}/hot_water/set", {"hot_water_setpoint": 55}),
             ],
         )
 

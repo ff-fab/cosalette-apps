@@ -26,6 +26,7 @@ import asyncio
 
 import pytest
 from cosalette import App, MemoryStore, MockMqttClient
+from cosalette.testing import AppHarness, FakeClock
 
 from vito2mqtt import __version__
 from vito2mqtt._registration import configure_app
@@ -65,28 +66,42 @@ def build_integration_app(adapter: FakeOptolinkAdapter) -> App:
     return app
 
 
-async def run_app_briefly(
-    app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: Vito2MqttSettings,
-    *,
-    wait: float = 0.3,
-) -> None:
-    """Start the app as a background task, wait, then shut it down cleanly.
+def make_harness(adapter: FakeOptolinkAdapter | None = None) -> AppHarness:
+    """Construct an AppHarness wrapping the integration app with *adapter*.
+
+    Args:
+        adapter: FakeOptolinkAdapter instance to inject. A fresh default
+            adapter is created when not provided.
+    """
+    if adapter is None:
+        adapter = FakeOptolinkAdapter()
+    return AppHarness(
+        app=build_integration_app(adapter),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=Vito2MqttSettings(
+            serial_port="/dev/ttyUSB0",
+            polling_outdoor=0.05,
+            polling_hot_water=0.05,
+            polling_burner=0.05,
+            polling_heating_radiator=0.05,
+            polling_heating_floor=0.05,
+            polling_system=0.05,
+            polling_diagnosis=0.05,
+        ),
+        shutdown_event=asyncio.Event(),
+    )
+
+
+async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
+    """Start the harness as a background task, wait, then shut it down cleanly.
 
     Returns after the background task has completed so callers can
-    safely inspect ``mock_mqtt.published``.
+    safely inspect ``harness.mqtt.published``.
     """
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
-    )
+    task = asyncio.create_task(harness.run())
     await asyncio.sleep(wait)
-    shutdown_event.set()
+    harness.shutdown_event.set()
     await task
 
 
@@ -102,35 +117,6 @@ def fake_adapter() -> FakeOptolinkAdapter:
 
 
 @pytest.fixture
-def mock_mqtt() -> MockMqttClient:
-    """A fresh MockMqttClient that records all publishes."""
-    return MockMqttClient()
-
-
-@pytest.fixture
-def test_settings() -> Vito2MqttSettings:
-    """Vito2MqttSettings with ultra-short polling intervals for fast tests.
-
-    All per-domain polling intervals are set to 0.05 s so tests can observe
-    published messages within a single asyncio.sleep(0.3) wait window.
-    """
-    return Vito2MqttSettings(
-        serial_port="/dev/ttyUSB0",
-        polling_outdoor=0.05,
-        polling_hot_water=0.05,
-        polling_burner=0.05,
-        polling_heating_radiator=0.05,
-        polling_heating_floor=0.05,
-        polling_system=0.05,
-        polling_diagnosis=0.05,
-    )
-
-
-@pytest.fixture
-def integration_app(fake_adapter: FakeOptolinkAdapter) -> App:
-    """A fully-wired App instance using in-memory doubles.
-
-    Each test function gets a *fresh* App (fixture scope is ``"function"``)
-    so tests are fully isolated.
-    """
-    return build_integration_app(fake_adapter)
+def harness(fake_adapter: FakeOptolinkAdapter) -> AppHarness:
+    """Fresh AppHarness with FakeOptolinkAdapter and fast polling settings."""
+    return make_harness(fake_adapter)
