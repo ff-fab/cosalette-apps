@@ -14,6 +14,7 @@ from typing import Any
 import cosalette
 import pytest
 from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness, FakeClock
 from pydantic_settings import PydanticBaseSettingsSource
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
@@ -106,24 +107,40 @@ def build_integration_app(
     return app
 
 
-async def run_app_briefly(
-    app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: CalDates2MqttSettings,
+def make_harness(
+    fake_reader: FakeCalDavReader,
+    calendars: list[CalendarConfig],
     *,
-    wait: float = 0.3,
-) -> None:
-    """Start the app as a background task, wait, then shut it down cleanly."""
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
+    settings: CalDates2MqttSettings | None = None,
+) -> AppHarness:
+    """Construct an AppHarness wrapping the integration app.
+
+    Args:
+        fake_reader: FakeCalDavReader instance to inject.
+        calendars: Calendar configurations to register as telemetries.
+        settings: Optional settings override; defaults to _FastPollSettings
+            with the provided calendars.
+    """
+    if settings is None:
+        settings = _FastPollSettings(calendars=calendars)  # type: ignore[arg-type]
+    return AppHarness(
+        app=build_integration_app(fake_reader, calendars),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=settings,
+        shutdown_event=asyncio.Event(),
     )
+
+
+async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
+    """Start the harness as a background task, wait, then shut it down cleanly.
+
+    Returns after the background task has completed so callers can
+    safely inspect ``harness.mqtt.published``.
+    """
+    task = asyncio.create_task(harness.run())
     await asyncio.sleep(wait)
-    shutdown_event.set()
+    harness.shutdown_event.set()
     await task
 
 
@@ -136,12 +153,6 @@ async def run_app_briefly(
 def fake_reader() -> FakeCalDavReader:
     """A fresh FakeCalDavReader with default event data."""
     return FakeCalDavReader()
-
-
-@pytest.fixture
-def mock_mqtt() -> MockMqttClient:
-    """A fresh MockMqttClient that records all publishes."""
-    return MockMqttClient()
 
 
 @pytest.fixture
@@ -159,8 +170,18 @@ def multi_calendar_settings() -> CalDates2MqttSettings:
 
 
 @pytest.fixture
-def integration_app(
+def harness(
     fake_reader: FakeCalDavReader, test_settings: CalDates2MqttSettings
-) -> App:
-    """Fully-wired App with FakeCalDavReader for single-calendar tests."""
-    return build_integration_app(fake_reader, test_settings.calendars)
+) -> AppHarness:
+    """Fresh AppHarness with FakeCalDavReader and single-calendar settings."""
+    return make_harness(fake_reader, test_settings.calendars, settings=test_settings)
+
+
+@pytest.fixture
+def multi_calendar_harness(
+    fake_reader: FakeCalDavReader, multi_calendar_settings: CalDates2MqttSettings
+) -> AppHarness:
+    """Fresh AppHarness with FakeCalDavReader and two-calendar settings."""
+    return make_harness(
+        fake_reader, multi_calendar_settings.calendars, settings=multi_calendar_settings
+    )

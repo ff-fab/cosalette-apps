@@ -16,10 +16,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from cosalette import MockMqttClient
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import (
@@ -30,7 +27,7 @@ from caldates2mqtt.errors import (
 )
 from caldates2mqtt.settings import CalDates2MqttSettings
 
-from .conftest import TOPIC_PREFIX, build_integration_app, run_app_briefly
+from .conftest import TOPIC_PREFIX, make_harness, run_app_briefly
 
 
 # ---------------------------------------------------------------------------
@@ -46,7 +43,6 @@ class TestErrorPublishing:
     async def test_connection_error_published_to_device_error_topic(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """CalDavConnectionError is published to per-device error topic.
@@ -55,25 +51,21 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — per-device error topic has messages
-        error_topic = f"{TOPIC_PREFIX}/garbage/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages, (
-            f"Expected error on {error_topic}; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/garbage/error")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_connection_error_published_to_global_error_topic(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """CalDavConnectionError is also published to the global error topic.
@@ -82,24 +74,21 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/error")
-        assert messages, (
-            f"Expected error on {TOPIC_PREFIX}/error; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/error")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_auth_error_published_to_error_topic(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """CalDavAuthError is published to the error topic.
@@ -108,22 +97,21 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavAuthError("invalid credentials")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        error_topic = f"{TOPIC_PREFIX}/garbage/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages, f"Expected error on {error_topic}"
+        harness.assert_published(f"{TOPIC_PREFIX}/garbage/error")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_timeout_error_published_to_error_topic(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """CalDavTimeoutError is published to the error topic.
@@ -132,22 +120,21 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavTimeoutError("request timed out")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        error_topic = f"{TOPIC_PREFIX}/garbage/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages, f"Expected error on {error_topic}"
+        harness.assert_published(f"{TOPIC_PREFIX}/garbage/error")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_error_payload_contains_message(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """Error payload is valid JSON containing the error message.
@@ -156,25 +143,23 @@ class TestErrorPublishing:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
         error_topic = f"{TOPIC_PREFIX}/garbage/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages
-        payload = json.loads(messages[0][0])
-        assert "message" in payload
-        assert "server unreachable" in payload["message"]
+        harness.assert_published(error_topic, contains='"message"')
+        harness.assert_published(error_topic, contains="server unreachable")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_not_found_error_published_to_error_topic(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """CalDavNotFoundError is published to the per-device error topic.
@@ -185,18 +170,17 @@ class TestErrorPublishing:
         fake_reader.raise_on_next = CalDavNotFoundError(
             "calendar 'abfall' not found on cloud.example.com"
         )
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
         error_topic = f"{TOPIC_PREFIX}/garbage/error"
-        messages = mock_mqtt.get_messages_for(error_topic)
-        assert messages, f"Expected error on {error_topic}"
-        payload = json.loads(messages[0][0])
-        assert "message" in payload
-        assert "not found" in payload["message"]
+        harness.assert_published(error_topic)
+        harness.assert_published(error_topic, contains="not found")
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +196,6 @@ class TestAppSurvivesDeviceCrash:
     async def test_health_status_published_after_device_crash(
         self,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
         test_settings: CalDates2MqttSettings,
     ) -> None:
         """App publishes health status even after a device crashes.
@@ -221,11 +204,12 @@ class TestAppSurvivesDeviceCrash:
         """
         # Arrange
         fake_reader.raise_on_next = CalDavConnectionError("server unreachable")
-        app = build_integration_app(fake_reader, test_settings.calendars)
+        harness = make_harness(
+            fake_reader, test_settings.calendars, settings=test_settings
+        )
 
         # Act
-        await run_app_briefly(app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — health status was published (app stayed alive)
-        status_msgs = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert status_msgs, "Expected health status after device crash"
+        harness.assert_published(f"{TOPIC_PREFIX}/status")

@@ -15,12 +15,26 @@ from __future__ import annotations
 import json
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness
 
-from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.settings import CalDates2MqttSettings
+from .conftest import TOPIC_PREFIX, run_app_briefly
 
-from .conftest import TOPIC_PREFIX, build_integration_app, run_app_briefly
+
+# ---------------------------------------------------------------------------
+# Module-level helpers
+# ---------------------------------------------------------------------------
+
+
+def _first_state_events(harness: AppHarness, device_key: str) -> list[dict]:
+    """Return the events list from the first state message for *device_key*.
+
+    Uses ``get_messages_for`` + ``json.loads`` to extract the payload dict.
+    Kept in this helper so test bodies remain free of raw MQTT scanning.
+    """
+    state_topic = f"{TOPIC_PREFIX}/{device_key}/state"
+    messages = harness.mqtt.get_messages_for(state_topic)
+    assert messages, f"No state messages on {state_topic}"
+    return json.loads(messages[0][0])["events"]
 
 
 # ---------------------------------------------------------------------------
@@ -35,46 +49,33 @@ class TestAppStartup:
     @pytest.mark.slow
     async def test_health_online_published_on_startup(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status topic contains an 'online' payload after startup.
 
         Technique: Integration — verify cosalette health reporter fires.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert messages, f"Expected at least one message on {TOPIC_PREFIX}/status"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("online" in p or "available" in p for p in payloads), (
-            f"No 'online'/'available' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="online")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_health_offline_published_on_shutdown(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status contains 'offline' payload after clean shutdown.
 
         Technique: State Transition — startup -> shutdown lifecycle.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("offline" in p or "unavailable" in p for p in payloads), (
-            f"No 'offline'/'unavailable' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="offline")
 
 
 # ---------------------------------------------------------------------------
@@ -89,52 +90,36 @@ class TestTelemetryPublishing:
     @pytest.mark.slow
     async def test_calendar_state_published_after_first_cycle(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Device publishes calendar events to per-device state topic.
 
         Technique: Integration — verify full pipeline from FakeCalDavReader to MQTT.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
-        # Assert
+        # Assert — state published as a JSON dict with a non-empty events list
         state_topic = f"{TOPIC_PREFIX}/garbage/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert messages, (
-            f"Expected state on {state_topic}; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
-
-        payload = json.loads(messages[0][0])
-        assert isinstance(payload, dict)
-        assert "events" in payload
-        assert isinstance(payload["events"], list)
-        assert len(payload["events"]) > 0
+        harness.assert_state(state_topic, {})
+        harness.assert_published(state_topic, contains='"events"')
+        harness.assert_published(state_topic, contains='"title"')
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_payload_has_iso_8601_dates_and_sorted_events(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Published events have ISO 8601 date strings and are date-sorted.
 
         Technique: Specification-based — verify payload contract.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
-        # Assert
-        state_topic = f"{TOPIC_PREFIX}/garbage/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert messages
-        payload = json.loads(messages[0][0])
-        events = payload["events"]
+        # Assert — structural validation delegated to helper (no raw MQTT in body)
+        events = _first_state_events(harness, "garbage")
 
         # Each event has title and ISO 8601 date
         for event in events:
@@ -162,51 +147,36 @@ class TestAvailability:
     @pytest.mark.slow
     async def test_availability_online_on_start(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Device availability published as 'online' on startup.
 
         Technique: Specification-based — verify cosalette availability wiring.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        avail_topic = f"{TOPIC_PREFIX}/garbage/availability"
-        messages = mock_mqtt.get_messages_for(avail_topic)
-        assert messages, (
-            f"Expected availability on {avail_topic}; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("online" in p for p in payloads), (
-            f"No 'online' availability found; got: {payloads}"
+        harness.assert_published(
+            f"{TOPIC_PREFIX}/garbage/availability", contains="online"
         )
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_availability_offline_on_shutdown(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Device availability published as 'offline' on graceful shutdown.
 
         Technique: State Transition — verify offline published on shutdown.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        avail_topic = f"{TOPIC_PREFIX}/garbage/availability"
-        messages = mock_mqtt.get_messages_for(avail_topic)
-        assert messages, f"Expected availability on {avail_topic}"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("offline" in p for p in payloads), (
-            f"No 'offline' availability found; got: {payloads}"
+        harness.assert_published(
+            f"{TOPIC_PREFIX}/garbage/availability", contains="offline"
         )
 
 
@@ -222,25 +192,15 @@ class TestMultiCalendar:
     @pytest.mark.slow
     async def test_each_calendar_publishes_to_own_state_topic(
         self,
-        fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
-        multi_calendar_settings: CalDates2MqttSettings,
+        multi_calendar_harness: AppHarness,
     ) -> None:
         """Each configured calendar publishes state to its own topic.
 
         Technique: Integration — verify dynamic multi-device registration.
         """
-        # Arrange
-        app = build_integration_app(fake_reader, multi_calendar_settings.calendars)
-
         # Act
-        await run_app_briefly(app, mock_mqtt, multi_calendar_settings)
+        await run_app_briefly(multi_calendar_harness)
 
         # Assert — both calendars published state
         for key in ("garbage", "holidays"):
-            state_topic = f"{TOPIC_PREFIX}/{key}/state"
-            messages = mock_mqtt.get_messages_for(state_topic)
-            assert messages, (
-                f"Expected state on {state_topic}; "
-                f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-            )
+            multi_calendar_harness.assert_published(f"{TOPIC_PREFIX}/{key}/state")
