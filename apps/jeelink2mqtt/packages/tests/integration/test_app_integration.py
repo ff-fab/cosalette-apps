@@ -398,19 +398,16 @@ class TestApp:
         """
         assert app.name == "jeelink2mqtt"
 
-    def test_app_uses_state_factories(self) -> None:
+    def test_app_uses_state_factory_decorator(self) -> None:
         """The App uses @app.state decorator, not lifespan.
 
         Technique: Specification-based — verifies the cosalette 0.3.13 refactor.
         """
-        # No public app.state_factories accessor in cosalette 0.5.4 — structural wiring
-        # covered behaviourally by TestLifespan; tracking as tech debt (cap-7cp).
-        assert hasattr(app, "_state_factories")
-        assert len(app._state_factories) > 0
+        assert len(app.state_factories) > 0
 
         # Find the SharedState factory
         shared_state_factory = None
-        for factory in app._state_factories:
+        for factory in app.state_factories:
             if hasattr(factory.factory, "__annotations__"):
                 return_annotation = factory.factory.__annotations__.get("return")
                 # Handle both string annotation and class annotation
@@ -428,16 +425,11 @@ class TestApp:
         """app registers both the receiver stream handler and mapping command.
 
         Technique: Integration Testing — wiring completeness.
-        Uses app.registered_names (flat frozenset spanning all handler types)
-        to verify presence, with companion negative assertions to confirm
-        type-specificity (receiver must not be a command or device).
+        Uses the typed app.stream_registrations accessor (cosalette 0.5.5) for a
+        direct, type-specific assertion that "receiver" is a stream handler.
         """
-        assert "receiver" in app.registered_names
-        assert "receiver" not in {c.name for c in app.commands}
-        assert "receiver" not in {d.name for d in app.devices}
+        assert "receiver" in {r.name for r in app.stream_registrations}
         assert {c.name for c in app.commands} == {"mapping"}
-        command_names = [c.name for c in app.commands]
-        assert "mapping" in command_names
 
     def test_app_registers_periodic_handlers(self) -> None:
         """app registers staleness and heartbeat timing handlers.

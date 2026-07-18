@@ -45,14 +45,14 @@ def _find_gas_counter_state_factory(fresh_app: cosalette.App):
     Uses typing.get_type_hints() to resolve PEP 563 string annotations
     to actual types before comparing. Raises AssertionError if not found.
     """
-    for factory in fresh_app._state_factories:
+    for factory in fresh_app.state_factories:
         try:
             hints = typing.get_type_hints(factory.factory)
         except Exception:  # noqa: BLE001
             continue
         if hints.get("return") is GasCounterState:
             return factory
-    raise AssertionError("No GasCounterState factory registered in _state_factories")
+    raise AssertionError("No GasCounterState factory registered in state_factories")
 
 
 # ---------------------------------------------------------------------------
@@ -260,8 +260,7 @@ class TestStateProviderRegistration:
         fresh_app = create_app()
 
         # Assert — structural preconditions
-        assert hasattr(fresh_app, "_state_factories")
-        assert len(fresh_app._state_factories) > 0
+        assert len(fresh_app.state_factories) > 0
 
         # Assert — correct factory is registered (raises AssertionError if not found)
         _find_gas_counter_state_factory(fresh_app)
