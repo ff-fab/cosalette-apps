@@ -280,12 +280,22 @@ class TestRouterRegistration:
         """Router has a command registered as 'action' (becomes system/action after prefix)."""
         assert "action" in router.registered_names
 
+    def test_no_telemetry_or_devices_registered(self) -> None:
+        """Router exposes no telemetry or device registrations — commands only.
+
+        Technique: Structural — documents the expected empty collections
+        now that router.telemetry_registrations and router.devices are public.
+        """
+        assert list(router.telemetry_registrations) == []
+        assert list(router.devices) == []
+
     def test_action_command_payload_model(self) -> None:
         """payload_model is SystemActionCommand.
 
         Technique: Structural — payload_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "action")
+        reg = next((r for r in router.commands if r.name == "action"), None)
+        assert reg is not None, "'action' not registered on router"
         assert reg.payload_model is SystemActionCommand
 
     def test_action_command_state_model(self) -> None:
@@ -293,5 +303,6 @@ class TestRouterRegistration:
 
         Technique: Structural — state_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "action")
+        reg = next((r for r in router.commands if r.name == "action"), None)
+        assert reg is not None, "'action' not registered on router"
         assert reg.state_model is SystemActionState

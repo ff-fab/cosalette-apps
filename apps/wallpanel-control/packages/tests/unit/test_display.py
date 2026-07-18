@@ -654,12 +654,21 @@ class TestRouterRegistration:
         """Router has a command registered as 'display'."""
         assert "display" in router.registered_names
 
+    def test_no_telemetry_or_devices_registered(self) -> None:
+        """Router exposes no telemetry or device registrations — commands only.
+
+        Technique: Structural — documents the expected empty collections
+        now that router.telemetry_registrations and router.devices are public.
+        """
+        assert list(router.telemetry_registrations) == []
+        assert list(router.devices) == []
+
     def test_display_registered_as_command(self) -> None:
         """'display' is registered as a command (not a device).
 
         Technique: Structural — verifies archetype is command, not device.
         """
-        command_names = {r.name for r in router._commands}
+        command_names = {r.name for r in router.commands}
         assert "display" in command_names
 
     def test_display_command_init_factory(self) -> None:
@@ -667,7 +676,8 @@ class TestRouterRegistration:
 
         Technique: Structural — init factory creates per-invocation state.
         """
-        reg = next(r for r in router._commands if r.name == "display")
+        reg = next((r for r in router.commands if r.name == "display"), None)
+        assert reg is not None, "'display' not registered on router"
         assert reg.init is create_display_handler_state
 
     def test_display_command_payload_model(self) -> None:
@@ -675,7 +685,8 @@ class TestRouterRegistration:
 
         Technique: Structural — payload_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "display")
+        reg = next((r for r in router.commands if r.name == "display"), None)
+        assert reg is not None, "'display' not registered on router"
         assert reg.payload_model is DisplayCommand
 
     def test_display_command_state_model(self) -> None:
@@ -683,7 +694,8 @@ class TestRouterRegistration:
 
         Technique: Structural — state_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "display")
+        reg = next((r for r in router.commands if r.name == "display"), None)
+        assert reg is not None, "'display' not registered on router"
         assert reg.state_model is DisplayState
 
 
