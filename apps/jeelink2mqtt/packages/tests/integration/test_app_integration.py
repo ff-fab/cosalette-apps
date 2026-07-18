@@ -403,8 +403,8 @@ class TestApp:
 
         Technique: Specification-based — verifies the cosalette 0.3.13 refactor.
         """
-        # No public app.state_factories accessor in cosalette 0.5.3 — structural wiring
-        # covered behaviourally by TestLifespan; tracking as tech debt (cap-5cy family).
+        # No public app.state_factories accessor in cosalette 0.5.4 — structural wiring
+        # covered behaviourally by TestLifespan; tracking as tech debt (cap-7cp).
         assert hasattr(app, "_state_factories")
         assert len(app._state_factories) > 0
 
@@ -428,11 +428,11 @@ class TestApp:
         """app registers both the receiver stream handler and mapping command.
 
         Technique: Integration Testing — wiring completeness.
-        Uses app.registered_names() (flat frozenset spanning all handler types)
+        Uses app.registered_names (flat frozenset spanning all handler types)
         to verify presence, with companion negative assertions to confirm
         type-specificity (receiver must not be a command or device).
         """
-        assert "receiver" in app.registered_names()
+        assert "receiver" in app.registered_names
         assert "receiver" not in {c.name for c in app.commands}
         assert "receiver" not in {d.name for d in app.devices}
         assert len(app.commands) >= 1

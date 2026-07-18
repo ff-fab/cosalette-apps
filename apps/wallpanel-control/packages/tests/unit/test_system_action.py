@@ -285,7 +285,7 @@ class TestRouterRegistration:
 
         Technique: Structural — payload_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "action")
+        reg = next(r for r in router.commands if r.name == "action")
         assert reg.payload_model is SystemActionCommand
 
     def test_action_command_state_model(self) -> None:
@@ -293,5 +293,5 @@ class TestRouterRegistration:
 
         Technique: Structural — state_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "action")
+        reg = next(r for r in router.commands if r.name == "action")
         assert reg.state_model is SystemActionState

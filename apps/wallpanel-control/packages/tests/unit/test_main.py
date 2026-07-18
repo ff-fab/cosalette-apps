@@ -65,7 +65,7 @@ class TestAppIdentity:
         """
         from wallpanel_control.main import app
 
-        # No public app.settings_class accessor in cosalette 0.5.3 — tracking as tech debt (cap-5cy family).
+        # No public app.settings_class accessor in cosalette 0.5.4 — tracking as tech debt (cap-7cp).
         assert app._settings_class is WallpanelControlSettings
 
 

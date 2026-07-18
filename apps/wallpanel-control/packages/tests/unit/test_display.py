@@ -659,7 +659,7 @@ class TestRouterRegistration:
 
         Technique: Structural — verifies archetype is command, not device.
         """
-        command_names = {r.name for r in router._commands}
+        command_names = {r.name for r in router.commands}
         assert "display" in command_names
 
     def test_display_command_init_factory(self) -> None:
@@ -667,7 +667,7 @@ class TestRouterRegistration:
 
         Technique: Structural — init factory creates per-invocation state.
         """
-        reg = next(r for r in router._commands if r.name == "display")
+        reg = next(r for r in router.commands if r.name == "display")
         assert reg.init is create_display_handler_state
 
     def test_display_command_payload_model(self) -> None:
@@ -675,7 +675,7 @@ class TestRouterRegistration:
 
         Technique: Structural — payload_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "display")
+        reg = next(r for r in router.commands if r.name == "display")
         assert reg.payload_model is DisplayCommand
 
     def test_display_command_state_model(self) -> None:
@@ -683,7 +683,7 @@ class TestRouterRegistration:
 
         Technique: Structural — state_model drives AsyncAPI manifest schema.
         """
-        reg = next(r for r in router._commands if r.name == "display")
+        reg = next(r for r in router.commands if r.name == "display")
         assert reg.state_model is DisplayState
 
 
