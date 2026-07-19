@@ -1,7 +1,7 @@
 # cap-3bz — HA Discovery Schema Enrichment
 
-**Date:** 2026-07-19  
-**Status:** Planning  
+**Date:** 2026-07-19
+**Status:** Planning
 **Task:** [cap-3bz] Enrich remaining app schemas with consumer metadata for HA discovery
 
 ---
@@ -47,17 +47,17 @@ the dict to be stable.
 
 **Options:**
 
-**Option A — One typed Pydantic model per signal group**  
+**Option A — One typed Pydantic model per signal group**
 Create e.g. `HotWaterState`, `SystemState` etc. (each ~5–15 fields). Full schema
 typing; enables individual property annotation. High effort (~5 models × 10+
 fields). Each must match the exact dict keys returned by the signal group.
 
-**Option B — Annotate the schema manually without state_model**  
+**Option B — Annotate the schema manually without state_model**
 Keep handlers returning dicts. Add `x-cosalette-consumer` annotations
 per-property directly in `schema.yaml` (manually maintained, not regenerated).
 Medium effort; loses schema init→check round-trip validation benefit.
 
-**Option C — Typed models for the most valuable groups only**  
+**Option C — Typed models for the most valuable groups only**
 Prioritise `outdoor` (outdoor_temperature → single HA sensor) and
 `hot_water` (hot_water_setpoint — the one writable by HA). Leave the rest as
 N/A for this iteration with a follow-up.
@@ -79,7 +79,7 @@ emits typed properties. Gap is only `x-cosalette-consumer` annotations.
 **Work:** Add `x-cosalette-consumer` to the existing typed properties in
 `schema.yaml`. No src/ changes needed.
 
-- `display/state.state` → `device_class: switch`  
+- `display/state.state` → `device_class: switch`
 - `system/action/state.accepted` → no direct HA mapping (N/A, document)
 
 ---
@@ -166,13 +166,13 @@ The cover state payload has known keys (`position`, `tilt`, `state`,
 ## Open Questions
 
 1. **vito2mqtt Option A vs C:** Should we do full typed models for all 5 groups
-   (Option A) or just `outdoor` + `hot_water` for this sprint (Option C)?  
+   (Option A) or just `outdoor` + `hot_water` for this sprint (Option C)?
    → Recommend C for now; each group model is ~15 fields and benefits from a
    dedicated investigation.
 
 2. **velux cover device_class:** does cosalette-hass-discovery support
    `device_class: cover` or does it need `position_topic` / `tilt_topic`
-   separately?  
+   separately?
    → Confirm before implementing Phase 1.2.
 
 3. **Guard test scope:** should the guard test be a `schema check` CI assertion
