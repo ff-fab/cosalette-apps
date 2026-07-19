@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+from dataclasses import dataclass
 
 from cosalette import DeviceStore
 
@@ -37,6 +38,27 @@ from gas2mqtt.settings import Gas2MqttSettings
 
 COUNTER_MODULUS = 0x10000
 MAX_CONSUMPTION_M3 = 1_000_000.0
+
+
+@dataclass(frozen=True, slots=True)
+class GasCounterReading:
+    """Published gas-counter telemetry payload.
+
+    Typed ``state_model`` for the ``gas_counter`` telemetry channel so
+    ``cosalette schema init`` emits typed properties that can carry
+    ``x-cosalette-consumer`` metadata for Home Assistant discovery.
+    Mirrors the dict returned by :meth:`GasCounterState.build_state`.
+
+    Attributes:
+        counter: Raw pulse count (wraps at ``COUNTER_MODULUS``).
+        trigger: Schmitt-trigger edge state — ``"CLOSED"`` or ``"OPEN"``.
+        consumption_m3: Accumulated gas volume in m³, or ``None`` when the
+            consumption tracker is not configured.
+    """
+
+    counter: int
+    trigger: str
+    consumption_m3: float | None = None
 
 
 class GasCounterState:
