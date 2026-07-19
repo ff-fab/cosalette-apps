@@ -11,6 +11,7 @@ import asyncio
 
 import pytest
 from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness, FakeClock
 
 from velux2mqtt.adapters.fake import FakeGpio
 from velux2mqtt.devices.cover import cover_device
@@ -72,59 +73,35 @@ def build_integration_app(
     return app
 
 
-async def run_app_briefly(
-    app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: Velux2MqttSettings,
-    *,
-    wait: float = 0.3,
-) -> None:
-    """Start the app as a background task, wait, then shut it down cleanly."""
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
-    )
+async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
+    """Start the harness as a background task, wait, then shut it down cleanly."""
+    task = asyncio.create_task(harness.run())
     await asyncio.sleep(wait)
-    shutdown_event.set()
+    harness.shutdown_event.set()
     await task
 
 
 async def run_app_with_commands(
-    app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: Velux2MqttSettings,
-    commands: list[tuple[str, str]],
+    harness: AppHarness,
+    commands: list[tuple[str, str | dict[str, object]]],
     *,
     startup_wait: float = 0.15,
     per_command_wait: float = 0.1,
 ) -> None:
-    """Start the app, deliver commands, then shut down cleanly.
+    """Start the harness, deliver commands via inject_command, then shut down cleanly.
 
     Args:
-        app: Fully-wired App instance.
-        mock_mqtt: MockMqttClient to use for MQTT I/O.
-        test_settings: Settings (used by _run_async).
+        harness: AppHarness wrapping the fully-wired App.
         commands: Ordered list of (topic, payload) pairs to deliver.
         startup_wait: Seconds to wait before delivering first command.
         per_command_wait: Seconds to wait after each delivered command.
     """
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
-    )
+    task = asyncio.create_task(harness.run())
     await asyncio.sleep(startup_wait)
     for topic, payload in commands:
-        await mock_mqtt.deliver(topic, payload)
+        await harness.inject_command(device=None, payload=payload, topic=topic)
         await asyncio.sleep(per_command_wait)
-    shutdown_event.set()
+    harness.shutdown_event.set()
     await task
 
 
@@ -137,12 +114,6 @@ async def run_app_with_commands(
 def fake_gpio() -> FakeGpio:
     """A fresh FakeGpio that records all presses."""
     return FakeGpio()
-
-
-@pytest.fixture
-def mock_mqtt() -> MockMqttClient:
-    """A fresh MockMqttClient that records all publishes."""
-    return MockMqttClient()
 
 
 @pytest.fixture
@@ -170,18 +141,27 @@ def test_settings_no_homing() -> Velux2MqttSettings:
 
 
 @pytest.fixture
-def integration_app(
-    fake_gpio: FakeGpio,
-    test_settings: Velux2MqttSettings,
-) -> App:
-    """Fully-wired App with 2 covers, homing enabled."""
-    return build_integration_app(fake_gpio, test_settings)
+def harness(fake_gpio: FakeGpio, test_settings: Velux2MqttSettings) -> AppHarness:
+    """Fresh AppHarness with 2 covers, homing enabled."""
+    return AppHarness(
+        app=build_integration_app(fake_gpio, test_settings),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=test_settings,
+        shutdown_event=asyncio.Event(),
+    )
 
 
 @pytest.fixture
-def integration_app_no_homing(
+def harness_no_homing(
     fake_gpio: FakeGpio,
     test_settings_no_homing: Velux2MqttSettings,
-) -> App:
-    """Fully-wired App with 2 covers, homing disabled."""
-    return build_integration_app(fake_gpio, test_settings_no_homing)
+) -> AppHarness:
+    """Fresh AppHarness with 2 covers, homing disabled."""
+    return AppHarness(
+        app=build_integration_app(fake_gpio, test_settings_no_homing),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=test_settings_no_homing,
+        shutdown_event=asyncio.Event(),
+    )

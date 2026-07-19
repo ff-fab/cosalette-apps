@@ -21,7 +21,6 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
-import json
 
 import pytest
 from cosalette.testing import AppHarness
@@ -76,8 +75,8 @@ class TestSubscriptions:
 
         # Assert — wait_for_condition already guarantees these; captured here for
         # explicit failure messages if the fixture contract changes.
-        assert DISPLAY_SET in harness.mqtt.subscriptions
-        assert SYSTEM_ACTION_SET in harness.mqtt.subscriptions
+        harness.assert_subscribed(DISPLAY_SET)
+        harness.assert_subscribed(SYSTEM_ACTION_SET)
 
 
 # ---------------------------------------------------------------------------
@@ -116,18 +115,16 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"state": "on", "brightness_percent": 60}')],
+            [(DISPLAY_SET, {"state": "on", "brightness_percent": 60})],
         )
 
         # Assert
         assert fake_wallpanel.screen_state is True
         assert fake_wallpanel.brightness == 4687
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is True
-        assert payload["state"] == "on"
-        assert payload["brightness_percent"] == 60
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": True, "state": "on", "brightness_percent": 60},
+        )
 
     async def test_display_command_while_unreachable_publishes_unavailable_state(
         self,
@@ -149,16 +146,14 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"state": "on", "brightness_percent": 60}')],
+            [(DISPLAY_SET, {"state": "on", "brightness_percent": 60})],
         )
 
         # Assert
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is False
-        assert payload["state"] is None
-        assert payload["brightness_percent"] is None
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": False, "state": None, "brightness_percent": None},
+        )
 
     async def test_display_state_off_turns_screen_off_and_publishes_state(
         self,
@@ -180,17 +175,15 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"state": "off"}')],
+            [(DISPLAY_SET, {"state": "off"})],
         )
 
         # Assert
         assert fake_wallpanel.screen_state is False
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is True
-        assert payload["state"] == "off"
-        assert payload["brightness_percent"] == 0  # round(0/7812*100)
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": True, "state": "off", "brightness_percent": 0},
+        )
 
     async def test_state_on_only_reads_current_brightness_without_setting_it(
         self,
@@ -217,18 +210,16 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"state": "on"}')],
+            [(DISPLAY_SET, {"state": "on"})],
         )
 
         # Assert
         assert fake_wallpanel.screen_state is True
         assert fake_wallpanel.brightness == 4000  # unchanged
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is True
-        assert payload["state"] == "on"
-        assert payload["brightness_percent"] == 51  # round(4000/7812*100)
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": True, "state": "on", "brightness_percent": 51},
+        )
 
     async def test_brightness_only_command_sets_brightness_without_state_change(
         self,
@@ -249,18 +240,16 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"brightness_percent": 75}')],
+            [(DISPLAY_SET, {"brightness_percent": 75})],
         )
 
         # Assert
         assert fake_wallpanel.brightness == 5859
         assert fake_wallpanel.screen_state is True
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is True
-        assert payload["state"] == "on"
-        assert payload["brightness_percent"] == 75
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": True, "state": "on", "brightness_percent": 75},
+        )
 
     async def test_brightness_only_command_with_screen_off_turns_screen_on(
         self,
@@ -285,18 +274,16 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"brightness_percent": 50}')],
+            [(DISPLAY_SET, {"brightness_percent": 50})],
         )
 
         # Assert
         assert fake_wallpanel.screen_state is True
         assert fake_wallpanel.brightness == 3906
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is True
-        assert payload["state"] == "on"
-        assert payload["brightness_percent"] == 50
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": True, "state": "on", "brightness_percent": 50},
+        )
 
     async def test_brightness_only_command_while_unreachable_publishes_unavailable(
         self,
@@ -318,16 +305,14 @@ class TestDisplayCommand:
         # Act
         await run_with_commands(
             harness,
-            [(DISPLAY_SET, '{"brightness_percent": 75}')],
+            [(DISPLAY_SET, {"brightness_percent": 75})],
         )
 
         # Assert
-        messages = harness.mqtt.get_messages_for(DISPLAY_STATE)
-        assert messages, f"No publish on {DISPLAY_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["available"] is False
-        assert payload["state"] is None
-        assert payload["brightness_percent"] is None
+        harness.assert_state(
+            DISPLAY_STATE,
+            {"available": False, "state": None, "brightness_percent": None},
+        )
 
     async def test_display_unreachable_then_reachable_transitions_state(
         self,
@@ -356,8 +341,10 @@ class TestDisplayCommand:
 
             # First command — unreachable
             before1 = len(harness.mqtt.get_messages_for(DISPLAY_STATE))
-            await harness.mqtt.deliver(
-                DISPLAY_SET, '{"state": "on", "brightness_percent": 60}'
+            await harness.inject_command(
+                None,
+                {"state": "on", "brightness_percent": 60},
+                topic=DISPLAY_SET,
             )
             await wait_for_condition(
                 lambda: len(harness.mqtt.get_messages_for(DISPLAY_STATE)) > before1,
@@ -365,17 +352,17 @@ class TestDisplayCommand:
                 description="unavailable state published",
             )
 
-            msgs = harness.mqtt.get_messages_for(DISPLAY_STATE)
-            payload1 = json.loads(msgs[-1][0])
-            assert payload1["available"] is False
+            harness.assert_state(DISPLAY_STATE, {"available": False}, count=1)
 
             # Transition to reachable
             fake_wallpanel.set_reachable(True)
 
             # Second command — now reachable
             before2 = len(harness.mqtt.get_messages_for(DISPLAY_STATE))
-            await harness.mqtt.deliver(
-                DISPLAY_SET, '{"state": "on", "brightness_percent": 60}'
+            await harness.inject_command(
+                None,
+                {"state": "on", "brightness_percent": 60},
+                topic=DISPLAY_SET,
             )
             await wait_for_condition(
                 lambda: len(harness.mqtt.get_messages_for(DISPLAY_STATE)) > before2,
@@ -383,11 +370,11 @@ class TestDisplayCommand:
                 description="available state published",
             )
 
-            msgs = harness.mqtt.get_messages_for(DISPLAY_STATE)
-            payload2 = json.loads(msgs[-1][0])
-            assert payload2["available"] is True
-            assert payload2["state"] == "on"
-            assert payload2["brightness_percent"] == 60
+            harness.assert_state(
+                DISPLAY_STATE,
+                {"available": True, "state": "on", "brightness_percent": 60},
+                count=2,
+            )
 
         finally:
             harness.shutdown_event.set()
@@ -428,17 +415,16 @@ class TestSystemAction:
         # Act
         await run_with_commands(
             harness,
-            [(SYSTEM_ACTION_SET, '{"action": "hibernate"}')],
+            [(SYSTEM_ACTION_SET, {"action": "hibernate"})],
         )
 
         # Assert
         assert fake_wallpanel.power_state == "hibernating"
         assert fake_wallpanel.reachable is False
-        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
-        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["accepted"] is True
-        assert payload["action"] == "hibernate"
+        harness.assert_state(
+            SYSTEM_ACTION_STATE,
+            {"accepted": True, "action": "hibernate"},
+        )
 
     async def test_wake_action_calls_fake_wol_and_publishes_accepted(
         self,
@@ -460,7 +446,7 @@ class TestSystemAction:
         # Act
         await run_with_commands(
             harness,
-            [(SYSTEM_ACTION_SET, '{"action": "wake"}')],
+            [(SYSTEM_ACTION_SET, {"action": "wake"})],
         )
 
         # Assert
@@ -468,11 +454,10 @@ class TestSystemAction:
         mac, broadcast = fake_wol.calls[0]
         assert mac == "AA:BB:CC:DD:EE:FF"
         assert broadcast == "255.255.255.255"
-        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
-        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["accepted"] is True
-        assert payload["action"] == "wake"
+        harness.assert_state(
+            SYSTEM_ACTION_STATE,
+            {"accepted": True, "action": "wake"},
+        )
 
     async def test_hibernate_while_unreachable_publishes_accepted_false(
         self,
@@ -493,15 +478,14 @@ class TestSystemAction:
         # Act
         await run_with_commands(
             harness,
-            [(SYSTEM_ACTION_SET, '{"action": "hibernate"}')],
+            [(SYSTEM_ACTION_SET, {"action": "hibernate"})],
         )
 
         # Assert
-        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
-        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["accepted"] is False
-        assert payload["action"] == "hibernate"
+        harness.assert_state(
+            SYSTEM_ACTION_STATE,
+            {"accepted": False, "action": "hibernate"},
+        )
 
     async def test_suspend_action_calls_fake_wallpanel_and_publishes_accepted(
         self,
@@ -525,16 +509,15 @@ class TestSystemAction:
         # Act
         await run_with_commands(
             harness,
-            [(SYSTEM_ACTION_SET, '{"action": "suspend"}')],
+            [(SYSTEM_ACTION_SET, {"action": "suspend"})],
         )
 
         # Assert
         assert fake_wallpanel.power_state == "suspended"
-        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
-        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["accepted"] is True
-        assert payload["action"] == "suspend"
+        harness.assert_state(
+            SYSTEM_ACTION_STATE,
+            {"accepted": True, "action": "suspend"},
+        )
 
     async def test_wake_while_unreachable_still_publishes_accepted_true(
         self,
@@ -559,13 +542,12 @@ class TestSystemAction:
         # Act
         await run_with_commands(
             harness,
-            [(SYSTEM_ACTION_SET, '{"action": "wake"}')],
+            [(SYSTEM_ACTION_SET, {"action": "wake"})],
         )
 
         # Assert
         assert len(fake_wol.calls) == 1
-        messages = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
-        assert messages, f"No publish on {SYSTEM_ACTION_STATE}"
-        payload = json.loads(messages[-1][0])
-        assert payload["accepted"] is True
-        assert payload["action"] == "wake"
+        harness.assert_state(
+            SYSTEM_ACTION_STATE,
+            {"accepted": True, "action": "wake"},
+        )

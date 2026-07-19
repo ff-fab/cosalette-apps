@@ -13,13 +13,10 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness
 
 from velux2mqtt.adapters.fake import FakeGpio
-from velux2mqtt.settings import Velux2MqttSettings
 
 from .conftest import (
     BLIND_CFG,
@@ -41,46 +38,33 @@ class TestAppStartup:
     @pytest.mark.slow
     async def test_health_online_published_on_startup(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Velux2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status topic contains an 'online' payload after startup.
 
         Technique: Integration — verify cosalette health reporter fires.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert messages, f"Expected at least one message on {TOPIC_PREFIX}/status"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("online" in p or "available" in p for p in payloads), (
-            f"No 'online'/'available' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="online")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_health_offline_published_on_shutdown(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Velux2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status contains 'offline' payload after clean shutdown.
 
         Technique: State Transition — startup -> shutdown lifecycle.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("offline" in p or "unavailable" in p for p in payloads), (
-            f"No 'offline'/'unavailable' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="offline")
 
 
 class TestStartupHoming:
@@ -90,9 +74,7 @@ class TestStartupHoming:
     @pytest.mark.slow
     async def test_homing_presses_gpio_for_both_covers(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Velux2MqttSettings,
+        harness: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Homing direction=close presses down+stop for both covers.
@@ -101,7 +83,7 @@ class TestStartupHoming:
         Each cover should press its own down pin then stop pin.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert — both covers' down pins pressed (homing close)
         pressed_pins = [p.pin for p in fake_gpio.presses]
@@ -123,32 +105,18 @@ class TestStartupHoming:
     @pytest.mark.slow
     async def test_homing_publishes_initial_position_for_both_covers(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Velux2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Both covers publish position=0 after homing close.
 
         Technique: Specification-based — verify MQTT state after homing.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
-        # Assert — both covers published position state
-        blind_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/blind/state")
-        window_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/window/state")
-        assert blind_states, "Blind should publish state after homing"
-        assert window_states, "Window should publish state after homing"
-
-        # Position should be 0 (homed to close)
-        blind_payload = json.loads(blind_states[0][0])
-        window_payload = json.loads(window_states[0][0])
-        assert blind_payload["position"] == 0, (
-            f"Blind position should be 0 after homing close, got: {blind_payload}"
-        )
-        assert window_payload["position"] == 0, (
-            f"Window position should be 0 after homing close, got: {window_payload}"
-        )
+        # Assert — both covers published position=0 after homing close
+        harness.assert_state(f"{TOPIC_PREFIX}/blind/state", {"position": 0})
+        harness.assert_state(f"{TOPIC_PREFIX}/window/state", {"position": 0})
 
 
 # ---------------------------------------------------------------------------
@@ -163,9 +131,7 @@ class TestCommandRouting:
     @pytest.mark.slow
     async def test_open_command_to_blind_presses_blind_pins(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Open command to blind triggers blind's up pin, not window's.
@@ -174,9 +140,7 @@ class TestCommandRouting:
         """
         # Act
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [(f"{TOPIC_PREFIX}/blind/set", "open")],
         )
 
@@ -197,9 +161,7 @@ class TestCommandRouting:
     @pytest.mark.slow
     async def test_open_command_to_window_presses_window_pins(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Open command to window triggers window's up pin, not blind's.
@@ -208,9 +170,7 @@ class TestCommandRouting:
         """
         # Act
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [(f"{TOPIC_PREFIX}/window/set", "open")],
         )
 
@@ -231,9 +191,7 @@ class TestCommandRouting:
     @pytest.mark.slow
     async def test_stop_command_publishes_position_state(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Stop command presses stop pin and publishes position state.
@@ -242,9 +200,7 @@ class TestCommandRouting:
         """
         # Act
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [(f"{TOPIC_PREFIX}/blind/set", "stop")],
         )
 
@@ -255,8 +211,7 @@ class TestCommandRouting:
         )
 
         # Position state published
-        blind_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/blind/state")
-        assert blind_states, "Blind should publish position state after stop command"
+        harness_no_homing.assert_state(f"{TOPIC_PREFIX}/blind/state", {})
 
 
 class TestGpioIsolation:
@@ -266,9 +221,7 @@ class TestGpioIsolation:
     @pytest.mark.slow
     async def test_sequential_commands_to_different_covers_use_correct_pins(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Commands to different covers use their respective GPIO pins.
@@ -278,9 +231,7 @@ class TestGpioIsolation:
         """
         # Act — send open commands to both covers
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [
                 (f"{TOPIC_PREFIX}/blind/set", "open"),
                 (f"{TOPIC_PREFIX}/window/set", "open"),
@@ -300,9 +251,7 @@ class TestGpioIsolation:
     @pytest.mark.slow
     async def test_both_covers_publish_independent_states(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
     ) -> None:
         """Each cover publishes to its own state topic independently.
 
@@ -310,26 +259,16 @@ class TestGpioIsolation:
         """
         # Act — send open commands to both covers (both start at 0)
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [
                 (f"{TOPIC_PREFIX}/blind/set", "open"),
                 (f"{TOPIC_PREFIX}/window/set", "open"),
             ],
         )
 
-        # Assert — each cover has its own state topic
-        blind_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/blind/state")
-        window_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/window/state")
-        assert blind_states, "Blind should publish state"
-        assert window_states, "Window should publish state"
-
-        # Verify payloads contain position (format check)
-        blind_payload = json.loads(blind_states[-1][0])
-        window_payload = json.loads(window_states[-1][0])
-        assert "position" in blind_payload
-        assert "position" in window_payload
+        # Assert — each cover has its own state topic with position data
+        harness_no_homing.assert_state(f"{TOPIC_PREFIX}/blind/state", {})
+        harness_no_homing.assert_state(f"{TOPIC_PREFIX}/window/state", {})
 
 
 # ---------------------------------------------------------------------------
@@ -344,9 +283,7 @@ class TestMqttSubscriptions:
     @pytest.mark.slow
     async def test_both_covers_subscribe_to_set_topics(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
     ) -> None:
         """Both covers have active MQTT subscriptions for their /set topics.
 
@@ -354,20 +291,11 @@ class TestMqttSubscriptions:
         to the correct topics for command dispatch.
         """
         # Act
-        await run_app_briefly(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
-        )
+        await run_app_briefly(harness_no_homing)
 
         # Assert — check subscriptions contain both cover set topics
-        subscribed = set(mock_mqtt.subscriptions)
-        assert f"{TOPIC_PREFIX}/blind/set" in subscribed, (
-            f"Blind set topic not subscribed; got: {subscribed}"
-        )
-        assert f"{TOPIC_PREFIX}/window/set" in subscribed, (
-            f"Window set topic not subscribed; got: {subscribed}"
-        )
+        harness_no_homing.assert_subscribed(f"{TOPIC_PREFIX}/blind/set")
+        harness_no_homing.assert_subscribed(f"{TOPIC_PREFIX}/window/set")
 
 
 # ---------------------------------------------------------------------------
@@ -382,9 +310,7 @@ class TestInvalidCommands:
     @pytest.mark.slow
     async def test_invalid_command_does_not_crash_or_change_state(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Unknown command payload is silently dropped — no crash, no GPIO, no new state.
@@ -393,9 +319,7 @@ class TestInvalidCommands:
         """
         # Act — send an invalid command to blind
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [(f"{TOPIC_PREFIX}/blind/set", "wiggle")],
         )
 
@@ -405,19 +329,13 @@ class TestInvalidCommands:
         )
 
         # Assert — state count unchanged (only the initial publish, no extra)
-        blind_states = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/blind/state")
-        assert len(blind_states) == 1, (
-            f"Only initial state publish expected, no extra from invalid command; "
-            f"got {len(blind_states)}: {blind_states}"
-        )
+        harness_no_homing.assert_published(f"{TOPIC_PREFIX}/blind/state", count=1)
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_valid_command_after_invalid_still_works(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """A valid command succeeds even after a prior invalid command.
@@ -426,9 +344,7 @@ class TestInvalidCommands:
         """
         # Act — invalid then valid
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             [
                 (f"{TOPIC_PREFIX}/blind/set", "garbage_payload"),
                 (f"{TOPIC_PREFIX}/blind/set", "open"),

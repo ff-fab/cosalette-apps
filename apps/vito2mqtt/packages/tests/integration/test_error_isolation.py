@@ -39,13 +39,12 @@ from collections.abc import Sequence
 from typing import Any
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
-from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import SIGNAL_GROUPS
 
-from .conftest import TOPIC_PREFIX, build_integration_app, run_app_briefly
+from .conftest import TOPIC_PREFIX, make_harness, run_app_briefly
 
 # ---------------------------------------------------------------------------
 # Test adapter subclasses
@@ -97,9 +96,9 @@ def raising_adapter() -> _RaisingAdapter:
 
 
 @pytest.fixture
-def raising_app(raising_adapter: _RaisingAdapter) -> App:
-    """A fully-wired App whose adapter always raises on reads."""
-    return build_integration_app(raising_adapter)
+def raising_harness(raising_adapter: _RaisingAdapter) -> AppHarness:
+    """A fully-wired AppHarness whose adapter always raises on reads."""
+    return make_harness(raising_adapter)
 
 
 @pytest.fixture
@@ -109,9 +108,37 @@ def partial_adapter() -> _PartiallyRaisingAdapter:
 
 
 @pytest.fixture
-def partial_app(partial_adapter: _PartiallyRaisingAdapter) -> App:
-    """A fully-wired App whose adapter raises only for the outdoor group."""
-    return build_integration_app(partial_adapter)
+def partial_harness(partial_adapter: _PartiallyRaisingAdapter) -> AppHarness:
+    """A fully-wired AppHarness whose adapter raises only for the outdoor group."""
+    return make_harness(partial_adapter)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _has_any_group_error(harness: AppHarness) -> bool:
+    """Return True if any per-group error topic has messages."""
+    groups = [
+        "outdoor",
+        "hot_water",
+        "burner",
+        "heating_radiator",
+        "heating_floor",
+        "system",
+    ]
+    return any(
+        harness.mqtt.get_messages_for(f"{TOPIC_PREFIX}/{g}/error") for g in groups
+    )
+
+
+def _has_non_outdoor_state(harness: AppHarness) -> bool:
+    """Return True if any non-outdoor state topic has messages."""
+    groups = ["hot_water", "burner", "heating_radiator", "heating_floor", "system"]
+    return any(
+        harness.mqtt.get_messages_for(f"{TOPIC_PREFIX}/{g}/state") for g in groups
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -126,9 +153,7 @@ class TestTelemetryErrorPublishing:
     @pytest.mark.slow
     async def test_adapter_read_error_publishes_to_error_topic(
         self,
-        raising_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        raising_harness: AppHarness,
     ) -> None:
         """A global error message appears on ``vito2mqtt/error`` after adapter failure.
 
@@ -139,22 +164,16 @@ class TestTelemetryErrorPublishing:
         Specification-based: follows the ADR-002 error topic contract.
         """
         # Act
-        await run_app_briefly(raising_app, mock_mqtt, test_settings, wait=0.4)
+        await run_app_briefly(raising_harness, wait=0.4)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/error")
-        assert messages, (
-            "Expected at least one message on vito2mqtt/error after adapter failure; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        raising_harness.assert_published(f"{TOPIC_PREFIX}/error")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_adapter_read_error_publishes_to_group_error_topic(
         self,
-        raising_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        raising_harness: AppHarness,
     ) -> None:
         """Per-group error topics receive messages when the adapter raises.
 
@@ -165,23 +184,12 @@ class TestTelemetryErrorPublishing:
         Specification-based: per-group error topics are mandated by ADR-002.
         """
         # Act
-        await run_app_briefly(raising_app, mock_mqtt, test_settings, wait=0.4)
+        await run_app_briefly(raising_harness, wait=0.4)
 
         # Assert
-        groups = [
-            "outdoor",
-            "hot_water",
-            "burner",
-            "heating_radiator",
-            "heating_floor",
-            "system",
-        ]
-        per_group_msgs = any(
-            mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/{g}/error") for g in groups
-        )
-        assert per_group_msgs, (
+        assert _has_any_group_error(raising_harness), (
             "Expected at least one per-group error topic to have messages; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+            f"published topics: {sorted({t for t, *_ in raising_harness.mqtt.published})}"
         )
 
 
@@ -197,9 +205,7 @@ class TestAppSurvival:
     @pytest.mark.slow
     async def test_app_survives_repeated_adapter_errors(
         self,
-        raising_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        raising_harness: AppHarness,
     ) -> None:
         """App keeps running when every adapter read raises RuntimeError.
 
@@ -211,22 +217,16 @@ class TestAppSurvival:
         State Transition: error state does not cause the app to exit early.
         """
         # Act
-        await run_app_briefly(raising_app, mock_mqtt, test_settings, wait=0.4)
+        await run_app_briefly(raising_harness, wait=0.4)
 
         # Assert — app published at least one status message (it ran)
-        status_msgs = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert status_msgs, (
-            "Expected at least one vito2mqtt/status message; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        raising_harness.assert_published(f"{TOPIC_PREFIX}/status")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_shutdown_completes_promptly_despite_adapter_errors(
         self,
-        raising_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        raising_harness: AppHarness,
     ) -> None:
         """Shutdown completes promptly even when the adapter keeps raising.
 
@@ -239,18 +239,11 @@ class TestAppSurvival:
         and do not spin-wait forever.
         """
         # Arrange
-        shutdown_event = asyncio.Event()
-        task = asyncio.create_task(
-            raising_app._run_async(
-                mqtt=mock_mqtt,
-                settings=test_settings,
-                shutdown_event=shutdown_event,
-            )
-        )
+        task = asyncio.create_task(raising_harness.run())
 
         # Act
         await asyncio.sleep(0.2)
-        shutdown_event.set()
+        raising_harness.shutdown_event.set()
 
         # Assert — must complete within 3 s (no deadlock)
         await asyncio.wait_for(task, timeout=3.0)
@@ -268,9 +261,7 @@ class TestErrorIsolation:
     @pytest.mark.slow
     async def test_healthy_telemetry_publishes_despite_one_raising_adapter(
         self,
-        partial_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        partial_harness: AppHarness,
     ) -> None:
         """Non-outdoor groups publish state while outdoor publishes errors.
 
@@ -284,23 +275,13 @@ class TestErrorIsolation:
         Error Guessing + State Transition: single-group failure is isolated.
         """
         # Act
-        await run_app_briefly(partial_app, mock_mqtt, test_settings, wait=0.4)
+        await run_app_briefly(partial_harness, wait=0.4)
 
         # Assert — outdoor group published errors
-        outdoor_errors = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/outdoor/error")
-        assert outdoor_errors, (
-            "Expected vito2mqtt/outdoor/error to have messages "
-            "after outdoor adapter failure; "
-            f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
-        )
+        partial_harness.assert_published(f"{TOPIC_PREFIX}/outdoor/error")
 
         # Assert — non-outdoor groups published state (error isolation)
-        state_topics = {
-            topic
-            for topic, _, _, _ in mock_mqtt.published
-            if "/state" in topic and "outdoor" not in topic
-        }
-        assert state_topics, (
+        assert _has_non_outdoor_state(partial_harness), (
             "Expected at least one non-outdoor */state topic; "
-            f"got published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+            f"got published topics: {sorted({t for t, *_ in partial_harness.mqtt.published})}"
         )

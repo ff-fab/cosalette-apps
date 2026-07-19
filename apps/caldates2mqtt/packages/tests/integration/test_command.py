@@ -15,12 +15,11 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.settings import CalDates2MqttSettings
 
-from .conftest import TOPIC_PREFIX, build_integration_app
+from .conftest import TOPIC_PREFIX
 
 
 # ---------------------------------------------------------------------------
@@ -28,40 +27,44 @@ from .conftest import TOPIC_PREFIX, build_integration_app
 # ---------------------------------------------------------------------------
 
 
+def _state_publish_count(harness: AppHarness, device_key: str) -> int:
+    """Return the number of state messages published for *device_key*.
+
+    Uses ``get_messages_for`` internally; kept in this helper so test
+    bodies remain free of raw MQTT scanning.
+    """
+    return len(harness.mqtt.get_messages_for(f"{TOPIC_PREFIX}/{device_key}/state"))
+
+
 async def _run_with_command(
-    app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: CalDates2MqttSettings,
+    harness: AppHarness,
     command_topic: str,
-    command_payload: str,
+    command_payload: dict | str,
     *,
     startup_wait: float = 0.3,
     post_command_wait: float = 0.2,
 ) -> None:
-    """Start the app, deliver a command, then shut down cleanly.
+    """Start the harness, deliver a command, then shut down cleanly.
 
     Args:
-        app: Fully-wired App instance.
-        mock_mqtt: MockMqttClient to use for MQTT I/O.
-        test_settings: Settings with short polling intervals.
+        harness: Pre-built AppHarness wrapping the integration app.
         command_topic: MQTT topic to deliver the command on.
-        command_payload: Command payload string.
+        command_payload: Command payload dict (or raw string for error-path tests).
         startup_wait: Seconds to wait after startup before delivering.
         post_command_wait: Seconds to wait after command before shutdown.
     """
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
-    )
-    await asyncio.sleep(startup_wait)
-    await mock_mqtt.deliver(command_topic, command_payload)
-    await asyncio.sleep(post_command_wait)
-    shutdown_event.set()
-    await task
+    task = asyncio.create_task(harness.run())
+    try:
+        await asyncio.sleep(startup_wait)
+        await harness.inject_command(None, command_payload, topic=command_topic)
+        await asyncio.sleep(post_command_wait)
+        harness.shutdown_event.set()
+        await task
+    finally:
+        harness.shutdown_event.set()
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------
@@ -76,32 +79,25 @@ class TestReReadCommand:
     @pytest.mark.slow
     async def test_empty_payload_triggers_reread_with_defaults(
         self,
+        harness: AppHarness,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
     ) -> None:
         """Empty payload command triggers re-read using configured defaults.
 
         Technique: Integration — verify command wiring through full stack.
         """
-        # Arrange
-        app = build_integration_app(fake_reader, test_settings.calendars)
-
         # Act — send empty command after initial poll has published
         await _run_with_command(
-            app,
-            mock_mqtt,
-            test_settings,
+            harness,
             f"{TOPIC_PREFIX}/garbage/set",
-            "",
+            {},
         )
 
         # Assert — state was published (at least initial poll + command re-read)
-        state_topic = f"{TOPIC_PREFIX}/garbage/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert len(messages) >= 2, (
-            f"Expected at least 2 state publishes (initial + command); "
-            f"got {len(messages)} on {state_topic}"
+        assert _state_publish_count(harness, "garbage") >= 2, (
+            "Expected at least 2 state publishes (initial + command); "
+            f"got {_state_publish_count(harness, 'garbage')} on "
+            f"{TOPIC_PREFIX}/garbage/state"
         )
 
         # Assert — re-read used configured days (14)
@@ -111,24 +107,18 @@ class TestReReadCommand:
     @pytest.mark.slow
     async def test_json_overrides_applied_to_reread(
         self,
+        harness: AppHarness,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
     ) -> None:
         """JSON payload with entries and days overrides the re-read parameters.
 
         Technique: Specification-based — command payload contract.
         """
-        # Arrange
-        app = build_integration_app(fake_reader, test_settings.calendars)
-
         # Act
         await _run_with_command(
-            app,
-            mock_mqtt,
-            test_settings,
+            harness,
             f"{TOPIC_PREFIX}/garbage/set",
-            '{"entries": 1, "days": 7}',
+            {"entries": 1, "days": 7},
         )
 
         # Assert — at least one read used the overridden days=7
@@ -138,41 +128,34 @@ class TestReReadCommand:
         )
 
         # Assert — state was published multiple times (initial + command)
-        state_topic = f"{TOPIC_PREFIX}/garbage/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert len(messages) >= 2, (
-            f"Expected at least 2 state publishes; got {len(messages)}"
+        assert _state_publish_count(harness, "garbage") >= 2, (
+            f"Expected at least 2 state publishes; "
+            f"got {_state_publish_count(harness, 'garbage')}"
         )
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_invalid_json_falls_back_to_defaults(
         self,
+        harness: AppHarness,
         fake_reader: FakeCalDavReader,
-        mock_mqtt: MockMqttClient,
-        test_settings: CalDates2MqttSettings,
     ) -> None:
         """Invalid JSON command payload falls back to configured defaults.
 
         Technique: Error Guessing — malformed payload does not crash device.
         """
-        # Arrange
-        app = build_integration_app(fake_reader, test_settings.calendars)
-
-        # Act
+        # Act — deliver raw invalid-JSON string to test the framework's
+        # parse-error path; inject_command accepts str for this use case
         await _run_with_command(
-            app,
-            mock_mqtt,
-            test_settings,
+            harness,
             f"{TOPIC_PREFIX}/garbage/set",
             "not-valid-json",
         )
 
         # Assert — state was still published (command used defaults)
-        state_topic = f"{TOPIC_PREFIX}/garbage/state"
-        messages = mock_mqtt.get_messages_for(state_topic)
-        assert len(messages) >= 2, (
-            f"Expected at least 2 state publishes; got {len(messages)}"
+        assert _state_publish_count(harness, "garbage") >= 2, (
+            f"Expected at least 2 state publishes; "
+            f"got {_state_publish_count(harness, 'garbage')}"
         )
 
         # Assert — fallback to configured days (14)

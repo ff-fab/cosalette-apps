@@ -90,7 +90,7 @@ async def wait_for_subscriptions(harness: AppHarness) -> None:
 
 async def run_with_commands(
     harness: AppHarness,
-    commands: list[tuple[str, str]],
+    commands: list[tuple[str, dict[str, object]]],
 ) -> None:
     """Start harness, deliver commands sequentially, then shut down.
 
@@ -101,7 +101,8 @@ async def run_with_commands(
 
     Args:
         harness: Pre-built AppHarness wrapping the integration app.
-        commands: Ordered ``(topic, payload)`` pairs to deliver.
+        commands: Ordered ``(topic, payload)`` pairs to deliver, where
+            *payload* is a dict delivered via ``harness.inject_command``.
             Must not be empty; use ``wait_for_subscriptions`` for
             subscription-only checks.
 
@@ -123,7 +124,7 @@ async def run_with_commands(
         for topic, payload in commands:
             state_topic = _state_topic_for(topic)
             before = len(harness.mqtt.get_messages_for(state_topic))
-            await harness.mqtt.deliver(topic, payload)
+            await harness.inject_command(None, payload, topic=topic)
             await wait_for_condition(
                 lambda st=state_topic, n=before: (
                     len(harness.mqtt.get_messages_for(st)) > n

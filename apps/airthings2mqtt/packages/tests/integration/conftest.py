@@ -11,6 +11,7 @@ import asyncio
 
 import pytest
 from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness, FakeClock
 
 from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
@@ -80,24 +81,34 @@ def build_integration_app(
     return test_app
 
 
-async def run_app_briefly(
-    test_app: App,
-    mock_mqtt: MockMqttClient,
-    test_settings: Airthings2MqttSettings,
+def make_harness(
     *,
-    wait: float = 0.3,
-) -> None:
-    """Start the app as a background task, wait, then shut it down cleanly."""
-    shutdown_event = asyncio.Event()
-    task = asyncio.create_task(
-        test_app._run_async(
-            mqtt=mock_mqtt,
-            settings=test_settings,
-            shutdown_event=shutdown_event,
-        )
+    adapter: type | object = FakeAirthingsReader,
+    settings: Airthings2MqttSettings | None = None,
+) -> AppHarness:
+    """Construct an AppHarness wrapping the app with the given reader adapter.
+
+    Args:
+        adapter: Adapter class/factory for AirthingsReaderPort (default
+            FakeAirthingsReader).
+        settings: Optional settings override; defaults to fast-poll test
+            settings (poll_interval=1).
+    """
+    return AppHarness(
+        app=build_integration_app(adapter=adapter),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=settings
+        or _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=1),  # type: ignore[arg-type]
+        shutdown_event=asyncio.Event(),
     )
+
+
+async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
+    """Start the harness as a background task, wait, then shut it down cleanly."""
+    task = asyncio.create_task(harness.run())
     await asyncio.sleep(wait)
-    shutdown_event.set()
+    harness.shutdown_event.set()
     await task
 
 
@@ -117,18 +128,12 @@ def make_long_poll_settings() -> Airthings2MqttSettings:
 
 
 @pytest.fixture
-def mock_mqtt() -> MockMqttClient:
-    """A fresh MockMqttClient that records all publishes."""
-    return MockMqttClient()
-
-
-@pytest.fixture
 def test_settings() -> Airthings2MqttSettings:
     """Isolated settings with very short poll interval for fast tests."""
     return _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=1)  # type: ignore[return-value]
 
 
 @pytest.fixture
-def integration_app() -> App:
-    """Fully-wired App with FakeAirthingsReader for integration tests."""
-    return build_integration_app()
+def harness() -> AppHarness:
+    """Fresh AppHarness with FakeAirthingsReader and fast poll settings."""
+    return make_harness()

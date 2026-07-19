@@ -21,9 +21,8 @@ or MQTT I/O.
 
 Test Techniques Used
 --------------------
-- **Background task pattern**: Each test starts ``_run_async`` via
-  ``asyncio.create_task()``, allowing the test body to observe
-  side-effects while the app runs, then triggers a clean shutdown.
+- **Background task pattern**: Each test starts the AppHarness as a
+  background task via ``run_app_briefly``, then triggers a clean shutdown.
 - **Time boxing**: ``asyncio.sleep(0.3)`` gives the app enough cycles
   to produce observable output given 0.05 s polling intervals.
 - **Test doubles**: ``FakeOptolinkAdapter`` (returns zero-value
@@ -34,12 +33,8 @@ Test Techniques Used
 
 from __future__ import annotations
 
-import json
-
 import pytest
-from cosalette import App, MockMqttClient
-
-from vito2mqtt.config import Vito2MqttSettings
+from cosalette.testing import AppHarness
 
 from .conftest import TOPIC_PREFIX, run_app_briefly
 
@@ -55,27 +50,20 @@ class TestAppStartup:
     @pytest.mark.slow
     async def test_health_online_published_on_startup(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status topic contains an 'online' payload after startup.
 
         Arrange: fresh App wired with FakeOptolinkAdapter + MockMqttClient.
         Act: run the app for 0.3 s then shut it down.
         Assert: at least one message on ``vito2mqtt/status`` whose payload
-        contains the word "online" (or "available" — cosalette variant).
+        contains "online".
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert messages, f"Expected at least one message on {TOPIC_PREFIX}/status"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("online" in p or "available" in p for p in payloads), (
-            f"No 'online'/'available' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="online")
 
 
 # ---------------------------------------------------------------------------
@@ -90,9 +78,7 @@ class TestTelemetryPublishing:
     @pytest.mark.slow
     async def test_outdoor_telemetry_published_on_tick(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """At least one outdoor/state message is published within 0.3 s.
 
@@ -101,29 +87,19 @@ class TestTelemetryPublishing:
 
         Arrange: app wired with FakeOptolinkAdapter.
         Act: run for 0.3 s.
-        Assert: a topic matching ``*outdoor*state*`` appears in published.
+        Assert: a message on ``vito2mqtt/outdoor/state`` appears.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        outdoor_state_msgs = [
-            (topic, payload)
-            for topic, payload, _retain, _qos in mock_mqtt.published
-            if "outdoor" in topic and "state" in topic
-        ]
-        assert outdoor_state_msgs, (
-            "Expected at least one outdoor/state message; "
-            f"published topics: {[t for t, *_ in mock_mqtt.published]}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/outdoor/state")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_multiple_groups_published(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Both outdoor and burner telemetry groups are published.
 
@@ -136,29 +112,19 @@ class TestTelemetryPublishing:
         both appear.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
-
-        published_topics = {topic for topic, *_ in mock_mqtt.published}
+        await run_app_briefly(harness)
 
         # outdoor group
-        outdoor_topics = {t for t in published_topics if "outdoor" in t}
-        assert outdoor_topics, (
-            f"No outdoor topic published; got: {sorted(published_topics)}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/outdoor/state")
 
         # burner group
-        burner_topics = {t for t in published_topics if "burner" in t}
-        assert burner_topics, (
-            f"No burner topic published; got: {sorted(published_topics)}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/burner/state")
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_telemetry_payload_is_json_parseable(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Telemetry payloads are valid JSON objects.
 
@@ -167,24 +133,14 @@ class TestTelemetryPublishing:
 
         Arrange: app with ultra-short polling.
         Act: run for 0.3 s.
-        Assert: the first outdoor/state payload parses as a JSON object (dict).
+        Assert: the outdoor/state topic has a message whose payload is a
+        JSON object (dict).
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
-        # Find first outdoor/state message
-        outdoor_msgs = [
-            (topic, payload)
-            for topic, payload, _retain, _qos in mock_mqtt.published
-            if "outdoor" in topic and "state" in topic
-        ]
-        assert outdoor_msgs, "No outdoor/state message found to validate JSON"
-
-        _topic, payload = outdoor_msgs[0]
-        parsed = json.loads(payload)
-        assert isinstance(parsed, dict), (
-            f"Expected JSON object, got {type(parsed).__name__}: {payload!r}"
-        )
+        # Assert — assert_state verifies the payload is a parseable JSON dict
+        harness.assert_state(f"{TOPIC_PREFIX}/outdoor/state", {})
 
 
 # ---------------------------------------------------------------------------
@@ -199,28 +155,20 @@ class TestAppShutdown:
     @pytest.mark.slow
     async def test_health_offline_published_on_shutdown(
         self,
-        integration_app: App,
-        mock_mqtt: MockMqttClient,
-        test_settings: Vito2MqttSettings,
+        harness: AppHarness,
     ) -> None:
         """Health status topic contains an 'offline' payload after shutdown.
 
-        The app should publish an 'offline' (or 'unavailable') payload
-        AFTER the shutdown event fires so subscribers know the bridge
-        has disconnected.
+        The app should publish an 'offline' payload AFTER the shutdown event
+        fires so subscribers know the bridge has disconnected.
 
         Arrange: fresh app instance.
         Act: run for 0.3 s then set the shutdown event.
         Assert: among all ``vito2mqtt/status`` messages, at least one
-        contains 'offline' or 'unavailable'.
+        contains 'offline'.
         """
         # Act
-        await run_app_briefly(integration_app, mock_mqtt, test_settings)
+        await run_app_briefly(harness)
 
         # Assert
-        messages = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/status")
-        assert messages, f"Expected at least one message on {TOPIC_PREFIX}/status"
-        payloads = [payload for payload, _retain, _qos in messages]
-        assert any("offline" in p or "unavailable" in p for p in payloads), (
-            f"No 'offline'/'unavailable' payload found; got: {payloads}"
-        )
+        harness.assert_published(f"{TOPIC_PREFIX}/status", contains="offline")
