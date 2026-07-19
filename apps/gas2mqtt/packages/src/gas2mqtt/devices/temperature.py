@@ -14,10 +14,27 @@ MQTT state payload:
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from cosalette import Pt1Filter
 
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
+
+
+@dataclass(frozen=True, slots=True)
+class TemperatureReading:
+    """Published temperature telemetry payload.
+
+    Typed ``state_model`` for the ``temperature`` telemetry channel so
+    ``cosalette schema init`` emits a typed property that can carry
+    ``x-cosalette-consumer`` metadata for Home Assistant discovery.
+
+    Attributes:
+        temperature: PT1-filtered temperature in degrees Celsius.
+    """
+
+    temperature: float
 
 
 def make_pt1(settings: Gas2MqttSettings) -> Pt1Filter:

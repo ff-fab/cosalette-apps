@@ -12,13 +12,14 @@ from gas2mqtt._store_path import resolve_store_path
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.adapters.qmc5883l import Qmc5883lAdapter
 from gas2mqtt.devices.gas_counter import (
+    GasCounterReading,
     GasCounterState,
     gas_counter,
     make_gas_counter,
     update_consumption,
 )
 from gas2mqtt.devices.magnetometer import magnetometer
-from gas2mqtt.devices.temperature import make_pt1, temperature
+from gas2mqtt.devices.temperature import TemperatureReading, make_pt1, temperature
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
@@ -71,7 +72,7 @@ def create_app() -> cosalette.App:
         # No persist=SaveOnChange() — stage_state() calls store.save() directly
         # No init=make_gas_counter — GasCounterState injected from @app.state
         summary="Domestic gas meter counter: pulse counting via QMC5883L Schmitt trigger detection",
-        state_model=GasCounterState,
+        state_model=GasCounterReading,
         behavior=[
             "Read 3-axis magnetic field from QMC5883L via MagnetometerPort",
             "Feed Bz value through SchmittTrigger for hysteresis-based edge detection",
@@ -104,6 +105,7 @@ def create_app() -> cosalette.App:
         retry=3,
         retry_on=(OSError,),
         init=make_pt1,
+        state_model=TemperatureReading,
     )(temperature)
 
     app.telemetry(

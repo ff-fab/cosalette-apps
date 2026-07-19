@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: gas2mqtt
-  version: 0.1.1
+  version: 0.1.3
   x-cosalette-contract-version: '1'
 channels:
   consumptionCommand:
@@ -36,8 +36,35 @@ channels:
     messages:
       message:
         payload:
+          properties:
+            counter:
+              title: Counter
+              type: integer
+              x-cosalette-consumer:
+                display_name: Gas Pulse Counter
+                state_class: total_increasing
+                icon: "mdi:counter"
+            trigger:
+              title: Trigger
+              type: string
+            consumption_m3:
+              anyOf:
+              - type: number
+              - type: 'null'
+              default: null
+              title: Consumption M3
+              x-cosalette-consumer:
+                display_name: Gas Consumption
+                device_class: gas
+                unit: "m³"
+                state_class: total_increasing
+          required:
+          - counter
+          - trigger
+          title: GasCounterReading
           type: object
     x-cosalette-archetype: telemetry
+    x-cosalette-app: gas2mqtt
     x-cosalette-summary: 'Domestic gas meter counter: pulse counting via QMC5883L
       Schmitt trigger detection'
     x-cosalette-behavior:
@@ -53,7 +80,7 @@ channels:
     address: gas2mqtt/magnetometer/state
     messages:
       message:
-        payload: &id002
+        payload:
           additionalProperties: true
           type: object
     x-cosalette-archetype: telemetry
@@ -61,8 +88,21 @@ channels:
     address: gas2mqtt/temperature/state
     messages:
       message:
-        payload: *id002
+        payload:
+          properties:
+            temperature:
+              title: Temperature
+              type: number
+              x-cosalette-consumer:
+                device_class: temperature
+                unit: "°C"
+                state_class: measurement
+          required:
+          - temperature
+          title: TemperatureReading
+          type: object
     x-cosalette-archetype: telemetry
+    x-cosalette-app: gas2mqtt
 operations:
   publishConsumptionState:
     action: send
