@@ -25,6 +25,8 @@ channels:
                 unit: "%"
                 state_class: measurement
                 icon: "mdi:window-shutter"
+          required:
+          - position
     x-cosalette-archetype: device
     x-cosalette-app: velux2mqtt
     x-cosalette-summary: 'Velux cover: GPIO-driven open/close/stop/position control'

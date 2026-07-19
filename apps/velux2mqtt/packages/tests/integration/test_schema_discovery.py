@@ -9,6 +9,11 @@ that happens.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
+
+Test Techniques Used:
+- Specification-based: schema enrichment must yield the documented HA cover entity
+- Boundary Value Analysis: position has no standard device_class; absence is asserted
+- Structural: guard against schema regeneration stripping hand-maintained metadata
 """
 
 from __future__ import annotations
