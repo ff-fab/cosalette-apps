@@ -49,7 +49,7 @@ from .conftest import TOPIC_PREFIX
 
 async def _run_with_commands(
     harness: AppHarness,
-    commands: list[tuple[str, dict]],
+    commands: list[tuple[str, str | dict[str, object]]],
     *,
     startup_wait: float = 0.15,
     per_command_wait: float = 0.1,
@@ -63,7 +63,9 @@ async def _run_with_commands(
 
     Args:
         harness: Pre-built AppHarness wrapping the integration app.
-        commands: Ordered list of ``(topic, payload_dict)`` pairs to deliver.
+        commands: Ordered list of ``(topic, payload)`` pairs to deliver.
+            Payload may be a dict (serialised to JSON) or a raw string
+            (for error-path tests with deliberately invalid JSON).
         startup_wait: Seconds to wait after task creation before delivering.
         per_command_wait: Seconds to wait after each delivered command.
     """
