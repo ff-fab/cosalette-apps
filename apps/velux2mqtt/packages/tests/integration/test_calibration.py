@@ -20,10 +20,9 @@ from __future__ import annotations
 import json
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette.testing import AppHarness
 
 from velux2mqtt.adapters.fake import FakeGpio
-from velux2mqtt.settings import Velux2MqttSettings
 
 from .conftest import (
     BLIND_CFG,
@@ -37,13 +36,12 @@ from .conftest import (
 # ---------------------------------------------------------------------------
 
 
-def _cal_cmd(action: str, **kwargs: object) -> str:
-    """Build a calibration JSON command payload."""
-    data: dict[str, object] = {"phase": action, **kwargs}
-    return json.dumps(data)
+def _cal_cmd(action: str, **kwargs: object) -> dict[str, object]:
+    """Build a calibration command payload dict."""
+    return {"phase": action, **kwargs}
 
 
-def _cal_direction_cmds(topic: str) -> list[tuple[str, str]]:
+def _cal_direction_cmds(topic: str) -> list[tuple[str, dict[str, object]]]:
     """Build the 3-step command sequence for one direction: go, mark(offset), mark(travel)."""
     return [
         (topic, _cal_cmd("go")),
@@ -52,7 +50,7 @@ def _cal_direction_cmds(topic: str) -> list[tuple[str, str]]:
     ]
 
 
-def _cal_direction_no_offset_cmds(topic: str) -> list[tuple[str, str]]:
+def _cal_direction_no_offset_cmds(topic: str) -> list[tuple[str, dict[str, object]]]:
     """Build the 2-step command sequence for one direction without offset: go, mark(travel)."""
     return [
         (topic, _cal_cmd("go")),
@@ -60,15 +58,15 @@ def _cal_direction_no_offset_cmds(topic: str) -> list[tuple[str, str]]:
     ]
 
 
-def _get_cal_states(mock_mqtt: MockMqttClient, cover: str) -> list[dict[str, object]]:
+def _get_cal_states(harness: AppHarness, cover: str) -> list[dict[str, object]]:
     """Extract parsed calibration state messages for a cover."""
-    raw = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/state")
+    raw = harness.messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/state")
     return [json.loads(payload) for payload, _retain, _qos in raw if payload]
 
 
-def _get_cal_results(mock_mqtt: MockMqttClient, cover: str) -> list[dict[str, object]]:
+def _get_cal_results(harness: AppHarness, cover: str) -> list[dict[str, object]]:
     """Extract parsed calibration result messages for a cover."""
-    raw = mock_mqtt.get_messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/result")
+    raw = harness.messages_for(f"{TOPIC_PREFIX}/{cover}/calibrate/result")
     return [json.loads(payload) for payload, _retain, _qos in raw if payload]
 
 
@@ -84,9 +82,7 @@ class TestCalibrationFlow:
     @pytest.mark.slow
     async def test_single_run_calibration_publishes_states_and_result(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Single-run calibration publishes correct state at each step and final result.
@@ -97,20 +93,18 @@ class TestCalibrationFlow:
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # Act -- full single-run calibration sequence (go + mark-offset + mark-travel)
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             *_cal_direction_cmds(blind_cal_set),  # close direction
             *_cal_direction_cmds(blind_cal_set),  # open direction
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- calibration states published in order
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert len(states) == 7, (
             f"Expected 7 state messages, got {len(states)}: {states}"
         )
@@ -140,7 +134,7 @@ class TestCalibrationFlow:
         assert states[6]["state"] == "COMPLETE"
 
         # Assert -- result published with offset
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert "avg_close" in results[0]
         assert "avg_open" in results[0]
@@ -153,9 +147,7 @@ class TestCalibrationFlow:
     @pytest.mark.slow
     async def test_multi_run_calibration_completes(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Two-run calibration produces averaged result across both runs.
@@ -166,7 +158,7 @@ class TestCalibrationFlow:
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # 2 runs: close/open, close/open (each with offset mark)
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=2)),
             # Run 1
             *_cal_direction_cmds(blind_cal_set),
@@ -176,18 +168,16 @@ class TestCalibrationFlow:
             *_cal_direction_cmds(blind_cal_set),
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- final state is COMPLETE
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert states[-1]["state"] == "COMPLETE"
 
         # Assert -- result published with averaged values including offset
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 1
         assert results[0]["avg_close"] > 0
         assert results[0]["avg_open"] > 0
@@ -197,9 +187,7 @@ class TestCalibrationFlow:
     @pytest.mark.slow
     async def test_calibration_go_presses_correct_gpio_pins(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Go commands press the correct GPIO pins for each direction.
@@ -209,15 +197,13 @@ class TestCalibrationFlow:
         """
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             *_cal_direction_cmds(blind_cal_set),  # close -> down pin
             *_cal_direction_cmds(blind_cal_set),  # open -> up pin
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
@@ -236,9 +222,7 @@ class TestCalibrationFlow:
     @pytest.mark.slow
     async def test_cancel_returns_to_idle(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
     ) -> None:
         """Cancel during calibration returns state to IDLE.
 
@@ -246,32 +230,28 @@ class TestCalibrationFlow:
         """
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_cal_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- last state is IDLE
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert states[-1]["state"] == "IDLE"
 
         # Assert -- no result published
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 0
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_cancel_from_timing_offset_returns_to_idle(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
     ) -> None:
         """Cancel during TIMING_OFFSET state returns to IDLE with no result.
 
@@ -279,33 +259,29 @@ class TestCalibrationFlow:
         """
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_cal_set, _cal_cmd("go")),  # enter TIMING_OFFSET
             (blind_cal_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- last state is IDLE
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert states[-1]["state"] == "IDLE"
 
         # Assert -- no result published
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 0
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_cancel_from_timing_returns_to_idle(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
     ) -> None:
         """Cancel during TIMING state returns to IDLE with no result.
 
@@ -314,34 +290,30 @@ class TestCalibrationFlow:
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # Act -- start calibration, enter TIMING_OFFSET, mark offset -> TIMING, cancel
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_cal_set, _cal_cmd("go")),  # enter TIMING_OFFSET
             (blind_cal_set, _cal_cmd("mark")),  # offset -> TIMING
             (blind_cal_set, _cal_cmd("cancel")),
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- last state is IDLE
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert states[-1]["state"] == "IDLE"
 
         # Assert -- no result published
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 0
 
     @pytest.mark.integration
     @pytest.mark.slow
     async def test_start_without_explicit_runs_uses_default(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Start without explicit runs uses default calibration_runs from settings.
@@ -352,7 +324,7 @@ class TestCalibrationFlow:
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
         # Arrange -- build commands for default 3 runs
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start")),  # no runs parameter
         ]
         for _run in range(3):
@@ -361,20 +333,18 @@ class TestCalibrationFlow:
 
         # Act
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- calibration completed successfully
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert states[-1]["state"] == "COMPLETE", (
             f"Expected final state COMPLETE, got {states[-1]['state']}"
         )
 
         # Assert -- result published with averaged values including offset
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 1, f"Expected 1 result, got {len(results)}"
         assert "avg_close" in results[0]
         assert "avg_open" in results[0]
@@ -396,9 +366,7 @@ class TestCalibrationCommandBlocking:
     @pytest.mark.slow
     async def test_normal_command_rejected_during_ready_state(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Open command is ignored while calibration is in READY state.
@@ -408,14 +376,12 @@ class TestCalibrationCommandBlocking:
         blind_set = f"{TOPIC_PREFIX}/blind/set"
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, str | dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_set, "open"),  # should be rejected
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
@@ -430,9 +396,7 @@ class TestCalibrationCommandBlocking:
     @pytest.mark.slow
     async def test_normal_command_rejected_during_timing_offset_state(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Stop command is ignored while calibration is in TIMING_OFFSET state.
@@ -442,7 +406,7 @@ class TestCalibrationCommandBlocking:
         blind_set = f"{TOPIC_PREFIX}/blind/set"
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, str | dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_cal_set, _cal_cmd("go")),  # now TIMING_OFFSET
             (blind_set, "stop"),  # should be rejected
@@ -450,9 +414,7 @@ class TestCalibrationCommandBlocking:
             (blind_cal_set, _cal_cmd("mark")),  # complete close travel
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
@@ -467,9 +429,7 @@ class TestCalibrationCommandBlocking:
     @pytest.mark.slow
     async def test_normal_command_rejected_during_timing_state(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Stop command is ignored while calibration is in TIMING state.
@@ -479,7 +439,7 @@ class TestCalibrationCommandBlocking:
         blind_set = f"{TOPIC_PREFIX}/blind/set"
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, str | dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             (blind_cal_set, _cal_cmd("go")),  # now TIMING_OFFSET
             (blind_cal_set, _cal_cmd("mark")),  # now TIMING
@@ -487,9 +447,7 @@ class TestCalibrationCommandBlocking:
             (blind_cal_set, _cal_cmd("mark")),  # complete close travel
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
@@ -513,9 +471,7 @@ class TestCalibrationCoverIsolation:
     @pytest.mark.slow
     async def test_second_cover_accepts_commands_during_first_cover_calibration(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Window accepts open command while blind is calibrating.
@@ -525,14 +481,12 @@ class TestCalibrationCoverIsolation:
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
         window_set = f"{TOPIC_PREFIX}/window/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, str | dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),  # blind enters calibration
             (window_set, "open"),  # window should work
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
@@ -546,9 +500,7 @@ class TestCalibrationCoverIsolation:
     @pytest.mark.slow
     async def test_second_cover_has_no_calibration_state(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
     ) -> None:
         """Window has no calibration state messages when only blind calibrates.
 
@@ -556,28 +508,26 @@ class TestCalibrationCoverIsolation:
         """
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1)),
             *_cal_direction_cmds(blind_cal_set),  # close
             *_cal_direction_cmds(blind_cal_set),  # open
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- blind has calibration state, window does not
-        blind_states = _get_cal_states(mock_mqtt, "blind")
-        window_states = _get_cal_states(mock_mqtt, "window")
+        blind_states = _get_cal_states(harness_no_homing, "blind")
+        window_states = _get_cal_states(harness_no_homing, "window")
         assert len(blind_states) == 7, "Blind should have calibration states"
         assert len(window_states) == 0, (
             f"Window should have no calibration state messages; got: {window_states}"
         )
 
         # Assert -- window has no calibration result
-        window_results = _get_cal_results(mock_mqtt, "window")
+        window_results = _get_cal_results(harness_no_homing, "window")
         assert len(window_results) == 0
 
 
@@ -593,9 +543,7 @@ class TestCalibrationWithoutOffset:
     @pytest.mark.slow
     async def test_calibration_without_offset_publishes_result(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Calibration with measure_offset=false skips TIMING_OFFSET and omits avg_offset.
@@ -605,20 +553,18 @@ class TestCalibrationWithoutOffset:
         """
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1, measure_offset=False)),
             *_cal_direction_no_offset_cmds(blind_cal_set),  # close
             *_cal_direction_no_offset_cmds(blind_cal_set),  # open
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
         # Assert -- state transitions skip TIMING_OFFSET
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         state_names = [s["state"] for s in states]
         assert "TIMING_OFFSET" not in state_names, (
             f"TIMING_OFFSET should be skipped; got: {state_names}"
@@ -626,7 +572,7 @@ class TestCalibrationWithoutOffset:
         assert states[-1]["state"] == "COMPLETE"
 
         # Assert -- result published without avg_offset
-        results = _get_cal_results(mock_mqtt, "blind")
+        results = _get_cal_results(harness_no_homing, "blind")
         assert len(results) == 1
         assert "avg_close" in results[0]
         assert "avg_open" in results[0]
@@ -636,9 +582,7 @@ class TestCalibrationWithoutOffset:
     @pytest.mark.slow
     async def test_calibration_without_offset_correct_state_count(
         self,
-        integration_app_no_homing: App,
-        mock_mqtt: MockMqttClient,
-        test_settings_no_homing: Velux2MqttSettings,
+        harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
         """Without offset, single-run produces 5 state messages (not 7).
@@ -648,19 +592,17 @@ class TestCalibrationWithoutOffset:
         """
         blind_cal_set = f"{TOPIC_PREFIX}/blind/calibrate/set"
 
-        commands: list[tuple[str, str]] = [
+        commands: list[tuple[str, dict[str, object]]] = [
             (blind_cal_set, _cal_cmd("start", runs=1, measure_offset=False)),
             *_cal_direction_no_offset_cmds(blind_cal_set),  # close
             *_cal_direction_no_offset_cmds(blind_cal_set),  # open
         ]
         await run_app_with_commands(
-            integration_app_no_homing,
-            mock_mqtt,
-            test_settings_no_homing,
+            harness_no_homing,
             commands,
         )
 
-        states = _get_cal_states(mock_mqtt, "blind")
+        states = _get_cal_states(harness_no_homing, "blind")
         assert len(states) == 5, (
             f"Expected 5 state messages without offset, got {len(states)}: "
             f"{[s['state'] for s in states]}"
