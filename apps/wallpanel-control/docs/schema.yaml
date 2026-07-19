@@ -51,6 +51,9 @@ channels:
                 type: string
               - type: 'null'
               title: State
+              x-cosalette-consumer:
+                display_name: Display State
+                icon: "mdi:monitor"
             brightness_percent:
               anyOf:
               - maximum: 100
@@ -58,6 +61,11 @@ channels:
                 type: integer
               - type: 'null'
               title: Brightness Percent
+              x-cosalette-consumer:
+                display_name: Display Brightness
+                unit: "%"
+                state_class: measurement
+                icon: "mdi:brightness-percent"
           required:
           - available
           - state
@@ -65,6 +73,7 @@ channels:
           title: DisplayState
           type: object
     x-cosalette-archetype: command
+    x-cosalette-app: wallpanel-control
     x-cosalette-summary: Control display state and brightness
   systemActionCommand:
     address: wallpanel-control/system/action/set
