@@ -32,6 +32,7 @@ from vito2mqtt.devices.telemetry import (
     INTERVAL_ATTR,
     make_telemetry_handler,
 )
+from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
 from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
 
 __all__ = ["configure_app"]
@@ -55,6 +56,7 @@ def configure_app(app: App) -> None:
             publish=OnChange(),
             group="optolink",
             summary=GROUP_SUMMARIES[group],
+            state_model=GROUP_STATE_MODELS[group],
             retry=3,
             # Deliberately excludes bare TimeoutError. vito sets no explicit
             # timeout=, so cosalette's F-3 backstop equals the poll interval
