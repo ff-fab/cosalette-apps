@@ -39,6 +39,7 @@ Design notes
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 __all__ = [
     "ErrorHistoryEntry",
@@ -109,7 +110,9 @@ class HeatingRadiatorState:
 
     flow_temperature_m1: float
     flow_temperature_setpoint_m1: float
-    pump_status_m1: int
+    pump_status_m1: (
+        int  # int status code — M1 uses a different codec than M2's ReturnStatus str
+    )
     frost_warning_m1: int
     frost_limit_m1: int
     operating_mode_m1: str
@@ -150,7 +153,14 @@ class SystemState:
 
 @dataclass(frozen=True, slots=True)
 class DiagnosisState:
-    """Diagnostic error status and the ten most recent error-history slots."""
+    """Diagnostic error status and the ten most recent error-history slots.
+
+    Note:
+        Fields mirror the signal-registry keys in ``SIGNAL_GROUPS['diagnosis']`` 1:1.
+        Schema generation requires named properties rather than a collection type, so
+        the flat numbered layout is intentional. Adding a slot requires updating both
+        this class and ``SIGNAL_GROUPS['diagnosis']``.
+    """
 
     error_status: str
     error_history_1: ErrorHistoryEntry
@@ -165,7 +175,7 @@ class DiagnosisState:
     error_history_10: ErrorHistoryEntry
 
 
-GROUP_STATE_MODELS: dict[str, type] = {
+GROUP_STATE_MODELS: dict[str, type[Any]] = {
     "outdoor": OutdoorState,
     "hot_water": HotWaterState,
     "burner": BurnerState,

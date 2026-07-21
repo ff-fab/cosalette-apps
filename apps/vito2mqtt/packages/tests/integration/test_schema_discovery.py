@@ -89,6 +89,11 @@ def ha_payloads() -> list[dict[str, Any]]:
 @pytest.fixture(scope="module")
 def configs_by_id(ha_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Index discovery payload configs by their object_id."""
+    object_ids = [p["config"]["object_id"] for p in ha_payloads]
+    assert len(object_ids) == len(set(object_ids)), (
+        f"Duplicate object_ids emitted: "
+        f"{[x for x in object_ids if object_ids.count(x) > 1]}"
+    )
     return {p["config"]["object_id"]: p["config"] for p in ha_payloads}
 
 
@@ -122,6 +127,7 @@ class TestHaDiscoveryGeneration:
         [
             ("outdoor_outdoor_temperature", "outdoor_temperature"),
             ("burner_boiler_temperature", "boiler_temperature"),
+            ("burner_boiler_temperature_setpoint", "boiler_temperature_setpoint"),
             ("burner_exhaust_temperature", "exhaust_temperature"),
         ],
     )

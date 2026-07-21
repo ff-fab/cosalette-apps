@@ -40,6 +40,17 @@ def ha_payloads() -> list[dict[str, Any]]:
     return json.loads(result.stdout)
 
 
+@pytest.fixture(scope="module")
+def configs_by_id(ha_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Index discovery payload configs by their object_id."""
+    object_ids = [p["config"]["object_id"] for p in ha_payloads]
+    assert len(object_ids) == len(set(object_ids)), (
+        f"Duplicate object_ids emitted: "
+        f"{[x for x in object_ids if object_ids.count(x) > 1]}"
+    )
+    return {p["config"]["object_id"]: p["config"] for p in ha_payloads}
+
+
 @pytest.mark.integration
 class TestHaDiscoveryGeneration:
     """Verify the enriched schema produces valid HA MQTT discovery payloads."""
@@ -93,7 +104,7 @@ class TestHaDiscoveryGeneration:
     )
     def test_sensor_fields(
         self,
-        ha_payloads: list[dict[str, Any]],
+        configs_by_id: dict[str, dict[str, Any]],
         object_id: str,
         expected_fields: dict[str, Any],
     ) -> None:
@@ -102,10 +113,7 @@ class TestHaDiscoveryGeneration:
         Technique: Equivalence Partitioning — numeric measurement (brightness)
         vs plain enum text (state, no unit/state_class).
         """
-        config = next(
-            (p["config"] for p in ha_payloads if p["config"]["object_id"] == object_id),
-            None,
-        )
+        config = configs_by_id.get(object_id)
         assert config is not None, f"No payload found for object_id={object_id!r}"
         for key, value in expected_fields.items():
             assert config.get(key) == value, (

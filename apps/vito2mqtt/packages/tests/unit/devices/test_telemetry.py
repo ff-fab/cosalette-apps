@@ -35,6 +35,7 @@ from vito2mqtt.devices.telemetry import (
     INTERVAL_ATTR,
     make_telemetry_handler,
 )
+from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
 from vito2mqtt.optolink.codec import ReturnStatus
 from vito2mqtt.optolink.commands import COMMANDS
 
@@ -59,6 +60,14 @@ class TestTelemetrySpecs:
         Technique: Specification-based — every group needs a human-readable summary.
         """
         assert set(GROUP_SUMMARIES.keys()) == set(SIGNAL_GROUPS.keys())
+
+    def test_group_state_models_covers_all_signal_groups(self) -> None:
+        """GROUP_STATE_MODELS must have one entry per SIGNAL_GROUPS key.
+
+        Technique: Specification-based — every group needs a typed state_model for
+        schema generation. A missing entry raises KeyError in configure_app at startup.
+        """
+        assert set(GROUP_STATE_MODELS.keys()) == set(SIGNAL_GROUPS.keys())
 
     @pytest.mark.parametrize("group", list(SIGNAL_GROUPS.keys()))
     def test_interval_attr_values_are_strings(self, group: str) -> None:

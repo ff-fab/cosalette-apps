@@ -72,7 +72,7 @@ channels:
           - brightness_percent
           title: DisplayState
           type: object
-    x-cosalette-archetype: command
+    x-cosalette-archetype: telemetry
     x-cosalette-app: wallpanel-control
     x-cosalette-summary: Control display state and brightness
   systemActionCommand:
@@ -118,7 +118,7 @@ channels:
           - action
           title: SystemActionState
           type: object
-    x-cosalette-archetype: command
+    x-cosalette-archetype: telemetry
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
 operations:
   publishDisplayState:
