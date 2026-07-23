@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.5.5,<0.6",
+    "cosalette>=0.5.6,<0.6",
     "caldav>=1.4",
 ]
 
