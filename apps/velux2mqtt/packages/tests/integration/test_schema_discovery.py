@@ -1,19 +1,21 @@
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery generation.
 
-Guards the consumer-metadata enrichment in the AsyncAPI schema. The cover device
-payload properties are hand-maintained (``@app.device`` does not accept a
-``state_model`` in cosalette 0.5.5), so regenerating with ``cosalette schema init``
-strips both the typed ``position`` property and its ``x-cosalette-consumer``
-annotation — which would silently break HA discovery. This test fails loudly if
-that happens.
+Guards the model-driven consumer metadata in the AsyncAPI schema. The cover
+device state is typed via ``@app.device(state_model=CoverState)`` (cosalette
+0.5.6), and ``CoverState.position`` carries its ``x-cosalette-consumer``
+annotation through ``pydantic.Field(json_schema_extra=...)``. So
+``cosalette schema init`` emits both the typed ``position`` property and its
+consumer metadata automatically — no hand-maintained schema block. This test
+fails loudly if a schema regeneration ever stops producing the documented HA
+cover entity.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
 
 Test Techniques Used:
-- Specification-based: schema enrichment must yield the documented HA cover entity
+- Specification-based: the model-driven schema must yield the documented HA cover entity
 - Boundary Value Analysis: position has no standard device_class; absence is asserted
-- Structural: guard against schema regeneration stripping hand-maintained metadata
+- Structural: guard that regeneration still emits the typed, enriched position property
 """
 
 from __future__ import annotations

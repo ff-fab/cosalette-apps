@@ -1,32 +1,27 @@
 asyncapi: 3.0.0
 info:
   title: velux2mqtt
-  version: 0.1.1
+  version: 0.1.3
   x-cosalette-contract-version: '1'
 channels:
   cover_deviceState:
     address: velux2mqtt/cover_device/state
     messages:
       message:
-        # NOTE: properties are hand-maintained. @app.device does not accept a
-        # state_model in cosalette 0.5.5, so `schema init` emits `type: object`
-        # for this device. The typed `position` property + x-cosalette-consumer
-        # below are added by hand to enable HA discovery; the schema-discovery
-        # guard test fails loudly if a regeneration strips them. Tracked upstream
-        # for a public @app.device(state_model=) accessor.
         payload:
-          type: object
           properties:
             position:
               title: Position
               type: integer
               x-cosalette-consumer:
                 display_name: Cover Position
-                unit: "%"
+                icon: mdi:window-shutter
                 state_class: measurement
-                icon: "mdi:window-shutter"
+                unit: '%'
           required:
           - position
+          title: CoverState
+          type: object
     x-cosalette-archetype: device
     x-cosalette-app: velux2mqtt
     x-cosalette-summary: 'Velux cover: GPIO-driven open/close/stop/position control'
