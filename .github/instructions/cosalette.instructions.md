@@ -6,7 +6,7 @@ applyTo: '**/*.py'
 # cosalette Framework Instructions
 
 Quick-reference only. For depth: `cosalette ai help <topic>`
-Topics: `telemetry` · `testing` · `configuration` · `architecture` · `commands` · `health` · `scheduling` · `resilience` · `sub-entities` · `triggerable` · `multi-device` · `contracts` · `manifest` · `router` · `migration`
+Topics: `telemetry` · `testing` · `configuration` · `architecture` · `commands` · `health` · `scheduling` · `resilience` · `sub-entities` · `triggerable` · `multi-device` · `contracts` · `manifest` · `router` · `migration` · `availability` · `persistence`
 
 ## Archetype — Pick One
 
@@ -18,6 +18,8 @@ Topics: `telemetry` · `testing` · `configuration` · `architecture` · `comman
 
 Default to **telemetry**. Multiple similar devices → `name=lambda s: {…}` dict form (not `@app.on_configure`).
 See `cosalette ai help architecture`.
+
+Telemetry key params: `interval=N` (required), `timeout=N` (per-invocation backstop; omit → auto=interval; `timeout=None` → disabled). See `cosalette ai help resilience`.
 
 ## Router — Multi-Module Composition
 
@@ -71,6 +73,9 @@ async def sensor(ctx: cosalette.DeviceContext):   # no return annotation
 
 Plain coroutines (`async def … -> None`) now raise `TypeError`. Remove `-> None` return annotations.
 
+`@app.device` also accepts `state_model=` (types the state channel in AsyncAPI schema) and
+`payload_model=` (manifest metadata; **introspection-only** — no `/set` channel emitted for devices).
+
 ## `@app.react` — Domain-Event Reactors
 
 Use `@app.react` to keep state objects pure domain models. The framework calls the reactor
@@ -105,6 +110,13 @@ Rules:
 ```python
 import cosalette
 
+# store= is optional: omit → auto-resolved JsonFileStore (<NAME>_STORE_PATH env,
+# name upper-cased with non-alphanumeric chars → underscores, e.g. sensor.hub →
+# SENSOR_HUB_STORE_PATH → $XDG_STATE_HOME/<name>/store.json).
+# Pass store=None to opt out; pass an explicit Store for a custom backend.
+# High-write apps: cosalette.set_default_store_backend(SqliteStore) at startup.
+# retained_cleanup=False → keep store for persist= but skip ADR-048 cleanup +
+# ephemeral warning (self-documenting for @app.on_configure apps that don't vary entities).
 app = cosalette.App(name="mybridge", version="0.1.0", settings_class=MySettings)
 app.adapter(SensorPort, "myapp.adapters:SensorAdapter", dry_run="myapp.adapters:DryRunAdapter")
 
@@ -203,6 +215,29 @@ Errors: `PayloadValidationError`, `ReturnValidationError` — caught and publish
 
 See `cosalette ai help contracts`.
 
+## Transport Availability Signaling
+
+Use `unavailable_on` to automatically mark a device offline when a transport fails:
+
+```python
+@app.command("sensor", unavailable_on=(SSHError, TimeoutError))
+async def handle_sensor(ctx: cosalette.DeviceContext) -> dict[str, object]:
+    return {"value": await ssh.read()}   # exception → "offline" published + suppressed
+```
+
+Or call `ctx.mark_unavailable()` inside the handler body for conditional unavailability.
+Auto-recovery: the framework publishes `"online"` after the next successful invocation.
+Topic: `{app}/{device}/availability`, values `"online"` / `"offline"` (retained, QoS 1).
+
+Removed entities: the framework automatically clears the retained `state`/`availability`
+topics of entities deleted from config on the first MQTT connect (prevents Home Assistant
+ghost entities). Works by default — no `store=` wiring needed. Pass `store=None` to
+opt out of persistence entirely. Use `retained_cleanup=False` to opt out of only the
+ADR-048 cleanup (keeping persistence for `persist=`), vs `store=None` which drops
+persistence too. See ADR-048, `cosalette ai help persistence`.
+
+See `cosalette ai help availability`.
+
 ## Ports & Adapters
 
 ```python
@@ -230,20 +265,3 @@ See `cosalette ai help manifest`, `cosalette ai help contracts`.
 
 Refresh this file: `cosalette ai init`
 Inspect registrations: `cosalette manifest myapp.main:app [--table]`
-
-## Settings Callbacks — Narrowing Generic `cosalette.Settings`
-
-Callbacks passed to `name=`, `interval=`, or similar framework parameters receive the
-base `cosalette.Settings` type in their annotation. When the callback reads
-app-specific fields, guard and fail loudly at the top:
-
-```python
-def _cover_map(settings: cosalette.Settings) -> dict[str, CoverConfig]:
-    if not isinstance(settings, MyAppSettings):
-        raise TypeError(f"Expected MyAppSettings, got {type(settings).__name__}")
-    return {cover.name: cover for cover in settings.covers}
-```
-
-**Why:** The framework signature is generic; a missing `isinstance` guard silently
-passes a wrong settings type and produces an `AttributeError` deep in the callback —
-hard to diagnose. Raising `TypeError` immediately surfaces framework misconfiguration.
