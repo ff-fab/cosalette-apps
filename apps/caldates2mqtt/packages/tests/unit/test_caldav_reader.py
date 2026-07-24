@@ -147,7 +147,11 @@ class TestCalDavReaderAsyncBoundary:
         msg = str(exc_info.value)
         assert type(exc).__name__ in msg
         assert "abfall" in msg
-        assert "example.com" in msg
+        # Parse the sanitized URL out of the known "… from <url>" format and
+        # check the host component, rather than substring matching — avoids
+        # py/incomplete-url-substring-sanitization.
+        safe_url = msg.split(" from ", 1)[1]
+        assert urlparse(safe_url).hostname == "example.com"
 
     @pytest.mark.parametrize(
         ("domain_exc", "expected_type"),
@@ -253,7 +257,12 @@ class TestCalDavReaderAsyncBoundary:
         assert "s3cr3t" not in msg, f"Credential leaked: {msg}"
         assert "admin:" not in msg, f"Userinfo leaked: {msg}"
         assert "token=abc" not in msg, f"Query token leaked: {msg}"
-        assert "example.com" in msg
+        # Parse the sanitized URL and check its host component rather than
+        # substring matching — avoids py/incomplete-url-substring-sanitization.
+        safe_url = msg.split(" from ", 1)[1]
+        parsed_safe = urlparse(safe_url)
+        assert parsed_safe.hostname == "example.com"
+        assert parsed_safe.port == 8443
 
 
 @pytest.mark.unit
