@@ -2,7 +2,10 @@
 
 **Date:** 2026-07-23
 **Author:** ha-discovery / schema-enrichment maintainer (cap-3bz)
-**Status:** Awaiting framework implementation
+**Status:** Implemented in cosalette 0.5.7 — `schema init` / `schema generate` now
+auto-emit channel-level `x-cosalette-app` from the App registry, so the tag no longer
+needs hand-adding or re-adding after regeneration. The body below describes the
+pre-0.5.7 problem that motivated the ask.
 **Context:** Surfaced during cap-3bz HA discovery schema enrichment, where every app's
 `schema.yaml` was enriched with consumer metadata. `cosalette schema ha-discovery`
 resolves the owning app via `channel.app_name or "unknown"`, which reads the
