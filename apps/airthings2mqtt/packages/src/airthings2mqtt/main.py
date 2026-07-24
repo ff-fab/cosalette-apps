@@ -16,7 +16,11 @@ from cosalette import setting_ref
 from airthings2mqtt import __version__
 from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import BleConnectionError, BleTimeoutError
+from airthings2mqtt.errors import (
+    BleConnectionError,
+    BleTimeoutError,
+    error_type_map,
+)
 from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -29,6 +33,7 @@ app = cosalette.App(
     },
     restart_after_failures=5,
     max_restarts=3,
+    error_type_map=error_type_map,
 )
 
 _read_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
