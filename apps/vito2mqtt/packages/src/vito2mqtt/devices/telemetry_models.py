@@ -34,6 +34,18 @@ Design notes
   ES (error-history) signals serialize to :class:`ErrorHistoryEntry`.
 - :data:`GROUP_STATE_MODELS` maps each signal-group key to its model so the
   registration loop can look models up by group name.
+
+Consumer-metadata maintenance (divergence from velux2mqtt)
+----------------------------------------------------------
+These models type the payload *properties* only; the
+``x-cosalette-consumer`` metadata that drives HA discovery is still
+hand-authored directly in ``docs/schema.yaml`` and is therefore stripped
+by ``task vito2mqtt:schema:generate`` (guarded by the schema-discovery
+integration test, which fails loudly if a regeneration drops it). This
+differs from velux2mqtt's ``CoverState``, which carries its consumer
+metadata on the field via ``pydantic.Field(json_schema_extra=...)`` so it
+survives regeneration. Migrating these models to the same model-driven
+pattern is tracked as bead ``cap-g90``.
 """
 
 from __future__ import annotations
