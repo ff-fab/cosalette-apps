@@ -10,7 +10,7 @@ from __future__ import annotations
 import cosalette
 
 from velux2mqtt import __version__
-from velux2mqtt.devices.cover import cover_device
+from velux2mqtt.devices.cover import CoverState, cover_device
 from velux2mqtt.ports import GpioSwitchPort
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
 
@@ -40,6 +40,7 @@ app = cosalette.App(
 app.device(
     name=_cover_map,
     summary="Velux cover: GPIO-driven open/close/stop/position control",
+    state_model=CoverState,
     behavior=[
         "Startup homing to a known endpoint for reliable position reference",
         "Open/close/stop commands via GPIO button presses on KLF 050 remote",

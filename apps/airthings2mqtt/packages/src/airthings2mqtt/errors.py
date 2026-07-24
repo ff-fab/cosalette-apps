@@ -35,3 +35,17 @@ ERROR_TYPE_MAP: dict[type[Exception], type[AirthingsError]] = {
 Used by adapters to translate low-level BLE library exceptions
 into domain-specific errors.
 """
+
+
+error_type_map: dict[type[Exception], str] = {
+    AirthingsError: "airthings_error",
+    BleConnectionError: "ble_connection",
+    BleReadError: "ble_read",
+    BleTimeoutError: "ble_timeout",
+}
+"""Mapping from domain exception types to MQTT error-topic string identifiers.
+
+Registered with cosalette's :class:`~cosalette.App` (0.5.7 ``error_type_map``
+hook) so these domain exceptions opt in to surfacing their messages on the
+error topic (LEAK-01 hardening: unregistered exception messages are redacted).
+"""

@@ -17,6 +17,7 @@ from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
+from airthings2mqtt.errors import error_type_map
 from cosalette import setting_ref
 
 from airthings2mqtt.main import _telemetry
@@ -72,6 +73,7 @@ def build_integration_app(
         name="airthings2mqtt",
         settings_class=Airthings2MqttSettings,
         adapters={AirthingsReaderPort: adapter},
+        error_type_map=error_type_map,
     )
     test_app.telemetry(
         "airthings",

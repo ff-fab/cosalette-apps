@@ -139,6 +139,23 @@ buildings and highlighted regions.
 | `suncast/shadow/error`        | Publish   | Errors scoped to the `shadow` device             |
 | `suncast/error`               | Publish   | Global structured error reports for the app      |
 
+## Home Assistant Discovery
+
+**Not applicable.** This app does not emit Home Assistant MQTT discovery payloads, and
+its `docs/schema.yaml` carries no `x-cosalette-consumer` annotations (running
+`task suncast:schema:ha-discovery` yields an empty payload list `[]`).
+
+The `shadow` telemetry handler computes solar position and building shadows, renders
+them to an **SVG image**, and delivers that image via the output manager. The payload is
+a rendered graphic, not a scalar measurement — there is no `device_class`, unit, or
+`state_class` that Home Assistant could map it to, so no standard `x-cosalette-consumer`
+annotation applies. The SVG is intended for direct display (for example via the built-in
+HTTP endpoint), not as an HA sensor entity.
+
+See
+[`docs/planning/cap-3bz-ha-discovery-schema-enrichment.md`](../../docs/planning/cap-3bz-ha-discovery-schema-enrichment.md)
+for the full analysis.
+
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project

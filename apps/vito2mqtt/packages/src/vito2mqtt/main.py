@@ -28,6 +28,7 @@ from vito2mqtt import __version__
 from vito2mqtt._registration import configure_app
 from vito2mqtt._store_path import resolve_store_path
 from vito2mqtt.config import Vito2MqttSettings
+from vito2mqtt.errors import error_type_map
 from vito2mqtt.ports import OptolinkPort
 
 __all__ = ["app", "cli"]
@@ -45,6 +46,7 @@ app = App(
             "vito2mqtt.adapters.fake:FakeOptolinkAdapter",
         ),
     },
+    error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
 )

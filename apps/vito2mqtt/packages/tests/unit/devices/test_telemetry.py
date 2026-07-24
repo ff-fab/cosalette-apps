@@ -24,7 +24,9 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime
+
 import pytest
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
@@ -68,6 +70,26 @@ class TestTelemetrySpecs:
         schema generation. A missing entry raises KeyError in configure_app at startup.
         """
         assert set(GROUP_STATE_MODELS.keys()) == set(SIGNAL_GROUPS.keys())
+
+    @pytest.mark.parametrize(
+        "group",
+        list(SIGNAL_GROUPS.keys()),
+        ids=list(SIGNAL_GROUPS.keys()),
+    )
+    def test_state_model_fields_match_signal_group(self, group: str) -> None:
+        """Each state_model's fields must match its SIGNAL_GROUPS tuple exactly.
+
+        Technique: Specification-based — the dataclass shapes the generated
+        AsyncAPI schema, so a field missing from (or extra in) the model silently
+        drops (or invents) an HA-discovery property relative to what the handler
+        actually publishes. The group-key coverage test above does not catch this
+        per-field drift; this guard does.
+        """
+        model_fields = {f.name for f in dataclasses.fields(GROUP_STATE_MODELS[group])}
+        assert model_fields == set(SIGNAL_GROUPS[group]), (
+            f"{GROUP_STATE_MODELS[group].__name__} fields do not match "
+            f"SIGNAL_GROUPS['{group}']"
+        )
 
     @pytest.mark.parametrize("group", list(SIGNAL_GROUPS.keys()))
     def test_interval_attr_values_are_strings(self, group: str) -> None:

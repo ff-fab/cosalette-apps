@@ -101,8 +101,9 @@ tasks:
 
   schema:generate:
     desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} — ERASES x-cosalette-consumer enrichment'
-    # WARNING: strips all hand-authored consumer metadata (x-cosalette-consumer,
-    # x-cosalette-app). Re-enrich manually after running this task.
+    # WARNING: strips hand-authored x-cosalette-consumer enrichment. Re-enrich
+    # manually after running this task. (x-cosalette-app no longer needs
+    # re-adding: cosalette 0.5.7+ auto-emits it per channel from the App registry.)
     prompt: 'This will overwrite docs/schema.yaml and erase consumer metadata enrichment for {{.APP_NAME}}. Continue?'
     cmds:
       - |

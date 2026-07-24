@@ -20,18 +20,16 @@ models. Regenerating the schema (``task vito2mqtt:schema:generate``) strips
 these annotations, silently breaking HA discovery; these tests fail loudly
 if that happens.
 
-Shared-channel limitation
--------------------------
-Only the *telemetry-only* signal groups (``outdoor``, ``burner``) surface
-HA entities. The ``hot_water``, ``heating_radiator``, ``heating_floor`` and
-``system`` groups share their MQTT topic with a command (ADR-002), so their
-generated payload is a ``oneOf[<StateModel>, dict | None]``. The framework's
-ha-discovery only reads top-level ``properties`` (see
-``cosalette._schema._loader_helpers._extract_properties``) and does not
-descend into ``oneOf``/``anyOf`` variants — so those fields yield no entity
-until that gap is closed (tracked in beads cap-075). All seven groups are
-still *typed* in the schema regardless; this test only asserts the subset
-that ha-discovery can currently reach.
+Shared-channel groups
+---------------------
+Both the *telemetry-only* signal groups (``outdoor``, ``burner``) and the
+shared telemetry+command groups (``hot_water``, ``heating_radiator``,
+``heating_floor``, ``system``) surface HA entities. The shared groups share
+their MQTT topic with a command (ADR-002), so their generated payload is a
+``oneOf[<StateModel>, {anyOf: [object, null]}]``. As of cosalette 0.5.6,
+ha-discovery descends into ``oneOf``/``anyOf`` payload variants, so the
+annotated properties inside the state-model variant now emit entities
+alongside the top-level telemetry-only groups.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from
 the filesystem — not hermetic enough for the unit suite.
@@ -57,9 +55,10 @@ import pytest
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
 
 # The complete set of entities ha-discovery must emit. Kept exhaustive so the
-# test fails if enrichment is stripped (fewer) or if a shared-channel field
-# ever leaks through (more).
+# test fails if enrichment is stripped (fewer) or if an un-annotated field
+# (a status/mode/frost signal) ever leaks through (more).
 EXPECTED_OBJECT_IDS = {
+    # Telemetry-only groups (top-level properties).
     "outdoor_outdoor_temperature",
     "outdoor_outdoor_temperature_lowpass",
     "outdoor_outdoor_temperature_damped",
@@ -71,6 +70,18 @@ EXPECTED_OBJECT_IDS = {
     "burner_burner_starts",
     "burner_burner_hours_stage1",
     "burner_plant_power_output",
+    # Shared telemetry+command groups — surfaced via 0.5.6 oneOf/anyOf
+    # traversal of the shared-topic payload variants (ADR-002).
+    "hot_water_hot_water_temperature",
+    "hot_water_hot_water_outlet_temperature",
+    "heating_radiator_flow_temperature_m1",
+    "heating_radiator_flow_temperature_setpoint_m1",
+    "heating_floor_flow_temperature_m2",
+    "heating_floor_flow_temperature_setpoint_m2",
+    "heating_floor_pump_speed_m2",
+    "system_storage_temperature_lowpass",
+    "system_internal_pump_speed",
+    "system_flow_temperature_setpoint_m3",
 }
 
 
@@ -106,7 +117,7 @@ class TestHaDiscoveryGeneration:
     ) -> None:
         """The generated entity set matches the golden set exactly.
 
-        Technique: Golden set — a superset means a shared-channel field
+        Technique: Golden set — a superset means an un-annotated field
         leaked; a subset means enrichment was stripped by regeneration.
         """
         assert set(configs_by_id) == EXPECTED_OBJECT_IDS

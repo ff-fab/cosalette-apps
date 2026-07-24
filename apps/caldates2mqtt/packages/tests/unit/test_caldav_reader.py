@@ -133,7 +133,7 @@ class TestCalDavReaderAsyncBoundary:
 
         reader._read_sync = _raise  # type: ignore[method-assign]
 
-        with pytest.raises(expected_error, match=str(exc)):
+        with pytest.raises(expected_error) as exc_info:
             await reader.read_events(
                 "https://example.com/dav/",
                 "abfall",
@@ -141,6 +141,17 @@ class TestCalDavReaderAsyncBoundary:
                 "pass",
                 14,
             )
+
+        # Message is built from safe parts only (upstream class name + calendar
+        # + sanitized host), never the raw str(exc) which could embed the URL.
+        msg = str(exc_info.value)
+        assert type(exc).__name__ in msg
+        assert "abfall" in msg
+        # Parse the sanitized URL out of the known "… from <url>" format and
+        # check the host component, rather than substring matching — avoids
+        # py/incomplete-url-substring-sanitization.
+        safe_url = msg.split(" from ", 1)[1]
+        assert urlparse(safe_url).hostname == "example.com"
 
     @pytest.mark.parametrize(
         ("domain_exc", "expected_type"),
@@ -195,7 +206,7 @@ class TestCalDavReaderAsyncBoundary:
 
         reader._read_sync = _raise  # type: ignore[method-assign]
 
-        with pytest.raises(CalDavReadError, match="bad payload"):
+        with pytest.raises(CalDavReadError) as exc_info:
             await reader.read_events(
                 "https://example.com/dav/",
                 "abfall",
@@ -203,6 +214,55 @@ class TestCalDavReaderAsyncBoundary:
                 "pass",
                 14,
             )
+
+        # Unknown upstream text ("bad payload") is dropped; only the safe class
+        # name + calendar + host are surfaced.
+        msg = str(exc_info.value)
+        assert "ValueError" in msg
+        assert "abfall" in msg
+        assert "bad payload" not in msg
+
+    async def test_read_events_strips_credentials_from_mapped_error(self) -> None:
+        """Mapped (opted-in) errors must not leak URL credentials into the message.
+
+        Technique: Security / Error Guessing — the message is published to the
+        MQTT error topic via error_type_map, so a URL with embedded userinfo
+        must never appear verbatim (LEAK-01 hardening).
+        """
+        reader = CalDavReader(_make_settings())
+
+        def _raise(
+            url: str,
+            calendar_name: str,
+            username: str,
+            password: str,
+            days: int,
+        ) -> list[CalendarEvent]:
+            raise niquests.ConnectionError(
+                "connection to https://admin:s3cr3t@host failed"
+            )
+
+        reader._read_sync = _raise  # type: ignore[method-assign]
+
+        with pytest.raises(CalDavConnectionError) as exc_info:
+            await reader.read_events(
+                "https://admin:s3cr3t@example.com:8443/dav/?token=abc",
+                "abfall",
+                "admin",
+                "s3cr3t",
+                14,
+            )
+
+        msg = str(exc_info.value)
+        assert "s3cr3t" not in msg, f"Credential leaked: {msg}"
+        assert "admin:" not in msg, f"Userinfo leaked: {msg}"
+        assert "token=abc" not in msg, f"Query token leaked: {msg}"
+        # Parse the sanitized URL and check its host component rather than
+        # substring matching — avoids py/incomplete-url-substring-sanitization.
+        safe_url = msg.split(" from ", 1)[1]
+        parsed_safe = urlparse(safe_url)
+        assert parsed_safe.hostname == "example.com"
+        assert parsed_safe.port == 8443
 
 
 @pytest.mark.unit

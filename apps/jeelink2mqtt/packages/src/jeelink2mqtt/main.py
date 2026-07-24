@@ -29,6 +29,7 @@ from jeelink2mqtt import commands as _commands
 from jeelink2mqtt import pipeline as _pipeline
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
+from jeelink2mqtt.errors import error_type_map
 from jeelink2mqtt.models import MappingEvent, SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
@@ -48,6 +49,7 @@ app = cosalette.App(
     settings_class=Jeelink2MqttSettings,
     store=JsonFileStore(Path("data") / "jeelink2mqtt.json"),
     adapters={StreamablePort[SensorReading]: (_make_adapter, FakeJeeLinkAdapter)},
+    error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
 )

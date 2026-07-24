@@ -32,9 +32,11 @@ import asyncio
 import json
 import logging
 from collections.abc import AsyncIterator, Callable
-from typing import Literal
+from dataclasses import dataclass
+from typing import Annotated, Literal
 
 import cosalette
+from pydantic import Field
 
 from velux2mqtt.domain.calibration import (
     CalibrationDirection,
@@ -51,6 +53,38 @@ from velux2mqtt.domain.drift import DriftCompensator, MoveStep
 from velux2mqtt.domain.position import PositionTracker
 from velux2mqtt.ports import GpioSwitchPort
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
+
+
+@dataclass(frozen=True, slots=True)
+class CoverState:
+    """Typed ``state_model`` for the cover device's MQTT state channel.
+
+    Wired as ``state_model=CoverState`` on ``app.device`` in
+    :mod:`velux2mqtt.main` so ``cosalette schema init`` emits a typed
+    ``position`` property instead of a bare ``type: object``. The
+    ``x-cosalette-consumer`` annotation that drives Home Assistant MQTT
+    discovery rides on the field via :func:`pydantic.Field`'s
+    ``json_schema_extra``, so schema regeneration reproduces it
+    automatically — no hand-maintained schema block.
+
+    Mirrors the dict published by :func:`_publish_position`:
+    ``{"position": <int 0-100>}``. The model is schema-only; cosalette
+    does not validate runtime payloads against it.
+    """
+
+    position: Annotated[
+        int,
+        Field(
+            json_schema_extra={
+                "x-cosalette-consumer": {
+                    "display_name": "Cover Position",
+                    "unit": "%",
+                    "state_class": "measurement",
+                    "icon": "mdi:window-shutter",
+                },
+            },
+        ),
+    ]
 
 
 async def cover_device(
