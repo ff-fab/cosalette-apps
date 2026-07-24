@@ -49,3 +49,19 @@ ERROR_TYPE_MAP: dict[type[Exception], type[CalDavError]] = {
 Used by adapters to translate low-level CalDAV library exceptions
 into domain-specific errors.
 """
+
+
+error_type_map: dict[type[Exception], str] = {
+    CalDavError: "caldav_error",
+    CalDavAuthError: "caldav_auth",
+    CalDavConnectionError: "caldav_connection",
+    CalDavNotFoundError: "caldav_not_found",
+    CalDavTimeoutError: "caldav_timeout",
+    CalDavReadError: "caldav_read",
+}
+"""Mapping from domain exception types to MQTT error-topic string identifiers.
+
+Registered with cosalette's :class:`~cosalette.App` (0.5.7 ``error_type_map``
+hook) so these domain exceptions opt in to surfacing their messages on the
+error topic (LEAK-01 hardening: unregistered exception messages are redacted).
+"""

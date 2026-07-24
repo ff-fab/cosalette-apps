@@ -13,7 +13,11 @@ import cosalette
 from caldates2mqtt import __version__
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
 from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.errors import CalDavConnectionError, CalDavTimeoutError
+from caldates2mqtt.errors import (
+    CalDavConnectionError,
+    CalDavTimeoutError,
+    error_type_map,
+)
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
 
@@ -27,6 +31,7 @@ app = cosalette.App(
     adapters={
         CalDavPort: (CalDavReader, FakeCalDavReader),
     },
+    error_type_map=error_type_map,
 )
 
 

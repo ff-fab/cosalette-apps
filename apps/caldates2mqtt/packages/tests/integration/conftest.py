@@ -18,6 +18,7 @@ from cosalette.testing import AppHarness, FakeClock
 from pydantic_settings import PydanticBaseSettingsSource
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
+from caldates2mqtt.errors import error_type_map
 from caldates2mqtt.main import calendar
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
@@ -85,6 +86,7 @@ def build_integration_app(
         name="caldates2mqtt",
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
+        error_type_map=error_type_map,
     )
 
     def _make_handler(cal: CalendarConfig):
