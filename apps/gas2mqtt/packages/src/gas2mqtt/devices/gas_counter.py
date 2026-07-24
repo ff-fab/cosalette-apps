@@ -28,8 +28,10 @@ import json
 import logging
 import math
 from dataclasses import dataclass
+from typing import Annotated
 
 from cosalette import DeviceStore
+from pydantic import Field
 
 from gas2mqtt.domain.consumption import ConsumptionTracker
 from gas2mqtt.domain.schmitt import SchmittTrigger, TriggerState
@@ -45,9 +47,13 @@ class GasCounterReading:
     """Published gas-counter telemetry payload.
 
     Typed ``state_model`` for the ``gas_counter`` telemetry channel so
-    ``cosalette schema init`` emits typed properties that can carry
-    ``x-cosalette-consumer`` metadata for Home Assistant discovery.
-    Mirrors the dict returned by :meth:`GasCounterState.build_state`.
+    ``cosalette schema init`` emits typed properties carrying
+    ``x-cosalette-consumer`` metadata for Home Assistant discovery. The
+    metadata rides on each field via :func:`pydantic.Field`'s
+    ``json_schema_extra``, so it survives ``task gas2mqtt:schema:generate``
+    (``TypeAdapter(model).json_schema()`` preserves it) — no post-generation
+    hand-application. Mirrors the dict returned by
+    :meth:`GasCounterState.build_state`.
 
     Attributes:
         counter: Raw pulse count (wraps at ``COUNTER_MODULUS``).
@@ -56,9 +62,32 @@ class GasCounterReading:
             consumption tracker is not configured.
     """
 
-    counter: int
+    counter: Annotated[
+        int,
+        Field(
+            json_schema_extra={
+                "x-cosalette-consumer": {
+                    "display_name": "Gas Pulse Counter",
+                    "state_class": "total_increasing",
+                    "icon": "mdi:counter",
+                },
+            }
+        ),
+    ]
     trigger: str
-    consumption_m3: float | None = None
+    consumption_m3: Annotated[
+        float | None,
+        Field(
+            json_schema_extra={
+                "x-cosalette-consumer": {
+                    "display_name": "Gas Consumption",
+                    "device_class": "gas",
+                    "unit": "m³",
+                    "state_class": "total_increasing",
+                },
+            }
+        ),
+    ] = None
 
 
 class GasCounterState:

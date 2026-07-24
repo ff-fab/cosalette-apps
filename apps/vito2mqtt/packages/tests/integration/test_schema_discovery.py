@@ -16,9 +16,11 @@
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery.
 
 Guards the ``x-cosalette-consumer`` enrichment on the telemetry payload
-models. Regenerating the schema (``task vito2mqtt:schema:generate``) strips
-these annotations, silently breaking HA discovery; these tests fail loudly
-if that happens.
+models. The annotations ride on the ``GROUP_STATE_MODELS`` fields via
+``pydantic.Field(json_schema_extra=...)``, so ``task vito2mqtt:schema:generate``
+reproduces them automatically — no hand-application step. These tests fail
+loudly if a model change ever drops or distorts an annotation, silently
+breaking HA discovery.
 
 Shared-channel groups
 ---------------------

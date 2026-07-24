@@ -35,23 +35,25 @@ Design notes
 - :data:`GROUP_STATE_MODELS` maps each signal-group key to its model so the
   registration loop can look models up by group name.
 
-Consumer-metadata maintenance (divergence from velux2mqtt)
-----------------------------------------------------------
-These models type the payload *properties* only; the
-``x-cosalette-consumer`` metadata that drives HA discovery is still
-hand-authored directly in ``docs/schema.yaml`` and is therefore stripped
-by ``task vito2mqtt:schema:generate`` (guarded by the schema-discovery
-integration test, which fails loudly if a regeneration drops it). This
-differs from velux2mqtt's ``CoverState``, which carries its consumer
-metadata on the field via ``pydantic.Field(json_schema_extra=...)`` so it
-survives regeneration. Migrating these models to the same model-driven
-pattern is tracked as bead ``cap-g90``.
+Consumer-metadata maintenance (model-driven)
+--------------------------------------------
+The ``x-cosalette-consumer`` metadata that drives HA discovery
+(device_class, unit, state_class, icon, …) rides on each surfaced field
+via :func:`pydantic.Field`'s ``json_schema_extra`` (built through the
+:func:`_consumer` helper). Because cosalette generates the schema with
+``TypeAdapter(model).json_schema()``, which preserves ``json_schema_extra``,
+this enrichment *survives* ``task vito2mqtt:schema:generate`` — no
+post-generation hand-application step. This mirrors velux2mqtt's
+``CoverState``. The migration away from hand-authored ``docs/schema.yaml``
+enrichment is tracked as bead ``cap-g90``.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Annotated, Any
+
+from pydantic import Field
 
 __all__ = [
     "ErrorHistoryEntry",
@@ -64,6 +66,19 @@ __all__ = [
     "DiagnosisState",
     "GROUP_STATE_MODELS",
 ]
+
+
+def _consumer(**metadata: object) -> dict[str, Any]:
+    """Wrap HA-discovery metadata under the ``x-cosalette-consumer`` key.
+
+    Returned dict is passed as ``json_schema_extra`` to
+    :func:`pydantic.Field`, so ``TypeAdapter(model).json_schema()`` emits the
+    ``x-cosalette-consumer`` block that drives Home Assistant MQTT discovery.
+    Surviving schema regeneration is the whole point — see the module
+    docstring.
+    """
+
+    return {"x-cosalette-consumer": metadata}
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,31 +98,161 @@ class ErrorHistoryEntry:
 class OutdoorState:
     """Outdoor temperature sensor group payload (°C)."""
 
-    outdoor_temperature: float
-    outdoor_temperature_lowpass: float
-    outdoor_temperature_damped: float
+    outdoor_temperature: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Outdoor Temperature",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    outdoor_temperature_lowpass: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Outdoor Temperature (Low-pass)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    outdoor_temperature_damped: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Outdoor Temperature (Damped)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
 
 
 @dataclass(frozen=True, slots=True)
 class HotWaterState:
     """Domestic hot water temperature group payload (°C)."""
 
-    hot_water_temperature: float
-    hot_water_outlet_temperature: float
+    hot_water_temperature: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Hot Water Temperature",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    hot_water_outlet_temperature: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Hot Water Outlet Temperature",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
 
 
 @dataclass(frozen=True, slots=True)
 class BurnerState:
     """Burner temperatures, modulation, and runtime counters."""
 
-    boiler_temperature: float
-    boiler_temperature_lowpass: float
-    boiler_temperature_setpoint: float
-    exhaust_temperature: float
-    burner_modulation: int
-    burner_starts: int
-    burner_hours_stage1: float
-    plant_power_output: float
+    boiler_temperature: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Boiler Temperature",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    boiler_temperature_lowpass: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Boiler Temperature (Low-pass)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    boiler_temperature_setpoint: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Boiler Temperature Setpoint",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    exhaust_temperature: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Exhaust Temperature",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    burner_modulation: Annotated[
+        int,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Burner Modulation",
+                unit="%",
+                state_class="measurement",
+                icon="mdi:fire",
+            )
+        ),
+    ]
+    burner_starts: Annotated[
+        int,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Burner Starts",
+                state_class="total_increasing",
+                icon="mdi:fire",
+            )
+        ),
+    ]
+    burner_hours_stage1: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Burner Hours (Stage 1)",
+                device_class="duration",
+                unit="h",
+                state_class="total_increasing",
+                icon="mdi:timer-outline",
+            )
+        ),
+    ]
+    plant_power_output: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Plant Power Output",
+                unit="%",
+                state_class="measurement",
+                icon="mdi:gauge",
+            )
+        ),
+    ]
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,8 +265,28 @@ class HeatingRadiatorState:
         different codec types.
     """
 
-    flow_temperature_m1: float
-    flow_temperature_setpoint_m1: float
+    flow_temperature_m1: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Flow Temperature M1 (Radiator)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    flow_temperature_setpoint_m1: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Flow Temperature Setpoint M1 (Radiator)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
     pump_status_m1: (
         int  # int status code — M1 uses a different codec than M2's ReturnStatus str
     )
@@ -140,10 +305,40 @@ class HeatingFloorState:
         unlike the radiator circuit's integer status.
     """
 
-    flow_temperature_m2: float
-    flow_temperature_setpoint_m2: float
+    flow_temperature_m2: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Flow Temperature M2 (Floor)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    flow_temperature_setpoint_m2: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Flow Temperature Setpoint M2 (Floor)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
     pump_status_m2: str
-    pump_speed_m2: int
+    pump_speed_m2: Annotated[
+        int,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Pump Speed M2 (Floor)",
+                unit="%",
+                state_class="measurement",
+                icon="mdi:pump",
+            )
+        ),
+    ]
     frost_warning_m2: int
     frost_limit_m2: int
     operating_mode_m2: str
@@ -154,13 +349,43 @@ class HeatingFloorState:
 class SystemState:
     """Vitotronic system status: storage, pumps, and switch valve."""
 
-    storage_temperature_lowpass: float
+    storage_temperature_lowpass: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Storage Temperature (Low-pass)",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
     internal_pump_status: str
-    internal_pump_speed: int
+    internal_pump_speed: Annotated[
+        int,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Internal Pump Speed",
+                unit="%",
+                state_class="measurement",
+                icon="mdi:pump",
+            )
+        ),
+    ]
     storage_charge_pump_status: str
     circulation_pump_status: str
     switch_valve_status: str
-    flow_temperature_setpoint_m3: float
+    flow_temperature_setpoint_m3: Annotated[
+        float,
+        Field(
+            json_schema_extra=_consumer(
+                display_name="Flow Temperature Setpoint M3",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
 
 
 @dataclass(frozen=True, slots=True)
