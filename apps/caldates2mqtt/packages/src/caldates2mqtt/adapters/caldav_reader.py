@@ -26,6 +26,27 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 _logger = logging.getLogger(__name__)
 
 
+def _sanitize_url(url: str) -> str:
+    """Return a log-safe form of ``url`` for error messages.
+
+    Keeps only scheme + host[:port] + path. ``urlparse().hostname`` drops any
+    ``user:pass@`` userinfo, and the query, params, and fragment are stripped,
+    so credentials and query-string tokens never reach logs or the MQTT error
+    topic. This matters because these adapter errors are opted into full-message
+    publishing via ``error_type_map`` (cosalette LEAK-01 hardening): the raw
+    ``str(exc)`` of an upstream niquests/caldav exception can embed the request
+    URL, so it must never be surfaced verbatim.
+    """
+    parsed = urlparse(url)
+    # Re-bracket IPv6 addresses (urlparse.hostname strips square brackets).
+    netloc = parsed.hostname or ""
+    if ":" in netloc:
+        netloc = f"[{netloc}]"
+    if parsed.port:
+        netloc += f":{parsed.port}"
+    return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
+
+
 class CalDavReader:
     """Production adapter implementing CalDavPort.
 
@@ -74,10 +95,22 @@ class CalDavReader:
         except CalDavError:
             raise
         except Exception as exc:
+            # Build a controlled message from safe parts only. The raw str(exc)
+            # of niquests/caldav exceptions can embed the request URL (incl.
+            # userinfo credentials), and these domain errors are opted into
+            # full-message error-topic publishing via error_type_map, so the
+            # upstream text must not be forwarded verbatim. The class name is
+            # retained for diagnostics (it is what LEAK-01 would publish anyway);
+            # the full chain stays available locally via ``from exc``.
+            safe_url = _sanitize_url(url)
+            detail = (
+                f"{type(exc).__name__} while reading calendar "
+                f"'{calendar_name}' from {safe_url}"
+            )
             mapped = ERROR_TYPE_MAP.get(type(exc))
             if mapped is not None:
-                raise mapped(str(exc)) from exc
-            raise CalDavReadError(str(exc)) from exc
+                raise mapped(detail) from exc
+            raise CalDavReadError(detail) from exc
 
     def _read_sync(
         self,
@@ -111,16 +144,7 @@ class CalDavReader:
                 expand=True,
             )
         except caldav.lib.error.NotFoundError as exc:
-            parsed = urlparse(url)
-            # Re-bracket IPv6 addresses (urlparse.hostname strips square brackets).
-            netloc = parsed.hostname or ""
-            if ":" in netloc:
-                netloc = f"[{netloc}]"
-            if parsed.port:
-                netloc += f":{parsed.port}"
-            # Allowlist: keep scheme + sanitized host:port + path; strip query,
-            # params, and fragment so tokens in query strings are never logged.
-            safe_url = urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
+            safe_url = _sanitize_url(url)
             raise CalDavNotFoundError(
                 f"calendar '{calendar_name}' not found on {safe_url} — "
                 "check config or confirm the calendar exists server-side"
