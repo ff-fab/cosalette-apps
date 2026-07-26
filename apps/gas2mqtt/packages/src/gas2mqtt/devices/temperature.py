@@ -20,6 +20,7 @@ from typing import Annotated
 from cosalette import Pt1Filter
 from pydantic import Field
 
+from gas2mqtt.devices._consumer import _consumer
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
@@ -43,13 +44,11 @@ class TemperatureReading:
     temperature: Annotated[
         float,
         Field(
-            json_schema_extra={
-                "x-cosalette-consumer": {
-                    "device_class": "temperature",
-                    "unit": "°C",
-                    "state_class": "measurement",
-                },
-            }
+            json_schema_extra=_consumer(
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
         ),
     ]
 

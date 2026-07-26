@@ -1,11 +1,14 @@
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery generation.
 
-Guards the consumer-metadata enrichment in the AsyncAPI schema. The
-``x-cosalette-consumer`` annotations ride on the state-model fields via
-``pydantic.Field(json_schema_extra=...)``, so ``cosalette schema init`` (and
-``task gas2mqtt:schema:generate``) reproduce them automatically — no
-hand-application step. These tests fail loudly if a model change ever drops or
+Verifies that the *committed* ``docs/schema.yaml`` yields exactly the expected
+HA-discovery entities. The ``x-cosalette-consumer`` enrichment rides on the
+state-model fields via ``pydantic.Field(json_schema_extra=...)`` and is read
+here from the committed schema; these tests fail loudly if it ever drops or
 distorts an annotation, silently breaking HA discovery.
+
+That the schema *regenerates* reproducibly from the models — so the committed
+file can't drift from ``task gas2mqtt:schema:generate`` output — is guarded
+separately by ``task gas2mqtt:schema:check``, not by these tests.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.

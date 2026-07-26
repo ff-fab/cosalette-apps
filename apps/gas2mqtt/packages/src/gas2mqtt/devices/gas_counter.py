@@ -33,6 +33,7 @@ from typing import Annotated
 from cosalette import DeviceStore
 from pydantic import Field
 
+from gas2mqtt.devices._consumer import _consumer
 from gas2mqtt.domain.consumption import ConsumptionTracker
 from gas2mqtt.domain.schmitt import SchmittTrigger, TriggerState
 from gas2mqtt.ports import MagnetometerPort
@@ -65,27 +66,23 @@ class GasCounterReading:
     counter: Annotated[
         int,
         Field(
-            json_schema_extra={
-                "x-cosalette-consumer": {
-                    "display_name": "Gas Pulse Counter",
-                    "state_class": "total_increasing",
-                    "icon": "mdi:counter",
-                },
-            }
+            json_schema_extra=_consumer(
+                display_name="Gas Pulse Counter",
+                state_class="total_increasing",
+                icon="mdi:counter",
+            )
         ),
     ]
     trigger: str
     consumption_m3: Annotated[
         float | None,
         Field(
-            json_schema_extra={
-                "x-cosalette-consumer": {
-                    "display_name": "Gas Consumption",
-                    "device_class": "gas",
-                    "unit": "m³",
-                    "state_class": "total_increasing",
-                },
-            }
+            json_schema_extra=_consumer(
+                display_name="Gas Consumption",
+                device_class="gas",
+                unit="m³",
+                state_class="total_increasing",
+            )
         ),
     ] = None
 

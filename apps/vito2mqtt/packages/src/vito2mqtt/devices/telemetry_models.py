@@ -51,7 +51,7 @@ enrichment is tracked as bead ``cap-g90``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated, Any
+from typing import Annotated, Any, TypedDict, Unpack
 
 from pydantic import Field
 
@@ -68,17 +68,71 @@ __all__ = [
 ]
 
 
-def _consumer(**metadata: object) -> dict[str, Any]:
+class ConsumerMeta(TypedDict, total=False):
+    """Valid Home Assistant discovery keys for ``x-cosalette-consumer``.
+
+    Enumerates every metadata key the telemetry models forward into MQTT
+    discovery — the human-readable ``display_name`` plus the HA sensor
+    attributes ``device_class``, ``unit``, ``state_class`` and ``icon``.
+    ``total=False`` because each field carries only the subset that applies
+    to it, and typing ``_consumer(**metadata)`` with it makes call sites fail
+    typecheck if they pass an unknown or mistyped key.
+    """
+
+    display_name: str
+    device_class: str
+    unit: str
+    state_class: str
+    icon: str
+
+
+def _consumer(**metadata: Unpack[ConsumerMeta]) -> dict[str, Any]:
     """Wrap HA-discovery metadata under the ``x-cosalette-consumer`` key.
 
     Returned dict is passed as ``json_schema_extra`` to
     :func:`pydantic.Field`, so ``TypeAdapter(model).json_schema()`` emits the
     ``x-cosalette-consumer`` block that drives Home Assistant MQTT discovery.
     Surviving schema regeneration is the whole point — see the module
-    docstring.
+    docstring. ``metadata`` is typed via :class:`ConsumerMeta`, so callers are
+    checked against the valid discovery keys.
     """
 
-    return {"x-cosalette-consumer": metadata}
+    return {"x-cosalette-consumer": dict(metadata)}
+
+
+def _temperature(display_name: str) -> dict[str, Any]:
+    """``x-cosalette-consumer`` for a standard °C measurement sensor.
+
+    Collapses the ``device_class="temperature"``, ``unit="°C"``,
+    ``state_class="measurement"`` triple shared by the many temperature
+    fields, where only the ``display_name`` varies.
+    """
+
+    return _consumer(
+        display_name=display_name,
+        device_class="temperature",
+        unit="°C",
+        state_class="measurement",
+    )
+
+
+def _percent(display_name: str, *, icon: str | None = None) -> dict[str, Any]:
+    """``x-cosalette-consumer`` for a percentage measurement sensor.
+
+    Shared by the modulation / pump-speed / power fields (``unit="%"``,
+    ``state_class="measurement"``). ``icon`` is optional and omitted from the
+    emitted metadata when not supplied, so output matches a hand-written block
+    exactly.
+    """
+
+    if icon is None:
+        return _consumer(display_name=display_name, unit="%", state_class="measurement")
+    return _consumer(
+        display_name=display_name,
+        unit="%",
+        state_class="measurement",
+        icon=icon,
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,37 +153,13 @@ class OutdoorState:
     """Outdoor temperature sensor group payload (°C)."""
 
     outdoor_temperature: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Outdoor Temperature",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Outdoor Temperature"))
     ]
     outdoor_temperature_lowpass: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Outdoor Temperature (Low-pass)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Outdoor Temperature (Low-pass)"))
     ]
     outdoor_temperature_damped: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Outdoor Temperature (Damped)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Outdoor Temperature (Damped)"))
     ]
 
 
@@ -138,26 +168,10 @@ class HotWaterState:
     """Domestic hot water temperature group payload (°C)."""
 
     hot_water_temperature: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Hot Water Temperature",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Hot Water Temperature"))
     ]
     hot_water_outlet_temperature: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Hot Water Outlet Temperature",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Hot Water Outlet Temperature"))
     ]
 
 
@@ -166,59 +180,19 @@ class BurnerState:
     """Burner temperatures, modulation, and runtime counters."""
 
     boiler_temperature: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Boiler Temperature",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Boiler Temperature"))
     ]
     boiler_temperature_lowpass: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Boiler Temperature (Low-pass)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Boiler Temperature (Low-pass)"))
     ]
     boiler_temperature_setpoint: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Boiler Temperature Setpoint",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Boiler Temperature Setpoint"))
     ]
     exhaust_temperature: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Exhaust Temperature",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Exhaust Temperature"))
     ]
     burner_modulation: Annotated[
-        int,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Burner Modulation",
-                unit="%",
-                state_class="measurement",
-                icon="mdi:fire",
-            )
-        ),
+        int, Field(json_schema_extra=_percent("Burner Modulation", icon="mdi:fire"))
     ]
     burner_starts: Annotated[
         int,
@@ -243,15 +217,7 @@ class BurnerState:
         ),
     ]
     plant_power_output: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Plant Power Output",
-                unit="%",
-                state_class="measurement",
-                icon="mdi:gauge",
-            )
-        ),
+        int, Field(json_schema_extra=_percent("Plant Power Output", icon="mdi:gauge"))
     ]
 
 
@@ -266,25 +232,12 @@ class HeatingRadiatorState:
     """
 
     flow_temperature_m1: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Flow Temperature M1 (Radiator)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Flow Temperature M1 (Radiator)"))
     ]
     flow_temperature_setpoint_m1: Annotated[
         float,
         Field(
-            json_schema_extra=_consumer(
-                display_name="Flow Temperature Setpoint M1 (Radiator)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
+            json_schema_extra=_temperature("Flow Temperature Setpoint M1 (Radiator)")
         ),
     ]
     pump_status_m1: (
@@ -306,38 +259,15 @@ class HeatingFloorState:
     """
 
     flow_temperature_m2: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Flow Temperature M2 (Floor)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Flow Temperature M2 (Floor)"))
     ]
     flow_temperature_setpoint_m2: Annotated[
         float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Flow Temperature Setpoint M2 (Floor)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        Field(json_schema_extra=_temperature("Flow Temperature Setpoint M2 (Floor)")),
     ]
     pump_status_m2: str
     pump_speed_m2: Annotated[
-        int,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Pump Speed M2 (Floor)",
-                unit="%",
-                state_class="measurement",
-                icon="mdi:pump",
-            )
-        ),
+        int, Field(json_schema_extra=_percent("Pump Speed M2 (Floor)", icon="mdi:pump"))
     ]
     frost_warning_m2: int
     frost_limit_m2: int
@@ -350,41 +280,17 @@ class SystemState:
     """Vitotronic system status: storage, pumps, and switch valve."""
 
     storage_temperature_lowpass: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Storage Temperature (Low-pass)",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Storage Temperature (Low-pass)"))
     ]
     internal_pump_status: str
     internal_pump_speed: Annotated[
-        int,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Internal Pump Speed",
-                unit="%",
-                state_class="measurement",
-                icon="mdi:pump",
-            )
-        ),
+        int, Field(json_schema_extra=_percent("Internal Pump Speed", icon="mdi:pump"))
     ]
     storage_charge_pump_status: str
     circulation_pump_status: str
     switch_valve_status: str
     flow_temperature_setpoint_m3: Annotated[
-        float,
-        Field(
-            json_schema_extra=_consumer(
-                display_name="Flow Temperature Setpoint M3",
-                device_class="temperature",
-                unit="°C",
-                state_class="measurement",
-            )
-        ),
+        float, Field(json_schema_extra=_temperature("Flow Temperature Setpoint M3"))
     ]
 
 
