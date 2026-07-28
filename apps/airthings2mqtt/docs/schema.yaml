@@ -1,13 +1,12 @@
 asyncapi: 3.0.0
 info:
   title: airthings2mqtt
-  # version reflects the installed package at schema-init time;
-  # 0.0.0 is the setuptools-scm placeholder in dev (not a deployed release).
-  version: 0.0.0
+  version: 0.1.4
   x-cosalette-contract-version: '1'
 channels:
   airthingsState:
     address: airthings2mqtt/airthings/state
+    x-cosalette-app: airthings2mqtt
     messages:
       message:
         payload:
@@ -17,31 +16,31 @@ channels:
               type: number
               x-cosalette-consumer:
                 device_class: temperature
-                unit: "°C"
                 state_class: measurement
+                unit: "\xB0C"
             humidity:
               title: Humidity
               type: number
               x-cosalette-consumer:
                 device_class: humidity
-                unit: "%"
                 state_class: measurement
+                unit: '%'
             radon_24h_avg:
               title: Radon 24H Avg
               type: integer
               x-cosalette-consumer:
                 display_name: Radon (24h avg)
-                unit: "Bq/m³"
+                icon: mdi:radioactive
                 state_class: measurement
-                icon: "mdi:radioactive"
+                unit: "Bq/m\xB3"
             radon_long_term_avg:
               title: Radon Long Term Avg
               type: integer
               x-cosalette-consumer:
                 display_name: Radon (long-term avg)
-                unit: "Bq/m³"
+                icon: mdi:radioactive
                 state_class: measurement
-                icon: "mdi:radioactive"
+                unit: "Bq/m\xB3"
           required:
           - temperature
           - humidity
@@ -49,7 +48,6 @@ channels:
           - radon_long_term_avg
           title: AirthingsReading
           type: object
-    x-cosalette-app: airthings2mqtt
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read Airthings BLE sensor values (temperature, humidity,
       radon)

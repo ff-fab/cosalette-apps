@@ -1,11 +1,12 @@
 asyncapi: 3.0.0
 info:
   title: wallpanel-control
-  version: 0.1.0
+  version: 0.2.1
   x-cosalette-contract-version: '1'
 channels:
   displayCommand:
     address: wallpanel-control/display/set
+    x-cosalette-app: wallpanel-control
     messages:
       message:
         payload:
@@ -35,6 +36,7 @@ channels:
     x-cosalette-summary: Control display state and brightness
   displayState:
     address: wallpanel-control/display/state
+    x-cosalette-app: wallpanel-control
     messages:
       message:
         payload:
@@ -53,7 +55,7 @@ channels:
               title: State
               x-cosalette-consumer:
                 display_name: Display State
-                icon: "mdi:monitor"
+                icon: mdi:monitor
             brightness_percent:
               anyOf:
               - maximum: 100
@@ -63,20 +65,20 @@ channels:
               title: Brightness Percent
               x-cosalette-consumer:
                 display_name: Display Brightness
-                unit: "%"
+                icon: mdi:brightness-percent
                 state_class: measurement
-                icon: "mdi:brightness-percent"
+                unit: '%'
           required:
           - available
           - state
           - brightness_percent
           title: DisplayState
           type: object
-    x-cosalette-archetype: telemetry
-    x-cosalette-app: wallpanel-control
+    x-cosalette-archetype: command
     x-cosalette-summary: Control display state and brightness
   systemActionCommand:
     address: wallpanel-control/system/action/set
+    x-cosalette-app: wallpanel-control
     messages:
       message:
         payload:
@@ -98,6 +100,7 @@ channels:
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
   systemActionState:
     address: wallpanel-control/system/action/state
+    x-cosalette-app: wallpanel-control
     messages:
       message:
         payload:
@@ -118,7 +121,7 @@ channels:
           - action
           title: SystemActionState
           type: object
-    x-cosalette-archetype: telemetry
+    x-cosalette-archetype: command
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
 operations:
   publishDisplayState:

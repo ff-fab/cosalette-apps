@@ -17,6 +17,20 @@ MQTT state topic:
 When the wallpanel is unreachable the payload uses available=false and null
 values.  Rejects ``{}`` or unknown-only payloads.  Combining state="off" with
 brightness_percent is rejected as ambiguous.
+
+Consumer-metadata maintenance (model-driven)
+--------------------------------------------
+The ``x-cosalette-consumer`` metadata that drives Home Assistant MQTT discovery
+(display_name, unit, state_class, icon, …) rides on the surfaced ``DisplayState``
+fields via :func:`pydantic.Field`'s ``json_schema_extra`` (built through the
+framework :func:`cosalette.schema.consumer` helper). Because cosalette generates
+the schema with ``TypeAdapter(model).json_schema()``, which preserves
+``json_schema_extra``, this enrichment *survives*
+``task wallpanel-control:schema:generate`` — no post-generation hand-application.
+Discovery is driven by the presence of this metadata, so the command-handler
+state channel still yields HA sensors regardless of its ``command`` archetype.
+This mirrors velux2mqtt's ``CoverState``; the migration is tracked as bead
+``cap-3mb``.
 """
 
 from __future__ import annotations
@@ -28,6 +42,7 @@ from typing import Annotated, Literal
 
 import cosalette
 from cosalette.mqtt import Payload
+from cosalette.schema import consumer
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError
@@ -58,8 +73,28 @@ class DisplayState(BaseModel):
     """Typed state for wallpanel-control/display/state."""
 
     available: bool
-    state: Literal["on", "off"] | None
-    brightness_percent: int | None = Field(ge=0, le=100)
+    state: Annotated[
+        Literal["on", "off"] | None,
+        Field(
+            json_schema_extra=consumer(
+                display_name="Display State",
+                icon="mdi:monitor",
+            )
+        ),
+    ]
+    brightness_percent: Annotated[
+        int | None,
+        Field(
+            ge=0,
+            le=100,
+            json_schema_extra=consumer(
+                display_name="Display Brightness",
+                unit="%",
+                state_class="measurement",
+                icon="mdi:brightness-percent",
+            ),
+        ),
+    ]
 
 
 _UNAVAILABLE = DisplayState(available=False, state=None, brightness_percent=None)
