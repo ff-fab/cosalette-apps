@@ -152,10 +152,6 @@ a rendered graphic, not a scalar measurement — there is no `device_class`, uni
 annotation applies. The SVG is intended for direct display (for example via the built-in
 HTTP endpoint), not as an HA sensor entity.
 
-See
-[`docs/planning/cap-3bz-ha-discovery-schema-enrichment.md`](../../docs/planning/cap-3bz-ha-discovery-schema-enrichment.md)
-for the full analysis.
-
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
