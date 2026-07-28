@@ -36,6 +36,7 @@ from dataclasses import dataclass
 from typing import Annotated, Literal
 
 import cosalette
+from cosalette.schema import consumer
 from pydantic import Field
 
 from velux2mqtt.domain.calibration import (
@@ -75,14 +76,12 @@ class CoverState:
     position: Annotated[
         int,
         Field(
-            json_schema_extra={
-                "x-cosalette-consumer": {
-                    "display_name": "Cover Position",
-                    "unit": "%",
-                    "state_class": "measurement",
-                    "icon": "mdi:window-shutter",
-                },
-            },
+            json_schema_extra=consumer(
+                display_name="Cover Position",
+                unit="%",
+                state_class="measurement",
+                icon="mdi:window-shutter",
+            ),
         ),
     ]
 
