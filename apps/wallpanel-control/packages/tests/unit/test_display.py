@@ -234,6 +234,32 @@ class TestDisplayState:
         s = DisplayState(available=True, state="off", brightness_percent=0)
         assert s.brightness_percent == 0
 
+    def test_brightness_percent_hundred_is_valid_in_output(self) -> None:
+        """brightness_percent=100 is the valid upper bound in DisplayState.
+
+        Technique: Boundary Value Analysis — locks the ``le=100`` constraint
+        so an accidental drop during the Annotated migration is caught.
+        """
+        s = DisplayState(available=True, state="on", brightness_percent=100)
+        assert s.brightness_percent == 100
+
+    def test_brightness_percent_over_hundred_is_rejected(self) -> None:
+        """brightness_percent=101 is above the maximum of 100 and rejected.
+
+        Technique: Boundary Value Analysis — invalid upper bound.
+        """
+        with pytest.raises(ValidationError, match="brightness_percent"):
+            DisplayState(available=True, state="on", brightness_percent=101)
+
+    def test_brightness_percent_is_required(self) -> None:
+        """brightness_percent has no default — omitting it is a validation error.
+
+        Technique: Specification-based — the field is required, guarding against
+        an accidental default being introduced during the Annotated migration.
+        """
+        with pytest.raises(ValidationError, match="brightness_percent"):
+            DisplayState(available=False, state=None)  # type: ignore[call-arg]
+
 
 # =============================================================================
 # _poll_display_state — polling logic

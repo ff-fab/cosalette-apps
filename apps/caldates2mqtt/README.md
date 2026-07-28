@@ -20,9 +20,7 @@ would require an app-specific value template (for example "days until next event
 "event active today") that has no standard discovery mapping.
 
 This is a future enhancement, not a gap: it can be revisited once the discovery library
-supports event-list payloads. See
-[`docs/planning/cap-3bz-ha-discovery-schema-enrichment.md`](../../docs/planning/cap-3bz-ha-discovery-schema-enrichment.md)
-for the full analysis.
+supports event-list payloads.
 
 ## Contributing
 
