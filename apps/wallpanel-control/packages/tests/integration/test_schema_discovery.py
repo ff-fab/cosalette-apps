@@ -119,3 +119,22 @@ class TestHaDiscoveryGeneration:
             assert config.get(key) == value, (
                 f"{object_id}: expected {key}={value!r}, got {config.get(key)!r}"
             )
+
+    def test_display_state_is_plain_text_sensor(
+        self, configs_by_id: dict[str, dict[str, Any]]
+    ) -> None:
+        """display_state carries no numeric-measurement metadata.
+
+        Technique: Equivalence Partitioning — locks the boundary between the
+        plain enum-text sensor (state) and the numeric-measurement sensor
+        (brightness). Mirrors the airthings radon negative guard: a regression
+        adding spurious device_class/unit/state_class to the text sensor must
+        fail loudly.
+        """
+        config = configs_by_id.get("display_state")
+        assert config is not None, "No payload found for object_id='display_state'"
+        for key in ("device_class", "unit_of_measurement", "state_class"):
+            assert key not in config, (
+                f"display_state: unexpected {key}={config.get(key)!r} "
+                "on a plain-text sensor"
+            )
