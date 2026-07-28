@@ -40,7 +40,8 @@ Consumer-metadata maintenance (model-driven)
 The ``x-cosalette-consumer`` metadata that drives HA discovery
 (device_class, unit, state_class, icon, …) rides on each surfaced field
 via :func:`pydantic.Field`'s ``json_schema_extra`` (built through the
-:func:`_consumer` helper). Because cosalette generates the schema with
+framework :func:`cosalette.schema.consumer` helper). Because cosalette
+generates the schema with
 ``TypeAdapter(model).json_schema()``, which preserves ``json_schema_extra``,
 this enrichment *survives* ``task vito2mqtt:schema:generate`` — no
 post-generation hand-application step. This mirrors velux2mqtt's
@@ -51,8 +52,9 @@ enrichment is tracked as bead ``cap-g90``.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Annotated, Any, TypedDict, Unpack
+from typing import Annotated, Any
 
+from cosalette.schema import consumer
 from pydantic import Field
 
 __all__ = [
@@ -68,38 +70,6 @@ __all__ = [
 ]
 
 
-class ConsumerMeta(TypedDict, total=False):
-    """Valid Home Assistant discovery keys for ``x-cosalette-consumer``.
-
-    Enumerates every metadata key the telemetry models forward into MQTT
-    discovery — the human-readable ``display_name`` plus the HA sensor
-    attributes ``device_class``, ``unit``, ``state_class`` and ``icon``.
-    ``total=False`` because each field carries only the subset that applies
-    to it, and typing ``_consumer(**metadata)`` with it makes call sites fail
-    typecheck if they pass an unknown or mistyped key.
-    """
-
-    display_name: str
-    device_class: str
-    unit: str
-    state_class: str
-    icon: str
-
-
-def _consumer(**metadata: Unpack[ConsumerMeta]) -> dict[str, Any]:
-    """Wrap HA-discovery metadata under the ``x-cosalette-consumer`` key.
-
-    Returned dict is passed as ``json_schema_extra`` to
-    :func:`pydantic.Field`, so ``TypeAdapter(model).json_schema()`` emits the
-    ``x-cosalette-consumer`` block that drives Home Assistant MQTT discovery.
-    Surviving schema regeneration is the whole point — see the module
-    docstring. ``metadata`` is typed via :class:`ConsumerMeta`, so callers are
-    checked against the valid discovery keys.
-    """
-
-    return {"x-cosalette-consumer": dict(metadata)}
-
-
 def _temperature(display_name: str) -> dict[str, Any]:
     """``x-cosalette-consumer`` for a standard °C measurement sensor.
 
@@ -108,7 +78,7 @@ def _temperature(display_name: str) -> dict[str, Any]:
     fields, where only the ``display_name`` varies.
     """
 
-    return _consumer(
+    return consumer(
         display_name=display_name,
         device_class="temperature",
         unit="°C",
@@ -126,8 +96,8 @@ def _percent(display_name: str, *, icon: str | None = None) -> dict[str, Any]:
     """
 
     if icon is None:
-        return _consumer(display_name=display_name, unit="%", state_class="measurement")
-    return _consumer(
+        return consumer(display_name=display_name, unit="%", state_class="measurement")
+    return consumer(
         display_name=display_name,
         unit="%",
         state_class="measurement",
@@ -197,7 +167,7 @@ class BurnerState:
     burner_starts: Annotated[
         int,
         Field(
-            json_schema_extra=_consumer(
+            json_schema_extra=consumer(
                 display_name="Burner Starts",
                 state_class="total_increasing",
                 icon="mdi:fire",
@@ -207,7 +177,7 @@ class BurnerState:
     burner_hours_stage1: Annotated[
         float,
         Field(
-            json_schema_extra=_consumer(
+            json_schema_extra=consumer(
                 display_name="Burner Hours (Stage 1)",
                 device_class="duration",
                 unit="h",
