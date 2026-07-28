@@ -6,6 +6,7 @@ info:
 channels:
   cover_deviceState:
     address: velux2mqtt/cover_device/state
+    x-cosalette-app: velux2mqtt
     messages:
       message:
         payload:
@@ -23,7 +24,6 @@ channels:
           title: CoverState
           type: object
     x-cosalette-archetype: device
-    x-cosalette-app: velux2mqtt
     x-cosalette-summary: 'Velux cover: GPIO-driven open/close/stop/position control'
     x-cosalette-behavior:
     - Startup homing to a known endpoint for reliable position reference

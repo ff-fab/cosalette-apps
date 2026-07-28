@@ -15,10 +15,16 @@
 
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery.
 
-Guards the ``x-cosalette-consumer`` enrichment on the telemetry payload
-models. Regenerating the schema (``task vito2mqtt:schema:generate``) strips
-these annotations, silently breaking HA discovery; these tests fail loudly
-if that happens.
+Verifies that the *committed* ``docs/schema.yaml`` yields exactly the expected
+HA-discovery entities. The ``x-cosalette-consumer`` enrichment on the telemetry
+payload models rides on the ``GROUP_STATE_MODELS`` fields via
+``pydantic.Field(json_schema_extra=...)`` and is read here from the committed
+schema; these tests fail loudly if it ever drops or distorts an annotation,
+silently breaking HA discovery.
+
+That the schema *regenerates* reproducibly from the models — so the committed
+file can't drift from ``task vito2mqtt:schema:generate`` output — is guarded
+separately by ``task vito2mqtt:schema:check``, not by these tests.
 
 Shared-channel groups
 ---------------------
@@ -118,7 +124,7 @@ class TestHaDiscoveryGeneration:
         """The generated entity set matches the golden set exactly.
 
         Technique: Golden set — a superset means an un-annotated field
-        leaked; a subset means enrichment was stripped by regeneration.
+        leaked; a subset means enrichment is missing from the committed schema.
         """
         assert set(configs_by_id) == EXPECTED_OBJECT_IDS
 

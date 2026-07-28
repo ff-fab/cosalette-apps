@@ -6,6 +6,7 @@ info:
 channels:
   burnerState:
     address: vito2mqtt/burner/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -14,66 +15,66 @@ channels:
               title: Boiler Temperature
               type: number
               x-cosalette-consumer:
-                display_name: Boiler Temperature
                 device_class: temperature
-                unit: °C
+                display_name: Boiler Temperature
                 state_class: measurement
+                unit: "\xB0C"
             boiler_temperature_lowpass:
               title: Boiler Temperature Lowpass
               type: number
               x-cosalette-consumer:
-                display_name: Boiler Temperature (Low-pass)
                 device_class: temperature
-                unit: °C
+                display_name: Boiler Temperature (Low-pass)
                 state_class: measurement
+                unit: "\xB0C"
             boiler_temperature_setpoint:
               title: Boiler Temperature Setpoint
               type: number
               x-cosalette-consumer:
-                display_name: Boiler Temperature Setpoint
                 device_class: temperature
-                unit: °C
+                display_name: Boiler Temperature Setpoint
                 state_class: measurement
+                unit: "\xB0C"
             exhaust_temperature:
               title: Exhaust Temperature
               type: number
               x-cosalette-consumer:
-                display_name: Exhaust Temperature
                 device_class: temperature
-                unit: °C
+                display_name: Exhaust Temperature
                 state_class: measurement
+                unit: "\xB0C"
             burner_modulation:
               title: Burner Modulation
               type: integer
               x-cosalette-consumer:
                 display_name: Burner Modulation
-                unit: "%"
+                icon: mdi:fire
                 state_class: measurement
-                icon: "mdi:fire"
+                unit: '%'
             burner_starts:
               title: Burner Starts
               type: integer
               x-cosalette-consumer:
                 display_name: Burner Starts
+                icon: mdi:fire
                 state_class: total_increasing
-                icon: "mdi:fire"
             burner_hours_stage1:
               title: Burner Hours Stage1
               type: number
               x-cosalette-consumer:
-                display_name: Burner Hours (Stage 1)
                 device_class: duration
-                unit: h
+                display_name: Burner Hours (Stage 1)
+                icon: mdi:timer-outline
                 state_class: total_increasing
-                icon: "mdi:timer-outline"
+                unit: h
             plant_power_output:
               title: Plant Power Output
-              type: number
+              type: integer
               x-cosalette-consumer:
                 display_name: Plant Power Output
-                unit: "%"
+                icon: mdi:gauge
                 state_class: measurement
-                icon: "mdi:gauge"
+                unit: '%'
           required:
           - boiler_temperature
           - boiler_temperature_lowpass
@@ -86,11 +87,11 @@ channels:
           title: BurnerState
           type: object
     x-cosalette-archetype: telemetry
-    x-cosalette-app: vito2mqtt
     x-cosalette-summary: Read burner temperature, modulation and runtime data via
       Optolink serial
   diagnosisState:
     address: vito2mqtt/diagnosis/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -137,6 +138,7 @@ channels:
       serial
   heating_floorCommand:
     address: vito2mqtt/heating_floor/set
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -146,6 +148,7 @@ channels:
     x-cosalette-summary: Set floor heating circuit temperatures and schedules
   heating_floorState:
     address: vito2mqtt/heating_floor/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -155,18 +158,18 @@ channels:
                 title: Flow Temperature M2
                 type: number
                 x-cosalette-consumer:
-                  display_name: Flow Temperature M2 (Floor)
                   device_class: temperature
-                  unit: °C
+                  display_name: Flow Temperature M2 (Floor)
                   state_class: measurement
+                  unit: "\xB0C"
               flow_temperature_setpoint_m2:
                 title: Flow Temperature Setpoint M2
                 type: number
                 x-cosalette-consumer:
-                  display_name: Flow Temperature Setpoint M2 (Floor)
                   device_class: temperature
-                  unit: °C
+                  display_name: Flow Temperature Setpoint M2 (Floor)
                   state_class: measurement
+                  unit: "\xB0C"
               pump_status_m2:
                 title: Pump Status M2
                 type: string
@@ -175,9 +178,9 @@ channels:
                 type: integer
                 x-cosalette-consumer:
                   display_name: Pump Speed M2 (Floor)
-                  unit: "%"
+                  icon: mdi:pump
                   state_class: measurement
-                  icon: "mdi:pump"
+                  unit: '%'
               frost_warning_m2:
                 title: Frost Warning M2
                 type: integer
@@ -206,11 +209,11 @@ channels:
               type: object
             - type: 'null'
     x-cosalette-archetype: telemetry
-    x-cosalette-app: vito2mqtt
     x-cosalette-summary: Read floor heating circuit temperatures and pump status via
       Optolink serial
   heating_radiatorCommand:
     address: vito2mqtt/heating_radiator/set
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -220,6 +223,7 @@ channels:
     x-cosalette-summary: Set radiator heating circuit temperatures and schedules
   heating_radiatorState:
     address: vito2mqtt/heating_radiator/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -229,18 +233,18 @@ channels:
                 title: Flow Temperature M1
                 type: number
                 x-cosalette-consumer:
-                  display_name: Flow Temperature M1 (Radiator)
                   device_class: temperature
-                  unit: °C
+                  display_name: Flow Temperature M1 (Radiator)
                   state_class: measurement
+                  unit: "\xB0C"
               flow_temperature_setpoint_m1:
                 title: Flow Temperature Setpoint M1
                 type: number
                 x-cosalette-consumer:
-                  display_name: Flow Temperature Setpoint M1 (Radiator)
                   device_class: temperature
-                  unit: °C
+                  display_name: Flow Temperature Setpoint M1 (Radiator)
                   state_class: measurement
+                  unit: "\xB0C"
               pump_status_m1:
                 title: Pump Status M1
                 type: integer
@@ -268,11 +272,11 @@ channels:
             type: object
           - anyOf: *id001
     x-cosalette-archetype: telemetry
-    x-cosalette-app: vito2mqtt
     x-cosalette-summary: Read radiator heating circuit temperatures and pump status
       via Optolink serial
   hot_waterCommand:
     address: vito2mqtt/hot_water/set
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -282,6 +286,7 @@ channels:
     x-cosalette-summary: Set hot water temperature and timer schedules
   hot_waterState:
     address: vito2mqtt/hot_water/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -291,18 +296,18 @@ channels:
                 title: Hot Water Temperature
                 type: number
                 x-cosalette-consumer:
-                  display_name: Hot Water Temperature
                   device_class: temperature
-                  unit: °C
+                  display_name: Hot Water Temperature
                   state_class: measurement
+                  unit: "\xB0C"
               hot_water_outlet_temperature:
                 title: Hot Water Outlet Temperature
                 type: number
                 x-cosalette-consumer:
-                  display_name: Hot Water Outlet Temperature
                   device_class: temperature
-                  unit: °C
+                  display_name: Hot Water Outlet Temperature
                   state_class: measurement
+                  unit: "\xB0C"
             required:
             - hot_water_temperature
             - hot_water_outlet_temperature
@@ -310,10 +315,10 @@ channels:
             type: object
           - anyOf: *id001
     x-cosalette-archetype: telemetry
-    x-cosalette-app: vito2mqtt
     x-cosalette-summary: Read hot water temperature sensors via Optolink serial
   legionellaState:
     address: vito2mqtt/legionella/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -321,6 +326,7 @@ channels:
     x-cosalette-archetype: device
   outdoorState:
     address: vito2mqtt/outdoor/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -329,26 +335,26 @@ channels:
               title: Outdoor Temperature
               type: number
               x-cosalette-consumer:
-                display_name: Outdoor Temperature
                 device_class: temperature
-                unit: °C
+                display_name: Outdoor Temperature
                 state_class: measurement
+                unit: "\xB0C"
             outdoor_temperature_lowpass:
               title: Outdoor Temperature Lowpass
               type: number
               x-cosalette-consumer:
-                display_name: Outdoor Temperature (Low-pass)
                 device_class: temperature
-                unit: °C
+                display_name: Outdoor Temperature (Low-pass)
                 state_class: measurement
+                unit: "\xB0C"
             outdoor_temperature_damped:
               title: Outdoor Temperature Damped
               type: number
               x-cosalette-consumer:
-                display_name: Outdoor Temperature (Damped)
                 device_class: temperature
-                unit: °C
+                display_name: Outdoor Temperature (Damped)
                 state_class: measurement
+                unit: "\xB0C"
           required:
           - outdoor_temperature
           - outdoor_temperature_lowpass
@@ -356,10 +362,10 @@ channels:
           title: OutdoorState
           type: object
     x-cosalette-archetype: telemetry
-    x-cosalette-app: vito2mqtt
     x-cosalette-summary: Read outdoor temperature sensors via Optolink serial
   systemCommand:
     address: vito2mqtt/system/set
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -369,6 +375,7 @@ channels:
     x-cosalette-summary: Set Vitotronic system operational parameters
   systemState:
     address: vito2mqtt/system/state
+    x-cosalette-app: vito2mqtt
     messages:
       message:
         payload:
@@ -378,10 +385,10 @@ channels:
                 title: Storage Temperature Lowpass
                 type: number
                 x-cosalette-consumer:
-                  display_name: Storage Temperature (Low-pass)
                   device_class: temperature
-                  unit: °C
+                  display_name: Storage Temperature (Low-pass)
                   state_class: measurement
+                  unit: "\xB0C"
               internal_pump_status:
                 title: Internal Pump Status
                 type: string
@@ -390,9 +397,9 @@ channels:
                 type: integer
                 x-cosalette-consumer:
                   display_name: Internal Pump Speed
-                  unit: "%"
+                  icon: mdi:pump
                   state_class: measurement
-                  icon: "mdi:pump"
+                  unit: '%'
               storage_charge_pump_status:
                 title: Storage Charge Pump Status
                 type: string
@@ -406,10 +413,10 @@ channels:
                 title: Flow Temperature Setpoint M3
                 type: number
                 x-cosalette-consumer:
-                  display_name: Flow Temperature Setpoint M3
                   device_class: temperature
-                  unit: °C
+                  display_name: Flow Temperature Setpoint M3
                   state_class: measurement
+                  unit: "\xB0C"
             required:
             - storage_temperature_lowpass
             - internal_pump_status
@@ -422,7 +429,6 @@ channels:
             type: object
           - anyOf: *id001
     x-cosalette-archetype: telemetry
-    x-cosalette-app: vito2mqtt
     x-cosalette-summary: Read Vitotronic system status and operational parameters
       via Optolink serial
 operations:

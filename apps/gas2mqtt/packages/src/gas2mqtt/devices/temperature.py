@@ -15,8 +15,11 @@ MQTT state payload:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Annotated
 
 from cosalette import Pt1Filter
+from cosalette.schema import consumer
+from pydantic import Field
 
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
@@ -27,14 +30,27 @@ class TemperatureReading:
     """Published temperature telemetry payload.
 
     Typed ``state_model`` for the ``temperature`` telemetry channel so
-    ``cosalette schema init`` emits a typed property that can carry
-    ``x-cosalette-consumer`` metadata for Home Assistant discovery.
+    ``cosalette schema init`` emits a typed property carrying
+    ``x-cosalette-consumer`` metadata for Home Assistant discovery. The
+    metadata rides on the field via :func:`pydantic.Field`'s
+    ``json_schema_extra``, so it survives ``task gas2mqtt:schema:generate``
+    (``TypeAdapter(model).json_schema()`` preserves it) — no post-generation
+    hand-application.
 
     Attributes:
         temperature: PT1-filtered temperature in degrees Celsius.
     """
 
-    temperature: float
+    temperature: Annotated[
+        float,
+        Field(
+            json_schema_extra=consumer(
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
 
 
 def make_pt1(settings: Gas2MqttSettings) -> Pt1Filter:

@@ -100,11 +100,15 @@ tasks:
       - uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
 
   schema:generate:
-    desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} — ERASES x-cosalette-consumer enrichment'
-    # WARNING: strips hand-authored x-cosalette-consumer enrichment. Re-enrich
-    # manually after running this task. (x-cosalette-app no longer needs
-    # re-adding: cosalette 0.5.7+ auto-emits it per channel from the App registry.)
-    prompt: 'This will overwrite docs/schema.yaml and erase consumer metadata enrichment for {{.APP_NAME}}. Continue?'
+    desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} from the app registrations'
+    # Model-driven apps (state_model fields carrying x-cosalette-consumer via
+    # pydantic.Field(json_schema_extra=...), e.g. vito2mqtt/gas2mqtt/velux2mqtt)
+    # regenerate hands-off: TypeAdapter(model).json_schema() preserves the
+    # consumer enrichment, so NO manual re-enrichment is needed. Apps that still
+    # hand-author x-cosalette-consumer directly in docs/schema.yaml must re-apply
+    # it after running this task. (x-cosalette-app never needs re-adding:
+    # cosalette 0.5.7+ auto-emits it per channel from the App registry.)
+    prompt: 'This will overwrite docs/schema.yaml for {{.APP_NAME}}. Hand-authored (non-model-driven) consumer enrichment would need re-applying. Continue?'
     cmds:
       - |
         uv run --package {{.APP_NAME}} cosalette schema init \
