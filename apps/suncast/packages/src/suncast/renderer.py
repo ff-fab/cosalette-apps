@@ -21,9 +21,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Literal
-
 from suncast.domain.geometry import GeometryConfig
 from suncast.domain.shadow import (
     Point,
@@ -32,20 +29,11 @@ from suncast.domain.shadow import (
     degrees_to_cartesian,
 )
 from suncast.domain.solar import SunPosition
-from suncast.settings import SundialMode
+from suncast.settings import RenderStyle
 
-
-@dataclass(frozen=True, slots=True)
-class RenderSettings:
-    """Visual settings for the SVG renderer."""
-
-    primary_color: str = "#614c1f"
-    secondary_color: str = "#b38c3a"
-    light_color: str = "#f1b023"
-    shadow_color: str = "#2F3338"
-    stroke_width: float = 1.0
-    sundial_mode: SundialMode = "ring"
-    marker_style: Literal["bar", "circle"] = "circle"
+# The renderer's visual value object lives with the settings it mirrors; see
+# suncast.settings.RenderStyle. Re-exported here for the renderer's public API.
+RenderSettings = RenderStyle
 
 
 def points_to_path(points: tuple[Point, ...]) -> str:
