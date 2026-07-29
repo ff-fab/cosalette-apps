@@ -24,6 +24,7 @@ from jeelink2mqtt.state import (  # noqa: F401
     SharedState,
     _build_sensor_configs,
     build_shared_state,
+    build_shared_state_logged,
 )
 
 __all__ = ["SharedState", "_build_sensor_configs", "build_shared_state", "_lifespan"]
@@ -49,13 +50,7 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[SharedState]:
     )
     settings: Jeelink2MqttSettings = ctx.settings  # type: ignore
 
-    state = build_shared_state(settings)
-
-    logger.info(
-        "Shared state ready — %d sensor(s): %s",
-        len(state.sensor_configs),
-        ", ".join(state.sensor_configs.keys()) or "(none)",
-    )
+    state = build_shared_state_logged(settings)
 
     try:
         yield state
