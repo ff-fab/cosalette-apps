@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Render an ADR from a validated JSON input file.
 
 Usage:
@@ -33,6 +32,10 @@ SCALE_LEGEND = "_Scale: 1 (poor) to 5 (excellent)_"
 
 # ---------------------------------------------------------------------------
 # Validation helpers
+#
+# The type-guard checks below raise ValueError (not TypeError) by contract:
+# main() catches ValueError to print a friendly message + exit non-zero, and the
+# unit tests assert ValueError. Hence `# noqa: TRY004` on those isinstance guards.
 # ---------------------------------------------------------------------------
 
 
@@ -49,7 +52,7 @@ def _expect_list(value: Any, label: str) -> list[Any]:
     """Require list type with an actionable validation error."""
     if not isinstance(value, list):
         msg = f"'{label}' must be a list"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: TRY004
     return value
 
 
@@ -57,7 +60,7 @@ def _expect_dict(value: Any, label: str) -> dict[str, Any]:
     """Require dict type with an actionable validation error."""
     if not isinstance(value, dict):
         msg = f"'{label}' must be an object"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: TRY004
     return value
 
 
@@ -65,7 +68,7 @@ def _expect_str(value: Any, label: str) -> str:
     """Require string type with an actionable validation error."""
     if not isinstance(value, str):
         msg = f"'{label}' must be a string"
-        raise ValueError(msg)
+        raise ValueError(msg)  # noqa: TRY004
     return value
 
 
@@ -116,7 +119,7 @@ def _validate_matrix_row(row: Any, index: int) -> dict[str, Any]:
     for key, score in scores.items():
         if not isinstance(key, str):
             msg = f"'{label}.scores' keys must be strings"
-            raise ValueError(msg)
+            raise ValueError(msg)  # noqa: TRY004
         if not isinstance(score, int) or not 1 <= score <= 5:
             msg = f"'{label}.scores.{key}' must be an integer between 1 and 5"
             raise ValueError(msg)
