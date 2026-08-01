@@ -146,3 +146,21 @@ def build_shared_state(settings: Jeelink2MqttSettings) -> SharedState:
         filter_bank=FilterBank(settings.median_filter_window),
         sensor_configs={c.name: c for c in configs},
     )
+
+
+def build_shared_state_logged(settings: Jeelink2MqttSettings) -> SharedState:
+    """Build :class:`SharedState` and log a one-line readiness summary.
+
+    Thin wrapper over :func:`build_shared_state` shared by the composition
+    roots — the ``@app.state`` factory in :mod:`jeelink2mqtt.main` and the
+    deprecated ``_lifespan`` in :mod:`jeelink2mqtt.app` — so the build+log
+    stays in one place. ``build_shared_state`` itself remains a pure factory
+    for tests that construct state without emitting logs.
+    """
+    state = build_shared_state(settings)
+    logger.info(
+        "Shared state ready — %d sensor(s): %s",
+        len(state.sensor_configs),
+        ", ".join(state.sensor_configs.keys()) or "(none)",
+    )
+    return state

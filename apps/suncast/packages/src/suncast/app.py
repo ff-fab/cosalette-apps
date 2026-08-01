@@ -55,15 +55,9 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
     """Build pipeline state from settings (invoked as ``init=`` callback)."""
     geometry = load_geometry(settings.geometry_file)
     geometry = fit_to_circle(geometry)
-    render_settings = RenderSettings(
-        primary_color=settings.primary_color,
-        secondary_color=settings.secondary_color,
-        light_color=settings.light_color,
-        shadow_color=settings.shadow_color,
-        stroke_width=settings.stroke_width,
-        sundial_mode=settings.sundial_mode,
-        marker_style=settings.marker_style,
-    )
+    # Extract just the render-style fields into a fresh frozen value object
+    # (settings inherits them from RenderStyle but also carries unrelated config).
+    render_settings = RenderSettings.model_validate(settings, from_attributes=True)
     output_settings = OutputSettings(
         output_path=settings.output_path,
         png_enabled=settings.png_enabled,

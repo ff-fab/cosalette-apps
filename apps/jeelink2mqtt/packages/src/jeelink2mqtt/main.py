@@ -32,7 +32,7 @@ from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.errors import error_type_map
 from jeelink2mqtt.models import MappingEvent, SensorReading
 from jeelink2mqtt.settings import Jeelink2MqttSettings
-from jeelink2mqtt.state import SharedState, build_shared_state
+from jeelink2mqtt.state import SharedState, build_shared_state_logged
 
 logger = logging.getLogger(__name__)
 
@@ -58,13 +58,7 @@ app = cosalette.App(
 @app.state
 def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
     """State factory for SharedState with registry, filter bank, and sensor configs."""
-    state = build_shared_state(settings)
-    logger.info(
-        "Shared state ready — %d sensor(s): %s",
-        len(state.sensor_configs),
-        ", ".join(state.sensor_configs.keys()) or "(none)",
-    )
-    return state
+    return build_shared_state_logged(settings)
 
 
 def _persist_registry(store: DeviceStore, state: SharedState) -> None:

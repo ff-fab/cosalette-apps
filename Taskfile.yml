@@ -428,9 +428,12 @@ tasks:
     vars:
       MODULE_NAME: cosalette_apps
     cmds:
+      # --ignore-comments strips the shared 15-line GPL license header carried by
+      # every source file; without it symilar reports each header pair as a false
+      # duplicate, making the gate useless.
       - |
         OUTPUT=$(find {{.PKG}}/src/{{.MODULE_NAME}} -name '*.py' -print0 \
-          | xargs -0 -x uv run symilar -d 4 --ignore-imports --ignore-signatures)
+          | xargs -0 -x uv run symilar -d 4 --ignore-comments --ignore-imports --ignore-signatures)
         echo "$OUTPUT"
         DUPES=$(printf '%s\n' "$OUTPUT" | sed -n 's/.*duplicates=\([0-9][0-9]*\).*/\1/p' | head -n1)
         if [ "${DUPES:-0}" -gt 0 ]; then
