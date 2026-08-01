@@ -405,6 +405,28 @@ tasks:
     cmds:
       - uv sync --group dev --group docs
 
+  update:deps:
+    desc: Update all dependencies to latest compatible versions
+    cmds:
+      - uv lock --upgrade
+      - uv sync --all-groups
+
+  update:template:
+    desc: >-
+      Pull latest copier template changes (cosalette-apps is a monorepo; the
+      template is single-project. A raw `copier update` WILL regress the
+      app-matrix CI, per-app docs/Docker matrices, and root virtual-workspace
+      pyproject.toml — see docs/planning/copier-template-v1-19-2-update-evaluation.md
+      for the required hand-reconciliation process. Do not commit this
+      task's output directly.
+    cmds:
+      - uvx --python 3.14 --with jinja2-time copier update --trust
+
+  docker:lint:
+    desc: Lint Dockerfiles with hadolint (fails on DL-prefixed warnings)
+    cmds:
+      - bash scripts/qa-task.sh docker:lint
+
   complexity:
     desc: Check all code complexity gates (cyclomatic + cognitive + duplication/similarity)
     cmds:
