@@ -57,9 +57,7 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
     geometry = fit_to_circle(geometry)
     # Extract just the render-style fields into a fresh frozen value object
     # (settings inherits them from RenderStyle but also carries unrelated config).
-    render_settings = RenderSettings(
-        **{name: getattr(settings, name) for name in RenderSettings.model_fields}
-    )
+    render_settings = RenderSettings.model_validate(settings, from_attributes=True)
     output_settings = OutputSettings(
         output_path=settings.output_path,
         png_enabled=settings.png_enabled,
