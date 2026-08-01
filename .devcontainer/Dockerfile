@@ -50,8 +50,9 @@ RUN set -eux; \
 
 # Install dolt (versioned SQL database backend for the beads/bd issue tracker).
 # Baked into the image so the container starts reliably without a runtime download.
-# bd on Linux requires an external dolt binary; the embedded dolt in the bd binary
-# is macOS-only as of beads v1.0.0.
+# This project runs bd in server mode (`bd init --server` in post-create.sh,
+# `bd dolt start` in post-start.sh), which requires an external dolt binary.
+# Verified against beads v1.1.2.
 # renovate: datasource=github-releases depName=dolthub/dolt
 ARG DOLT_VERSION=v2.2.3
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
@@ -77,8 +78,8 @@ RUN set -eux; \
 # Install beads (bd) — git-backed issue tracker for AI agents.
 # Baked into the image so the VS Code extension (planet57.vscode-beads) can
 # discover the project during activation, before any lifecycle scripts run.
-# The tarball ships a single static-ish binary; an ICU compatibility symlink
-# is created when the binary links against a different ICU than the OS provides.
+# The tarball ships a single binary that links only libc and the loader
+# (verified with `readelf -d` on both linux/amd64 and linux/arm64 at v1.1.2).
 # renovate: datasource=github-releases depName=gastownhall/beads
 ARG BD_VERSION=v1.1.2
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
@@ -100,23 +101,6 @@ RUN set -eux; \
     tar -xzf "${TARBALL}" -C /tmp; \
     install -m 755 /tmp/bd /usr/local/bin/bd; \
     rm -f /tmp/bd "${TARBALL}"; \
-    # ICU compatibility shim: the prebuilt bd binary may link against a \
-    # different ICU major version than the base image provides. Create \
-    # version-specific symlinks so the dynamic loader resolves them. \
-    # CAUTION: this spoofs SONAMEs — acceptable here because bd is the \
-    # only consumer, but do not apply this pattern system-wide. \
-    if ! bd version >/dev/null 2>&1; then \
-      MULTIARCH="$(dpkg-architecture -qDEB_HOST_MULTIARCH 2>/dev/null || echo x86_64-linux-gnu)"; \
-      LOCAL_ICU=$(ldconfig -p | grep -oP 'libicui18n\.so\.\K[0-9]+' | head -1); \
-      NEEDED_ICU=$(ldd /usr/local/bin/bd 2>/dev/null | grep -oP 'libicui18n\.so\.\K[0-9]+' || true); \
-      if [ -n "$LOCAL_ICU" ] && [ -n "$NEEDED_ICU" ] && [ "$LOCAL_ICU" != "$NEEDED_ICU" ]; then \
-        for lib in libicui18n libicuuc libicudata; do \
-          ln -sf "/lib/${MULTIARCH}/${lib}.so.${LOCAL_ICU}" \
-                  "/lib/${MULTIARCH}/${lib}.so.${NEEDED_ICU}"; \
-        done; \
-        ldconfig; \
-      fi; \
-    fi; \
     bd version
 
 # Install opencode (AI coding agent — https://opencode.ai)
