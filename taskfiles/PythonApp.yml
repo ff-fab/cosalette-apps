@@ -130,8 +130,11 @@ tasks:
   similarity:
     desc: 'Check code duplication for {{.APP_NAME}}'
     cmds:
+      # --ignore-comments strips the shared 15-line GPL license header carried by
+      # every source file; without it symilar reports each header pair as a false
+      # duplicate (e.g. vito2mqtt: 159 phantom dupes), making the gate useless.
       - |
-        OUTPUT=$(uv run symilar -d 4 --ignore-imports --ignore-signatures \
+        OUTPUT=$(uv run symilar -d 4 --ignore-comments --ignore-imports --ignore-signatures \
           $(find {{.PKG}}/src/{{.MODULE_NAME}} -name '*.py'))
         echo "$OUTPUT"
         DUPES=$(printf '%s\n' "$OUTPUT" | sed -n 's/.*duplicates=\([0-9][0-9]*\).*/\1/p' | head -n1)

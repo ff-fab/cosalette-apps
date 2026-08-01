@@ -28,7 +28,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from suncast.settings import SuncastSettings
+from suncast.settings import RenderStyle, SuncastSettings
 
 
 def _make_settings(**overrides: object) -> SuncastSettings:
@@ -160,3 +160,50 @@ class TestValidation:
     def test_sundial_mode_rejects_unknown_value(self) -> None:
         with pytest.raises(ValidationError, match="sundial_mode"):
             _make_settings(sundial_mode="legacy")
+
+    @pytest.mark.parametrize(
+        "color",
+        [
+            "red",
+            "rgb(0,0,0)",
+            "#gggggg",
+            "#12345",
+            "javascript:alert(1)",
+            '"/><script>alert(1)</script>',
+        ],
+    )
+    def test_rejects_non_hex_colors(self, color: str) -> None:
+        """Non-hex color values are rejected (closes SVG-injection vector).
+
+        Technique: Error Guessing — malicious/malformed color values that
+        would otherwise be interpolated unescaped into SVG output.
+        """
+        with pytest.raises(ValidationError, match="primary_color"):
+            _make_settings(primary_color=color)
+
+    @pytest.mark.parametrize("color", ["#000", "#fff", "#614c1f", "#2F3338"])
+    def test_accepts_hex_colors(self, color: str) -> None:
+        """Both 3- and 6-digit hex colors are accepted."""
+        s = _make_settings(primary_color=color)
+        assert s.primary_color == color
+
+
+@pytest.mark.unit
+class TestFrozenOverride:
+    """SuncastSettings stays mutable despite inheriting from frozen RenderStyle.
+
+    RenderStyle.model_config sets frozen=True so the standalone value object
+    is immutable; SuncastSettings mixes it in but explicitly re-sets
+    frozen=False in its own model_config so settings remain mutable. These
+    tests pin that override relationship down as a regression guard.
+    """
+
+    def test_render_style_is_frozen(self) -> None:
+        style = RenderStyle()
+        with pytest.raises(ValidationError, match="frozen"):
+            style.primary_color = "#000000"
+
+    def test_suncast_settings_is_mutable(self) -> None:
+        s = _make_settings()
+        s.primary_color = "#000000"
+        assert s.primary_color == "#000000"
