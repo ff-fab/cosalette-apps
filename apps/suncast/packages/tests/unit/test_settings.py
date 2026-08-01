@@ -73,7 +73,7 @@ class TestDefaults:
     def test_http_defaults(self) -> None:
         s = _make_settings()
         assert s.http_enabled is False
-        assert s.http_host == "0.0.0.0"
+        assert s.http_host == "0.0.0.0"  # noqa: S104
         assert s.http_port == 8080
 
 

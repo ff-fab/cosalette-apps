@@ -132,7 +132,7 @@ class TestHttpSettings:
 
         # Assert
         assert settings.http_enabled is False
-        assert settings.http_host == "0.0.0.0"
+        assert settings.http_host == "0.0.0.0"  # noqa: S104
         assert settings.http_port == 8080
         assert settings.png_width == 800
         assert settings.png_height == 800

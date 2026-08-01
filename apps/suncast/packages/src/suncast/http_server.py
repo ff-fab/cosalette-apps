@@ -56,7 +56,7 @@ class HttpSettings:
     http_enabled: bool = False
     """Whether to start the HTTP server."""
 
-    http_host: str = "0.0.0.0"
+    http_host: str = "0.0.0.0"  # noqa: S104 — intentional bind-all for container use
     """Host address to bind."""
 
     http_port: int = 8080

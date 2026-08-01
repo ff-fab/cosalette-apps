@@ -273,7 +273,7 @@ def load_svg_geometry(
         raise FileNotFoundError(msg)
 
     try:
-        tree = ET.parse(svg_path)
+        tree = ET.parse(svg_path)  # noqa: S314 — trusted local files only
     except ET.ParseError as e:
         msg = f"Invalid SVG file '{svg_path}': {e}"
         raise ValueError(msg) from e
