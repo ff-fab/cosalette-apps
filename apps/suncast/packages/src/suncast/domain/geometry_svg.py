@@ -115,9 +115,8 @@ def _parse_path_d(d_attr: str) -> list[tuple[float, float]] | None:
 
         i = 0
         while i < len(nums):
-            if cmd in ("M", "m", "L", "l"):
-                if i + 1 >= len(nums):
-                    break
+            if cmd in ("M", "m", "L", "l") and i + 1 >= len(nums):
+                break
             if cmd == "M":
                 cx, cy = nums[i], nums[i + 1]
                 vertices.append((cx, cy))
@@ -363,7 +362,10 @@ def load_svg_geometry(
         shape_counter += 1
 
     if not buildings:
-        msg = "SVG contains no usable building shapes (need at least one polygon or straight-line path with >= 3 vertices)"
+        msg = (
+            "SVG contains no usable building shapes (need at least one "
+            "polygon or straight-line path with >= 3 vertices)"
+        )
         raise ValueError(msg)
 
     return GeometryConfig(

@@ -1,4 +1,5 @@
-"""Unit tests for airthings2mqtt adapters — FakeAirthingsReader and BleakAirthingsReader.
+"""Unit tests for airthings2mqtt adapters — FakeAirthingsReader and
+BleakAirthingsReader.
 
 Test Techniques Used:
 - Specification-based: Verify protocol compliance, default behavior, cycling
@@ -258,9 +259,11 @@ class TestBleakAirthingsReader:
             "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
         ):
             reader = BleakAirthingsReader()
-            with caplog.at_level(logging.INFO, logger="airthings2mqtt.adapters.bleak"):
-                with pytest.raises(BleConnectionError, match="refused"):
-                    await reader.read("AA:BB:CC:DD:EE:FF")
+            with (
+                caplog.at_level(logging.INFO, logger="airthings2mqtt.adapters.bleak"),
+                pytest.raises(BleConnectionError, match="refused"),
+            ):
+                await reader.read("AA:BB:CC:DD:EE:FF")
 
         info_logs = [r for r in caplog.records if r.levelno == logging.INFO]
         assert not info_logs, "No INFO log should be emitted when a BLE error occurs"

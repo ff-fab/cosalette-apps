@@ -180,7 +180,8 @@ async def heartbeat(  # pragma: no cover — composition root, tested via helper
     settings: Jeelink2MqttSettings,
     state: SharedState,
 ) -> AsyncIterator[None]:
-    """Periodic heartbeat: re-publish last known readings to prevent inactivity timeouts.
+    """Periodic heartbeat: re-publish last known readings to prevent
+    inactivity timeouts.
 
     Checks every 1 second for eligible sensors (matching the old receiver loop cadence),
     while _maybe_heartbeat uses settings.heartbeat_interval_seconds as the threshold.

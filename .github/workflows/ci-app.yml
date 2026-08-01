@@ -21,7 +21,9 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run linting inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
@@ -39,7 +41,9 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run type checking inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
@@ -52,13 +56,15 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run unit tests inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:ci:test:unit
           token: ${{ secrets.GITHUB_TOKEN }}
-      - uses: codecov/codecov-action@75cd11691c0faa626561e295848008c8a7dddffe  # v5
+      - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         if: always()
         with:
           files: apps/${{ inputs.app }}/coverage.xml

@@ -3,7 +3,8 @@
 Test Techniques Used:
 - State Transition Testing: Adapter lifecycle (open → callback → inject → close)
 - Error Guessing: inject without callback raises RuntimeError
-- Specification-based Testing: No-op methods don't crash; FakeJeeLinkAdapter health_check
+- Specification-based Testing: No-op methods don't crash; FakeJeeLinkAdapter
+  health_check
 - Mock Testing: Async context manager lifecycle
 - Reopen Semantics: Queue reset between adapter sessions
 - Thread-safety Regression: framework callback dispatched via call_soon_threadsafe
@@ -416,7 +417,8 @@ class TestPyLaCrosseAdapterFrameworkCallback:
         assert "fn" in captured_wrapper, "register_all() was never called"
         wrapper = captured_wrapper["fn"]
 
-        # Build a valid-looking sensor (attributes coerced by _convert_sensor_to_reading).
+        # Build a valid-looking sensor (attributes coerced by
+        # _convert_sensor_to_reading).
         sensor = MagicMock()
         sensor.sensorid = "42"
         sensor.temperature = "20.5"
@@ -517,6 +519,7 @@ class TestFakeJeeLinkAdapterHealthCheck:
         Technique: Specification-based — PEP 544 runtime_checkable check.
         """
         from cosalette import HealthCheckable
+
         from jeelink2mqtt.ports import JeeLinkPort
 
         adapter = FakeJeeLinkAdapter()

@@ -107,7 +107,9 @@ def _parse_payload(raw: str, group: str) -> tuple[dict[str, Any], bool]:
     force = raw_force
 
     allowed = _ALLOWED_COMMAND_NAMES[group]
-    unknown = set(data.keys()) - allowed
+    # JSON object keys are always strings; the explicit str() satisfies the
+    # type checker since `data` is narrowed only to `dict[Any, Any]`.
+    unknown: set[str] = {str(key) for key in data} - allowed
     if unknown:
         msg = (
             f"Unknown signal(s) in group {group!r}: "

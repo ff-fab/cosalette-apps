@@ -186,7 +186,8 @@ class TestApplyNorthRotation:
 
 @pytest.mark.unit
 class TestComputeShadowPolygon:
-    """Boundary Value Analysis + Equivalence Partitioning for shadow polygon computation."""
+    """Boundary Value Analysis + Equivalence Partitioning for shadow polygon
+    computation."""
 
     def test_sun_below_horizon_returns_empty(self) -> None:
         """Elevation <= 0 should produce no shadow."""
@@ -290,7 +291,8 @@ class TestComputeShadowPolygon:
             assert p in building_pts
 
     def test_convex_shadow_non_self_intersecting(self) -> None:
-        """Shadow polygon from a convex building should form a valid non-degenerate shape.
+        """Shadow polygon from a convex building should form a valid,
+        non-degenerate shape.
 
         Technique: Structural Testing — polygon validity for convex input.
 

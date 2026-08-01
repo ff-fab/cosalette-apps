@@ -42,7 +42,8 @@ from vito2mqtt.ports import OptolinkPort
 
 
 class TestProtocolConformance:
-    """FakeOptolinkAdapter must satisfy the OptolinkPort and HealthCheckable protocols."""
+    """FakeOptolinkAdapter must satisfy the OptolinkPort and HealthCheckable
+    protocols."""
 
     def test_fake_adapter_isinstance_optolink_port(self) -> None:
         """Structural subtyping — adapter implements all protocol methods.

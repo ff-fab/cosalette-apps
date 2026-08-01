@@ -4,6 +4,15 @@ on:
     branches: [main]
   pull_request:
 
+# Cancel in-progress runs for the same branch/PR — avoids wasting CI minutes
+# on superseded commits when you push twice quickly.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
 env:
   DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
 
@@ -23,7 +32,9 @@ jobs:
       apps: ${{ steps.apps.outputs.apps }}
       shared: ${{ steps.filter.outputs.shared }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       # Discover all apps from apps/*/pyproject.toml
       - name: Discover apps
@@ -62,7 +73,7 @@ jobs:
           done
           echo "$filters" > /tmp/path-filters.yml
 
-      - uses: dorny/paths-filter@6852f92c20ea7fd3b0c25de3b5112db3a98da050  # v3
+      - uses: dorny/paths-filter@7b450fff21473bca461d4b92ce414b9d0420d706 # v4.0.2
         id: filter
         with:
           filters: /tmp/path-filters.yml
@@ -86,7 +97,9 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run shared checks inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
@@ -102,7 +115,9 @@ jobs:
       contents: read
       packages: read
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Run security audit inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
@@ -117,6 +132,14 @@ jobs:
       matrix:
         app: ${{ fromJson(needs.detect.outputs.apps) }}
       fail-fast: false
+    # A reusable-workflow call job's effective token permissions are capped by
+    # its own job-level permissions (defaulting to the workflow top-level
+    # otherwise) — ci-app.yml's jobs need packages: read to pull the
+    # devcontainer image, so it must be granted here explicitly now that the
+    # workflow-level default above is the more restrictive contents: read.
+    permissions:
+      contents: read
+      packages: read
     uses: ./.github/workflows/ci-app.yml
     with:
       app: ${{ matrix.app }}

@@ -78,20 +78,32 @@ class GeometryConfig(BaseModel):
         size = self.canvas.size
         for building in self.buildings:
             if len(building.vertices) < 3:
-                msg = f"Building '{building.name}' must have at least 3 vertices, got {len(building.vertices)}"
+                msg = (
+                    f"Building '{building.name}' must have at least 3 vertices, "
+                    f"got {len(building.vertices)}"
+                )
                 raise ValueError(msg)
             for x, y in building.vertices:
                 if not (0 <= x <= size and 0 <= y <= size):
-                    msg = f"Building '{building.name}' vertex ({x}, {y}) is outside canvas bounds (0..{size})"
+                    msg = (
+                        f"Building '{building.name}' vertex ({x}, {y}) is "
+                        f"outside canvas bounds (0..{size})"
+                    )
                     raise ValueError(msg)
 
         for region in self.highlighted_regions:
             if len(region.vertices) < 3:
-                msg = f"Highlighted region '{region.name}' must have at least 3 vertices, got {len(region.vertices)}"
+                msg = (
+                    f"Highlighted region '{region.name}' must have at least "
+                    f"3 vertices, got {len(region.vertices)}"
+                )
                 raise ValueError(msg)
             for x, y in region.vertices:
                 if not (0 <= x <= size and 0 <= y <= size):
-                    msg = f"Highlighted region '{region.name}' vertex ({x}, {y}) is outside canvas bounds (0..{size})"
+                    msg = (
+                        f"Highlighted region '{region.name}' vertex ({x}, {y}) "
+                        f"is outside canvas bounds (0..{size})"
+                    )
                     raise ValueError(msg)
 
         return self
@@ -117,11 +129,9 @@ def load_geometry(path: Path) -> GeometryConfig:
 
     text = path.read_text(encoding="utf-8")
 
-    data: Any
-    if suffix in (".yaml", ".yml"):
-        data = yaml.safe_load(text)
-    else:
-        data = json.loads(text)
+    data: Any = (
+        yaml.safe_load(text) if suffix in (".yaml", ".yml") else json.loads(text)
+    )
 
     if data is None:
         data = {}

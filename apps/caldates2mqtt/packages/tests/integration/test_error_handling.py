@@ -29,7 +29,6 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 
 from .conftest import TOPIC_PREFIX, make_harness, run_app_briefly
 
-
 # ---------------------------------------------------------------------------
 # Error publishing
 # ---------------------------------------------------------------------------

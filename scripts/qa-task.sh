@@ -18,6 +18,7 @@
 #   security:secrets  Run detect-secrets audit against .secrets.baseline
 #   security:python   Run ruff --select S on root + all app source directories
 #   security:actions  Run actionlint + zizmor on .github/workflows
+#   docker:lint       Run hadolint on .devcontainer/Dockerfile and every apps/*/Dockerfile
 
 set -euo pipefail
 
@@ -101,6 +102,36 @@ _do_security_actions() {
     return $rc
 }
 
+_do_docker_lint() {
+    # Lint every Dockerfile in the monorepo (devcontainer + each app) via
+    # hadolint over Docker, no local install required. Pinned version for
+    # reproducibility; update via Renovate.
+    # failure-threshold=warning: exit on warning-level and above (error,
+    # warning) but not info-level messages.
+    local hadolint_version="${HADOLINT_VERSION:-2.15.1}"
+    if ! command -v docker >/dev/null 2>&1; then
+        echo "docker:lint: Docker not available — skipping" >&2
+        return 0
+    fi
+    local dockerfiles=()
+    [ -f ".devcontainer/Dockerfile" ] && dockerfiles+=(".devcontainer/Dockerfile")
+    for f in apps/*/Dockerfile; do
+        [ -f "$f" ] && dockerfiles+=("$f")
+    done
+    if [ ${#dockerfiles[@]} -eq 0 ]; then
+        echo "docker:lint: no Dockerfiles found — skipping"
+        return 0
+    fi
+    local rc=0
+    for dockerfile in "${dockerfiles[@]}"; do
+        echo "==> [docker:lint] ${dockerfile}"
+        docker run --rm -i \
+            "ghcr.io/hadolint/hadolint:v${hadolint_version}" \
+            hadolint --no-color --failure-threshold warning - < "$dockerfile" || rc=$?
+    done
+    return $rc
+}
+
 # ──────────────────────────────────────────────────────────────────────────────
 
 case "$TASK_NAME" in
@@ -140,6 +171,10 @@ case "$TASK_NAME" in
         run_task security:actions _do_security_actions
         ;;
 
+    docker:lint)
+        run_task docker:lint _do_docker_lint
+        ;;
+
     security:audit)
         echo "==> [security:audit] Running full security audit (parallel)..." | tee -a "$LOG_FILE"
         # Run all four checks in parallel; collect exit codes via PIDs
@@ -165,7 +200,7 @@ case "$TASK_NAME" in
 
     *)
         echo "Unknown QA task: '$TASK_NAME'" >&2
-        echo "Available: lint typecheck test complexity pre-pr security:audit security:deps security:secrets security:python security:actions" >&2
+        echo "Available: lint typecheck test complexity pre-pr security:audit security:deps security:secrets security:python security:actions docker:lint" >&2
         exit 1
         ;;
 esac

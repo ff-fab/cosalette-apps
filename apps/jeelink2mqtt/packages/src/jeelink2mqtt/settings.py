@@ -34,7 +34,8 @@ class SensorConfigSettings(BaseModel):
         if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
             raise ValueError(
                 "Sensor name must be a non-empty MQTT topic segment "
-                "matching [A-Za-z0-9_-]+ (no '/', '+', '#', whitespace, or control chars)"
+                "matching [A-Za-z0-9_-]+ (no '/', '+', '#', whitespace, "
+                "or control chars)"
             )
         return value
 

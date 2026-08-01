@@ -59,7 +59,7 @@ class DisplayCommand(BaseModel):
     brightness_percent: int | None = Field(default=None, ge=1, le=100)
 
     @model_validator(mode="after")
-    def _validate_command_constraints(self) -> "DisplayCommand":
+    def _validate_command_constraints(self) -> DisplayCommand:
         if self.state is None and self.brightness_percent is None:
             raise ValueError(
                 "At least one of 'state' or 'brightness_percent' must be provided"

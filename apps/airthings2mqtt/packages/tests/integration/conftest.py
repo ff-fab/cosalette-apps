@@ -10,16 +10,13 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette import App, MockMqttClient, setting_ref
 from cosalette.testing import AppHarness, FakeClock
-
 from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import error_type_map
-from cosalette import setting_ref
-
 from airthings2mqtt.main import _telemetry
 from airthings2mqtt.ports import AirthingsReaderPort
 from airthings2mqtt.settings import Airthings2MqttSettings

@@ -11,9 +11,10 @@ Startup homing (optional) moves the cover to a known endpoint on
 boot so the position tracker starts from a reliable reference.
 
 Calibration commands arrive on the ``calibrate`` sub-topic
-(``velux2mqtt/{device}/calibrate/set``) with payload ``{"phase": "start|go|mark|cancel"}``.
-A background task manages calibration lifecycle inside ``ctx.sub_entity("calibrate")``
-so that ``calibrate/availability`` goes online/offline automatically.
+(``velux2mqtt/{device}/calibrate/set``) with payload
+``{"phase": "start|go|mark|cancel"}``. A background task manages calibration
+lifecycle inside ``ctx.sub_entity("calibrate")`` so that
+``calibrate/availability`` goes online/offline automatically.
 During active calibration normal cover commands are blocked.
 
 Command flow:
@@ -29,6 +30,7 @@ and skip the explicit STOP press.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from collections.abc import AsyncIterator, Callable
@@ -205,10 +207,8 @@ async def cover_device(
 
     finally:
         cal_task.cancel()
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await cal_task
-        except asyncio.CancelledError:
-            pass
 
 
 def make_cover(
@@ -365,10 +365,7 @@ async def _execute_step(
     )
 
     # Determine direction
-    if opening:
-        pin = cover_cfg.pin_up
-    else:
-        pin = cover_cfg.pin_down
+    pin = cover_cfg.pin_up if opening else cover_cfg.pin_down
 
     # Calculate travel time
     if target in (0, 100):
@@ -511,7 +508,7 @@ async def _run_calibration_task(
         # Wait for a "start" command
         try:
             params = await asyncio.wait_for(cal_queue.get(), timeout=1.0)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             continue
 
         if params.get("action") != "start":
@@ -709,7 +706,7 @@ async def _run_active_calibration_session(
 
         try:
             params = await asyncio.wait_for(cal_queue.get(), timeout=remaining)
-        except asyncio.TimeoutError:
+        except TimeoutError:
             logger.warning("Calibration timed out, cancelling")
             calibration.cancel()
             await _publish_calibration_state(cal, calibration)

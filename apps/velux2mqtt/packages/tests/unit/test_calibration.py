@@ -898,7 +898,8 @@ class TestMeasureOffsetDisabled:
         assert event.direction is CalibrationDirection.OPEN
 
     def test_go_skips_offset_to_dead_band_when_both(self, clock: FakeClock) -> None:
-        """With measure_offset=False and measure_dead_band=True, go() -> TIMING_DEAD_BAND.
+        """With measure_offset=False and measure_dead_band=True,
+        go() -> TIMING_DEAD_BAND.
 
         Technique: State Transition Testing — READY -> TIMING_DEAD_BAND.
         """

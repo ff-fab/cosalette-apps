@@ -189,7 +189,8 @@ class TestTelemetryErrorPublishing:
         # Assert
         assert _has_any_group_error(raising_harness), (
             "Expected at least one per-group error topic to have messages; "
-            f"published topics: {sorted({t for t, *_ in raising_harness.mqtt.published})}"
+            f"published topics: "
+            f"{sorted({t for t, *_ in raising_harness.mqtt.published})}"
         )
 
 
@@ -282,6 +283,7 @@ class TestErrorIsolation:
 
         # Assert — non-outdoor groups published state (error isolation)
         assert _has_non_outdoor_state(partial_harness), (
-            "Expected at least one non-outdoor */state topic; "
-            f"got published topics: {sorted({t for t, *_ in partial_harness.mqtt.published})}"
+            "Expected at least one non-outdoor */state topic; got "
+            f"published topics: "
+            f"{sorted({t for t, *_ in partial_harness.mqtt.published})}"
         )

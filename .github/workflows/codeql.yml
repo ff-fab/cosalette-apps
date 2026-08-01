@@ -1,32 +1,62 @@
+# CodeQL static analysis — detects security vulnerabilities in Python code.
+#
+# Runs on:
+#   - Push to main (catch issues post-merge)
+#   - Pull requests to main (gate before merge)
+#   - Weekly schedule (catch new vulnerability patterns in existing code)
+#
+# Free for public repositories. Python analysis uses the built-in extractor
+# (no build step required).
+#
+# Skipped on private repositories: code scanning requires GitHub Advanced
+# Security there, so the job would fail with a configuration error.
+
 name: CodeQL
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '*.md'
+      - 'LICENSE'
   schedule:
-    # Weekly Sunday 01:30 UTC — keeps analysis fresh between feature work
-    - cron: '30 1 * * 0'
+    # Weekly Monday 06:00 UTC — catches newly published vulnerability patterns
+    - cron: '0 6 * * 1'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
-  actions: read
   contents: read
   security-events: write
 
 jobs:
   analyze:
     name: Analyze Python
+    # Code scanning is only available on private repos with GitHub Advanced
+    # Security — skip entirely for private repos.
+    if: github.event.repository.private == false
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+    timeout-minutes: 10
 
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@5e316336eb4f107009e477d4bfbfff13d7250fae  # v4
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: github/codeql-action/init@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
         with:
           languages: python
+          queries: security-extended
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@5e316336eb4f107009e477d4bfbfff13d7250fae  # v4
+      - uses: github/codeql-action/analyze@f205ea1c3313d32999d8d6a48b4f6530d4437b38 # v4.37.4
         with:
-          category: /language:python
+          category: '/language:python'

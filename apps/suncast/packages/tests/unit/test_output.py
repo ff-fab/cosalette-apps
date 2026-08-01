@@ -33,7 +33,6 @@ import pytest
 from suncast.output import DeliveryResult, OutputManager, OutputSettings
 from suncast.rasterize import RasterizationError
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================

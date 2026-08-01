@@ -92,13 +92,19 @@ class WallpanelControlSettings(cosalette.Settings):
         if not normalized.startswith(
             "/sys/class/backlight/"
         ) or not normalized.endswith("/brightness"):
-            msg = "backlight_path must be an absolute /sys/class/backlight/<device>/brightness path"
+            msg = (
+                "backlight_path must be an absolute "
+                "/sys/class/backlight/<device>/brightness path"
+            )
             raise ValueError(msg)
         device = normalized.removeprefix("/sys/class/backlight/").removesuffix(
             "/brightness"
         )
         if not device or not _DEVICE_RE.fullmatch(device):
-            msg = "backlight_path device name must contain only alphanumeric, _, -, . characters"
+            msg = (
+                "backlight_path device name must contain only "
+                "alphanumeric, _, -, . characters"
+            )
             raise ValueError(msg)
         return normalized
 

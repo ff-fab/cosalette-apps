@@ -19,6 +19,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import typing
 from datetime import UTC, datetime
@@ -615,7 +616,8 @@ class TestMappingSubCommands:
     async def test_assign_payload_with_error_metadata_key_succeeds(
         self, mapping_assign, settings_one_sensor: Jeelink2MqttSettings
     ) -> None:
-        """Valid assign payload containing "error" key as metadata is processed correctly.
+        """Valid assign payload containing "error" key as metadata is
+        processed correctly.
 
         Technique: Regression Testing — prevents control flow misinterpretation
         of "error" in valid payload data vs. actual error conditions.
@@ -790,7 +792,8 @@ async def _run_mapping_command(
     Args:
         payload: The command payload to deliver to jeelink2mqtt/mapping/set
         settings: App settings
-        expected_topic: Topic to wait for (e.g., 'jeelink2mqtt/mapping/error' or 'jeelink2mqtt/mapping/state')
+        expected_topic: Topic to wait for (e.g., 'jeelink2mqtt/mapping/error'
+            or 'jeelink2mqtt/mapping/state')
 
     Returns:
         MockMqttClient instance with published messages available for assertions
@@ -835,10 +838,8 @@ async def _run_mapping_command(
     finally:
         # Shutdown — suppress secondary exceptions so the original failure is preserved
         shutdown_event.set()
-        try:
+        with contextlib.suppress(Exception):
             await task
-        except Exception:  # noqa: BLE001
-            pass
 
     return mock_mqtt
 
@@ -1044,10 +1045,8 @@ class TestMappingSubCommandErrors:
 
         finally:
             shutdown_event.set()
-            try:
+            with contextlib.suppress(Exception):
                 await task
-            except Exception:  # noqa: BLE001
-                pass
 
     @pytest.mark.parametrize(
         ("sub_command", "payload_fields", "expected_status"),

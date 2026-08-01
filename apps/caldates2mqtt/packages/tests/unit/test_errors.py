@@ -9,8 +9,8 @@ from __future__ import annotations
 import socket
 
 import caldav.lib.error
-import pytest
 import niquests
+import pytest
 
 from caldates2mqtt.errors import (
     ERROR_TYPE_MAP,

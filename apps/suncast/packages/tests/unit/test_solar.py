@@ -16,7 +16,8 @@
 """Unit tests for domain/solar.py — Solar position computation.
 
 Test Techniques Used:
-- Specification-based Testing: Verifying compute_solar_position contract and SunPosition fields
+- Specification-based Testing: Verifying compute_solar_position contract and
+  SunPosition fields
 - Boundary Value Analysis: Polar edge cases (midnight sun, polar night)
 - Equivalence Partitioning: Summer/winter solstice as representative seasonal inputs
 - Error Guessing: Night-time elevation, extreme latitudes
@@ -51,35 +52,35 @@ TROMSO_TZ = "Europe/Oslo"
 @pytest.fixture()
 def berlin_summer_solstice_noon() -> SunPosition:
     """Compute solar position for Berlin at 12:00 UTC on the summer solstice."""
-    at = dt.datetime(2026, 6, 21, 12, 0, tzinfo=dt.timezone.utc)
+    at = dt.datetime(2026, 6, 21, 12, 0, tzinfo=dt.UTC)
     return compute_solar_position(BERLIN_LAT, BERLIN_LON, BERLIN_TZ, at)
 
 
 @pytest.fixture()
 def berlin_winter_solstice_noon() -> SunPosition:
     """Compute solar position for Berlin at 12:00 UTC on the winter solstice."""
-    at = dt.datetime(2026, 12, 21, 12, 0, tzinfo=dt.timezone.utc)
+    at = dt.datetime(2026, 12, 21, 12, 0, tzinfo=dt.UTC)
     return compute_solar_position(BERLIN_LAT, BERLIN_LON, BERLIN_TZ, at)
 
 
 @pytest.fixture()
 def berlin_summer_night() -> SunPosition:
     """Compute solar position for Berlin at 02:00 summer night."""
-    at = dt.datetime(2026, 6, 21, 2, 0, tzinfo=dt.timezone.utc)
+    at = dt.datetime(2026, 6, 21, 2, 0, tzinfo=dt.UTC)
     return compute_solar_position(BERLIN_LAT, BERLIN_LON, BERLIN_TZ, at)
 
 
 @pytest.fixture()
 def tromso_summer_solstice() -> SunPosition:
     """Compute solar position for Tromsø at summer solstice (midnight sun)."""
-    at = dt.datetime(2026, 6, 21, 12, 0, tzinfo=dt.timezone.utc)
+    at = dt.datetime(2026, 6, 21, 12, 0, tzinfo=dt.UTC)
     return compute_solar_position(TROMSO_LAT, TROMSO_LON, TROMSO_TZ, at)
 
 
 @pytest.fixture()
 def tromso_winter_solstice() -> SunPosition:
     """Compute solar position for Tromsø at winter solstice (polar night)."""
-    at = dt.datetime(2026, 12, 21, 12, 0, tzinfo=dt.timezone.utc)
+    at = dt.datetime(2026, 12, 21, 12, 0, tzinfo=dt.UTC)
     return compute_solar_position(TROMSO_LAT, TROMSO_LON, TROMSO_TZ, at)
 
 
@@ -90,7 +91,8 @@ def tromso_winter_solstice() -> SunPosition:
 
 @pytest.mark.unit
 class TestSolarPositionBerlinSummerSolstice:
-    """Specification-based tests: known astronomical values for Berlin summer solstice."""
+    """Specification-based tests: known astronomical values for Berlin summer
+    solstice."""
 
     def test_azimuth_near_south_at_noon(
         self, berlin_summer_solstice_noon: SunPosition
@@ -388,10 +390,12 @@ class TestSunPositionDataclass:
 
 @pytest.mark.unit
 class TestNaiveDatetimeInput:
-    """Specification-based tests: naive datetime is interpreted in the given timezone."""
+    """Specification-based tests: naive datetime is interpreted in the given
+    timezone."""
 
     def test_naive_datetime_matches_aware(self) -> None:
-        """A naive datetime should produce the same result as an aware one in the same tz."""
+        """A naive datetime should produce the same result as an aware one in
+        the same tz."""
         # Arrange
         from zoneinfo import ZoneInfo
 
@@ -418,7 +422,7 @@ class TestNaiveDatetimeInput:
         # Arrange
         from zoneinfo import ZoneInfo
 
-        utc_near_midnight = dt.datetime(2026, 6, 20, 23, 30, tzinfo=dt.timezone.utc)
+        utc_near_midnight = dt.datetime(2026, 6, 20, 23, 30, tzinfo=dt.UTC)
         local_next_day = dt.datetime(2026, 6, 21, 1, 30, tzinfo=ZoneInfo(BERLIN_TZ))
 
         # Act

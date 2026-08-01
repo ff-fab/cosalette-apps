@@ -5,7 +5,7 @@ FROM mcr.microsoft.com/devcontainers/python:3.14-bookworm
 
 # Install uv (fast Python package manager)
 # renovate: datasource=docker depName=ghcr.io/astral-sh/uv
-COPY --from=ghcr.io/astral-sh/uv:0.11.3 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
 
 
 
@@ -20,22 +20,25 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-
 # Install go-task (task runner — https://taskfile.dev)
 # renovate: datasource=github-releases depName=go-task/task
-ARG TASK_VERSION=v3.50.0
-# SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG TASK_SHA256_AMD64=d449ba85ab85a0769989d78f8b9872938e4ba9347f7f4f925f73d98272a0a655
-ARG TASK_SHA256_ARM64=ee67e7d999a4a70711bff1946c70bf76628012c91d9be55626ee90ba976897da
+ARG TASK_VERSION=v3.52.0
+ARG TASK_SHA256_AMD64=02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd
+ARG TASK_SHA256_ARM64=7e0044108830cec0534577b289564e3b7c83e6df276feb631a1edc63d04e4ebe
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
     case "${ARCH}" in \
-        amd64) TASK_ARCH='amd64'; EXPECTED_SHA="${TASK_SHA256_AMD64}" ;; \
-        arm64) TASK_ARCH='arm64'; EXPECTED_SHA="${TASK_SHA256_ARM64}" ;; \
+        amd64) TASK_ARCH='amd64' ;; \
+        arm64) TASK_ARCH='arm64' ;; \
         *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac; \
     TASK_TARBALL="task_linux_${TASK_ARCH}.tar.gz"; \
     TASK_URL="https://github.com/go-task/task/releases/download/${TASK_VERSION}/${TASK_TARBALL}"; \
+    case "${ARCH}" in \
+      amd64) EXPECTED_SHA="${TASK_SHA256_AMD64}" ;; \
+      arm64) EXPECTED_SHA="${TASK_SHA256_ARM64}" ;; \
+      *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
+    esac; \
     for i in 1 2 3; do \
         curl -fsSL "${TASK_URL}" -o /tmp/task.tar.gz && break || sleep 5; \
     done; \
@@ -51,10 +54,10 @@ RUN set -eux; \
 # `bd dolt start` in post-start.sh), which requires an external dolt binary.
 # Verified against beads v1.1.2.
 # renovate: datasource=github-releases depName=dolthub/dolt
-ARG DOLT_VERSION=v1.86.2
+ARG DOLT_VERSION=v2.2.3
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG DOLT_SHA256_AMD64=478f72a0916580b62945d9249c6201672328d02dc7fe99a6ad54b4a3792031f3
-ARG DOLT_SHA256_ARM64=255fcca079a06e85d21332d90379c947b9a714dd881fd61df1eba511bb4f8207
+ARG DOLT_SHA256_AMD64=ffafa7cc172cada5f77ca3fb96306545ddac44a111625f75f870306c7f197301
+ARG DOLT_SHA256_ARM64=5e8f4dbe61931c36f8359022ee32337e5daf65aba06a29791a066e50677c8b3a
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     case "${ARCH}" in \
@@ -102,10 +105,10 @@ RUN set -eux; \
 
 # Install opencode (AI coding agent — https://opencode.ai)
 # renovate: datasource=github-releases depName=anomalyco/opencode
-ARG OPENCODE_VERSION=v1.14.25
+ARG OPENCODE_VERSION=v1.18.10
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG OPENCODE_SHA256_AMD64=6542db973fbf404707d275d824fcd7eef20a8003788114eb85067402daf730db
-ARG OPENCODE_SHA256_ARM64=0cee21589d4936619bcd6131342121c0d20ef245fbec314009c89b3f9338348d
+ARG OPENCODE_SHA256_AMD64=6b1113da704253fb4da12b41e4236acecb9f2b62949c945f6eeacaa15111b976
+ARG OPENCODE_SHA256_ARM64=41ae3041e91b894e4c0dc06a73a9a2796254bf390ffb99626a43af5e2912d170
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     case "${ARCH}" in \
@@ -123,6 +126,41 @@ RUN set -eux; \
     rm -f /tmp/opencode "${TARBALL}"; \
     opencode --version
 
+# Install Claude Code CLI (Anthropic — https://claude.com/claude-code)
+# The installer downloads the CLI binary and verifies it against a SHA-256
+# checksum from Anthropic's release manifest before installing. We pin the CLI
+# version (passed through to the installer) so builds are reproducible; bump via
+# Renovate. The bootstrap script itself is fetched over TLS from claude.ai and
+# is trusted rather than checksum-pinned — unlike task/dolt/bd/opencode above,
+# which all verify a SHA-256 digest of the downloaded tarball before use.
+# Accepted gap: Anthropic does not publish a stable checksum for install.sh,
+# and this stage never runs in CI (INSTALL_CLAUDE_CODE=false there), so blast
+# radius is limited to local/interactive devcontainer builds. Revisit if a
+# pinned checksum becomes available upstream.
+# renovate: datasource=npm depName=@anthropic-ai/claude-code
+ARG CLAUDE_CODE_VERSION=2.1.220
+# Claude Code is a local/interactive dev tool only — CI never invokes `claude`.
+# Default to installing it (local devcontainer builds via VS Code / `devcontainer
+# up` get it out of the box); the CI devcontainer-build workflows set
+# INSTALL_CLAUDE_CODE=false (via devcontainer.json's build.args + localEnv, see
+# .devcontainer/devcontainer.json) so CI image builds skip it entirely, which
+# also sidesteps this whole class of PATH bug in CI.
+ARG INSTALL_CLAUDE_CODE=true
+RUN set -eux; \
+    if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then \
+      INSTALLER="/tmp/claude-install.sh"; \
+      curl -fsSL https://claude.ai/install.sh -o "${INSTALLER}"; \
+      bash "${INSTALLER}" "${CLAUDE_CODE_VERSION}"; \
+      rm -f "${INSTALLER}"; \
+      # The installer places the binary at "${HOME}/.local/bin/claude" and only
+      # advises adding that dir to PATH via shell rc files (~/.bashrc etc).
+      # Non-interactive Docker RUN layers never source those, so `claude` is
+      # not found in later RUN steps (or in non-login CI/devcontainer shells).
+      # Symlink into /usr/local/bin, already on PATH everywhere, matching how
+      # task/dolt/bd/opencode are installed above.
+      ln -sf "${HOME}/.local/bin/claude" /usr/local/bin/claude; \
+    fi
+
 # Configure uv to use project-local virtual environments
 ENV UV_PROJECT_ENVIRONMENT="/workspaces/cosalette-apps/.venv"
 
@@ -132,4 +170,6 @@ RUN mkdir -p /home/vscode/.vscode-server /home/vscode/.vscode-server/extensions 
     && chown -R vscode:vscode /home/vscode/.vscode-server
 
 # Verify installations
-RUN uv --version && python --version && task --version && fzf --version && dolt version && bd version && opencode --version
+RUN set -eux; \
+    uv --version && python --version && task --version && fzf --version && dolt version && bd version && opencode --version; \
+    if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then claude --version; fi

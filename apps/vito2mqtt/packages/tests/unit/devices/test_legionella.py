@@ -475,7 +475,7 @@ class _FakeContext:
                     cmd = MagicMock()
                     cmd.payload = payload
                     yield cmd
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self.record_timeout()
                 yield None
 
@@ -908,10 +908,12 @@ class TestLegionellaDevice:
 
         Sequence with remaining_minutes=2 (clock starts at 0.0):
           1. deadline = 0.0 + 60.0 = 60.0
-          2. remaining = 60.0 − 0.0 = 60.0  → commands() → clock→61.0 → malformed → continue
+          2. remaining = 60.0 − 0.0 = 60.0  → commands() → clock→61.0 →
+             malformed → continue
           3. remaining = 60.0 − 61.0 = −1.0 → return None
           4. deadline = 61.0 + 60.0 = 121.0
-          5. remaining = 121.0 − 61.0 = 60.0 → commands() → clock→122.0 → malformed → continue
+          5. remaining = 121.0 − 61.0 = 60.0 → commands() → clock→122.0 →
+             malformed → continue
           6. remaining = 121.0 − 122.0 = −1.0 → return None → remaining_minutes=0 → done
         """
         # Arrange

@@ -30,7 +30,6 @@ import pytest
 
 from suncast.http_server import HttpServerError, HttpSettings, create_http_lifespan
 
-
 # =============================================================================
 # Fixtures
 # =============================================================================
@@ -57,7 +56,9 @@ class TestCreateHttpLifespan:
         """
         # Arrange
         settings = HttpSettings(http_enabled=False)
-        provider = lambda: SAMPLE_SVG  # noqa: E731
+
+        def provider() -> str:
+            return SAMPLE_SVG
 
         # Act / Assert — should complete without starting a server
         async with create_http_lifespan(provider, settings):
@@ -70,7 +71,9 @@ class TestCreateHttpLifespan:
         """
         # Arrange
         settings = HttpSettings(http_enabled=True)
-        provider = lambda: SAMPLE_SVG  # noqa: E731
+
+        def provider() -> str:
+            return SAMPLE_SVG
 
         # Act / Assert
         with (
@@ -87,7 +90,9 @@ class TestCreateHttpLifespan:
         """
         # Arrange
         settings = HttpSettings(http_enabled=True, http_port=0)
-        provider = lambda: SAMPLE_SVG  # noqa: E731
+
+        def provider() -> str:
+            return SAMPLE_SVG
 
         mock_site = MagicMock()
         mock_site.start = MagicMock(return_value=_coro(None))
@@ -150,7 +155,9 @@ class TestBuildApp:
         mock_app = MagicMock()
         mock_web.Application.return_value = mock_app
 
-        provider = lambda: SAMPLE_SVG  # noqa: E731
+        def provider() -> str:
+            return SAMPLE_SVG
+
         settings = HttpSettings()
 
         # Act

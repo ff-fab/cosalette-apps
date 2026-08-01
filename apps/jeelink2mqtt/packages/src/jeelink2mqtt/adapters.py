@@ -7,6 +7,7 @@ Fake adapter produces configurable readings for testing and dry-run.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import math
 import os
@@ -124,10 +125,9 @@ class PyLaCrosseAdapter:
 
         # Signal iterator termination
         if self._queue is not None:
-            try:
+            # Queue might be full; this is fine for shutdown
+            with contextlib.suppress(asyncio.QueueFull):
                 self._queue.put_nowait(None)  # Sentinel to end iteration
-            except asyncio.QueueFull:
-                pass  # Queue might be full; this is fine for shutdown
 
         self._loop = None
 
@@ -148,8 +148,9 @@ class PyLaCrosseAdapter:
 
         framework_cb = self._framework_callback
 
-        def _wrapper(sensor: Any, user_data: Any = None) -> None:
-            """Single callback bridging pylacrosse thread → cosalette stream or queue."""
+        def _wrapper(sensor: Any, _user_data: Any = None) -> None:
+            """Single callback bridging pylacrosse thread → cosalette stream
+            or queue."""
             try:
                 reading = self._convert_sensor_to_reading(sensor)
                 if reading is None:
@@ -321,11 +322,9 @@ class FakeJeeLinkAdapter:
         self._open = False
         self._scanning = False
         self._callback = None
-        # Signal iterator termination
-        try:
+        # Signal iterator termination — queue might be full, that's fine on shutdown
+        with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(None)  # Sentinel to end iteration
-        except asyncio.QueueFull:
-            pass  # Queue might be full; this is fine for shutdown
 
     async def start_scan(self) -> None:
         """No-op — readings are injected manually."""
@@ -393,12 +392,10 @@ class FakeJeeLinkAdapter:
             raise RuntimeError(msg)
         self._callback(reading)
 
-        # Also inject into async iterator queue
-        try:
+        # Also inject into async iterator queue.
+        # In tests, queue shouldn't fill up, but handle gracefully.
+        with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(reading)
-        except asyncio.QueueFull:
-            # In tests, queue shouldn't fill up, but handle gracefully
-            pass
 
     def inject_batch(self, readings: list[SensorReading]) -> None:
         """Invoke the stored callback once per reading in *readings*."""
@@ -410,11 +407,9 @@ class FakeJeeLinkAdapter:
 
         Use this for testing async iteration patterns.
         """
-        try:
+        # In tests, queue shouldn't fill up, but handle gracefully.
+        with contextlib.suppress(asyncio.QueueFull):
             self._queue.put_nowait(reading)
-        except asyncio.QueueFull:
-            # In tests, queue shouldn't fill up, but handle gracefully
-            pass
 
     def inject_batch_async(self, readings: list[SensorReading]) -> None:
         """Inject multiple readings into the async iterator queue."""

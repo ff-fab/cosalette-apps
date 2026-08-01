@@ -2,7 +2,14 @@
   "name": "cosalette-apps",
   "build": {
     "dockerfile": "Dockerfile",
-    "cacheFrom": "ghcr.io/ff-fab/cosalette-apps-devcontainer"
+    "cacheFrom": "ghcr.io/ff-fab/cosalette-apps-devcontainer",
+    "args": {
+      // Local/interactive builds (VS Code, `devcontainer up`, ...) install
+      // Claude Code by default. CI's devcontainer-build workflows set
+      // INSTALL_CLAUDE_CODE=false in the runner environment before invoking
+      // the devcontainer CLI, since CI never needs the `claude` binary.
+      "INSTALL_CLAUDE_CODE": "${localEnv:INSTALL_CLAUDE_CODE:true}"
+    }
   },
   "workspaceFolder": "/workspaces/cosalette-apps",
   "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/cosalette-apps,type=bind,consistency=cached",

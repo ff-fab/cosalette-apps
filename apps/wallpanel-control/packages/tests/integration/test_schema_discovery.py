@@ -1,9 +1,10 @@
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery generation.
 
 Guards the consumer-metadata enrichment in the AsyncAPI schema: regenerating
-the schema with ``cosalette schema init`` (or ``task wallpanel-control:schema:generate``)
-strips the ``x-cosalette-consumer`` annotations, which would silently break HA
-discovery. These tests fail loudly if that happens.
+the schema with ``cosalette schema init`` (or
+``task wallpanel-control:schema:generate``) strips the ``x-cosalette-consumer``
+annotations, which would silently break HA discovery. These tests fail loudly
+if that happens.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.

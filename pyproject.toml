@@ -100,6 +100,14 @@ skip_covered = false
 [tool.ruff]
 target-version = "py314"
 line-length = 88
+# Ruff's config discovery uses the *nearest* pyproject.toml as the sole config
+# source and does not merge upward on its own. Every app's pyproject.toml
+# therefore declares `[tool.ruff] extend = "../../pyproject.toml"` to
+# explicitly inherit this `select` (and everything else) — without it, any
+# `[tool.ruff.*]` table in an app (even just isort config) would silently
+# shadow this `select` and fall back to Ruff's own default rule set instead
+# (cap-4lc: surfaced by the ruff 0.16 default-rule-set expansion from ~59 to
+# ~413 rules).
 
 [tool.ruff.lint]
 # Linting rules: What code issues to catch
@@ -168,37 +176,37 @@ extraPaths = ["apps/wallpanel-control/packages/src", "apps/suncast/packages/src"
 docs = [
     "mkdocs-autorefs>=1.4.4",
     "mkdocs-click-zoom @ git+https://github.com/ff-fab/mkdocs-click-zoom.git@v0.2.0",
-    "mkdocstrings[python]>=1.0.4",
-    "zensical>=0.0.41",
+    "mkdocstrings[python]>=1.0.6",
+    "zensical>=0.0.52",
 ]
 dev = [
     # Testing
-    "coverage>=7.14.0",
-    "pytest>=9.0.3",
-    "pytest-asyncio>=1.3.0",
+    "coverage>=7.15.2",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-httpx>=0.36.2",
     # Linting & Type Checking
-    "ty>=0.0.35",
-    "ruff>=0.15.12",
+    "ty>=0.0.65",
+    "ruff>=0.16.1",
     "flake8>=7.3.0",
     "flake8-cognitive-complexity>=0.1.0",
     # Code Similarity
-    "pylint>=4.0.5",
+    "pylint>=4.0.6",
     # Complexity Analysis
     "radon>=6.0.1",
     "xenon>=0.9.3",
     # Type Stubs
-    "types-PyYAML>=6.0.12.20260510",
+    "types-PyYAML>=6.0.12.20260724",
     # Development Tools
-    "pre-commit>=4.6.0",
-    "setuptools-scm[toml]>=10.0.5",
+    "pre-commit>=4.6.1",
+    "setuptools-scm[toml]>=10.2.1",
     "reuse>=5.0.2",
     # Security Auditing
-    "pip-audit>=2.10.0",
+    "pip-audit>=2.10.1",
     "detect-secrets>=1.5.0",
     "actionlint-py>=1.7.12.24",
-    "zizmor>=1.24.1",
+    "zizmor>=1.28.0",
     # Platform Compatibility Workarounds
     "urllib3>=2.7.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
     # AI/MCP tooling support (cosalette ai mcp serve)

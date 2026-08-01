@@ -21,7 +21,6 @@ from caldates2mqtt.adapters.fake import FakeCalDavReader
 
 from .conftest import TOPIC_PREFIX
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

@@ -11,7 +11,6 @@ from pydantic import ValidationError
 
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
 
-
 # -- CoverConfig --
 
 

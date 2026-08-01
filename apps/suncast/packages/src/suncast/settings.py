@@ -24,7 +24,6 @@ import cosalette
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import SettingsConfigDict
 
-
 type SundialMode = Literal["ring", "compact", "off"]
 
 # Colors are interpolated directly into SVG output (see renderer.py) without

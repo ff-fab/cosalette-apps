@@ -24,11 +24,11 @@ class _IsolatedWallpanelControlSettings(WallpanelControlSettings):
     @classmethod
     def settings_customise_sources(
         cls,
-        settings_cls: type[WallpanelControlSettings],  # noqa: ARG003
+        settings_cls: type[WallpanelControlSettings],
         init_settings: PydanticBaseSettingsSource,
-        env_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        dotenv_settings: PydanticBaseSettingsSource,  # noqa: ARG003
-        file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         return (init_settings,)
 

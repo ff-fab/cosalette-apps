@@ -90,5 +90,10 @@ output = "coverage.xml"
 all = "error"
 unresolved-attribute = "ignore"
 
+# Inherit root's [tool.ruff] select and rule config; see the rationale
+# comment on root pyproject.toml's [tool.ruff] table (cap-4lc).
+[tool.ruff]
+extend = "../../pyproject.toml"
+
 [tool.ruff.lint.isort]
 known-first-party = ["suncast"]
