@@ -80,12 +80,8 @@ directory = "htmlcov"
 output = "coverage.xml"
 
 # App-specific isort config — root ruff config handles everything else
-# Explicitly inherit root's [tool.ruff] select (and everything else) via
-# `extend` — Ruff's config discovery uses the *nearest* pyproject.toml as the
-# sole config source and does not merge upward on its own, so without this,
-# any [tool.ruff.*] table here (even just isort) would silently shadow root's
-# `select` and fall back to Ruff's own default rule set instead (cap-4lc:
-# surfaced by the ruff 0.16 default-rule-set expansion from ~59 to ~413).
+# Inherit root's [tool.ruff] select and rule config; see the rationale
+# comment on root pyproject.toml's [tool.ruff] table (cap-4lc).
 [tool.ruff]
 extend = "../../pyproject.toml"
 

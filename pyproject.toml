@@ -100,6 +100,14 @@ skip_covered = false
 [tool.ruff]
 target-version = "py314"
 line-length = 88
+# Ruff's config discovery uses the *nearest* pyproject.toml as the sole config
+# source and does not merge upward on its own. Every app's pyproject.toml
+# therefore declares `[tool.ruff] extend = "../../pyproject.toml"` to
+# explicitly inherit this `select` (and everything else) — without it, any
+# `[tool.ruff.*]` table in an app (even just isort config) would silently
+# shadow this `select` and fall back to Ruff's own default rule set instead
+# (cap-4lc: surfaced by the ruff 0.16 default-rule-set expansion from ~59 to
+# ~413 rules).
 
 [tool.ruff.lint]
 # Linting rules: What code issues to catch

@@ -147,7 +147,12 @@ RUN set -eux; \
 # checksum from Anthropic's release manifest before installing. We pin the CLI
 # version (passed through to the installer) so builds are reproducible; bump via
 # Renovate. The bootstrap script itself is fetched over TLS from claude.ai and
-# is trusted rather than checksum-pinned.
+# is trusted rather than checksum-pinned — unlike task/dolt/bd/opencode above,
+# which all verify a SHA-256 digest of the downloaded tarball before use.
+# Accepted gap: Anthropic does not publish a stable checksum for install.sh,
+# and this stage never runs in CI (INSTALL_CLAUDE_CODE=false there), so blast
+# radius is limited to local/interactive devcontainer builds. Revisit if a
+# pinned checksum becomes available upstream.
 # renovate: datasource=npm depName=@anthropic-ai/claude-code
 ARG CLAUDE_CODE_VERSION=2.1.220
 # Claude Code is a local/interactive dev tool only — CI never invokes `claude`.

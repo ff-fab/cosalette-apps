@@ -37,6 +37,7 @@ runs:
 
     # Bump the vN suffix to force-invalidate when cache format or path layout changes.
     - name: Restore uv cache
+      id: restore-uv
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .cache/uv
@@ -44,14 +45,18 @@ runs:
         restore-keys: |
           ${{ runner.os }}-uv-v1-
 
+    # Skip the save on an exact cache hit — nothing changed, and every job in
+    # the per-app matrix shares this key, so a redundant reserve-cache call
+    # on every run adds needless API traffic across the whole matrix.
     - name: Save uv cache
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      if: always()
+      if: always() && steps.restore-uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv
         key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
 
     - name: Restore pre-commit cache
+      id: restore-pre-commit
       uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .cache/pre-commit
@@ -61,7 +66,7 @@ runs:
 
     - name: Save pre-commit cache
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      if: always()
+      if: always() && steps.restore-pre-commit.outputs.cache-hit != 'true'
       with:
         path: .cache/pre-commit
         key: ${{ runner.os }}-pre-commit-v1-${{ hashFiles('.pre-commit-config.yaml') }}
@@ -128,12 +133,14 @@ runs:
         runCmd: ${{ inputs.run-cmd }}
 
     - name: Prune Rust incremental artifacts before cache save
-      if: inputs.cargo-cache == 'true'
+      if: always() && inputs.cargo-cache == 'true'
       shell: bash
       run: find target/debug/incremental -mindepth 1 -delete 2>/dev/null || true
 
+    # always() so a failed build/test step still persists the incremental
+    # target/ cache instead of forcing a from-scratch recompile on retry.
     - name: Save cargo target cache
-      if: inputs.cargo-cache == 'true'
+      if: always() && inputs.cargo-cache == 'true'
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: target

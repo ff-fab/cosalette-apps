@@ -411,14 +411,14 @@ tasks:
       - uv lock --upgrade
       - uv sync --all-groups
 
+  # WARNING: cosalette-apps is a monorepo; the copier template is
+  # single-project. A raw `copier update` WILL regress the app-matrix CI,
+  # per-app docs/Docker matrices, and root virtual-workspace pyproject.toml.
+  # Do not commit this task's output directly — hand-reconcile against the
+  # prior template-update PR first (see docs/planning/log/ for the process
+  # used last time).
   update:template:
-    desc: >-
-      Pull latest copier template changes (cosalette-apps is a monorepo; the
-      template is single-project. A raw `copier update` WILL regress the
-      app-matrix CI, per-app docs/Docker matrices, and root virtual-workspace
-      pyproject.toml — see docs/planning/copier-template-v1-19-2-update-evaluation.md
-      for the required hand-reconciliation process. Do not commit this
-      task's output directly.
+    desc: Pull latest copier template changes — do not commit output directly
     cmds:
       - uvx --python 3.14 --with jinja2-time copier update --trust
 
