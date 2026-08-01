@@ -277,7 +277,8 @@ class TestRouterRegistration:
     """
 
     def test_action_in_registered_names(self) -> None:
-        """Router has a command registered as 'action' (becomes system/action after prefix)."""
+        """Router has a command registered as 'action' (becomes system/action
+        after prefix)."""
         assert "action" in router.registered_names
 
     def test_no_telemetry_or_devices_registered(self) -> None:

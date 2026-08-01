@@ -71,24 +71,30 @@ def create_app() -> cosalette.App:
         backoff=FixedBackoff(delay=0.05),
         # No persist=SaveOnChange() — stage_state() calls store.save() directly
         # No init=make_gas_counter — GasCounterState injected from @app.state
-        summary="Domestic gas meter counter: pulse counting via QMC5883L Schmitt trigger detection",
+        summary=(
+            "Domestic gas meter counter: pulse counting via QMC5883L "
+            "Schmitt trigger detection"
+        ),
         state_model=GasCounterReading,
         behavior=[
             "Read 3-axis magnetic field from QMC5883L via MagnetometerPort",
             "Feed Bz value through SchmittTrigger for hysteresis-based edge detection",
             "Increment counter on rising edge (LOW→HIGH transition)",
             "Optionally increment ConsumptionTracker by liters_per_tick/1000 m³",
-            "Stage updated counter and consumption_m3 to DeviceStore with explicit save",
+            "Stage updated counter and consumption_m3 to DeviceStore with "
+            "explicit save",
         ],
         effects=[
             "Publishes counter, trigger state, and optionally consumption_m3 to MQTT",
-            "Persists counter and consumption_m3 to JsonFileStore on every state change",
+            "Persists counter and consumption_m3 to JsonFileStore on every "
+            "state change",
         ],
     )(gas_counter)
 
     app.command(
         "consumption",
-        # No init= — GasCounterState injected from @app.state (same instance as telemetry)
+        # No init= — GasCounterState injected from @app.state
+        # (same instance as telemetry)
         summary="Override the accumulated consumption_m3 value for the gas counter",
         payload_model=dict,
         effects=[

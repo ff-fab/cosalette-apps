@@ -145,7 +145,7 @@ class FakeDeviceContext:
             try:
                 cmd = await asyncio.wait_for(self._command_queue.get(), timeout=0.01)
                 yield cmd
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Allow the loop to check shutdown_requested
                 pass
 
@@ -988,7 +988,8 @@ class TestCalibrationDispatch:
         assert "TIMING_OFFSET" in states
 
     async def test_start_with_starting_state_open_presses_down_pin(self) -> None:
-        """starting_state='open' wires through: first direction CLOSE, go presses down pin.
+        """starting_state='open' wires through: first direction CLOSE, go
+        presses down pin.
 
         Technique: Specification-based — starting_state parameter end-to-end wiring.
         """

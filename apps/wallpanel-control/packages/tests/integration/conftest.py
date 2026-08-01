@@ -111,7 +111,8 @@ async def run_with_commands(
     """
     if not commands:
         raise ValueError(
-            "commands must not be empty; use wait_for_subscriptions for subscription-only checks"
+            "commands must not be empty; "
+            "use wait_for_subscriptions for subscription-only checks"
         )
     expected_subs: frozenset[str] = frozenset(t for t, _ in commands)
     task = asyncio.create_task(harness.run())

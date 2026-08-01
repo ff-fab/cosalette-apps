@@ -16,7 +16,8 @@
 """Unit tests for domain/geometry_svg.py — SVG geometry importer.
 
 Test Techniques Used:
-- Specification-based Testing: Verifying load_svg_geometry contracts and shape extraction
+- Specification-based Testing: Verifying load_svg_geometry contracts and
+  shape extraction
 - Equivalence Partitioning: polygon elements, path elements, mixed elements
 - Boundary Value Analysis: Minimum 3 vertices, viewBox coordinate transformation
 - Error Guessing: Curve commands in paths, missing SVG file, no usable shapes
@@ -323,9 +324,11 @@ class TestCurveRejection:
         svg.write_text(SVG_ONLY_CURVES)
 
         # Act / Assert
-        with pytest.raises(ValueError, match="no usable building shapes"):
-            with caplog.at_level(logging.WARNING):
-                load_svg_geometry(svg)
+        with (
+            pytest.raises(ValueError, match="no usable building shapes"),
+            caplog.at_level(logging.WARNING),
+        ):
+            load_svg_geometry(svg)
 
     def test_curve_path_logs_warning(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture

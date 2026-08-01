@@ -115,7 +115,8 @@ def compute_shadow_polygon(
         if iterations > max_iterations:
             return empty
 
-    # 5. Continue from max-angle vertex back to min-angle vertex → side2 (shadow-casting).
+    # 5. Continue from max-angle vertex back to min-angle vertex → side2
+    #    (shadow-casting).
     side2: list[Point] = []
     idx = max_idx
     iterations = 0
@@ -145,7 +146,7 @@ def compute_shadow_polygon(
     )
 
     # 7. Assemble: shadow = [max_projected] + side2 + [min_projected]
-    shadow = tuple([max_projected, *side2, min_projected])
+    shadow = (max_projected, *side2, min_projected)
     sun_facing = tuple(side1)
 
     return shadow, sun_facing

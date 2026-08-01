@@ -12,11 +12,9 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.ssh_adapter import SshWallpanel
 from wallpanel_control.ports import WallpanelPort
-
-from tests.fixtures.config import make_wallpanel_control_settings
-
 
 # =============================================================================
 # Helpers

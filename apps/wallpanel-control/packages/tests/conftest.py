@@ -4,10 +4,9 @@ from __future__ import annotations
 
 import pytest
 
+from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.settings import WallpanelControlSettings
-
-from tests.fixtures.config import make_wallpanel_control_settings
 
 
 @pytest.fixture

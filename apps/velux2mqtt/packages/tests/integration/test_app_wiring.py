@@ -313,7 +313,8 @@ class TestInvalidCommands:
         harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
-        """Unknown command payload is silently dropped — no crash, no GPIO, no new state.
+        """Unknown command payload is silently dropped — no crash, no GPIO,
+        no new state.
 
         Technique: Error Guessing — malformed payload through full app wiring.
         """

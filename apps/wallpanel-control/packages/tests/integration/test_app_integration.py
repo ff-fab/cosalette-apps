@@ -190,7 +190,7 @@ class TestDisplayCommand:
         harness: AppHarness,
         fake_wallpanel: FakeWallpanel,
     ) -> None:
-        """State=on command without brightness reads current brightness, does not set it.
+        """State=on command without brightness reads current brightness, doesn't set it.
 
         Arrange: FakeWallpanel with screen off (screen_state=False), brightness=4000.
         Act: deliver {"state": "on"} (no brightness_percent field).
@@ -232,8 +232,12 @@ class TestDisplayCommand:
         Act: deliver {"brightness_percent": 75} (no state field).
         Assert:
           - FakeWallpanel.brightness \u2248 round(7812 * 75 / 100) = 5859
-          - Published display state has available=true, state="on", brightness_percent=75          - FakeWallpanel.screen_state remains True (no redundant screen toggle)
-        Technique: Equivalence Partitioning — brightness-only as third valid command variant.
+          - Published display state has available=true, state="on",
+            brightness_percent=75
+          - FakeWallpanel.screen_state remains True (no redundant screen toggle)
+
+        Technique: Equivalence Partitioning — brightness-only as third
+        valid command variant.
         """
         # Arrange: FakeWallpanel defaults to screen_state=True
 
@@ -263,7 +267,8 @@ class TestDisplayCommand:
         Assert:
           - FakeWallpanel.screen_state is True (auto screen-on triggered)
           - FakeWallpanel.brightness ≈ round(7812 * 50 / 100) = 3906
-          - Published display state has available=true, state="on", brightness_percent=50
+          - Published display state has available=true, state="on",
+            brightness_percent=50
 
         Technique: State Transition — screen off → on triggered implicitly by
         brightness-only command (distinct from explicit state=on command).

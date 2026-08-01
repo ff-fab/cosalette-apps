@@ -114,7 +114,8 @@ class TestFakeGpio:
 
 @pytest.mark.unit
 class TestGpiozeroAdapterHealthCheck:
-    """Specification-based tests for GpiozeroAdapter.health_check GPIO-device probing."""
+    """Specification-based tests for GpiozeroAdapter.health_check GPIO-device
+    probing."""
 
     async def test_returns_true_when_gpiochip0_exists(self) -> None:
         """health_check returns True when /dev/gpiochip0 is present.
@@ -181,8 +182,9 @@ class TestGpiozeroAdapterHealthCheck:
     async def test_probes_configured_chip_path(self) -> None:
         """health_check probes the configured gpio_chip_device path.
 
-        Technique: Specification-based — confirms the probe uses settings.gpio_chip_device
-        so a configured path (e.g. Pi 5's /dev/gpiochip4) is used instead of a hard-coded one.
+        Technique: Specification-based — confirms the probe uses
+        settings.gpio_chip_device so a configured path (e.g. Pi 5's
+        /dev/gpiochip4) is used instead of a hard-coded one.
         """
         from unittest.mock import patch
 

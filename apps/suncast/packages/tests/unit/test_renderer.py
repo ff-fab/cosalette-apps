@@ -145,7 +145,8 @@ class TestShadowRenderer:
         shadow_results: list[ShadowResult],
         geometry: GeometryConfig,
     ) -> None:
-        """Daytime SVG contains sun-facing outlines, shadow polygons, buildings, sundial, sun marker."""
+        """Daytime SVG has sun-facing outlines, shadow polygons, buildings,
+        sundial, sun marker."""
         # Act
         svg = renderer.render(daylight_sun, shadow_results, geometry)
 
@@ -179,7 +180,8 @@ class TestShadowRenderer:
         geometry: GeometryConfig,
         settings: RenderSettings,
     ) -> None:
-        """Home buildings get secondary_color fill; neighbors get primary_color fill, no stroke.
+        """Home buildings get secondary_color fill; neighbors get primary_color
+        fill, no stroke.
 
         Technique: Condition Coverage — building style branching.
         """
@@ -572,7 +574,8 @@ class TestShadowRenderer:
         daylight_sun: SunPosition,
         geometry: GeometryConfig,
     ) -> None:
-        """Compact mode moves hour segments onto the inner circle and hides the night path.
+        """Compact mode moves hour segments onto the inner circle and hides
+        the night path.
 
         Technique: Condition Coverage — compact dial visibility and opacity rules.
         """

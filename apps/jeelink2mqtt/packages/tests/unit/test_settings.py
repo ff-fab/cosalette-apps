@@ -260,7 +260,8 @@ class TestSensorConfigSettings:
 
 @pytest.mark.unit
 class TestSensorNameValidation:
-    """Security: sensor names are interpolated into MQTT topics — must be valid segments."""
+    """Security: sensor names are interpolated into MQTT topics — must be
+    valid segments."""
 
     @pytest.mark.parametrize(
         "valid_name",

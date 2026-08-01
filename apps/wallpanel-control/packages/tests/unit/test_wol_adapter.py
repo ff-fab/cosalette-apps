@@ -20,7 +20,6 @@ from wallpanel_control.adapters.wol_adapter import (
 )
 from wallpanel_control.ports import WolPort
 
-
 # =============================================================================
 # Protocol compliance
 # =============================================================================

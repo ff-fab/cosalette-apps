@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import datetime
 import re
-import socket
 from types import SimpleNamespace
 from urllib.parse import urlparse
 
@@ -111,7 +110,7 @@ class TestCalDavReaderAsyncBoundary:
             (caldav.lib.error.AuthorizationError("denied"), CalDavAuthError),
             (niquests.ConnectionError("offline"), CalDavConnectionError),
             (niquests.Timeout("slow"), CalDavTimeoutError),
-            (socket.timeout("slow"), CalDavTimeoutError),
+            (TimeoutError("slow"), CalDavTimeoutError),
         ],
     )
     async def test_read_events_maps_known_errors(
@@ -168,7 +167,8 @@ class TestCalDavReaderAsyncBoundary:
         domain_exc: CalDavError,
         expected_type: type[CalDavError],
     ) -> None:
-        """CalDavError subclasses raised by _read_sync are NOT re-wrapped in CalDavReadError."""
+        """CalDavError subclasses raised by _read_sync are NOT re-wrapped in
+        CalDavReadError."""
         reader = CalDavReader(_make_settings())
 
         def _raise(
@@ -345,7 +345,8 @@ class TestCalDavReaderSyncParsing:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """NotFoundError from caldav is translated to CalDavNotFoundError with context."""
+        """NotFoundError from caldav is translated to CalDavNotFoundError with
+        context."""
 
         def fake_dav_client(**kwargs: object) -> object:
             return object()
@@ -383,7 +384,8 @@ class TestCalDavReaderSyncParsing:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """CalDavNotFoundError message contains host:port but NOT embedded credentials."""
+        """CalDavNotFoundError message contains host:port but NOT embedded
+        credentials."""
 
         def fake_dav_client(**kwargs: object) -> object:
             return object()
@@ -560,7 +562,8 @@ class TestCalDavReaderSyncParsing:
         calendar_name: str,
         expected_url: str,
     ) -> None:
-        """calendar_url is correctly formed regardless of trailing/leading slash conventions."""
+        """calendar_url is correctly formed regardless of trailing/leading
+        slash conventions."""
         captured: dict[str, str] = {}
 
         def fake_dav_client(**kwargs: object) -> object:

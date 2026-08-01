@@ -56,7 +56,7 @@ class HttpSettings:
     http_enabled: bool = False
     """Whether to start the HTTP server."""
 
-    http_host: str = "0.0.0.0"  # noqa: S104 — intentional bind-all for container use
+    http_host: str = "0.0.0.0"
     """Host address to bind."""
 
     http_port: int = 8080
@@ -79,13 +79,13 @@ def _build_app(
 ) -> web.Application:
     """Build the aiohttp application with routes wired to *svg_provider*."""
 
-    async def handle_svg(request: web.Request) -> web.Response:
+    async def handle_svg(_request: web.Request) -> web.Response:
         svg = svg_provider()
         if svg is None:
             return web.Response(status=503, text="No shadow data available yet")
         return web.Response(text=svg, content_type="image/svg+xml")
 
-    async def handle_png(request: web.Request) -> web.Response:
+    async def handle_png(_request: web.Request) -> web.Response:
         svg = svg_provider()
         if svg is None:
             return web.Response(status=503, text="No shadow data available yet")
@@ -97,7 +97,7 @@ def _build_app(
             return web.Response(status=500, text=str(exc))
         return web.Response(body=png_bytes, content_type="image/png")
 
-    async def handle_health(request: web.Request) -> web.Response:
+    async def handle_health(_request: web.Request) -> web.Response:
         return web.Response(text="ok")
 
     app = web.Application()

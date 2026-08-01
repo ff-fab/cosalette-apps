@@ -15,6 +15,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 
 import pytest
 from cosalette import MockMqttClient
@@ -78,10 +79,8 @@ async def _run_with_trigger(
         harness.shutdown_event.set()  # idempotent — safe to call twice
         if not task.done():
             task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
 
 
 # ---------------------------------------------------------------------------

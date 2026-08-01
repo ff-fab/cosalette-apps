@@ -24,7 +24,6 @@ import cosalette
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import SettingsConfigDict
 
-
 type SundialMode = Literal["ring", "compact", "off"]
 
 # Colors are interpolated directly into SVG output (see renderer.py) without
@@ -99,5 +98,5 @@ class SuncastSettings(RenderStyle, cosalette.Settings):
     # -- HTTP ---------------------------------------------------------------
 
     http_enabled: bool = False
-    http_host: str = "0.0.0.0"  # noqa: S104
+    http_host: str = "0.0.0.0"
     http_port: int = Field(default=8080, ge=1, le=65535)

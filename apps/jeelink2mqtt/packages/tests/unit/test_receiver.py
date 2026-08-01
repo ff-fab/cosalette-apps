@@ -487,7 +487,8 @@ class TestCheckStaleness:
     async def test_toctou_corrects_availability_when_sensor_recovers(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """If sensor recovers while the offline publish is in flight, re-publishes online.
+        """If sensor recovers while the offline publish is in flight,
+        re-publishes online.
 
         Technique: Boundary Value Analysis — TOCTOU guard path.
         Simulates the race: receiver updates the registry between the first

@@ -32,6 +32,7 @@ from gas2mqtt.main import _make_store, app, create_app
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 from tests.fixtures.config import make_gas2mqtt_settings
+
 from .conftest import run_app_briefly
 
 # ---------------------------------------------------------------------------
@@ -401,11 +402,13 @@ class TestTelemetryRetryPath:
         messages = mock_mqtt.get_messages_for("gas2mqtt/magnetometer/state")
         if should_publish:
             assert messages, (
-                f"Expected state published after {remaining_failures} retried failures; "
-                f"published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+                f"Expected state published after {remaining_failures} "
+                f"retried failures; published topics: "
+                f"{sorted({t for t, *_ in mock_mqtt.published})}"
             )
         else:
             assert not messages, (
-                f"Expected no state with {remaining_failures} failures exceeding "
-                f"retry budget; published topics: {sorted({t for t, *_ in mock_mqtt.published})}"
+                f"Expected no state with {remaining_failures} failures "
+                f"exceeding retry budget; published topics: "
+                f"{sorted({t for t, *_ in mock_mqtt.published})}"
             )

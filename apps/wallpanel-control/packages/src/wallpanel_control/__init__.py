@@ -1,4 +1,4 @@
-"""wallpanel-control — MQTT bridge for wall-panel display and system control via SSH and Wake-on-LAN."""
+"""wallpanel-control — MQTT bridge for wall-panel display/system control (SSH, WoL)."""
 
 from importlib.metadata import PackageNotFoundError, version
 

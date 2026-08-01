@@ -156,7 +156,8 @@ class TestOnRegistryEvents:
 
     @pytest.mark.asyncio
     async def test_empty_events_still_publishes_state_and_persists(self) -> None:
-        """on_registry_events with empty events still publishes mapping/state and persists.
+        """on_registry_events with empty events still publishes mapping/state
+        and persists.
 
         Technique: Equivalence Partitioning — empty-events branch.
         The reactor always emits a state snapshot and persists, even when the
@@ -234,7 +235,8 @@ class TestOnRegistryEvents:
         test_reading = SensorReading(10, 99.0, 99, False, datetime.now(UTC))
         filtered_temp, filtered_hum = filter_bank.filter(test_reading)
         assert filtered_temp == 99.0, (
-            "filter was not reset — prior 1.0 readings should no longer influence output"
+            "filter was not reset — prior 1.0 readings should no longer "
+            "influence output"
         )
         assert filtered_hum == 99.0
 

@@ -19,7 +19,6 @@ from cosalette.testing import AppHarness
 
 from .conftest import TOPIC_PREFIX, run_app_briefly
 
-
 # ---------------------------------------------------------------------------
 # Module-level helpers
 # ---------------------------------------------------------------------------

@@ -42,7 +42,8 @@ def _cal_cmd(action: str, **kwargs: object) -> dict[str, object]:
 
 
 def _cal_direction_cmds(topic: str) -> list[tuple[str, dict[str, object]]]:
-    """Build the 3-step command sequence for one direction: go, mark(offset), mark(travel)."""
+    """Build the 3-step command sequence for one direction: go, mark(offset),
+    mark(travel)."""
     return [
         (topic, _cal_cmd("go")),
         (topic, _cal_cmd("mark")),  # offset mark
@@ -51,7 +52,8 @@ def _cal_direction_cmds(topic: str) -> list[tuple[str, dict[str, object]]]:
 
 
 def _cal_direction_no_offset_cmds(topic: str) -> list[tuple[str, dict[str, object]]]:
-    """Build the 2-step command sequence for one direction without offset: go, mark(travel)."""
+    """Build the 2-step command sequence for one direction without offset:
+    go, mark(travel)."""
     return [
         (topic, _cal_cmd("go")),
         (topic, _cal_cmd("mark")),  # travel mark
@@ -546,7 +548,8 @@ class TestCalibrationWithoutOffset:
         harness_no_homing: AppHarness,
         fake_gpio: FakeGpio,
     ) -> None:
-        """Calibration with measure_offset=false skips TIMING_OFFSET and omits avg_offset.
+        """Calibration with measure_offset=false skips TIMING_OFFSET and omits
+        avg_offset.
 
         Technique: State Transition Testing -- READY -> TIMING (skip TIMING_OFFSET)
         -> READY -> TIMING -> COMPLETE.

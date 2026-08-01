@@ -58,11 +58,21 @@ INTERVAL_ATTR: dict[str, str] = {
 GROUP_SUMMARIES: dict[str, str] = {
     "outdoor": "Read outdoor temperature sensors via Optolink serial",
     "hot_water": "Read hot water temperature sensors via Optolink serial",
-    "burner": "Read burner temperature, modulation and runtime data via Optolink serial",
-    "heating_radiator": "Read radiator heating circuit temperatures and pump status via Optolink serial",
-    "heating_floor": "Read floor heating circuit temperatures and pump status via Optolink serial",
-    "system": "Read Vitotronic system status and operational parameters via Optolink serial",
-    "diagnosis": "Read diagnostic error codes and system health data via Optolink serial",
+    "burner": (
+        "Read burner temperature, modulation and runtime data via Optolink serial"
+    ),
+    "heating_radiator": (
+        "Read radiator heating circuit temperatures and pump status via Optolink serial"
+    ),
+    "heating_floor": (
+        "Read floor heating circuit temperatures and pump status via Optolink serial"
+    ),
+    "system": (
+        "Read Vitotronic system status and operational parameters via Optolink serial"
+    ),
+    "diagnosis": (
+        "Read diagnostic error codes and system health data via Optolink serial"
+    ),
 }
 
 

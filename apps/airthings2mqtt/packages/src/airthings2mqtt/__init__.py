@@ -1,4 +1,4 @@
-"""airthings2mqtt — Reads Airthings Wave air quality sensors over BLE and publishes temperature, humidity, and radon data to MQTT."""
+"""airthings2mqtt — Reads Airthings Wave sensors over BLE, publishes to MQTT."""
 
 from importlib.metadata import PackageNotFoundError, version
 

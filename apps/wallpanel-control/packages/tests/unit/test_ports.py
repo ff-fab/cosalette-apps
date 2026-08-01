@@ -1,8 +1,10 @@
 """Unit tests for ports.py — WallpanelPort and WolPort protocol definitions.
 
 Test Techniques Used:
-- Structural Subtyping Verification: Compliant classes satisfy protocol isinstance checks
-- Specification-based Testing: Protocols are runtime_checkable with expected method set
+- Structural Subtyping Verification: Compliant classes satisfy protocol
+  isinstance checks
+- Specification-based Testing: Protocols are runtime_checkable with expected
+  method set
 """
 
 from __future__ import annotations

@@ -369,7 +369,8 @@ class TestCommandUnavailableOnConfig:
 
         for reg in app.commands:
             assert OptolinkConnectionError in reg.unavailable_on, (
-                f"Command {reg.name!r} missing OptolinkConnectionError in unavailable_on"
+                f"Command {reg.name!r} missing OptolinkConnectionError "
+                f"in unavailable_on"
             )
 
     def test_commands_unavailable_on_includes_timeout_error(self) -> None:

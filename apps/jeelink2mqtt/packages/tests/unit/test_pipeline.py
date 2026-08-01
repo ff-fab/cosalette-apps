@@ -4,7 +4,8 @@ Test Techniques Used:
 - Specification-based Testing: verifies the filter → calibrate composition
 - Equivalence Partitioning: zero offsets, non-zero offsets, per-sensor filter isolation
 - State Transition Testing: median filter window convergence and first-call passthrough
-- Dataclasses.replace contract: metadata fields (sensor_id, low_battery, timestamp) preserved
+- Dataclasses.replace contract: metadata fields (sensor_id, low_battery,
+  timestamp) preserved
 """
 
 from __future__ import annotations

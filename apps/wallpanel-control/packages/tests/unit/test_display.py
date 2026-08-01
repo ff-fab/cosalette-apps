@@ -60,8 +60,7 @@ class _StubWallpanel:
     async def get_screen_state(self) -> bool | None:
         return True
 
-    async def set_brightness(self, value: int) -> None:  # noqa: ARG002
-        ...
+    async def set_brightness(self, value: int) -> None: ...
 
     async def screen_on(self) -> None: ...
 
