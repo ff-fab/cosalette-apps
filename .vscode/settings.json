@@ -1,4 +1,8 @@
 {
+  // Read AGENTS.md as the canonical instruction file. It is shared with Claude Code
+  // (via the @AGENTS.md import in CLAUDE.md) and Kilo, which both read it natively.
+  "chat.useAgentsMdFile": true,
+
   // Auto-approve safe terminal commands for Copilot agent mode.
   // Docs: https://code.visualstudio.com/docs/copilot/copilot-settings#_agent-settings
   "chat.tools.terminal.autoApprove": {

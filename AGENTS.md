@@ -1,15 +1,18 @@
 # Agent Instructions
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` to get started.
+Canonical instructions for every AI coding agent in this repository. GitHub Copilot and
+Kilo read this file natively; Claude Code reads it through the `@AGENTS.md` import in
+`CLAUDE.md`.
 
-## GitHub Tooling Policy
+Topic guidance that only applies to certain files lives in `.github/instructions/` and
+is loaded automatically when those files are in play. Repeatable procedures live in
+`.github/skills/`.
 
-- Use **GitHub CLI (`gh`)** and **git CLI** directly for PR/issue workflows.
+## Project Overview
 
-## Monorepo Layout
-
-This is a **uv workspace monorepo**. Apps live under `apps/<name>/`, each with its own
-`pyproject.toml`, `packages/src/`, and `packages/tests/`.
+**cosalette-apps** — a uv workspace monorepo for cosalette-based smart home apps. Each
+app under `apps/<name>/` has its own `pyproject.toml`, `packages/src/` and
+`packages/tests/`.
 
 ```
 apps/
@@ -21,90 +24,91 @@ taskfiles/
   PythonApp.yml    # Reusable per-app task template
 ```
 
-## Commit Convention
+## Tooling
 
-All commits **must** follow
-[Conventional Commits](https://www.conventionalcommits.org/):
+- **Use `task <name>` for all operations** (`task --list` to discover). Fall back to
+  `uv run --package <name>` only when no task exists. Never invoke `python` directly.
+- Use **`git`** and **`gh`** CLI directly for version control and PR/issue workflows.
+  Prefer task wrappers where they exist: `task pr:diff`, `task pr:feedback`,
+  `task ci:wait`.
+- Do not depend on GitKraken MCP authentication in this repository.
 
-```
-<type>(<scope>): <description>
-```
-
-Common prefixes: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `test:`.
-
-Scope by app when the change is app-specific: `feat(gas2mqtt): add retry logic`.
-
-Breaking changes: add `!` after the type (e.g., `feat!: redesign config`).
-
-These prefixes drive automated release versioning (if Release Please is enabled).
-
-## Quick Reference
+Full policy: [tooling.instructions.md](.github/instructions/tooling.instructions.md).
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work (assigns + in_progress)
-bd close <id>         # Complete work
+bd ready                       # Find available work
+bd show <id>                   # View issue details
+bd update <id> --claim         # Claim work (assigns + in_progress)
+bd close <id>                  # Complete work
 
-# Per-app task commands (monorepo)
-task gas2mqtt:test:unit        # Run unit tests for gas2mqtt
-task gas2mqtt:lint             # Lint gas2mqtt
-task gas2mqtt:typecheck        # Type check gas2mqtt
+task gas2mqtt:test:unit        # Run unit tests for one app
+task gas2mqtt:lint             # Lint one app
+task gas2mqtt:typecheck        # Type check one app
 task test:all                  # Run tests for all apps
 task pre-pr                    # Full quality gate
 ```
 
-## Landing the Plane (Session Completion)
+## Workflow
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete
-until `git push` succeeds.
+- **Branching:** GitHub Flow — branch from `main`, open a PR, squash-merge. `main` is
+  always deployable.
+- **Commits:** [Conventional Commits](https://www.conventionalcommits.org/) required:
+  `<type>(<scope>): <description>`. Common types: `feat:`, `fix:`, `docs:`, `chore:`,
+  `refactor:`, `test:`. Scope by app when the change is app-specific
+  (`feat(gas2mqtt): add retry logic`). Breaking changes add `!` after the type.
+- **Releases:** fully automated via Release Please. Agents never create tags or releases
+  manually.
+- **Never push directly to `main`.**
 
-**MANDATORY WORKFLOW:**
+## Pull Request & Merge Policy
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Close beads tasks and commit** - Beads state MUST be committed before pushing:
-   ```bash
-   bd close <id>                # Close finished work
-   git add .beads/ && git commit -m "chore: update beads state"
-   ```
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Create PR** (if new branch):
-   ```bash
-   gh pr create
-   ```
-6. **Wait for CI** (if PR exists):
+**NEVER merge a pull request unless the user explicitly asks.**
 
-   ```bash
-   task ci:wait -- <pr-number>   # polls until all checks complete
-   ```
+The job ends at creating the PR and waiting for CI. The human reviewer decides when to
+merge. Even if all CI checks pass — do NOT merge, do NOT approve-and-merge, do NOT
+enable auto-merge. Wait for an explicit instruction: "merge this", "go ahead and merge",
+or "land it".
 
-   **Always use `task ci:wait`** — do not use `gh pr checks --watch` (opens alternate
-   buffer, breaks agents) or ad-hoc polling loops.
+## Code Quality Principles
 
-   **STOP here. Do NOT merge the PR.** Do not approve, do not enable auto-merge, do not
-   merge even if all CI checks pass. The human reviewer decides when to merge.
+- **Brevity is a feature.** If you wrote 200 lines and it could be 50, rewrite it.
+- **Simplicity test:** "Would a senior engineer say this is overcomplicated?" If yes,
+  simplify before submitting.
+- Prefer clear, idiomatic code over clever abstractions.
+- Every line should earn its place — remove dead code, redundant comments, unnecessary
+  indirection.
 
-7. **Clean up** - Clear stashes, prune remote branches
-8. **Verify** - All changes committed AND pushed
-9. **Hand off** - Provide context for next session
+## Library & API Documentation
 
-**CRITICAL RULES:**
+This project has **Context7 MCP** configured. When you need documentation for any
+library, framework, or API, use Context7 instead of relying on training data. This
+applies to code generation, debugging, and review alike. Do not ask whether to use it;
+just invoke it when library context would improve accuracy.
 
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-- Beads state MUST be committed before pushing — the pre-push hook will reject pushes
-  with uncommitted `.beads/` changes
-- NEVER merge a PR unless the user explicitly requests it
+Context7 receives the names of the libraries and APIs you query — no source code or
+secrets. See [context7.com](https://context7.com) for the data policy.
 
-## Beads vs TODO: Two Systems, Distinct Purposes
+## Architecture Decision Records
+
+ADRs are split by scope:
+
+- **Monorepo-wide** decisions: `docs/adr/` (monorepo structure, shared tooling)
+- **App-specific** decisions: `apps/<name>/docs/adr/` (framework choice, domain design)
+
+**Follow existing decisions.** Create new ADRs for any major change, at the appropriate
+scope level.
+
+**Do not write ADR Markdown directly.** Use the `adr-create` skill — it produces
+schema-validated JSON and renders canonical Markdown via `task adr:create`. Input
+schema: `.github/agents/schemas/adr-input.schema.json`.
+
+## Issue Tracking (Beads)
+
+This project uses **bd (beads)** — a git-backed graph issue tracker for AI agents.
+Issues are stored as JSONL in `.beads/` and committed to git. Run `bd prime` for full
+workflow context.
+
+### Beads vs TODO: two systems, distinct purposes
 
 | System           | Purpose            | Content type            | Location                        |
 | ---------------- | ------------------ | ----------------------- | ------------------------------- |
@@ -116,7 +120,7 @@ until `git push` succeeds.
 **TODO items** (T1–Tn) are _deliberation documents_ — deferred decisions, architectural
 evaluations, and technical debt. They are mini-ADRs-in-waiting.
 
-### Gate Tasks
+### Gate tasks
 
 Phase-triggered TODOs get a **gate task** in beads as a dependency of the relevant work
 item. The gate task references the TODO doc but contains no decision logic itself.
@@ -124,23 +128,67 @@ item. The gate task references the TODO doc but contains no decision logic itsel
 - Date-triggered TODOs stay markdown-only
 - When closing a gate task: create an ADR, update the TODO, or create new tasks
 
+## Landing the Plane (Session Completion)
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete
+until `git push` succeeds.
+
+1. **File issues for remaining work** — create beads tasks for anything unfinished
+2. **Run quality gates** (if code changed) — `task pre-pr`
+3. **Close beads tasks and commit state** — beads state MUST be committed before
+   pushing:
+   ```bash
+   bd close <id>
+   git add .beads/ && git commit -m "chore: update beads state"
+   ```
+4. **PUSH TO REMOTE** — mandatory:
+   ```bash
+   git pull --rebase
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Create PR** (if new branch): `gh pr create`
+6. **Wait for CI** (if a PR exists):
+
+   ```bash
+   task ci:wait -- <pr-number>   # polls until all checks complete
+   ```
+
+   **Always use `task ci:wait`** — never `gh pr checks --watch` (opens an alternate
+   buffer, breaks agents) or ad-hoc polling loops.
+
+   **STOP here. Do NOT merge the PR.**
+
+7. **Clean up** — clear stashes, prune remote branches
+8. **Verify** — all changes committed AND pushed
+9. **Hand off** — provide context for the next session
+
+**CRITICAL RULES:**
+
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing — that leaves work stranded locally
+- NEVER say "ready to push when you are" — YOU must push
+- If push fails, resolve and retry until it succeeds
+- Beads state MUST be committed before pushing — the pre-push hook rejects pushes with
+  uncommitted `.beads/` changes
+- NEVER merge a PR unless the user explicitly requests it
+
 <!-- BEGIN BEADS INTEGRATION -->
 <!-- END BEADS INTEGRATION -->
 
-## Kilo / OpenCode Config
+## AI Agent Configuration
 
-Agent configuration for Kilo and OpenCode lives in `.kilo/` (mirroring `.github/`).
-`kilo.json` / `opencode.json` are the entry points.
+Agent configuration is maintained once in `.github/` and consumed by every tool:
 
-**Remote MCP — Context7:** `kilo.json` configures a remote Context7 MCP endpoint
-(`https://mcp.context7.com/mcp`) used for live library documentation lookups. This
-endpoint receives the names of libraries/APIs you query — no source code or secrets are
-transmitted. See [context7.com](https://context7.com) for the data policy. If working in
-a sensitive environment, remove the `mcp` block from a local `kilo.json` override.
+| Surface              | Location                |
+| -------------------- | ----------------------- |
+| Always-on context    | `AGENTS.md` (this file) |
+| File-scoped guidance | `.github/instructions/` |
+| Repeatable workflows | `.github/skills/`       |
+| Specialist agents    | `.github/agents/`       |
 
-**Parity check:** `scripts/check-agent-parity.sh` ensures `.github/` ↔ `.kilo/`
-descriptions stay in sync. Run `bash scripts/check-agent-parity.sh` or
-`bash scripts/test-check-agent-parity.sh` to verify.
+Some files carry frontmatter keys for more than one tool at once; each tool ignores the
+keys it does not recognise. Do not remove a key because your tool has no use for it.
 
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
 
