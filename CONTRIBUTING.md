@@ -90,12 +90,12 @@ cosalette-apps/
 Agent configuration lives in `.github/` and is shared by GitHub Copilot, Claude Code and
 Kilo. `AGENTS.md` is the always-on instruction file for all three.
 
-| Surface              | Location                | Notes                                   |
-| -------------------- | ----------------------- | --------------------------------------- |
-| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md`    |
-| File-scoped guidance | `.github/instructions/` | Claude reads it via `.claude/rules/`    |
-| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in             |
-| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a separate hand copy |
+| Surface              | Location                | Notes                                |
+| -------------------- | ----------------------- | ------------------------------------ |
+| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md` |
+| File-scoped guidance | `.github/instructions/` | Claude reads it via `.claude/rules/` |
+| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest       |
+| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest       |
 
 ### Union frontmatter
 
@@ -138,6 +138,32 @@ ln -s ../../.github/instructions/<name>.instructions.md .claude/rules/<name>.md
 Verified against Claude Code 2.1.220: a rule with `paths: ['**/*.py']` loads when a
 `.py` file is read and stays out of context otherwise, and a rule with no `paths:` key
 loads every session.
+
+### How Claude Code reaches `.github/skills/` and `.github/agents/`
+
+Claude Code loads both through a **plugin**, which is why they need no duplication:
+
+| File                                 | Role                                                  |
+| ------------------------------------ | ----------------------------------------------------- |
+| `.github/.claude-plugin/plugin.json` | declares the skills dir and the agent files           |
+| `.claude-plugin/marketplace.json`    | repo-root marketplace whose one plugin is `./.github` |
+| `.claude/settings.json`              | registers the marketplace and enables the plugin      |
+
+Components appear namespaced: `cosalette:orchestrator`, `/cosalette:pr-review`.
+
+**Adding a skill needs no manifest change** — `plugin.json` registers the whole
+`./skills/` directory. **Adding an agent does:** the `agents` key only accepts a list of
+individual files, not a directory (a directory value fails `claude plugin validate`).
+
+Check the manifests after editing them:
+
+```bash
+claude plugin validate ./.github   # the plugin
+claude plugin validate .           # the marketplace
+```
+
+Verified against Claude Code 2.1.220: all 9 agents and all 8 skills load, and the
+`*.agent.md` filenames are accepted as-is — no renaming needed.
 
 ### The one key that cannot be shared: `model:`
 

@@ -185,12 +185,19 @@ until `git push` succeeds.
 
 Agent configuration lives in `.github/` and is consumed by every tool:
 
-| Surface              | Location                | Shared how                                                  |
-| -------------------- | ----------------------- | ----------------------------------------------------------- |
-| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                            |
-| File-scoped guidance | `.github/instructions/` | Claude via `.claude/rules/` symlinks; Copilot + Kilo native |
-| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in                                 |
-| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a **separate, hand-maintained copy**     |
+| Surface              | Location                | Shared how                                                                              |
+| -------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
+| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                                                        |
+| File-scoped guidance | `.github/instructions/` | Claude via `.claude/rules/` symlinks; Copilot + Kilo native                             |
+| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest; `.kilo/skills/` symlinks in                             |
+| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest; `.kilo/agents/` is a **separate, hand-maintained copy** |
+
+Claude Code loads the skills and agents through a plugin manifest at
+`.github/.claude-plugin/plugin.json`, served by the repo-root local marketplace
+`.claude-plugin/marketplace.json` and auto-enabled by `.claude/settings.json`. They
+appear as `cosalette:<name>` (e.g. `cosalette:orchestrator`, `/cosalette:pr-review`).
+Adding a skill needs no manifest change — the whole `./skills/` directory is registered.
+Adding an **agent** does: the manifest lists agent files individually.
 
 Some files carry frontmatter keys for more than one tool at once; each tool ignores the
 keys it does not recognise. Do not remove a key because your tool has no use for it. The

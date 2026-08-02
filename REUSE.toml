@@ -34,6 +34,7 @@ path = [
     ".github/**",
     ".devcontainer/**",
     ".claude/**",
+    ".claude-plugin/**",
     ".beads/**",
     ".vscode/**",
     ".pre-commit-config.yaml",

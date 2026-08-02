@@ -1,0 +1,20 @@
+{
+  "name": "cosalette",
+  "description": "Shared agent configuration for the cosalette-apps monorepo: specialist subagents and repeatable workflow skills.",
+  "version": "1.0.0",
+  "author": {
+    "name": "ff-fab"
+  },
+  "skills": ["./skills/"],
+  "agents": [
+    "./agents/code-review-subagent.agent.md",
+    "./agents/docs-subagent.agent.md",
+    "./agents/implementation-subagent.agent.md",
+    "./agents/maintainability-reviewer.agent.md",
+    "./agents/orchestrator.agent.md",
+    "./agents/performance-reviewer.agent.md",
+    "./agents/quality-reviewer.agent.md",
+    "./agents/researcher-subagent.agent.md",
+    "./agents/security-reviewer.agent.md"
+  ]
+}
