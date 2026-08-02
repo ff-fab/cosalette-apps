@@ -68,11 +68,15 @@ extract_yaml_field() {
       fi
       # Check for key: (multi-line value follows)
       if [[ "$line" =~ ^${field}:\ *$ ]]; then
-        # Read subsequent indented lines
-        local block=""
-        local block_indent=2  # Prettier indents with 2 spaces
+        # Detect indent from first continuation line; handles 2-space, 4-space, tabs
+        local block="" first=1 block_indent=0
         while IFS= read -r next_line; do
-          # Stop if line is not indented (another top-level key)
+          if [[ $first -eq 1 ]]; then
+            first=0
+            local leading="${next_line%%[^[:space:]]*}"
+            block_indent=${#leading}
+            [[ $block_indent -eq 0 ]] && break
+          fi
           if [[ ! "$next_line" =~ ^[[:space:]]{${block_indent},} ]]; then
             break
           fi
@@ -164,12 +168,14 @@ check_union_tools() {
   fi
 
   raw="${raw//[\[\]\'\"]/ }"
-  for entry in $(printf '%s' "$raw" | tr ',' ' '); do
+  # names not starting with [a-z]/[A-Z] are intentionally skipped — see test 7a/7b
+  while IFS= read -r entry; do
+    entry="${entry//[[:space:]\\]/}"
     case "$entry" in
       [a-z]*) copilot=1 ;;
       [A-Z]*) claude=1 ;;
     esac
-  done
+  done < <(printf '%s\n' "$raw" | tr ', ' '\n\n')
 
   if [[ $copilot -eq 0 || $claude -eq 0 ]]; then
     printf "${RED}✗ TOOLS:${NC} %s is missing a vocabulary (copilot=%d claude=%d)\n" \
@@ -192,8 +198,8 @@ check_union_tools() {
 check_model_absent() {
   local source="$1"
 
-  # Scan frontmatter: skip leading blanks, enter at first ---, exit at second ---.
-  # Exits 1 when model: is found (bad), 0 when absent (clean).
+  # awk rather than extract_yaml_field: only needs presence/absence (not value), and
+  # correctly handles leading blank lines before --- that the bash parser skips.
   if ! awk '/^[[:space:]]*$/{next} !f&&/^---/{f=1;next} f&&/^---/{exit found} f&&/^[[:space:]]*model:/{found=1} END{exit found}' "$source"; then
     printf "${RED}✗ MODEL:${NC} %s carries a model: key\n" "$source"
     printf "    model: is not shareable — it hard-errors in Claude Code. Remove it.\n"
@@ -223,14 +229,6 @@ echo ""
 if require_dir ".github/agents"; then
   while IFS= read -r -d '' source; do
     check_union_tools "$source"
-  done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
-
-  echo ""
-
-  echo "=== Checking model: is absent (.github/agents/) ==="
-  echo ""
-
-  while IFS= read -r -d '' source; do
     check_model_absent "$source"
   done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
 fi

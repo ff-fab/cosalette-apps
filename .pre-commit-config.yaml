@@ -132,11 +132,7 @@ repos:
       - id: check-jsonschema
         name: Validate plugin.json (Claude Code plugin manifest)
         files: '^\.github/\.claude-plugin/plugin\.json$'
-        args:
-          [
-            '--schemafile',
-            'https://json.schemastore.org/claude-code-plugin-manifest.json',
-          ]
+        args: ['--schemafile', '.github/.claude-plugin/plugin.schema.json']
 
   # Beads (bd): Guard pushes and keep git in sync
   # pre-push: FAILS if .beads/ has uncommitted changes (forces commit-before-push)

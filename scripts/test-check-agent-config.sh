@@ -65,11 +65,10 @@ make_md() {
 # minimum needed so the new symlink check does not fail fixtures aimed at the
 # tools:/model: assertions.
 scaffold() {
-  mkdir -p "$1/.github/agents"
-  mkdir -p "$1/.github/instructions"
-  mkdir -p "$1/.claude/rules"
+  mkdir -p "$1/.github/agents" "$1/.github/instructions" "$1/.github/.claude-plugin" "$1/.claude/rules"
   printf 'dummy rule\n' >"$1/.github/instructions/dummy.instructions.md"
   ln -s ../../.github/instructions/dummy.instructions.md "$1/.claude/rules/dummy.md"
+  printf '{"name":"test","skills":[],"agents":[]}\n' >"$1/.github/.claude-plugin/plugin.json"
 }
 
 TMPDIR_BASE="$(mktemp -d)"
@@ -223,19 +222,29 @@ assert_eq "exit 1 when .claude/rules/ has no symlinks" "1" "$ec"
 assert_contains "NO SYMLINKS in output" "NO SYMLINKS" "$out"
 
 # ── Test 9: claude plugin validate — graceful skip vs. real invocation ─
-# This repo's devcontainer does not install the `claude` binary, so the common case
-# is the skip path. Adapt the assertion if some environment does have it on PATH,
-# rather than hard-coding an assumption the test can't control.
 echo "--- Test 9: claude plugin validate behavior matches PATH"
 T="$TMPDIR_BASE/t9"; scaffold "$T"
 make_md "$T/.github/agents/foo.agent.md" "Foo agent"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 if command -v claude >/dev/null 2>&1; then
+  assert_eq "exit 0 when claude plugin validate succeeds" "0" "$ec"
   assert_not_contains "no SKIP notice when claude is on PATH" "SKIP" "$out"
+  assert_contains "success mark in output" "✓" "$out"
 else
   assert_eq "exit 0 when claude binary is absent from PATH" "0" "$ec"
   assert_contains "SKIP notice in output" "SKIP" "$out"
 fi
+
+# ── Test 9b: stubbed claude binary that exits 1 — failure is detected ─
+echo "--- Test 9b: plugin validate failure is detected"
+T="$TMPDIR_BASE/t9b"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+mkdir -p "$T/bin"
+printf '#!/bin/sh\nexit 1\n' >"$T/bin/claude"
+chmod +x "$T/bin/claude"
+out=$(cd "$T" && PATH="$T/bin:$PATH" bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when claude plugin validate fails" "1" "$ec"
+assert_contains "PLUGIN VALIDATE error in output" "✗ PLUGIN VALIDATE:" "$out"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""
