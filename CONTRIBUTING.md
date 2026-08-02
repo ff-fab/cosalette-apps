@@ -90,12 +90,13 @@ cosalette-apps/
 Agent configuration lives in `.github/` and is shared by GitHub Copilot, Claude Code and
 Kilo. `AGENTS.md` is the always-on instruction file for all three.
 
-| Surface              | Location                | Notes                                       |
-| -------------------- | ----------------------- | ------------------------------------------- |
-| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md`        |
-| File-scoped guidance | `.github/instructions/` | Claude reads it via `.claude/rules/`        |
-| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest              |
-| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest; no Kilo use |
+| Surface              | Location                           | Notes                                                               |
+| -------------------- | ---------------------------------- | ------------------------------------------------------------------- |
+| Always-on context    | `AGENTS.md`                        | Claude Code reads it via `CLAUDE.md`                                |
+| File-scoped guidance | `.github/instructions/`            | Claude reads it via `.claude/rules/`                                |
+| Repeatable workflows | `.github/skills/`                  | Claude via the plugin manifest                                      |
+| Specialist agents    | `.github/agents/`                  | Claude via the plugin manifest; no Kilo use                         |
+| MCP servers          | three native formats, one per tool | `.vscode/mcp.json`, `.github/.claude-plugin/mcp.json`, `kilo.jsonc` |
 
 Kilo's entire configuration is the root `kilo.jsonc` — see
 [How Kilo reaches `.github/`](#how-kilo-reaches-github) below.
@@ -171,6 +172,21 @@ claude plugin validate .           # the marketplace
 Verified against Claude Code 2.1.220: all 9 agents and all 8 skills load, and the
 `*.agent.md` filenames are accepted as-is — no renaming needed.
 
+### How Claude Code reaches MCP servers
+
+The same plugin carries the MCP servers: `plugin.json`'s `mcpServers` field points at
+`.github/.claude-plugin/mcp.json`, which lists `beads`, `context7` and `cosalette` under
+a top-level `mcpServers` key — Claude's own vocabulary, distinct from `.vscode/mcp.json`
+(`servers`) and `kilo.jsonc` (`mcp`, `type: local|remote`). **The three files are not
+shareable — each is written and maintained independently, never symlinked or generated
+from another.**
+
+Project-local paths use `${CLAUDE_PROJECT_DIR}`, not a hardcoded workspace path — unlike
+`.vscode/mcp.json`, which still has the old absolute path baked in. Secrets (the
+`context7` API key) are never written to the file; `${CONTEXT7_API_KEY}` is expanded
+from the environment at connect time, same mechanism as `.vscode/mcp.json`'s
+`${env:VAR}` and `kilo.jsonc`'s `{env:VAR}`, spelled Claude's way.
+
 ### How Kilo reaches `.github/`
 
 Kilo v7 is an OpenCode fork with **one** `kilo.jsonc` at the repo root driving the VS
@@ -231,7 +247,7 @@ are read-only. The union lists are safe.
 
 ### Known gaps
 
-These are tracked under the `cap-pm1` epic and are not yet resolved:
+Accepted trade-offs, not open work:
 
 - **A new `.github/instructions/` file is not checked.** Nothing fails if you forget the
   `paths:` key or the `.claude/rules/` symlink — Claude Code simply never loads it.
@@ -247,6 +263,40 @@ task check:agents:test   # that script's own test suite
 Both run in CI (the `shared` job) and as pre-commit hooks. `plugin.json` itself is
 validated separately, by a `check-jsonschema` pre-commit hook against SchemaStore's
 `claude-code-plugin-manifest.json`.
+
+**Neither check touches content, and neither reaches the gap named above** —
+`check:agents` verifies structure (symlinks resolve, tools/model invariants), not that
+you remembered to create a symlink or that a skill actually loads.
+
+### Troubleshooting
+
+- **Skill or agent not appearing in Claude Code.** Structural plugin changes (new
+  `agents/*.agent.md` file, new `skills/` directory, edits to `plugin.json` or
+  `mcp.json`) don't hot-reload — run `/reload-plugins` or restart. Only edits to an
+  already-loaded `SKILL.md`'s content apply immediately. Confirm the plugin itself is
+  enabled: `.claude/settings.json` → `enabledPlugins`.
+- **Rule (`.github/instructions/*.instructions.md`) not loading in Claude Code.** This
+  is the known gap above — check for a `.claude/rules/` symlink pointing at the file
+  (`ls -la .claude/rules/`) and, for scoped rules, that `paths:` is present and matches
+  the file you're editing. `task check:agents` only catches a symlink that exists and is
+  dangling, not one that was never created.
+- **MCP server not connecting.** Verify `plugin.json`'s `mcpServers` field still points
+  at `.github/.claude-plugin/mcp.json` and the file is valid JSON with a top-level
+  `mcpServers` key. Check required env vars are set in your shell before Claude Code
+  starts — `${VAR}` expansion reads the environment at connect time, it does not source
+  `.env` files. Project MCP servers go through a one-time per-server approval prompt the
+  first time they're used; if you don't see it, the plugin may not be enabled.
+
+### Do not run `bd setup copilot`
+
+`bd` ships a generic Copilot recipe that scaffolds `.copilot-plugin/plugin.json` and
+regenerates `.github/copilot-instructions.md`. Both conflict with this repo's hand-built
+config: `.github/copilot-instructions.md` was deliberately deleted in favor of the
+top-level `AGENTS.md` (see ADR-003), and a generic `.copilot-plugin/` has no awareness
+of the dual-frontmatter scheme or the `.claude-plugin`/`kilo.jsonc` surfaces it must
+stay consistent with. If `bd setup --check` flags Copilot as "not installed," that's
+expected — this repo's Copilot integration is the `.github/` tree itself, not `bd`'s
+recipe.
 
 ## Code Quality
 
