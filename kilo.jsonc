@@ -13,8 +13,8 @@
 
   "skills": { "paths": [".github/skills"] },
 
-  // No `model` pin — a stale pin is exactly what rotted the previous config. Auth comes
-  // from OPENCODE_API_KEY (the opencode-go subscription). If a pin is ever needed: Kimi K3.
+  // No `model` pin — a stale pin is exactly what rotted the previous config.
+  // If a pin is ever needed: Kimi K3.
 
   "mcp": {
     "beads": {
@@ -37,10 +37,11 @@
 
   // Mirrors the Copilot (`.vscode/settings.json`) and Claude (`.claude/settings.json`)
   // policy: edits are free, shell is ask-by-default, read-only commands are waved
-  // through and history-rewriting or merge commands are refused outright.
+  // through and certain merge/force-push commands are denied.
   // Last matching pattern wins, so `*` comes first.
   "permission": {
     "edit": "allow",
+    // Domain allowlist not supported in kilo.jsonc; accepted risk — filter at infra level.
     "webfetch": "allow",
     "bash": {
       "*": "ask",
@@ -57,8 +58,34 @@
       "git log*": "allow",
       "git show*": "allow",
       "git branch*": "allow",
-      "task *": "allow",
-      "uv run *": "allow",
+      "task --list*": "allow",
+      "task lint*": "allow",
+      "task typecheck*": "allow",
+      "task check*": "allow",
+      "task test:*": "allow",
+      "task pre-pr*": "allow",
+      "task complexity*": "allow",
+      "task similarity*": "allow",
+      "task check-parity*": "allow",
+      "task reuse:*": "allow",
+      "task pr:diff*": "allow",
+      "task pr:feedback*": "allow",
+      "task pr:list*": "allow",
+      "task ci:wait*": "allow",
+      "task docs:build*": "allow",
+      "task adr:*": "allow",
+      "task beads:*": "allow",
+      "uv run pytest*": "allow",
+      "uv run ruff*": "allow",
+      "uv run ty*": "allow",
+      "uv run mypy*": "allow",
+      "uv run reuse*": "allow",
+      "uv run radon*": "allow",
+      "uv run xenon*": "allow",
+      "uv sync*": "allow",
+      "uv lock*": "allow",
+      "uv tree*": "allow",
+      "uv version*": "allow",
       "bd *": "allow",
       "gh pr view*": "allow",
       "gh pr list*": "allow",

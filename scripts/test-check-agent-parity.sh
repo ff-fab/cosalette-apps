@@ -84,6 +84,8 @@ printf -- '---\ndescription: Multi\ntools:\n  - read\n  - Read\n---\ncontent\n' 
   >"$T/.github/agents/multi.agent.md"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 0 for a multi-line tools: list" "0" "$ec"
+assert_contains "checkmark in output" "✓" "$out"
+assert_not_contains "no errors on multi-line tools" "✗" "$out"
 
 # ── Test 3: Single-vocabulary tools list ───────────────────────
 echo "--- Test 3: tools: missing a vocabulary"
@@ -91,12 +93,13 @@ T="$TMPDIR_BASE/t3"; scaffold "$T"
 make_md "$T/.github/agents/copilot-only.agent.md" "Copilot only" "'search', 'read'"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when Claude vocabulary absent" "1" "$ec"
-assert_contains "TOOLS in output" "TOOLS" "$out"
+assert_contains "TOOLS in output" "✗ TOOLS:" "$out"
 
 T="$TMPDIR_BASE/t3b"; scaffold "$T"
 make_md "$T/.github/agents/claude-only.agent.md" "Claude only" "'Read', 'Grep'"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when Copilot vocabulary absent" "1" "$ec"
+assert_contains "TOOLS error for Claude-absent" "✗ TOOLS:" "$out"
 
 # ── Test 4: Agent with no tools: key at all ────────────────────
 echo "--- Test 4: agent missing tools: key"
@@ -153,8 +156,8 @@ out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when model: has indented value" "1" "$ec"
 assert_contains "MODEL error for multi-line block" "✗ MODEL:" "$out"
 
-# ── Test 6e: leading blank line before frontmatter is rejected ─
-echo "--- Test 6e: leading blank line before frontmatter fails"
+# ── Test 6e: leading blank is handled correctly; model: is still detected ─────
+echo "--- Test 6e: leading blank before frontmatter; model: still detected"
 T="$TMPDIR_BASE/t6e"; scaffold "$T"
 printf -- '\n---\ndescription: Leading\ntools: [%s]\nmodel: inline\n---\ncontent\n' \
   "'read', 'Read'" >"$T/.github/agents/leading.agent.md"
@@ -170,6 +173,20 @@ printf -- '---\ndescription: Body\ntools: [%s]\n---\nmodel: not-frontmatter\n' \
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 0 when model: is only in body" "0" "$ec"
 assert_not_contains "no MODEL error for body content" "✗ MODEL:" "$out"
+
+# ── Test 7: Non-alphabetic tool name entries ──────────────────
+# The [a-z]/[A-Z] case heuristic silently skips _ or digit-prefixed entries.
+# Valid names alongside non-alphabetic extras must still pass; only non-alphabetic fails.
+echo "--- Test 7: non-alphabetic tool name entries"
+T="$TMPDIR_BASE/t7a"; scaffold "$T"
+make_md "$T/.github/agents/mixed.agent.md" "Mixed" "'read', 'Read', '_helper'"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 0 with valid names alongside non-alphabetic" "0" "$ec"
+
+T="$TMPDIR_BASE/t7b"; scaffold "$T"
+make_md "$T/.github/agents/nonalpha.agent.md" "NonAlpha" "'_read', '_Read'"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when only non-alphabetic names" "1" "$ec"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""

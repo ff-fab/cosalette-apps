@@ -3,7 +3,7 @@
 #
 # Two checks:
 #   1. union `tools:`  — each agent names at least one tool from the Copilot vocabulary
-#                        AND one from Claude Code's
+#                        AND one from Claude Code's vocabulary
 #   2. no `model:`     — the one key that cannot be shared (cap-wf3)
 #
 # The .github/ ↔ .kilo/ mirror checks are gone: cap-pm1 phase 3 deleted .kilo/agents/ and
@@ -135,8 +135,9 @@ check_union_tools() {
 check_model_absent() {
   local source="$1"
 
-  # Scan frontmatter directly — skip leading blank lines, match indented key.
-  if awk '/^[[:space:]]*$/{next} !f&&/^---/{f=1;next} f&&/^---/{exit} f&&/^[[:space:]]*model:/{found=1} END{exit !found}' "$source"; then
+  # Scan frontmatter: skip leading blanks, enter at first ---, exit at second ---.
+  # Exits 1 when model: is found (bad), 0 when absent (clean).
+  if ! awk '/^[[:space:]]*$/{next} !f&&/^---/{f=1;next} f&&/^---/{exit found} f&&/^[[:space:]]*model:/{found=1} END{exit found}' "$source"; then
     printf "${RED}✗ MODEL:${NC} %s carries a model: key\n" "$source"
     printf "    model: is not shareable — it hard-errors in Claude Code. Remove it.\n"
     ((errors++))
