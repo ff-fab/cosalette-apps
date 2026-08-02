@@ -47,6 +47,7 @@ declare -A KNOWN_DESCRIPTION_SKIP=(
 extract_yaml_field() {
   local file="$1"
   local field="$2"
+  [[ "$field" =~ ^[a-zA-Z_-]+$ ]] || return
   local inside=0
   local value=""
   while IFS= read -r line; do
@@ -227,10 +228,12 @@ check_union_tools() {
 # value does NOT fall back — Claude Code registers the agent and then hard-errors the
 # moment it is launched ("There's an issue with the selected model"). So the shared
 # file carries no model: at all; per-tool pins belong in per-tool copies.
-check_no_model() {
+check_model_absent() {
   local source="$1"
 
-  if [[ -n "$(extract_yaml_field "$source" "model")" ]]; then
+  # Grep frontmatter directly — extract_yaml_field returns "" for a bare model: key
+  # (no value), so value extraction alone cannot detect that case.
+  if awk 'NR==1&&/^---/{f=1;next} f&&/^---/{exit} f&&/^model:/{found=1} END{exit !found}' "$source"; then
     printf "${RED}✗ MODEL:${NC} %s carries a model: key\n" "$source"
     printf "    model: is not shareable — it hard-errors in Claude Code. Remove it.\n"
     ((errors++))
@@ -276,12 +279,11 @@ echo "=== Checking agent parity (.github/agents/ ↔ .kilo/agents/) ==="
 echo ""
 
 if require_dir ".github/agents" && require_dir ".kilo/agents"; then
-  for source in .github/agents/*.agent.md; do
-    [[ -f "$source" ]] || continue
+  while IFS= read -r -d '' source; do
     bname=$(basename "$source" .agent.md)
     target=".kilo/agents/${bname}.md"
     check_pair "$source" "$target" "agent"
-  done
+  done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
 fi
 
 echo ""
@@ -296,28 +298,23 @@ fi
 
 echo ""
 
-# ── Check union tools: frontmatter ────────────────────────────
+# ── Check union tools: frontmatter + model: absence (.github/agents/) ─
 echo "=== Checking union tools: frontmatter (.github/agents/) ==="
 echo ""
 
 if require_dir ".github/agents"; then
-  for source in .github/agents/*.agent.md; do
-    [[ -f "$source" ]] || continue
+  while IFS= read -r -d '' source; do
     check_union_tools "$source"
-  done
-fi
+  done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
 
-echo ""
+  echo ""
 
-# ── Check model: is absent ────────────────────────────────────
-echo "=== Checking model: is absent (.github/agents/) ==="
-echo ""
+  echo "=== Checking model: is absent (.github/agents/) ==="
+  echo ""
 
-if require_dir ".github/agents"; then
-  for source in .github/agents/*.agent.md; do
-    [[ -f "$source" ]] || continue
-    check_no_model "$source"
-  done
+  while IFS= read -r -d '' source; do
+    check_model_absent "$source"
+  done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
 fi
 
 echo ""
