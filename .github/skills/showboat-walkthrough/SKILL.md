@@ -1,6 +1,11 @@
 ---
-agent: agent
-description: 'Build a linear walkthrough of the codebase (or a specific module) using showboat. Produces a documented, reproducible tour with inline code snippets and commentary.'
+name: showboat-walkthrough
+argument-hint: '[module or package to walk through]'
+description:
+  Build a linear walkthrough of the codebase (or a specific module) using showboat.
+  Produces a documented, reproducible tour with inline code snippets and commentary.
+  Use when the user asks for a code tour, a walkthrough, or an explanation of how a
+  module fits together.
 ---
 
 # Code Walkthrough with Showboat

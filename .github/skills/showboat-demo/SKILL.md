@@ -1,5 +1,6 @@
 ---
 name: showboat-demo
+argument-hint: '[scope or title]'
 description:
   Create a showboat demo — an executable proof-of-work document. Use when the user asks
   for a demo, says "showboat this", "prove it works", "create a demo", or when you want
@@ -23,6 +24,19 @@ Create a showboat demo when:
 
 Do NOT create demos automatically. Demos are opt-in.
 
+## Gather Context First
+
+Before writing anything, establish what the demo has to prove:
+
+```bash
+git branch --show-current        # the demo filename
+git log main..HEAD --oneline     # what landed on this branch
+git diff main --stat             # scope of the change
+```
+
+Read the changed files. The proof commands must demonstrate *this* work, not generic
+health.
+
 ## Workflow
 
 ```bash
@@ -41,7 +55,14 @@ showboat exec docs/planning/demos/<branch-name>.md bash "<corrected command>"
 
 # 5. Verify the demo is reproducible (MUST exit 0)
 showboat verify docs/planning/demos/<branch-name>.md
+
+# 6. Commit it as part of the branch
+git add docs/planning/demos/<branch-name>.md
+git commit -m "docs: add showboat demo for <branch-name>"
 ```
+
+Prefer `git diff main...HEAD --stat` (three-dot, merge-base) in proof blocks — it stays
+reproducible even after `main` advances.
 
 ## Scoping Guidelines
 
