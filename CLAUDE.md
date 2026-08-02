@@ -6,16 +6,24 @@
 
 `AGENTS.md` above is the canonical instruction set, shared with GitHub Copilot and Kilo.
 
-**Claude Code does not load `.github/instructions/*.instructions.md`.** There is no
-`.claude/rules/` wiring yet — that lands in `cap-pm1` phase 2. Until then, treat those
-files as reference you must open yourself:
+**Claude Code loads `.github/instructions/*.instructions.md` automatically.** Each one
+is symlinked into `.claude/rules/`, where Claude honours the `paths:` frontmatter key.
+You do not need to open them yourself:
 
-| When working on            | Read                                                  |
-| -------------------------- | ----------------------------------------------------- |
-| any file                   | `.github/instructions/tooling.instructions.md`        |
-| `**/*.py`                  | `python.instructions.md`, `cosalette.instructions.md` |
-| `apps/*/packages/tests/**` | `testing-python.instructions.md`                      |
-| `**/*.md`                  | `documentation.instructions.md`                       |
+| When working on            | Loads automatically                                 |
+| -------------------------- | --------------------------------------------------- |
+| any file                   | `tooling`, `workflow` (no `paths:` — unconditional) |
+| `**/*.py`                  | `python`, `cosalette`                               |
+| `apps/*/packages/tests/**` | `testing-python`                                    |
+| `**/*.md`                  | `documentation`                                     |
+
+The symlinks are committed (git stores them as links, mode `120000`). To add a rule,
+create the file in `.github/instructions/` with both `applyTo:` and `paths:`, then
+symlink it:
+
+```bash
+ln -s ../../.github/instructions/<name>.instructions.md .claude/rules/<name>.md
+```
 
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
 <!-- END COSALETTE AI SUPPORT -->

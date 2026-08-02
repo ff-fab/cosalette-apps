@@ -4,10 +4,10 @@ Canonical instructions for every AI coding agent in this repository. GitHub Copi
 Kilo read this file natively; Claude Code reads it through the `@AGENTS.md` import in
 `CLAUDE.md`.
 
-Topic guidance that only applies to certain files lives in `.github/instructions/`.
-Copilot and Kilo load those files automatically; **Claude Code does not read them yet**
-(phase 2 of `cap-pm1` adds the wiring), so under Claude Code, open the file matching
-what you are working on. Repeatable procedures live in `.github/skills/`.
+Topic guidance that only applies to certain files lives in `.github/instructions/`. All
+three tools load those files automatically — Copilot via `applyTo:`, Claude Code via
+`paths:` through the `.claude/rules/` symlinks, Kilo unconditionally. Repeatable
+procedures live in `.github/skills/`.
 
 ## Project Overview
 
@@ -185,12 +185,12 @@ until `git push` succeeds.
 
 Agent configuration lives in `.github/` and is consumed by every tool:
 
-| Surface              | Location                | Shared how                                              |
-| -------------------- | ----------------------- | ------------------------------------------------------- |
-| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                        |
-| File-scoped guidance | `.github/instructions/` | Copilot + Kilo only (see above)                         |
-| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in                             |
-| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a **separate, hand-maintained copy** |
+| Surface              | Location                | Shared how                                                  |
+| -------------------- | ----------------------- | ----------------------------------------------------------- |
+| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                            |
+| File-scoped guidance | `.github/instructions/` | Claude via `.claude/rules/` symlinks; Copilot + Kilo native |
+| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in                                 |
+| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a **separate, hand-maintained copy**     |
 
 Some files carry frontmatter keys for more than one tool at once; each tool ignores the
 keys it does not recognise. Do not remove a key because your tool has no use for it. The
