@@ -1,5 +1,7 @@
 ---
 description: 'Tooling policy: task runner, uv, and gh CLI wrappers'
+# applyTo '**' means unconditional. Claude Code's equivalent is the ABSENCE of a
+# paths key, so do not add one here.
 applyTo: '**'
 ---
 

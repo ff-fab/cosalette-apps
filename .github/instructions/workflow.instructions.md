@@ -1,5 +1,7 @@
 ---
 description: 'Development workflow: Git flow, issue tracking, quality gates, session completion'
+# applyTo '**' means unconditional. Claude Code's equivalent is the ABSENCE of a
+# paths key, so do not add one here.
 applyTo: '**'
 ---
 

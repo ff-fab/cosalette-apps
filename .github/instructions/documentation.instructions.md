@@ -1,6 +1,8 @@
 ---
 description: 'Documentation - Markdown and Zensical conventions'
 applyTo: '**/*.md'
+paths:
+  - '**/*.md'
 ---
 
 # Documentation Instructions

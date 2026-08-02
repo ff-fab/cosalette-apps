@@ -1,6 +1,11 @@
 ---
 description: 'cosalette framework development guidance for AI agents'
+# applyTo scopes this file for GitHub Copilot; paths does the same for Claude Code
+# (via the .claude/rules/ symlink). Keep the two in sync. Kilo ignores both and
+# loads the file unconditionally.
 applyTo: '**/*.py'
+paths:
+  - '**/*.py'
 ---
 
 # cosalette Framework Instructions
