@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # check-agent-parity.sh — Verify parity across the shared agent-config surfaces
 #
-# Three checks:
+# Four checks:
 #   1. .github/agents/ ↔ .kilo/agents/  — every agent has a mirror, descriptions match
 #   2. .github/skills/ ↔ .kilo/skills/  — every skill has a resolving Kilo symlink
 #   3. .github/agents/ union `tools:`   — each agent names at least one tool from the
 #                                          Copilot vocabulary AND one from Claude Code's
+#   4. .github/agents/ no `model:`      — the one key that cannot be shared (cap-wf3)
 #
 # Run: bash scripts/check-agent-parity.sh
 # Wired into CI (ci.yml `shared` job) and pre-commit.
@@ -219,6 +220,26 @@ check_union_tools() {
   printf "${GREEN}✓${NC} tools: %s (both vocabularies present)\n" "$source"
 }
 
+# ── Helper: reject model: in the shared agent files ───────────
+# `model:` is the one frontmatter key all three tools recognise with mutually
+# incompatible vocabularies (Copilot "Claude Sonnet 4.6 (copilot)", Claude Code
+# sonnet/opus/haiku/inherit, Kilo "opencode-go/..."). Probed under cap-wf3: a foreign
+# value does NOT fall back — Claude Code registers the agent and then hard-errors the
+# moment it is launched ("There's an issue with the selected model"). So the shared
+# file carries no model: at all; per-tool pins belong in per-tool copies.
+check_no_model() {
+  local source="$1"
+
+  if [[ -n "$(extract_yaml_field "$source" "model")" ]]; then
+    printf "${RED}✗ MODEL:${NC} %s carries a model: key\n" "$source"
+    printf "    model: is not shareable — it hard-errors in Claude Code. Remove it.\n"
+    ((errors++))
+    return
+  fi
+
+  printf "${GREEN}✓${NC} model: %s (absent, as required)\n" "$source"
+}
+
 # ── Helper: .github/skills/ ↔ .kilo/skills/ symlinks ──────────
 check_skill_links() {
   local skill_dir link resolved expected
@@ -288,6 +309,19 @@ fi
 
 echo ""
 
+# ── Check model: is absent ────────────────────────────────────
+echo "=== Checking model: is absent (.github/agents/) ==="
+echo ""
+
+if require_dir ".github/agents"; then
+  for source in .github/agents/*.agent.md; do
+    [[ -f "$source" ]] || continue
+    check_no_model "$source"
+  done
+fi
+
+echo ""
+
 # ── Reverse check: Kilo files without Copilot source ──────────
 echo "=== Reverse check: Orphan .kilo/ files ==="
 echo ""
@@ -298,7 +332,7 @@ check_orphans ".kilo/agents" ".github/agents" ".agent.md" "agent"
 echo ""
 echo "───────────────────────────────────────────"
 if [[ $errors -eq 0 && $warnings -eq 0 ]]; then
-  printf "${GREEN}✓ Agents, skills and union tools: frontmatter are all in sync${NC}\n"
+  printf "${GREEN}✓ Agents, skills, union tools: and model: absence are all in sync${NC}\n"
   exit 0
 elif [[ $errors -eq 0 ]]; then
   printf "${YELLOW}✓ Parity check passed with %d warning(s)${NC}\n" "$warnings"
