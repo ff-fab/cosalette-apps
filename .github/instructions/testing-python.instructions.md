@@ -1,6 +1,8 @@
 ---
 description: 'Python testing - pytest patterns'
 applyTo: 'apps/*/packages/tests/**/*.py'
+paths:
+  - 'apps/*/packages/tests/**/*.py'
 ---
 
 # Testing Instructions

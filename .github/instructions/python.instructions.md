@@ -1,6 +1,8 @@
 ---
 description: 'Python version-specific syntax rules for this project'
 applyTo: '**/*.py'
+paths:
+  - '**/*.py'
 ---
 
 # Python Syntax Notes

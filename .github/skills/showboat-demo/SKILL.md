@@ -1,5 +1,6 @@
 ---
 name: showboat-demo
+argument-hint: '[scope or title]'
 description:
   Create a showboat demo — an executable proof-of-work document. Use when the user asks
   for a demo, says "showboat this", "prove it works", "create a demo", or when you want
@@ -23,6 +24,20 @@ Create a showboat demo when:
 
 Do NOT create demos automatically. Demos are opt-in.
 
+## Gather Context First
+
+Before writing anything, establish what the demo has to prove:
+
+```bash
+git branch --show-current          # the demo filename
+git log main..HEAD --oneline       # what landed on this branch
+git diff main...HEAD --stat        # scope — three-dot diffs from the merge-base, so it
+                                   # stays reproducible even after main advances
+```
+
+Read the changed files. The proof commands must demonstrate *this* work, not generic
+health.
+
 ## Workflow
 
 ```bash
@@ -41,7 +56,25 @@ showboat exec docs/planning/demos/<branch-name>.md bash "<corrected command>"
 
 # 5. Verify the demo is reproducible (MUST exit 0)
 showboat verify docs/planning/demos/<branch-name>.md
+
+# 6. Commit it as part of the branch
+git add docs/planning/demos/<branch-name>.md
+git commit -m "docs: add showboat demo for <branch-name>"
 ```
+
+**Write 2–4 notes in step 2**, covering:
+
+- the problem or feature being addressed
+- key design decisions
+- what the proof commands will verify
+
+This is the part most easily under-done — a demo of bare command output without
+commentary does not explain why the work is correct.
+
+**Choose proof commands that demonstrate _this_ work, not generic health**: `task pre-pr`
+or targeted tests for code changes, `git diff main...HEAD --stat` for scope, plus
+feature-specific commands (API calls, CLI output). Always use the three-dot form in
+proof blocks so they stay reproducible after `main` advances.
 
 ## Scoping Guidelines
 

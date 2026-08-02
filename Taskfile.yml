@@ -415,7 +415,8 @@ tasks:
   # single-project. A raw `copier update` WILL regress the app-matrix CI,
   # per-app docs/Docker matrices, and root virtual-workspace pyproject.toml.
   # Do not commit this task's output directly — hand-reconcile against the
-  # prior template-update PR first (see docs/planning/log/ for the process
+  # prior template-update PR first (see
+  # docs/planning/copier-template-v1-19-2-update-evaluation.md for the process
   # used last time).
   update:template:
     desc: Pull latest copier template changes — do not commit output directly

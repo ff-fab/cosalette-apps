@@ -1,13 +1,18 @@
 {
+  // Read AGENTS.md as the canonical instruction file. It is shared with Claude Code
+  // (via the @AGENTS.md import in CLAUDE.md) and Kilo, which both read it natively.
+  "chat.useAgentsMdFile": true,
+
   // Auto-approve safe terminal commands for Copilot agent mode.
   // Docs: https://code.visualstudio.com/docs/copilot/copilot-settings#_agent-settings
   "chat.tools.terminal.autoApprove": {
     // Read-only / inspection
+    // NOTE: `awk` is deliberately absent — `awk 'BEGIN{system("...")}'` is arbitrary
+    // command execution, not inspection.
     "cat": true,
     "head": true,
     "tail": true,
     "wc": true,
-    "awk": true,
     "ls": true,
     "tree": true,
     "pwd": true,
@@ -18,15 +23,20 @@
     "cd": true,
     "mkdir": true,
 
-    // Version control
-    "git": true,
+    // Version control.
+    // `git -c <cfg>` can set core.pager/core.sshCommand to run arbitrary commands, and
+    // force-pushing is not something to auto-approve — so match plain subcommands only.
+    "/^git (status|diff|log|show|branch|add|commit|fetch|pull|stash|restore|switch|checkout|rev-parse|blame|remote -v)\\b/": true,
     //"gh": true,
 
-    // Task runner (all targets defined in Taskfile.yml)
-    "task": true,
+    // Task runner. Taskfile.yml is editable by any branch, so `task` is not inherently
+    // safe; allow the read-only and quality-gate targets rather than all of them.
+    "/^task (--list|lint|typecheck|check|test:|pre-pr|complexity|similarity|check-parity|reuse:|pr:diff|pr:feedback|pr:list|ci:wait|docs:build)/": true,
 
-    // Python (via uv, not bare python)
-    "uv": true,
+    // Python via uv. Bare `uv run python -c '...'` is arbitrary execution, so allow the
+    // tool invocations we actually use.
+    "/^uv run (pytest|ruff|ty|mypy|reuse|radon|xenon)\\b/": true,
+    "/^uv (sync|lock|tree|version)\\b/": true,
 
     // Documentation
     "zensical": true,

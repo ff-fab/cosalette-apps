@@ -1,15 +1,23 @@
 ---
+name: docs-subagent
 description: Documentation subagent — writes ADRs, guides, concept pages, planning docs, and top-level documentation
 argument-hint: Documentation and/or decision task objective, target file path, context (related ADRs, code modules, decisions), and acceptance criteria from the orchestrator
-tools: ['edit', 'search', 'read', 'web', 'execute/runInTerminal', 'execute/getTerminalOutput']
+# tools: union of Copilot and Claude Code names — see CONTRIBUTING.md "AI Agent Setup".
+# Enforced by `task check-parity`: at least one name from each vocabulary is required.
+tools:
+  ['edit', 'search', 'read', 'web', 'execute/runInTerminal',
+   'execute/getTerminalOutput', 'Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash',
+   'WebFetch', 'WebSearch']
+# model: Copilot vocabulary. Claude Code recognises this key with a DIFFERENT
+# vocabulary (sonnet/opus/haiku/inherit) — see CONTRIBUTING.md "Known gaps".
 model: Claude Sonnet 4.6 (copilot)
 ---
 
 Execute the documentation task described by the orchestrator. Follow the orchestrator's
 task-specific instructions exactly.
 
-Before writing, load and follow the documentation conventions:
-`@file:.github/instructions/documentation.instructions.md`
+Before writing, read and follow the documentation conventions in
+`.github/instructions/documentation.instructions.md`.
 
 **Scope:** ADRs (`docs/adr/`), concept and guide pages (`docs/concepts/`, `docs/guides/`),
 planning documents (`docs/planning/`), TODO deliberation docs, and top-level files

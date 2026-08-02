@@ -1,6 +1,11 @@
 ---
-agent: agent
-description: 'Build a linear walkthrough of the codebase (or a specific module) using showboat. Produces a documented, reproducible tour with inline code snippets and commentary.'
+name: showboat-walkthrough
+argument-hint: '[module or package to walk through]'
+description:
+  Build a linear walkthrough of the codebase (or a specific module) using showboat.
+  Produces a documented, reproducible tour with inline code snippets and commentary.
+  Use when the user asks for a code tour, a walkthrough, or an explanation of how a
+  module fits together.
 ---
 
 # Code Walkthrough with Showboat
@@ -71,6 +76,12 @@ For each section of the walkthrough:
    # Show a whole short file
    showboat exec docs/planning/walkthrough.md bash "cat packages/src/<module_name>/config.py"
    ```
+
+   **Never embed secrets.** Snippet output is committed to git in step 5 and is
+   permanent once pushed. Do not `cat`/`sed`/`grep` `.env*`, `secrets*`, `credentials*`,
+   or any file holding broker passwords, tokens or API keys — and read config and
+   settings modules before quoting them, since that is where such values live in this
+   codebase. Quote the surrounding structure instead of the literal values.
 
 3. **Add connecting commentary** between snippets, explaining:
    - Why this pattern was chosen

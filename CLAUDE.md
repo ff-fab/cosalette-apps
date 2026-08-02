@@ -1,62 +1,28 @@
 # CLAUDE.md
 
-Project conventions in GitHub Copilot instruction files. Read and follow them.
+@AGENTS.md
 
-## Instructions
+## Claude Code
 
-- [.github/copilot-instructions.md](.github/copilot-instructions.md) — Project overview,
-  workflow, code quality, PR policy
-- [.github/instructions/tooling.instructions.md](.github/instructions/tooling.instructions.md)
-  — Use `task` and `uv`, never bare `python`
-- [.github/instructions/workflow.instructions.md](.github/instructions/workflow.instructions.md)
-  — Git flow, conventional commits, beads issue tracking, session completion
-- [.github/instructions/testing-python.instructions.md](.github/instructions/testing-python.instructions.md)
-  — pytest patterns, AAA, ISTQB techniques
-- [.github/instructions/documentation.instructions.md](.github/instructions/documentation.instructions.md)
-  — Zensical site generator, ADR format
+`AGENTS.md` above is the canonical instruction set, shared with GitHub Copilot and Kilo.
 
-## Monorepo Layout
+**Claude Code does not load `.github/instructions/*.instructions.md`.** There is no
+`.claude/rules/` wiring yet — that lands in `cap-pm1` phase 2. Until then, treat those
+files as reference you must open yourself:
 
-This is a **uv workspace monorepo**. Apps live under `apps/<name>/`.
-
-- Per-app tasks: `task <app>:test:unit`, `task <app>:lint`, `task <app>:typecheck`
-- Cross-app: `task test:all`, `task lint:all`, `task check:all`
-- Root-level: `task test:unit`, `task lint`, `task typecheck`, `task check`
-- Use `uv run --package <name>` when no task exists
-- Commit scoping: `feat(gas2mqtt): ...`, `fix(jeelink2mqtt): ...`
-
-## Available Skills
-
-- **pr-review** — Fetch all PR feedback via `task pr:feedback -- <PR>`, then analyze CI,
-  review comments, and code quality
-- **pre-pr-gate** — End-of-session workflow: `task pre-pr`, close beads, push, create PR
-- **showboat-demo** — Create reproducible proof-of-work demos with `showboat`
-- **adr-create** — Create or amend ADRs via schema-conforming JSON
-  (`task adr:create -- input.json`)
-
-## Key Rules
-
-- **Never push directly to `main`.** All changes go through PRs.
-- **Never merge a PR** unless the user explicitly asks.
-- **Conventional Commits required** (`feat:`, `fix:`, `docs:`, `chore:`, etc.). Scope by
-  app when app-specific.
-- **Use `task <name>`** for all operations (run `task --list`). Fall back to `uv run`
-  only when no task exists. Never invoke `python` directly.
-- **ADRs** live in `docs/adr/` (monorepo-wide) and `apps/<name>/docs/adr/`
-  (app-specific). Follow existing decisions; create new ADRs at the appropriate scope.
-- **Beads (`bd`)** for issue tracking. Run `bd prime` for full context.
+| When working on            | Read                                                  |
+| -------------------------- | ----------------------------------------------------- |
+| any file                   | `.github/instructions/tooling.instructions.md`        |
+| `**/*.py`                  | `python.instructions.md`, `cosalette.instructions.md` |
+| `apps/*/packages/tests/**` | `testing-python.instructions.md`                      |
+| `**/*.md`                  | `documentation.instructions.md`                       |
 
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
-
-## cosalette Framework Support
-
-Framework guidance is maintained in
-[.github/instructions/cosalette.instructions.md](.github/instructions/cosalette.instructions.md).
-
-**Refresh guidance:** `cosalette ai init --force` **Framework overview:**
-`cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
-
 <!-- END COSALETTE AI SUPPORT -->
+
+<!-- The cosalette pointer block is deliberately empty here — AGENTS.md carries it and
+     is imported above. `cosalette ai init` re-injects it into both files; see finding 4
+     in docs/planning/cosalette-ai-init-enhancement-proposal.md. -->
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 
