@@ -233,7 +233,7 @@ make_md "$T/.kilo/agents/pinned.md" "Pinned"
 make_skill "$T" "demo"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when model: is present" "1" "$ec"
-assert_contains "MODEL in output" "MODEL" "$out"
+assert_contains "MODEL in output" "✗ MODEL:" "$out"
 
 # A commented-out model: line is documentation, not a pin — the shared agent files
 # use exactly this to record the per-tool preference. It must not trip the check.
@@ -246,6 +246,50 @@ make_skill "$T" "demo"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 0 when model: is only a comment" "0" "$ec"
 assert_not_contains "no MODEL error for a comment" "✗ MODEL" "$out"
+
+# ── Test 15c: bare model: key (no value) is rejected ────────────────
+echo "--- Test 15c: bare model: key (no value) fails"
+T="$TMPDIR_BASE/t15c"; scaffold "$T"
+printf -- '---\ndescription: Bare\ntools: [%s]\nmodel:\n---\ncontent\n' \
+  "'read', 'Read'" >"$T/.github/agents/bare.agent.md"
+make_md "$T/.kilo/agents/bare.md" "Bare"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when model: has no value" "1" "$ec"
+assert_contains "MODEL error for bare key" "✗ MODEL:" "$out"
+
+# ── Test 15d: multi-line model: block is rejected ─────────────────
+echo "--- Test 15d: multi-line model: block fails"
+T="$TMPDIR_BASE/t15d"; scaffold "$T"
+printf -- '---\ndescription: ML\ntools: [%s]\nmodel:\n  opencode-go/deepseek-v4-pro\n---\ncontent\n' \
+  "'read', 'Read'" >"$T/.github/agents/multiline.agent.md"
+make_md "$T/.kilo/agents/multiline.md" "ML"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when model: has indented value" "1" "$ec"
+assert_contains "MODEL error for multi-line block" "✗ MODEL:" "$out"
+
+# ── Test 15e: leading blank line before frontmatter is rejected ─────
+echo "--- Test 15e: leading blank line before frontmatter fails"
+T="$TMPDIR_BASE/t15e"; scaffold "$T"
+printf -- '\n---\ndescription: Leading\ntools: [%s]\nmodel: inline\n---\ncontent\n' \
+  "'read', 'Read'" >"$T/.github/agents/leading.agent.md"
+make_md "$T/.kilo/agents/leading.md" "Leading"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when leading blank before ---" "1" "$ec"
+assert_contains "MODEL error for leading-blank file" "✗ MODEL:" "$out"
+
+# ── Test 15f: model: in document body is not a false positive ──────
+echo "--- Test 15f: model: in body does not trip the check"
+T="$TMPDIR_BASE/t15f"; scaffold "$T"
+printf -- '---\ndescription: Body\ntools: [%s]\n---\nmodel: not-frontmatter\n' \
+  "'read', 'Read'" >"$T/.github/agents/body.agent.md"
+make_md "$T/.kilo/agents/body.md" "Body"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 0 when model: is only in body" "0" "$ec"
+assert_not_contains "no MODEL error for body content" "✗ MODEL:" "$out"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""
