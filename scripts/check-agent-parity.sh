@@ -47,7 +47,7 @@ declare -A KNOWN_DESCRIPTION_SKIP=(
 extract_yaml_field() {
   local file="$1"
   local field="$2"
-  [[ "$field" =~ ^[a-zA-Z_-]+$ ]] || return
+  [[ "$field" =~ ^[a-zA-Z_-]+$ ]] || { >&2 printf 'extract_yaml_field: invalid field: %s\n' "$field"; return 1; }
   local inside=0
   local value=""
   while IFS= read -r line; do
@@ -221,7 +221,7 @@ check_union_tools() {
   printf "${GREEN}✓${NC} tools: %s (both vocabularies present)\n" "$source"
 }
 
-# ── Helper: reject model: in the shared agent files ───────────
+# ── Helper: assert model: is absent in shared agent files ───────────
 # `model:` is the one frontmatter key all three tools recognise with mutually
 # incompatible vocabularies (Copilot "Claude Sonnet 4.6 (copilot)", Claude Code
 # sonnet/opus/haiku/inherit, Kilo "opencode-go/..."). Probed under cap-wf3: a foreign
@@ -231,9 +231,8 @@ check_union_tools() {
 check_model_absent() {
   local source="$1"
 
-  # Grep frontmatter directly — extract_yaml_field returns "" for a bare model: key
-  # (no value), so value extraction alone cannot detect that case.
-  if awk 'NR==1&&/^---/{f=1;next} f&&/^---/{exit} f&&/^model:/{found=1} END{exit !found}' "$source"; then
+  # Scan frontmatter directly — skip leading blank lines, match indented key.
+  if awk '/^[[:space:]]*$/{next} !f&&/^---/{f=1;next} f&&/^---/{exit} f&&/^[[:space:]]*model:/{found=1} END{exit !found}' "$source"; then
     printf "${RED}✗ MODEL:${NC} %s carries a model: key\n" "$source"
     printf "    model: is not shareable — it hard-errors in Claude Code. Remove it.\n"
     ((errors++))

@@ -269,6 +269,28 @@ out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when model: has indented value" "1" "$ec"
 assert_contains "MODEL error for multi-line block" "✗ MODEL:" "$out"
 
+# ── Test 15e: leading blank line before frontmatter is rejected ─────
+echo "--- Test 15e: leading blank line before frontmatter fails"
+T="$TMPDIR_BASE/t15e"; scaffold "$T"
+printf -- '\n---\ndescription: Leading\ntools: [%s]\nmodel: inline\n---\ncontent\n' \
+  "'read', 'Read'" >"$T/.github/agents/leading.agent.md"
+make_md "$T/.kilo/agents/leading.md" "Leading"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when leading blank before ---" "1" "$ec"
+assert_contains "MODEL error for leading-blank file" "✗ MODEL:" "$out"
+
+# ── Test 15f: model: in document body is not a false positive ──────
+echo "--- Test 15f: model: in body does not trip the check"
+T="$TMPDIR_BASE/t15f"; scaffold "$T"
+printf -- '---\ndescription: Body\ntools: [%s]\n---\nmodel: not-frontmatter\n' \
+  "'read', 'Read'" >"$T/.github/agents/body.agent.md"
+make_md "$T/.kilo/agents/body.md" "Body"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 0 when model: is only in body" "0" "$ec"
+assert_not_contains "no MODEL error for body content" "✗ MODEL:" "$out"
+
 # ── Summary ──────────────────────────────────────────────────
 echo ""
 echo "───────────────────────────────────────────"
