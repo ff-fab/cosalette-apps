@@ -85,6 +85,60 @@ cosalette-apps/
 └── zensical.toml               # Root docs site config
 ```
 
+## AI Agent Setup
+
+Agent configuration lives in `.github/` and is shared by GitHub Copilot, Claude Code and
+Kilo. `AGENTS.md` is the always-on instruction file for all three.
+
+| Surface              | Location                | Notes                                   |
+| -------------------- | ----------------------- | --------------------------------------- |
+| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md`    |
+| File-scoped guidance | `.github/instructions/` | Copilot + Kilo only (see below)         |
+| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in             |
+| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a separate hand copy |
+
+### Union frontmatter
+
+One physical file serves several tools because **each tool ignores frontmatter keys it
+does not recognise**. Two vocabularies therefore coexist in the same file:
+
+| Concept      | Copilot                                      | Claude Code                    |
+| ------------ | -------------------------------------------- | ------------------------------ |
+| File scoping | `applyTo: '**/*.py'`                         | `paths: ['**/*.py']`           |
+| Tool grants  | `search`, `read`, `edit`, `execute/*`, `web` | `Read`, `Grep`, `Edit`, `Bash` |
+
+**The union `tools:` lists are load-bearing, not belt-and-braces.** Claude Code refuses
+to launch an agent whose tools resolve to nothing, and Copilot silently drops names it
+does not know — so a single-vocabulary list breaks exactly one platform with no error on
+either. `task check-parity` enforces that every `.github/agents/*.agent.md` names at
+least one tool from each vocabulary.
+
+For `applyTo: '**'` (unconditional), Claude Code's equivalent is the **absence** of a
+`paths:` key — do not add one to those files.
+
+### Known gaps
+
+These are tracked under the `cap-pm1` epic and are not yet resolved:
+
+- **Claude Code does not read `.github/instructions/`.** There is no `.claude/rules/`
+  wiring yet (phase 2). Under Claude Code, open the relevant instruction file yourself.
+- **`model:` is not safely shareable.** Both tools recognise the key with incompatible
+  vocabularies — the agent files carry Copilot values (`Claude Sonnet 4.6 (copilot)`),
+  which are not valid Claude Code model names. Phase 2 must verify Claude Code's
+  behaviour on an unparsable `model:` **before** `.claude/agents/` is wired up; if it
+  hard-errors rather than falling back, the key has to move out of the shared file.
+- **`.kilo/agents/` is a separate physical copy.** Editing a `.github/agents/*.agent.md`
+  body does not update its Kilo mirror; `task check-parity` compares only `description`.
+
+### Checking your changes
+
+```bash
+task check-parity        # agents ↔ Kilo mirrors, skill symlinks, union tools:
+task check-parity:test   # the parity script's own test suite
+```
+
+Both run in CI (the `shared` job) and as pre-commit hooks.
+
 ## Code Quality
 
 - **Linting & formatting**: [Ruff](https://docs.astral.sh/ruff/) (88-char line length,

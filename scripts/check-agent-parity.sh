@@ -1,11 +1,18 @@
 #!/usr/bin/env bash
-# check-agent-parity.sh — Verify parity between .github/ Copilot config and .kilo/ Kilo config
+# check-agent-parity.sh — Verify parity across the shared agent-config surfaces
 #
-# Ensures every Copilot agent/prompt has a converted Kilo mirror and vice versa.
-# Checks that `description` frontmatter matches between corresponding files.
+# Three checks:
+#   1. .github/agents/ ↔ .kilo/agents/  — every agent has a mirror, descriptions match
+#   2. .github/skills/ ↔ .kilo/skills/  — every skill has a resolving Kilo symlink
+#   3. .github/agents/ union `tools:`   — each agent names at least one tool from the
+#                                          Copilot vocabulary AND one from Claude Code's
+#
 # Run: bash scripts/check-agent-parity.sh
-# Used in CI and as a pre-commit hook.
+# Wired into CI (ci.yml `shared` job) and pre-commit.
 
+# NOTE: `-e` is deliberately omitted. `((errors++))` evaluates to 0 on the first
+# increment, which bash treats as a failing command — under `-e` the script would abort
+# on the first finding instead of reporting all of them.
 set -uo pipefail
 
 RED='\033[0;31m'
@@ -16,10 +23,11 @@ NC='\033[0m' # No Color
 errors=0
 warnings=0
 
-# Known renames: Copilot source filename → Kilo target filename (intentional, not drift)
+# Known renames: Copilot source filename → Kilo target filename (intentional, not drift).
+# MUST stay `declare -A`: subscripts are derived from working-tree filenames, and an
+# indexed array would arithmetic-evaluate them (a file named `a[$(id)]` becomes RCE).
 declare -A KNOWN_RENAMES=(
   ["orchestrator.agent.md"]="implement.md"
-  ["orchestrator.prompt.md"]="implement.md"
 )
 declare -A KNOWN_RENAMES_REVERSE
 for src in "${!KNOWN_RENAMES[@]}"; do
@@ -108,10 +116,13 @@ check_pair() {
     fi
   fi
 
-  # Guard against symlinks — prevents path traversal via malicious PR branches
+  # Reject symlinks — prevents path traversal via malicious PR branches. This is an
+  # ERROR, not a skip: silently passing an unverified pair would let a PR disable drift
+  # detection for any agent just by converting its mirror into a symlink.
   if [[ -L "$source" || -L "$target" ]]; then
-    printf "${YELLOW}⚠ SKIP:${NC} %s ↔ %s (symlink — skipping to prevent path traversal)\n" \
+    printf "${RED}✗ SYMLINK:${NC} %s ↔ %s (agent files must be regular files)\n" \
       "$source" "$target"
+    ((errors++))
     return
   fi
 
@@ -162,29 +173,118 @@ check_orphans() {
   done
 }
 
+# ── Helper: a configured source directory must exist ──────────
+# A deleted directory must fail loudly. Previously the glob simply matched nothing and
+# the section reported success while checking zero files.
+require_dir() {
+  local dir="$1"
+  if [[ ! -d "$dir" ]]; then
+    printf "${RED}✗ MISSING DIR:${NC} %s does not exist — this check cannot run\n" "$dir"
+    ((errors++))
+    return 1
+  fi
+}
+
+# ── Helper: verify union tools: frontmatter ───────────────────
+# Claude Code refuses to launch an agent whose tools resolve to nothing, and Copilot
+# silently drops names it does not know. A single-vocabulary list therefore breaks
+# exactly one platform with no error on either — so assert both are represented.
+check_union_tools() {
+  local source="$1"
+  local raw copilot=0 claude=0 entry
+
+  raw=$(extract_yaml_field "$source" "tools")
+  if [[ -z "$raw" ]]; then
+    printf "${RED}✗ NO TOOLS:${NC} %s has no tools: key\n" "$source"
+    ((errors++))
+    return
+  fi
+
+  raw="${raw//[\[\]\'\"]/ }"
+  for entry in $(printf '%s' "$raw" | tr ',' ' '); do
+    case "$entry" in
+      [a-z]*) copilot=1 ;;
+      [A-Z]*) claude=1 ;;
+    esac
+  done
+
+  if [[ $copilot -eq 0 || $claude -eq 0 ]]; then
+    printf "${RED}✗ TOOLS:${NC} %s is missing a vocabulary (copilot=%d claude=%d)\n" \
+      "$source" "$copilot" "$claude"
+    printf "    tools: %s\n" "$raw"
+    ((errors++))
+    return
+  fi
+
+  printf "${GREEN}✓${NC} tools: %s (both vocabularies present)\n" "$source"
+}
+
+# ── Helper: .github/skills/ ↔ .kilo/skills/ symlinks ──────────
+check_skill_links() {
+  local skill_dir link resolved expected
+  for skill_dir in .github/skills/*/; do
+    [[ -d "$skill_dir" ]] || continue
+    local bname
+    bname=$(basename "$skill_dir")
+    link=".kilo/skills/${bname}"
+
+    if [[ ! -L "$link" ]]; then
+      printf "${RED}✗ MISSING:${NC} skill %s (no Kilo symlink for %s)\n" "$link" "$skill_dir"
+      ((errors++))
+      continue
+    fi
+    if [[ ! -e "$link" ]]; then
+      printf "${RED}✗ BROKEN:${NC} skill symlink %s does not resolve\n" "$link"
+      ((errors++))
+      continue
+    fi
+    resolved=$(readlink -f "$link")
+    expected=$(readlink -f "$skill_dir")
+    if [[ "$resolved" != "$expected" ]]; then
+      printf "${RED}✗ MISPOINTED:${NC} skill %s -> %s (expected %s)\n" \
+        "$link" "$resolved" "$expected"
+      ((errors++))
+      continue
+    fi
+    printf "${GREEN}✓${NC} skill: %s ↔ %s\n" "$skill_dir" "$link"
+  done
+}
+
 # ── Check agents ──────────────────────────────────────────────
 echo "=== Checking agent parity (.github/agents/ ↔ .kilo/agents/) ==="
 echo ""
 
-for source in .github/agents/*.agent.md; do
-  [[ -f "$source" ]] || continue
-  bname=$(basename "$source" .agent.md)
-  target=".kilo/agents/${bname}.md"
-  check_pair "$source" "$target" "agent"
-done
+if require_dir ".github/agents" && require_dir ".kilo/agents"; then
+  for source in .github/agents/*.agent.md; do
+    [[ -f "$source" ]] || continue
+    bname=$(basename "$source" .agent.md)
+    target=".kilo/agents/${bname}.md"
+    check_pair "$source" "$target" "agent"
+  done
+fi
 
 echo ""
 
-# ── Check commands (prompts) ──────────────────────────────────
-echo "=== Checking command parity (.github/prompts/ ↔ .kilo/commands/) ==="
+# ── Check skills ──────────────────────────────────────────────
+echo "=== Checking skill parity (.github/skills/ ↔ .kilo/skills/) ==="
 echo ""
 
-for source in .github/prompts/*.prompt.md; do
-  [[ -f "$source" ]] || continue
-  bname=$(basename "$source" .prompt.md)
-  target=".kilo/commands/${bname}.md"
-  check_pair "$source" "$target" "command"
-done
+if require_dir ".github/skills" && require_dir ".kilo/skills"; then
+  check_skill_links
+fi
+
+echo ""
+
+# ── Check union tools: frontmatter ────────────────────────────
+echo "=== Checking union tools: frontmatter (.github/agents/) ==="
+echo ""
+
+if require_dir ".github/agents"; then
+  for source in .github/agents/*.agent.md; do
+    [[ -f "$source" ]] || continue
+    check_union_tools "$source"
+  done
+fi
 
 echo ""
 
@@ -192,14 +292,13 @@ echo ""
 echo "=== Reverse check: Orphan .kilo/ files ==="
 echo ""
 
-check_orphans ".kilo/agents"   ".github/agents"  ".agent.md"  "agent"
-check_orphans ".kilo/commands" ".github/prompts" ".prompt.md" "command"
+check_orphans ".kilo/agents" ".github/agents" ".agent.md" "agent"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""
 echo "───────────────────────────────────────────"
 if [[ $errors -eq 0 && $warnings -eq 0 ]]; then
-  printf "${GREEN}✓ All agent and command files are in sync${NC}\n"
+  printf "${GREEN}✓ Agents, skills and union tools: frontmatter are all in sync${NC}\n"
   exit 0
 elif [[ $errors -eq 0 ]]; then
   printf "${YELLOW}✓ Parity check passed with %d warning(s)${NC}\n" "$warnings"

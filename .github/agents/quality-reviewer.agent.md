@@ -1,9 +1,12 @@
 ---
+name: quality-reviewer
 description: Quality & testing perspective reviewer — evaluates test coverage, assertion quality, and test design
 argument-hint: PR diff (via task pr:diff) or file list to review for testing and quality concerns
-name: quality-reviewer
-# tools: union of Copilot and Claude Code names — see CONTRIBUTING "AI Agent Setup"
+# tools: union of Copilot and Claude Code names — see CONTRIBUTING.md "AI Agent Setup".
+# Enforced by `task check-parity`: at least one name from each vocabulary is required.
 tools: ['search', 'read', 'Read', 'Grep', 'Glob']
+# model: Copilot vocabulary. Claude Code recognises this key with a DIFFERENT
+# vocabulary (sonnet/opus/haiku/inherit) — see CONTRIBUTING.md "Known gaps".
 model: Claude Sonnet 4.6 (copilot)
 ---
 

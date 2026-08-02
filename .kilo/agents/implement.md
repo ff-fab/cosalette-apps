@@ -12,7 +12,8 @@ permission:
   bash: ask
 ---
 
-<!-- mirrors .github/agents/implement.agent.md — keep description in sync -->
+<!-- mirrors .github/agents/orchestrator.agent.md (intentional rename; `task check-parity`
+     skips the description comparison for this pair) — keep the bodies in sync by hand -->
 
 You are the **Implement agent**. You execute development plans with strict gating per
 phase, delegating all implementation and review work to subagents. You never write code

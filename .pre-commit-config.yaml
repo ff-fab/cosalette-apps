@@ -67,7 +67,6 @@ repos:
           (?x)^(
             \.vscode/settings\.json$|
             apps/.*/packages/.*|
-            .*\.prompt\.md$|
             .*\.instructions\.md$|
             CHANGELOG\.md$
           )$
@@ -115,14 +114,14 @@ repos:
       - id: reuse
         name: REUSE (license compliance)
 
-  # Agent parity: Ensure .kilo/ mirrors .github/ agents and prompts
+  # Agent parity: .kilo/ mirrors .github/ agents, skills are symlinked, union tools: hold
   - repo: local
     hooks:
       - id: check-agent-parity
         name: Agent parity (.github/ ↔ .kilo/)
         entry: bash scripts/check-agent-parity.sh
         language: system
-        files: '^(\.github/(agents|prompts)/|\.kilo/(agents|commands)/).*\.md$'
+        files: '^(\.github/(agents|skills)/|\.kilo/(agents|skills)/)'
         pass_filenames: false
 
   # Beads (bd): Guard pushes and keep git in sync

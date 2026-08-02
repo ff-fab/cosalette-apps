@@ -88,7 +88,7 @@ jobs:
           apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "shared")]')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
-  # Shared infrastructure check (REUSE, pre-commit on shared files)
+  # Shared infrastructure check (REUSE, agent-config parity)
   shared:
     needs: detect
     if: needs.detect.outputs.shared == 'true'
@@ -104,6 +104,16 @@ jobs:
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task reuse:lint
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check agent-config parity inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task check-parity
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run parity script test suite inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task check-parity:test
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues

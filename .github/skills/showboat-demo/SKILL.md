@@ -29,9 +29,10 @@ Do NOT create demos automatically. Demos are opt-in.
 Before writing anything, establish what the demo has to prove:
 
 ```bash
-git branch --show-current        # the demo filename
-git log main..HEAD --oneline     # what landed on this branch
-git diff main --stat             # scope of the change
+git branch --show-current          # the demo filename
+git log main..HEAD --oneline       # what landed on this branch
+git diff main...HEAD --stat        # scope — three-dot diffs from the merge-base, so it
+                                   # stays reproducible even after main advances
 ```
 
 Read the changed files. The proof commands must demonstrate *this* work, not generic
@@ -61,8 +62,19 @@ git add docs/planning/demos/<branch-name>.md
 git commit -m "docs: add showboat demo for <branch-name>"
 ```
 
-Prefer `git diff main...HEAD --stat` (three-dot, merge-base) in proof blocks — it stays
-reproducible even after `main` advances.
+**Write 2–4 notes in step 2**, covering:
+
+- the problem or feature being addressed
+- key design decisions
+- what the proof commands will verify
+
+This is the part most easily under-done — a demo of bare command output without
+commentary does not explain why the work is correct.
+
+**Choose proof commands that demonstrate _this_ work, not generic health**: `task pre-pr`
+or targeted tests for code changes, `git diff main...HEAD --stat` for scope, plus
+feature-specific commands (API calls, CLI output). Always use the three-dot form in
+proof blocks so they stay reproducible after `main` advances.
 
 ## Scoping Guidelines
 

@@ -4,9 +4,10 @@ Canonical instructions for every AI coding agent in this repository. GitHub Copi
 Kilo read this file natively; Claude Code reads it through the `@AGENTS.md` import in
 `CLAUDE.md`.
 
-Topic guidance that only applies to certain files lives in `.github/instructions/` and
-is loaded automatically when those files are in play. Repeatable procedures live in
-`.github/skills/`.
+Topic guidance that only applies to certain files lives in `.github/instructions/`.
+Copilot and Kilo load those files automatically; **Claude Code does not read them yet**
+(phase 2 of `cap-pm1` adds the wiring), so under Claude Code, open the file matching
+what you are working on. Repeatable procedures live in `.github/skills/`.
 
 ## Project Overview
 
@@ -28,9 +29,10 @@ taskfiles/
 
 - **Use `task <name>` for all operations** (`task --list` to discover). Fall back to
   `uv run --package <name>` only when no task exists. Never invoke `python` directly.
-- Use **`git`** and **`gh`** CLI directly for version control and PR/issue workflows.
-  Prefer task wrappers where they exist: `task pr:diff`, `task pr:feedback`,
-  `task ci:wait`.
+- Use the **`git`** CLI directly for version control.
+- **Never invoke `gh` directly when a task wrapper exists** — `task pr:create`,
+  `task pr:diff`, `task pr:feedback`, `task pr:list`, `task ci:wait`. Direct `gh` is
+  fine only for subcommands with no wrapper (e.g. `gh issue list`).
 - Do not depend on GitKraken MCP authentication in this repository.
 
 Full policy: [tooling.instructions.md](.github/instructions/tooling.instructions.md).
@@ -85,8 +87,10 @@ library, framework, or API, use Context7 instead of relying on training data. Th
 applies to code generation, debugging, and review alike. Do not ask whether to use it;
 just invoke it when library context would improve accuracy.
 
-Context7 receives the names of the libraries and APIs you query — no source code or
-secrets. See [context7.com](https://context7.com) for the data policy.
+Context7 runs as a remote MCP endpoint (`https://mcp.context7.com/mcp`, configured in
+`kilo.json`). It receives the names of the libraries and APIs you query — no source code
+or secrets. See [context7.com](https://context7.com) for the data policy. If working in
+a sensitive environment, remove the `mcp` block via a local `kilo.json` override.
 
 ## Architecture Decision Records
 
@@ -139,6 +143,7 @@ until `git push` succeeds.
    pushing:
    ```bash
    bd close <id>
+   task beads:sync
    git add .beads/ && git commit -m "chore: update beads state"
    ```
 4. **PUSH TO REMOTE** — mandatory:
@@ -147,7 +152,7 @@ until `git push` succeeds.
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Create PR** (if new branch): `gh pr create`
+5. **Create PR** (if new branch): `task pr:create TITLE="..." BODY="..."`
 6. **Wait for CI** (if a PR exists):
 
    ```bash
@@ -178,17 +183,23 @@ until `git push` succeeds.
 
 ## AI Agent Configuration
 
-Agent configuration is maintained once in `.github/` and consumed by every tool:
+Agent configuration lives in `.github/` and is consumed by every tool:
 
-| Surface              | Location                |
-| -------------------- | ----------------------- |
-| Always-on context    | `AGENTS.md` (this file) |
-| File-scoped guidance | `.github/instructions/` |
-| Repeatable workflows | `.github/skills/`       |
-| Specialist agents    | `.github/agents/`       |
+| Surface              | Location                | Shared how                                              |
+| -------------------- | ----------------------- | ------------------------------------------------------- |
+| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                        |
+| File-scoped guidance | `.github/instructions/` | Copilot + Kilo only (see above)                         |
+| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in                             |
+| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a **separate, hand-maintained copy** |
 
 Some files carry frontmatter keys for more than one tool at once; each tool ignores the
-keys it does not recognise. Do not remove a key because your tool has no use for it.
+keys it does not recognise. Do not remove a key because your tool has no use for it. The
+one exception is `model:`, which Copilot and Claude Code both recognise with
+incompatible vocabularies — see the note in any `.github/agents/*.agent.md`.
+
+**`.kilo/agents/` is not yet consolidated.** Editing a `.github/agents/*.agent.md` body
+does _not_ update its Kilo counterpart; `task check-parity` compares only `description`.
+Until `cap-pm1` phase 3 removes `.kilo/`, change both or accept the drift knowingly.
 
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
 
@@ -199,5 +210,11 @@ Framework guidance is maintained in
 
 **Refresh guidance:** `cosalette ai init --force` **Framework overview:**
 `cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
+
+> **Warning — `--force` is destructive here.** It overwrites
+> `.github/instructions/cosalette.instructions.md` wholesale (`shutil.copy2`), silently
+> dropping the downstream `paths:` key this repo adds. Re-add it after any refresh. See
+> [cosalette-ai-init-enhancement-proposal.md](docs/planning/cosalette-ai-init-enhancement-proposal.md)
+> finding 1; remove this warning once the upstream fix ships.
 
 <!-- END COSALETTE AI SUPPORT -->

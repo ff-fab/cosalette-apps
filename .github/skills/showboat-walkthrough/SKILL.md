@@ -77,6 +77,12 @@ For each section of the walkthrough:
    showboat exec docs/planning/walkthrough.md bash "cat packages/src/<module_name>/config.py"
    ```
 
+   **Never embed secrets.** Snippet output is committed to git in step 5 and is
+   permanent once pushed. Do not `cat`/`sed`/`grep` `.env*`, `secrets*`, `credentials*`,
+   or any file holding broker passwords, tokens or API keys — and read config and
+   settings modules before quoting them, since that is where such values live in this
+   codebase. Quote the surrounding structure instead of the literal values.
+
 3. **Add connecting commentary** between snippets, explaining:
    - Why this pattern was chosen
    - How this piece connects to the next

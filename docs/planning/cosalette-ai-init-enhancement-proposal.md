@@ -44,10 +44,14 @@ paths: # Claude Code
 ---
 ```
 
-After `cosalette ai init --force`, `paths:` is gone. Claude Code then treats the file as
-unconditional and loads all 10.9 KB of Python framework guidance into **every** session,
-including sessions that never touch Python. There is no error, no warning, and no diff —
-the only symptom is a quietly larger context window.
+After `cosalette ai init --force`, `paths:` is gone. There is no error, no warning, and
+no diff — the key simply stops being there.
+
+Once the `.claude/rules/` wiring lands (phase 2 of our consolidation; it does not exist
+in the repository yet, so this symptom is not currently reproducible here), Claude Code
+will then treat the file as unconditional and load all 10.9 KB of Python framework
+guidance into **every** session, including sessions that never touch Python. The only
+symptom will be a quietly larger context window.
 
 This is sharpened by `_display_next_steps()`, which tells the user:
 
@@ -197,9 +201,10 @@ downstream workaround would defend against a failure mode that is about to disap
 and it would have pushed the config checker (`cap-pm1.10`) past the deliberately thin
 scope of symlink resolution plus JSON-schema validation.
 
-- `paths:` stays in `cosalette.instructions.md` with an inline comment explaining that
-  it must survive refreshes. Once the framework preserves downstream frontmatter, that
-  comment becomes documentation rather than a warning.
+- `paths:` stays in `cosalette.instructions.md`, with an inline comment in that file
+  warning that `--force` drops it, and a matching warning beside the `cosalette ai init
+  --force` invocation in `AGENTS.md`. Once the framework preserves downstream
+  frontmatter, both become documentation rather than warnings.
 - `--opencode` is not used; `opencode.json` is being deleted.
 - The `.vscode/mcp.json` entry is kept as generated, with the absolute path accepted as a
   devcontainer-only constraint.
