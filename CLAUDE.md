@@ -10,16 +10,17 @@
 is symlinked into `.claude/rules/`, where Claude honours the `paths:` frontmatter key.
 You do not need to open them yourself:
 
-| When working on            | Loads automatically                                 |
-| -------------------------- | --------------------------------------------------- |
-| any file                   | `tooling`, `workflow` (no `paths:` — unconditional) |
-| `**/*.py`                  | `python`, `cosalette`                               |
-| `apps/*/packages/tests/**` | `testing-python`                                    |
-| `**/*.md`                  | `documentation`                                     |
+| When working on                 | Loads automatically                                 |
+| ------------------------------- | --------------------------------------------------- |
+| any file                        | `tooling`, `workflow` (no `paths:` — unconditional) |
+| `**/*.py`                       | `python`, `cosalette`                               |
+| `apps/*/packages/tests/**/*.py` | `testing-python`                                    |
+| `**/*.md`                       | `documentation`                                     |
 
 The symlinks are committed (git stores them as links, mode `120000`). To add a rule,
-create the file in `.github/instructions/` with both `applyTo:` and `paths:`, then
-symlink it:
+create the file in `.github/instructions/`. For file-scoped rules add both `applyTo:`
+(Copilot/Kilo) and `paths:` (Claude Code), then symlink it. For unconditional rules use
+`applyTo: '**'` and omit `paths:` — its absence means "load every session":
 
 ```bash
 ln -s ../../.github/instructions/<name>.instructions.md .claude/rules/<name>.md

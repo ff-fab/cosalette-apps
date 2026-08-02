@@ -129,7 +129,10 @@ file and nothing to keep in sync. `.claude/rules/` officially supports symlinks 
 `.claude/skills/`, which has an open discovery bug
 ([anthropics/claude-code#25367](https://github.com/anthropics/claude-code/issues/25367)).
 
-Adding a rule means creating the file with **both** `applyTo:` and `paths:`, then:
+Adding a rule means creating the file in `.github/instructions/`. For file-scoped rules
+add both `applyTo:` (Copilot/Kilo) and `paths:` (Claude Code), then symlink it. For
+unconditional rules use `applyTo: '**'` and omit `paths:` — its absence means "load
+every session":
 
 ```bash
 ln -s ../../.github/instructions/<name>.instructions.md .claude/rules/<name>.md
