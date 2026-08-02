@@ -1,0 +1,99 @@
+// Kilo v7 configuration — one file for the VS Code extension, the CLI and Cloud Agents.
+// `.kilo/` holds runtime state only and is gitignored.
+//
+// Kilo is a deliberate second-class consumer of the `.github/` master config: it reads
+// the shared instructions and skills and is allowed to drift on everything else.
+// `.github/agents/` is NOT wired in — Kilo gets purpose-built agents once it specialises.
+{
+  "$schema": "https://app.kilo.ai/config.json",
+
+  // AGENTS.md is read natively and needs no entry here. Kilo has no `applyTo:`/`paths:`
+  // equivalent, so every scoped instruction file loads unconditionally.
+  "instructions": [".github/instructions/*.md"],
+
+  "skills": { "paths": [".github/skills"] },
+
+  // No `model` pin — a stale pin is exactly what rotted the previous config.
+  // If a pin is ever needed: Kimi K3.
+
+  "mcp": {
+    "beads": {
+      "type": "local",
+      "command": ["uvx", "beads-mcp"],
+      "enabled": true
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": { "CONTEXT7_API_KEY": "{env:CONTEXT7_API_KEY}" },
+      "enabled": true
+    },
+    "cosalette": {
+      "type": "local",
+      "command": ["uv", "run", "cosalette", "ai", "mcp", "serve"],
+      "enabled": true
+    }
+  },
+
+  // Mirrors the Copilot (`.vscode/settings.json`) and Claude (`.claude/settings.json`)
+  // policy: edits are free, shell is ask-by-default, read-only commands are waved
+  // through and certain merge/force-push commands are denied.
+  // Last matching pattern wins, so `*` comes first.
+  "permission": {
+    "edit": "allow",
+    // Domain allowlist not supported in kilo.jsonc; accepted risk — filter at infra level.
+    "webfetch": "allow",
+    "bash": {
+      "*": "ask",
+      "cat *": "allow",
+      "head *": "allow",
+      "tail *": "allow",
+      "ls *": "allow",
+      "grep *": "allow",
+      "rg *": "allow",
+      "wc *": "allow",
+      "which *": "allow",
+      "git status*": "allow",
+      "git diff*": "allow",
+      "git log*": "allow",
+      "git show*": "allow",
+      "git branch*": "allow",
+      "task --list*": "allow",
+      "task lint*": "allow",
+      "task typecheck*": "allow",
+      "task check*": "allow",
+      "task test:*": "allow",
+      "task pre-pr*": "allow",
+      "task complexity*": "allow",
+      "task similarity*": "allow",
+      "task check-parity*": "allow",
+      "task reuse:*": "allow",
+      "task pr:diff*": "allow",
+      "task pr:feedback*": "allow",
+      "task pr:list*": "allow",
+      "task ci:wait*": "allow",
+      "task docs:build*": "allow",
+      "task adr:*": "allow",
+      "task beads:*": "allow",
+      "uv run pytest*": "allow",
+      "uv run ruff*": "allow",
+      "uv run ty*": "allow",
+      "uv run mypy*": "allow",
+      "uv run reuse*": "allow",
+      "uv run radon*": "allow",
+      "uv run xenon*": "allow",
+      "uv sync*": "allow",
+      "uv lock*": "allow",
+      "uv tree*": "allow",
+      "uv version*": "allow",
+      "bd *": "allow",
+      "gh pr view*": "allow",
+      "gh pr list*": "allow",
+      "gh pr diff*": "allow",
+      "gh pr merge*": "deny",
+      "git push --force*": "deny",
+      "git push --mirror*": "deny",
+      "git push --delete*": "deny"
+    }
+  }
+}

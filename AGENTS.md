@@ -87,10 +87,10 @@ library, framework, or API, use Context7 instead of relying on training data. Th
 applies to code generation, debugging, and review alike. Do not ask whether to use it;
 just invoke it when library context would improve accuracy.
 
-Context7 runs as a remote MCP endpoint (`https://mcp.context7.com/mcp`, configured in
-`kilo.json`). It receives the names of the libraries and APIs you query — no source code
-or secrets. See [context7.com](https://context7.com) for the data policy. If working in
-a sensitive environment, remove the `mcp` block via a local `kilo.json` override.
+Context7 runs as a remote MCP endpoint (`https://mcp.context7.com/mcp`, configured per
+tool in `kilo.jsonc` and `.vscode/mcp.json`). It receives the names of the libraries and
+APIs you query — no source code or secrets. See [context7.com](https://context7.com) for
+the data policy. If working in a sensitive environment, remove the `mcp` block.
 
 ## Architecture Decision Records
 
@@ -185,12 +185,12 @@ until `git push` succeeds.
 
 Agent configuration lives in `.github/` and is consumed by every tool:
 
-| Surface              | Location                | Shared how                                                                              |
-| -------------------- | ----------------------- | --------------------------------------------------------------------------------------- |
-| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                                                        |
-| File-scoped guidance | `.github/instructions/` | Claude via `.claude/rules/` symlinks; Copilot + Kilo native                             |
-| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest; `.kilo/skills/` symlinks in                             |
-| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest; `.kilo/agents/` is a **separate, hand-maintained copy** |
+| Surface              | Location                | Shared how                                                                      |
+| -------------------- | ----------------------- | ------------------------------------------------------------------------------- |
+| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                                                |
+| File-scoped guidance | `.github/instructions/` | Copilot `applyTo:`; Claude via `.claude/rules/` symlinks; Kilo `instructions[]` |
+| Repeatable workflows | `.github/skills/`       | Copilot native; Claude via the plugin manifest; Kilo `skills.paths`             |
+| Specialist agents    | `.github/agents/`       | Copilot native; Claude via the plugin manifest; **not wired into Kilo**         |
 
 Claude Code loads the skills and agents through a plugin manifest at
 `.github/.claude-plugin/plugin.json`, served by the repo-root local marketplace
@@ -206,9 +206,10 @@ vocabularies — a foreign value hard-errors in Claude Code, so `.github/agents/
 no `model:` at all and `task check-parity` fails if one reappears. See
 [CONTRIBUTING.md](CONTRIBUTING.md) > "The one key that cannot be shared".
 
-**`.kilo/agents/` is not yet consolidated.** Editing a `.github/agents/*.agent.md` body
-does _not_ update its Kilo counterpart; `task check-parity` compares only `description`.
-Until `cap-pm1` phase 3 removes `.kilo/`, change both or accept the drift knowingly.
+**Kilo reads `.github/` directly.** Its whole configuration is the root `kilo.jsonc`;
+`.kilo/` now holds runtime state only and is gitignored. There are no mirrored copies to
+keep in sync. Kilo is deliberately allowed to drift: `.github/agents/` is not wired into
+it, and it will get purpose-built agents once it specialises.
 
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
 

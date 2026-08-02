@@ -90,12 +90,15 @@ cosalette-apps/
 Agent configuration lives in `.github/` and is shared by GitHub Copilot, Claude Code and
 Kilo. `AGENTS.md` is the always-on instruction file for all three.
 
-| Surface              | Location                | Notes                                |
-| -------------------- | ----------------------- | ------------------------------------ |
-| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md` |
-| File-scoped guidance | `.github/instructions/` | Claude reads it via `.claude/rules/` |
-| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest       |
-| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest       |
+| Surface              | Location                | Notes                                       |
+| -------------------- | ----------------------- | ------------------------------------------- |
+| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md`        |
+| File-scoped guidance | `.github/instructions/` | Claude reads it via `.claude/rules/`        |
+| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest              |
+| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest; no Kilo use |
+
+Kilo's entire configuration is the root `kilo.jsonc` — see
+[How Kilo reaches `.github/`](#how-kilo-reaches-github) below.
 
 ### Union frontmatter
 
@@ -130,7 +133,7 @@ file and nothing to keep in sync. `.claude/rules/` officially supports symlinks 
 ([anthropics/claude-code#25367](https://github.com/anthropics/claude-code/issues/25367)).
 
 Adding a rule means creating the file in `.github/instructions/`. For file-scoped rules
-add both `applyTo:` (Copilot/Kilo) and `paths:` (Claude Code), then symlink it. For
+add both `applyTo:` (Copilot) and `paths:` (Claude Code), then symlink it. For
 unconditional rules use `applyTo: '**'` and omit `paths:` — its absence means "load
 every session":
 
@@ -168,6 +171,30 @@ claude plugin validate .           # the marketplace
 Verified against Claude Code 2.1.220: all 9 agents and all 8 skills load, and the
 `*.agent.md` filenames are accepted as-is — no renaming needed.
 
+### How Kilo reaches `.github/`
+
+Kilo v7 is an OpenCode fork with **one** `kilo.jsonc` at the repo root driving the VS
+Code extension, the CLI and Cloud Agents. `.kilo/` holds runtime state only and is
+gitignored — there are no mirrored copies of anything.
+
+| Key            | Value                       | Why                                                      |
+| -------------- | --------------------------- | -------------------------------------------------------- |
+| `instructions` | `.github/instructions/*.md` | Kilo has no `applyTo:`/`paths:` — all files load, always |
+| `skills.paths` | `.github/skills`            | project-relative, read in place                          |
+| `mcp`          | beads, context7, cosalette  | `type: local\|remote`; `{env:VAR}` interpolates          |
+| `permission`   | ask-by-default `bash` map   | last matching pattern wins, so `*` comes first           |
+| `model`        | **absent**                  | a stale pin is what rotted the previous config           |
+
+`.github/agents/` is deliberately **not** wired in. Kilo is allowed to drift and gets
+purpose-built agents once it specialises; until then it runs on the shared instructions
+and skills alone.
+
+Verified against OpenCode 1.14.25 (the upstream of Kilo v7): `opencode debug config`
+accepts the JSONC comments and interpolates `{env:CONTEXT7_API_KEY}`,
+`opencode debug skill` loads all 8 skills from `.github/skills`, and
+`opencode providers list` shows the opencode-go credential resolved from
+`OPENCODE_API_KEY`.
+
 ### The one key that cannot be shared: `model:`
 
 Union frontmatter works because tools ignore keys they do not recognise. `model:` is the
@@ -193,8 +220,8 @@ So `.github/agents/*.agent.md` carries **no `model:` key at all** — Copilot us
 user-selected model and Claude Code inherits the session model. Where the choice of
 model was deliberate (the researcher and security reviewers ran on a non-Anthropic
 family on purpose, so the review is not the author's own model), that intent is recorded
-as a comment in the file. Per-tool pins belong in per-tool copies; `.kilo/agents/` has
-its own. `task check-parity` fails if a `model:` key reappears.
+as a comment in the file. Per-tool pins belong in per-tool copies. `task check-parity`
+fails if a `model:` key reappears.
 
 The same probe settled the companion question: **unknown `tools:` entries are dropped
 individually, not rejected wholesale.** `['search', 'read', 'Read', 'Grep', 'Glob']`
@@ -205,14 +232,14 @@ are read-only. The union lists are safe.
 
 These are tracked under the `cap-pm1` epic and are not yet resolved:
 
-- **`.kilo/agents/` is a separate physical copy.** Editing a `.github/agents/*.agent.md`
-  body does not update its Kilo mirror; `task check-parity` compares only `description`.
+- **A new `.github/instructions/` file is not checked.** Nothing fails if you forget the
+  `paths:` key or the `.claude/rules/` symlink — Claude Code simply never loads it.
 
 ### Checking your changes
 
 ```bash
-task check-parity        # agents ↔ Kilo mirrors, skill symlinks, union tools:, no model:
-task check-parity:test   # the parity script's own test suite
+task check-parity        # .github/agents/: union tools:, no model:
+task check-parity:test   # that script's own test suite
 ```
 
 Both run in CI (the `shared` job) and as pre-commit hooks.
