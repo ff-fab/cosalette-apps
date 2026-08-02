@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "beads": {
+      "command": "uvx",
+      "args": ["beads-mcp"]
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      }
+    },
+    "cosalette": {
+      "command": "${CLAUDE_PROJECT_DIR}/.venv/bin/python3",
+      "args": ["-m", "cosalette", "ai", "mcp", "serve"]
+    }
+  }
+}

@@ -6,6 +6,7 @@
     "name": "ff-fab"
   },
   "skills": ["./skills/"],
+  "mcpServers": "./.claude-plugin/mcp.json",
   "agents": [
     "./agents/code-review-subagent.agent.md",
     "./agents/docs-subagent.agent.md",
