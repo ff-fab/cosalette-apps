@@ -3,7 +3,10 @@ name: code-review-subagent
 description: Review code changes from a completed implementation phase.
 argument-hint:
   The agent should get a description of the code changes that were made during the implementation phase and what quality checks were performed, the phase objective, the intended behavior, and the acceptance criteria.
-tools: ['search', 'read', 'beads/*', 'web', 'todo'] # specify the tools this agent can use. If not set, all enabled tools are allowed.
+# tools: union of Copilot and Claude Code names — see CONTRIBUTING "AI Agent Setup"
+tools:
+  ['search', 'read', 'beads/*', 'web', 'todo', 'Read', 'Grep', 'Glob', 'WebFetch',
+   'WebSearch', 'TodoWrite']
 ---
 
 You are a **code reviewer** called by a parent **orchestrator** agent after a task of
@@ -25,7 +28,7 @@ CRITICAL: You receive context from the parent agent including:
    - The phase objective was achieved
    - Code follows best practices (correctness, efficiency, readability, maintainability,
      security)
-   - Use #upstash/context7/* to verify API usage against current library docs
+   - Use the Context7 MCP tools to verify API usage against current library docs
    - **Code is concise** — if 200 lines could be 50, flag it. Ask: "Would a senior
      engineer say this is overcomplicated?" If yes, mark as NEEDS_REVISION.
    - Tests were written and pass

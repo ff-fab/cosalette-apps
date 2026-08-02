@@ -1,7 +1,12 @@
 ---
 description: Implementation subagent — executes task-specific work delegated by the orchestrator
 argument-hint: Task objective, files to modify, test requirements, and acceptance criteria from the orchestrator
-tools: ['edit', 'search', 'read', 'execute/runInTerminal', 'execute/getTerminalOutput', 'execute/createAndRunTask', 'todo']
+name: implementation-subagent
+# tools: union of Copilot and Claude Code names — see CONTRIBUTING "AI Agent Setup"
+tools:
+  ['edit', 'search', 'read', 'execute/runInTerminal', 'execute/getTerminalOutput',
+   'execute/createAndRunTask', 'todo', 'Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash',
+   'TodoWrite']
 model: Claude Sonnet 4.6 (copilot)
 ---
 
