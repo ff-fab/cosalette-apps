@@ -222,6 +222,31 @@ out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when tools: key is absent" "1" "$ec"
 assert_contains "NO TOOLS in output" "NO TOOLS" "$out"
 
+# ── Test 15: model: key is rejected ───────────────────────────
+# Probed under cap-wf3: a Copilot/Kilo model value hard-errors in Claude Code the
+# moment the agent is launched, so the shared file must carry no model: at all.
+echo "--- Test 15: agent carrying model: fails"
+T="$TMPDIR_BASE/t15"; scaffold "$T"
+printf -- '---\ndescription: Pinned\ntools: [%s]\nmodel: Claude Sonnet 4.6 (copilot)\n---\ncontent\n' \
+  "'read', 'Read'" >"$T/.github/agents/pinned.agent.md"
+make_md "$T/.kilo/agents/pinned.md" "Pinned"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when model: is present" "1" "$ec"
+assert_contains "MODEL in output" "MODEL" "$out"
+
+# A commented-out model: line is documentation, not a pin — the shared agent files
+# use exactly this to record the per-tool preference. It must not trip the check.
+echo "--- Test 15b: commented model: line passes"
+T="$TMPDIR_BASE/t15b"; scaffold "$T"
+printf -- '---\ndescription: Documented\ntools: [%s]\n# model: deliberately absent\n---\ncontent\n' \
+  "'read', 'Read'" >"$T/.github/agents/documented.agent.md"
+make_md "$T/.kilo/agents/documented.md" "Documented"
+make_skill "$T" "demo"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 0 when model: is only a comment" "0" "$ec"
+assert_not_contains "no MODEL error for a comment" "✗ MODEL" "$out"
+
 # ── Summary ──────────────────────────────────────────────────
 echo ""
 echo "───────────────────────────────────────────"

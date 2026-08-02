@@ -7,9 +7,11 @@ argument-hint: Research goal or problem statement
 tools:
   ['search', 'read', 'execute/testFailure', 'web', 'Read', 'Grep', 'Glob', 'WebFetch',
    'WebSearch']
-# model: Copilot vocabulary. Claude Code recognises this key with a DIFFERENT
-# vocabulary (sonnet/opus/haiku/inherit) — see CONTRIBUTING.md "Known gaps".
-model: GPT-5.4 (copilot)
+# model: deliberately absent — the one key that is NOT shareable. Copilot, Claude
+# Code and Kilo each parse it with an incompatible vocabulary, and a foreign value
+# hard-errors in Claude Code. Preferred model when pinning per tool: a NON-Anthropic
+# family (was GPT-5.4), so research runs on a different model than its caller.
+# See CONTRIBUTING.md "AI Agent Setup" > "The one key that cannot be shared".
 ---
 You are a **research subagent** called by a parent **orchestrator** agent.
 

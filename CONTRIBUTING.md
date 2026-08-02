@@ -116,24 +116,52 @@ least one tool from each vocabulary.
 For `applyTo: '**'` (unconditional), Claude Code's equivalent is the **absence** of a
 `paths:` key — do not add one to those files.
 
+### The one key that cannot be shared: `model:`
+
+Union frontmatter works because tools ignore keys they do not recognise. `model:` is the
+exception — **all three tools recognise it, with mutually incompatible vocabularies:**
+
+| Tool        | Vocabulary                                      | Example                       |
+| ----------- | ----------------------------------------------- | ----------------------------- |
+| Copilot     | display name + `(copilot)`                      | `Claude Sonnet 4.6 (copilot)` |
+| Claude Code | `sonnet`/`opus`/`haiku`/`inherit` or a model ID | `sonnet`                      |
+| Kilo        | `provider/model`                                | `opencode-go/glm-5.1`         |
+
+A foreign value does **not** degrade gracefully in Claude Code. Probed under `cap-wf3`
+against Claude Code 2.1.220: the agent loads and appears in the agent list, then fails
+the moment it is launched:
+
+```
+Error: Agent terminated early due to an API error: There's an issue with the
+selected model (Claude Sonnet 4.6 (copilot)). It may not exist or you may not
+have access to it.
+```
+
+So `.github/agents/*.agent.md` carries **no `model:` key at all** — Copilot uses the
+user-selected model and Claude Code inherits the session model. Where the choice of
+model was deliberate (the researcher and security reviewers ran on a non-Anthropic
+family on purpose, so the review is not the author's own model), that intent is recorded
+as a comment in the file. Per-tool pins belong in per-tool copies; `.kilo/agents/` has
+its own. `task check-parity` fails if a `model:` key reappears.
+
+The same probe settled the companion question: **unknown `tools:` entries are dropped
+individually, not rejected wholesale.** `['search', 'read', 'Read', 'Grep', 'Glob']`
+resolves in Claude Code to exactly `Read, Grep, Glob`, so the read-only reviewers really
+are read-only. The union lists are safe.
+
 ### Known gaps
 
 These are tracked under the `cap-pm1` epic and are not yet resolved:
 
 - **Claude Code does not read `.github/instructions/`.** There is no `.claude/rules/`
   wiring yet (phase 2). Under Claude Code, open the relevant instruction file yourself.
-- **`model:` is not safely shareable.** Both tools recognise the key with incompatible
-  vocabularies — the agent files carry Copilot values (`Claude Sonnet 4.6 (copilot)`),
-  which are not valid Claude Code model names. Phase 2 must verify Claude Code's
-  behaviour on an unparsable `model:` **before** `.claude/agents/` is wired up; if it
-  hard-errors rather than falling back, the key has to move out of the shared file.
 - **`.kilo/agents/` is a separate physical copy.** Editing a `.github/agents/*.agent.md`
   body does not update its Kilo mirror; `task check-parity` compares only `description`.
 
 ### Checking your changes
 
 ```bash
-task check-parity        # agents ↔ Kilo mirrors, skill symlinks, union tools:
+task check-parity        # agents ↔ Kilo mirrors, skill symlinks, union tools:, no model:
 task check-parity:test   # the parity script's own test suite
 ```
 

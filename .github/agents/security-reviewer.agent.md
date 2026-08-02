@@ -5,9 +5,11 @@ argument-hint: PR diff (via task pr:diff) or file list to review for security co
 # tools: union of Copilot and Claude Code names — see CONTRIBUTING.md "AI Agent Setup".
 # Enforced by `task check-parity`: at least one name from each vocabulary is required.
 tools: ['search', 'read', 'Read', 'Grep', 'Glob']
-# model: Copilot vocabulary. Claude Code recognises this key with a DIFFERENT
-# vocabulary (sonnet/opus/haiku/inherit) — see CONTRIBUTING.md "Known gaps".
-model: GPT-5.4 (copilot)
+# model: deliberately absent — the one key that is NOT shareable. Copilot, Claude
+# Code and Kilo each parse it with an incompatible vocabulary, and a foreign value
+# hard-errors in Claude Code. Preferred model when pinning per tool: a NON-Anthropic
+# family (was GPT-5.4), so the security perspective is not the author's own model.
+# See CONTRIBUTING.md "AI Agent Setup" > "The one key that cannot be shared".
 ---
 
 You are a **security reviewer**. Set `perspective` to `"security"`.

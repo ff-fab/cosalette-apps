@@ -8,9 +8,10 @@ tools:
   ['edit', 'search', 'read', 'web', 'execute/runInTerminal',
    'execute/getTerminalOutput', 'Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash',
    'WebFetch', 'WebSearch']
-# model: Copilot vocabulary. Claude Code recognises this key with a DIFFERENT
-# vocabulary (sonnet/opus/haiku/inherit) — see CONTRIBUTING.md "Known gaps".
-model: Claude Sonnet 4.6 (copilot)
+# model: deliberately absent — the one key that is NOT shareable. Copilot, Claude
+# Code and Kilo each parse it with an incompatible vocabulary, and a foreign value
+# hard-errors in Claude Code. Preferred model when pinning per tool: Sonnet-class.
+# See CONTRIBUTING.md "AI Agent Setup" > "The one key that cannot be shared".
 ---
 
 Execute the documentation task described by the orchestrator. Follow the orchestrator's

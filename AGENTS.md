@@ -194,8 +194,10 @@ Agent configuration lives in `.github/` and is consumed by every tool:
 
 Some files carry frontmatter keys for more than one tool at once; each tool ignores the
 keys it does not recognise. Do not remove a key because your tool has no use for it. The
-one exception is `model:`, which Copilot and Claude Code both recognise with
-incompatible vocabularies — see the note in any `.github/agents/*.agent.md`.
+one exception is `model:`, which all three tools recognise with incompatible
+vocabularies — a foreign value hard-errors in Claude Code, so `.github/agents/` carries
+no `model:` at all and `task check-parity` fails if one reappears. See
+[CONTRIBUTING.md](CONTRIBUTING.md) > "The one key that cannot be shared".
 
 **`.kilo/agents/` is not yet consolidated.** Editing a `.github/agents/*.agent.md` body
 does _not_ update its Kilo counterpart; `task check-parity` compares only `description`.
