@@ -128,15 +128,15 @@ tasks:
     cmds:
       - uv run reuse lint
 
-  check-parity:
-    desc: 'Verify .github/agents/ carry a union tools: list and no model: key'
+  check:agents:
+    desc: 'Verify .claude/rules/ symlinks, plugin manifest, and .github/agents/ frontmatter'
     cmds:
-      - bash scripts/check-agent-parity.sh
+      - bash scripts/check-agent-config.sh
 
-  check-parity:test:
+  check:agents:test:
     desc: Run the agent-config script test suite
     cmds:
-      - bash scripts/test-check-agent-parity.sh
+      - bash scripts/test-check-agent-config.sh
 
   test:scripts:
     desc: Run shell script unit tests (qa-task.sh, pre-pr.sh, add_gpl_headers.py)

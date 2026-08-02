@@ -3,7 +3,7 @@ name: researcher-subagent
 description: Research context and return findings to parent agent
 argument-hint: Research goal or problem statement
 # tools: union of Copilot and Claude Code names — see CONTRIBUTING.md "AI Agent Setup".
-# Enforced by `task check-parity`: at least one name from each vocabulary is required.
+# Enforced by `task check:agents`: at least one name from each vocabulary is required.
 tools:
   ['search', 'read', 'execute/testFailure', 'web', 'Read', 'Grep', 'Glob', 'WebFetch',
    'WebSearch']

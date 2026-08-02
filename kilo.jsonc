@@ -66,7 +66,7 @@
       "task pre-pr*": "allow",
       "task complexity*": "allow",
       "task similarity*": "allow",
-      "task check-parity*": "allow",
+      "task check:agents*": "allow",
       "task reuse:*": "allow",
       "task pr:diff*": "allow",
       "task pr:feedback*": "allow",

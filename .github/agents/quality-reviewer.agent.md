@@ -3,7 +3,7 @@ name: quality-reviewer
 description: Quality & testing perspective reviewer — evaluates test coverage, assertion quality, and test design
 argument-hint: PR diff (via task pr:diff) or file list to review for testing and quality concerns
 # tools: union of Copilot and Claude Code names — see CONTRIBUTING.md "AI Agent Setup".
-# Enforced by `task check-parity`: at least one name from each vocabulary is required.
+# Enforced by `task check:agents`: at least one name from each vocabulary is required.
 tools: ['search', 'read', 'Read', 'Grep', 'Glob']
 # model: deliberately absent — the one key that is NOT shareable. Copilot, Claude
 # Code and Kilo each parse it with an incompatible vocabulary, and a foreign value

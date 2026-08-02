@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
-# test-check-agent-parity.sh — Integration tests for check-agent-parity.sh
-# Usage: bash scripts/test-check-agent-parity.sh
+# test-check-agent-config.sh — Integration tests for check-agent-config.sh
+# Usage: bash scripts/test-check-agent-config.sh
 # Exit code: 0 all pass, 1 any fail
 #
-# The .github/ ↔ .kilo/ mirror tests were removed alongside the checks they covered
-# (cap-pm1 phase 3 deleted .kilo/agents/ and .kilo/skills/). What remains guards the two
-# frontmatter invariants of .github/agents/: a union tools: list, and no model: key.
+# cap-pm1 phase 5 renamed check-agent-parity.sh to check-agent-config.sh and added two
+# checks (.claude/rules/ symlink resolution, claude plugin validate). The union tools:
+# and no-model: tests carried over from test-check-agent-parity.sh unchanged; every
+# fixture now also scaffolds a minimal, valid .claude/rules/ symlink so those pre-existing
+# assertions are not tripped by the new checks.
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SCRIPT="${SCRIPT_DIR}/check-agent-parity.sh"
+SCRIPT="${SCRIPT_DIR}/check-agent-config.sh"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -59,8 +61,14 @@ make_md() {
   printf -- '---\ndescription: %s\ntools: [%s]\nmode: test\n---\ncontent\n' "$desc" "$tools" >"$path"
 }
 
+# Scaffold .github/agents/ plus one valid, resolving .claude/rules/ symlink — the
+# minimum needed so the new symlink check does not fail fixtures aimed at the
+# tools:/model: assertions.
 scaffold() {
-  mkdir -p "$1/.github/agents"
+  mkdir -p "$1/.github/agents" "$1/.github/instructions" "$1/.github/.claude-plugin" "$1/.claude/rules"
+  printf 'dummy rule\n' >"$1/.github/instructions/dummy.instructions.md"
+  ln -s ../../.github/instructions/dummy.instructions.md "$1/.claude/rules/dummy.md"
+  printf '{"name":"test","skills":[],"agents":[]}\n' >"$1/.github/.claude-plugin/plugin.json"
 }
 
 TMPDIR_BASE="$(mktemp -d)"
@@ -112,7 +120,9 @@ assert_contains "NO TOOLS in output" "NO TOOLS" "$out"
 
 # ── Test 5: Missing source directory fails loudly ──────────────
 echo "--- Test 5: deleted source directory is an error"
-T="$TMPDIR_BASE/t5"; mkdir -p "$T"
+T="$TMPDIR_BASE/t5"; mkdir -p "$T/.claude/rules" "$T/.github/instructions"
+printf 'dummy rule\n' >"$T/.github/instructions/dummy.instructions.md"
+ln -s ../../.github/instructions/dummy.instructions.md "$T/.claude/rules/dummy.md"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when .github/agents/ is gone" "1" "$ec"
 assert_contains "MISSING DIR in output" "MISSING DIR" "$out"
@@ -187,6 +197,54 @@ T="$TMPDIR_BASE/t7b"; scaffold "$T"
 make_md "$T/.github/agents/nonalpha.agent.md" "NonAlpha" "'_read', '_Read'"
 out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when only non-alphabetic names" "1" "$ec"
+
+# ── Test 8: .claude/rules/ symlinks must resolve ────────────────
+echo "--- Test 8: dangling .claude/rules/ symlink fails"
+T="$TMPDIR_BASE/t8"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+ln -s ../../.github/instructions/nonexistent.instructions.md "$T/.claude/rules/broken.md"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when a .claude/rules/ symlink is dangling" "1" "$ec"
+assert_contains "DANGLING SYMLINK in output" "DANGLING SYMLINK" "$out"
+
+echo "--- Test 8b: missing .claude/rules/ directory fails loudly"
+T="$TMPDIR_BASE/t8b"; mkdir -p "$T/.github/agents"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when .claude/rules/ is gone" "1" "$ec"
+assert_contains "MISSING DIR in output" "MISSING DIR" "$out"
+
+echo "--- Test 8c: empty .claude/rules/ directory fails loudly"
+T="$TMPDIR_BASE/t8c"; mkdir -p "$T/.github/agents" "$T/.claude/rules"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when .claude/rules/ has no symlinks" "1" "$ec"
+assert_contains "NO SYMLINKS in output" "NO SYMLINKS" "$out"
+
+# ── Test 9: claude plugin validate — graceful skip vs. real invocation ─
+echo "--- Test 9: claude plugin validate behavior matches PATH"
+T="$TMPDIR_BASE/t9"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+if command -v claude >/dev/null 2>&1; then
+  assert_eq "exit 0 when claude plugin validate succeeds" "0" "$ec"
+  assert_not_contains "no SKIP notice when claude is on PATH" "SKIP" "$out"
+  assert_contains "success mark in output" "✓" "$out"
+else
+  assert_eq "exit 0 when claude binary is absent from PATH" "0" "$ec"
+  assert_contains "SKIP notice in output" "SKIP" "$out"
+fi
+
+# ── Test 9b: stubbed claude binary that exits 1 — failure is detected ─
+echo "--- Test 9b: plugin validate failure is detected"
+T="$TMPDIR_BASE/t9b"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+mkdir -p "$T/bin"
+printf '#!/bin/sh\nexit 1\n' >"$T/bin/claude"
+chmod +x "$T/bin/claude"
+out=$(cd "$T" && PATH="$T/bin:$PATH" bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when claude plugin validate fails" "1" "$ec"
+assert_contains "PLUGIN VALIDATE error in output" "✗ PLUGIN VALIDATE:" "$out"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""

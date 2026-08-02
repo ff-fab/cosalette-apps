@@ -1,16 +1,29 @@
 #!/usr/bin/env bash
-# check-agent-parity.sh — Verify the shared agent-config surface in .github/agents/
+# check-agent-config.sh — Verify the shared multi-agent config surface
 #
-# Two checks:
-#   1. union `tools:`  — each agent names at least one tool from the Copilot vocabulary
-#                        AND one from Claude Code's vocabulary
-#   2. no `model:`     — the one key that cannot be shared (cap-wf3)
+# Three checks:
+#   1. .claude/rules/ symlinks — every symlink must resolve. A dangling symlink
+#      (broken target) fails silently at Claude Code runtime: the rule is just not
+#      loaded, with no error anywhere. This check makes that loud instead.
+#   2. claude plugin validate — runs `claude plugin validate .github` when the
+#      `claude` binary is on PATH. It is not installed in the devcontainer image
+#      (and we are not adding it), so this check skips gracefully rather than
+#      failing CI on a missing binary.
+#   3. union `tools:` + no `model:` — the two frontmatter invariants for
+#      .github/agents/ files: each agent names at least one tool from the Copilot
+#      vocabulary AND one from Claude Code's vocabulary, and none of them carry a
+#      model: key (the one key that cannot be shared, cap-wf3). Still relevant:
+#      .github/agents/ is still read natively by both tools, so both invariants
+#      still matter. Manifest structure itself (name/agents/skills paths) is now
+#      covered by the check-jsonschema pre-commit hook against SchemaStore's
+#      claude-code-plugin-manifest.json — that is what actually catches manifest
+#      errors, so this script does not duplicate it.
 #
-# The .github/ ↔ .kilo/ mirror checks are gone: cap-pm1 phase 3 deleted .kilo/agents/ and
-# .kilo/skills/. Kilo now reads .github/skills/ directly via `skills.paths` in kilo.jsonc,
-# so there is nothing left to keep in parity. cap-pm1.10 renames this script.
+# cap-pm1 phase 5 replaces check-agent-parity.sh: the .github/ <-> .kilo/ mirror
+# checks that script existed for are gone (cap-pm1 phase 3 deleted .kilo/agents/ and
+# .kilo/skills/), so its job is now config integrity, not cross-tool parity policing.
 #
-# Run: bash scripts/check-agent-parity.sh
+# Run: bash scripts/check-agent-config.sh
 # Wired into CI (ci.yml `shared` job) and pre-commit.
 
 # NOTE: `-e` is deliberately omitted. `((errors++))` evaluates to 0 on the first
@@ -20,6 +33,7 @@ set -uo pipefail
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
 errors=0
@@ -54,11 +68,15 @@ extract_yaml_field() {
       fi
       # Check for key: (multi-line value follows)
       if [[ "$line" =~ ^${field}:\ *$ ]]; then
-        # Read subsequent indented lines
-        local block=""
-        local block_indent=2  # Prettier indents with 2 spaces
+        # Detect indent from first continuation line; handles 2-space, 4-space, tabs
+        local block="" first=1 block_indent=0
         while IFS= read -r next_line; do
-          # Stop if line is not indented (another top-level key)
+          if [[ $first -eq 1 ]]; then
+            first=0
+            local leading="${next_line%%[^[:space:]]*}"
+            block_indent=${#leading}
+            [[ $block_indent -eq 0 ]] && break
+          fi
           if [[ ! "$next_line" =~ ^[[:space:]]{${block_indent},} ]]; then
             break
           fi
@@ -91,6 +109,49 @@ require_dir() {
   fi
 }
 
+# ── Check: .claude/rules/ symlinks all resolve ─────────────────
+# `[[ -e "$link" ]]` follows the symlink; it is false for a dangling link even though
+# `[[ -L "$link" ]]` (which only checks "is this a symlink") would still be true.
+check_claude_rules_symlinks() {
+  local dir=".claude/rules"
+  require_dir "$dir" || return
+
+  local count=0 link
+  while IFS= read -r -d '' link; do
+    ((count++))
+    if [[ ! -e "$link" ]]; then
+      printf "${RED}✗ DANGLING SYMLINK:${NC} %s -> %s (target missing)\n" "$link" "$(readlink "$link")"
+      ((errors++))
+      continue
+    fi
+    printf "${GREEN}✓${NC} %s -> %s\n" "$link" "$(readlink "$link")"
+  done < <(find "$dir" -maxdepth 1 -type l -print0)
+
+  if [[ $count -eq 0 ]]; then
+    printf "${RED}✗ NO SYMLINKS:${NC} %s contains no symlinks\n" "$dir"
+    ((errors++))
+  fi
+}
+
+# ── Check: claude plugin validate (only if the binary is on PATH) ─
+# The `claude` binary is not installed in the devcontainer image and we are not adding
+# it just for this check, so skip gracefully instead of failing CI in that environment.
+check_claude_plugin_validate() {
+  if ! command -v claude >/dev/null 2>&1; then
+    printf "${YELLOW}⊘ SKIP:${NC} 'claude' binary not on PATH — skipping 'claude plugin validate .github'\n"
+    return
+  fi
+
+  local out
+  if out=$(claude plugin validate .github 2>&1); then
+    printf "${GREEN}✓${NC} claude plugin validate .github\n"
+  else
+    printf "${RED}✗ PLUGIN VALIDATE:${NC} claude plugin validate .github failed\n"
+    printf '%s\n' "$out" | sed 's/^/    /'
+    ((errors++))
+  fi
+}
+
 # ── Helper: verify union tools: frontmatter ───────────────────
 # Claude Code refuses to launch an agent whose tools resolve to nothing, and Copilot
 # silently drops names it does not know. A single-vocabulary list therefore breaks
@@ -107,12 +168,14 @@ check_union_tools() {
   fi
 
   raw="${raw//[\[\]\'\"]/ }"
-  for entry in $(printf '%s' "$raw" | tr ',' ' '); do
+  # names not starting with [a-z]/[A-Z] are intentionally skipped — see test 7a/7b
+  while IFS= read -r entry; do
+    entry="${entry//[[:space:]\\]/}"
     case "$entry" in
       [a-z]*) copilot=1 ;;
       [A-Z]*) claude=1 ;;
     esac
-  done
+  done < <(printf '%s\n' "$raw" | tr ', ' '\n\n')
 
   if [[ $copilot -eq 0 || $claude -eq 0 ]]; then
     printf "${RED}✗ TOOLS:${NC} %s is missing a vocabulary (copilot=%d claude=%d)\n" \
@@ -135,8 +198,8 @@ check_union_tools() {
 check_model_absent() {
   local source="$1"
 
-  # Scan frontmatter: skip leading blanks, enter at first ---, exit at second ---.
-  # Exits 1 when model: is found (bad), 0 when absent (clean).
+  # awk rather than extract_yaml_field: only needs presence/absence (not value), and
+  # correctly handles leading blank lines before --- that the bash parser skips.
   if ! awk '/^[[:space:]]*$/{next} !f&&/^---/{f=1;next} f&&/^---/{exit found} f&&/^[[:space:]]*model:/{found=1} END{exit found}' "$source"; then
     printf "${RED}✗ MODEL:${NC} %s carries a model: key\n" "$source"
     printf "    model: is not shareable — it hard-errors in Claude Code. Remove it.\n"
@@ -147,6 +210,18 @@ check_model_absent() {
   printf "${GREEN}✓${NC} model: %s (absent, as required)\n" "$source"
 }
 
+# ── .claude/rules/ symlinks resolve ────────────────────────────
+echo "=== Checking .claude/rules/ symlinks resolve ==="
+echo ""
+check_claude_rules_symlinks
+echo ""
+
+# ── claude plugin validate .github (if available) ──────────────
+echo "=== Checking claude plugin validate .github ==="
+echo ""
+check_claude_plugin_validate
+echo ""
+
 # ── Check union tools: frontmatter + model: absence (.github/agents/) ─
 echo "=== Checking union tools: frontmatter (.github/agents/) ==="
 echo ""
@@ -154,14 +229,6 @@ echo ""
 if require_dir ".github/agents"; then
   while IFS= read -r -d '' source; do
     check_union_tools "$source"
-  done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
-
-  echo ""
-
-  echo "=== Checking model: is absent (.github/agents/) ==="
-  echo ""
-
-  while IFS= read -r -d '' source; do
     check_model_absent "$source"
   done < <(find .github/agents -maxdepth 1 -name '*.agent.md' -print0)
 fi
@@ -172,7 +239,7 @@ echo ""
 echo ""
 echo "───────────────────────────────────────────"
 if [[ $errors -eq 0 ]]; then
-  printf "${GREEN}✓ union tools: and model: absence hold across .github/agents/${NC}\n"
+  printf "${GREEN}✓ Agent config integrity checks passed${NC}\n"
   exit 0
 else
   printf "${RED}✗ Agent config check FAILED: %d error(s)${NC}\n" "$errors"
