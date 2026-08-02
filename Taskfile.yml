@@ -129,12 +129,12 @@ tasks:
       - uv run reuse lint
 
   check-parity:
-    desc: Verify .github/ ↔ .kilo/ agent/command description parity
+    desc: 'Verify .github/agents/ carry a union tools: list and no model: key'
     cmds:
       - bash scripts/check-agent-parity.sh
 
   check-parity:test:
-    desc: Run the parity script test suite
+    desc: Run the agent-config script test suite
     cmds:
       - bash scripts/test-check-agent-parity.sh
 

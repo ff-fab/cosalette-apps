@@ -114,14 +114,14 @@ repos:
       - id: reuse
         name: REUSE (license compliance)
 
-  # Agent parity: .kilo/ mirrors .github/ agents, skills are symlinked, union tools: hold
+  # Shared agent files carry a union tools: list and no model: key
   - repo: local
     hooks:
       - id: check-agent-parity
-        name: Agent parity (.github/ ↔ .kilo/)
+        name: Agent config (.github/agents/)
         entry: bash scripts/check-agent-parity.sh
         language: system
-        files: '^(\.github/(agents|skills)/|\.kilo/(agents|skills)/)'
+        files: '^\.github/agents/'
         pass_filenames: false
 
   # Beads (bd): Guard pushes and keep git in sync
