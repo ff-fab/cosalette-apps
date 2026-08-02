@@ -103,35 +103,35 @@ RUN set -eux; \
     rm -f /tmp/bd "${TARBALL}"; \
     bd version
 
-# Install opencode (AI coding agent — https://opencode.ai)
-# renovate: datasource=github-releases depName=anomalyco/opencode
-ARG OPENCODE_VERSION=v1.18.10
+# Install Kilo CLI (AI coding agent — https://kilocode.ai)
+# renovate: datasource=github-releases depName=Kilo-Org/kilocode
+ARG KILO_VERSION=v7.4.18
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG OPENCODE_SHA256_AMD64=6b1113da704253fb4da12b41e4236acecb9f2b62949c945f6eeacaa15111b976
-ARG OPENCODE_SHA256_ARM64=41ae3041e91b894e4c0dc06a73a9a2796254bf390ffb99626a43af5e2912d170
+ARG KILO_SHA256_AMD64=4f4e870080a4cebaa5a8bd3600cd0d045ec53fbf257fd8fc86a899c8e975ba71
+ARG KILO_SHA256_ARM64=355cf7dc20630f3e73af2bfb130a88b631191d499e312bec00447907b7fb7028
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     case "${ARCH}" in \
-      amd64) ARCH_NAME='x64';   EXPECTED_SHA="${OPENCODE_SHA256_AMD64}" ;; \
-      arm64) ARCH_NAME='arm64'; EXPECTED_SHA="${OPENCODE_SHA256_ARM64}" ;; \
+      amd64) ARCH_NAME='x64';   EXPECTED_SHA="${KILO_SHA256_AMD64}" ;; \
+      arm64) ARCH_NAME='arm64'; EXPECTED_SHA="${KILO_SHA256_ARM64}" ;; \
       *) echo "Unsupported architecture: ${ARCH}" >&2; exit 1 ;; \
     esac; \
-    TARBALL="/tmp/opencode-linux-${ARCH_NAME}.tar.gz"; \
+    TARBALL="/tmp/kilo-linux-${ARCH_NAME}.tar.gz"; \
     curl -fsSL \
-      "https://github.com/anomalyco/opencode/releases/download/${OPENCODE_VERSION}/opencode-linux-${ARCH_NAME}.tar.gz" \
+      "https://github.com/Kilo-Org/kilocode/releases/download/${KILO_VERSION}/kilo-linux-${ARCH_NAME}.tar.gz" \
       -o "${TARBALL}"; \
     echo "${EXPECTED_SHA}  ${TARBALL}" | sha256sum -c -; \
-    tar -xzf "${TARBALL}" -C /tmp opencode; \
-    install -m 755 /tmp/opencode /usr/local/bin/opencode; \
-    rm -f /tmp/opencode "${TARBALL}"; \
-    opencode --version
+    tar -xzf "${TARBALL}" -C /tmp kilo; \
+    install -m 755 /tmp/kilo /usr/local/bin/kilo; \
+    rm -f /tmp/kilo "${TARBALL}"; \
+    kilo --version
 
 # Install Claude Code CLI (Anthropic — https://claude.com/claude-code)
 # The installer downloads the CLI binary and verifies it against a SHA-256
 # checksum from Anthropic's release manifest before installing. We pin the CLI
 # version (passed through to the installer) so builds are reproducible; bump via
 # Renovate. The bootstrap script itself is fetched over TLS from claude.ai and
-# is trusted rather than checksum-pinned — unlike task/dolt/bd/opencode above,
+# is trusted rather than checksum-pinned — unlike task/dolt/bd/kilo above,
 # which all verify a SHA-256 digest of the downloaded tarball before use.
 # Accepted gap: Anthropic does not publish a stable checksum for install.sh,
 # and this stage never runs in CI (INSTALL_CLAUDE_CODE=false there), so blast
@@ -157,7 +157,7 @@ RUN set -eux; \
       # Non-interactive Docker RUN layers never source those, so `claude` is
       # not found in later RUN steps (or in non-login CI/devcontainer shells).
       # Symlink into /usr/local/bin, already on PATH everywhere, matching how
-      # task/dolt/bd/opencode are installed above.
+      # task/dolt/bd/kilo are installed above.
       ln -sf "${HOME}/.local/bin/claude" /usr/local/bin/claude; \
     fi
 
@@ -171,5 +171,5 @@ RUN mkdir -p /home/vscode/.vscode-server /home/vscode/.vscode-server/extensions 
 
 # Verify installations
 RUN set -eux; \
-    uv --version && python --version && task --version && fzf --version && dolt version && bd version && opencode --version; \
+    uv --version && python --version && task --version && fzf --version && dolt version && bd version && kilo --version; \
     if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then claude --version; fi
