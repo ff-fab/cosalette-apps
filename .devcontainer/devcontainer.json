@@ -26,6 +26,7 @@
     "UV_LINK_MODE": "copy",
     "GH_PAGER": "cat",
     "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}",
+    // Kilo v7 is an opencode-go fork and authenticates with this key
     "OPENCODE_API_KEY": "${localEnv:OPENCODE_API_KEY}"
   },
 
@@ -187,7 +188,7 @@
         "GitHub.copilot",
         "GitHub.copilot-chat",
         "anthropic.claude-code",
-        "sst-dev.opencode",
+        "kilocode.kilo-code",
         "vivaxy.vscode-conventional-commits",
         "ryanluker.vscode-coverage-gutters",
         "task.vscode-task",

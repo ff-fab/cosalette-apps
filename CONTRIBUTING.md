@@ -193,7 +193,8 @@ Verified against OpenCode 1.14.25 (the upstream of Kilo v7): `opencode debug con
 accepts the JSONC comments and interpolates `{env:CONTEXT7_API_KEY}`,
 `opencode debug skill` loads all 8 skills from `.github/skills`, and
 `opencode providers list` shows the opencode-go credential resolved from
-`OPENCODE_API_KEY`.
+`OPENCODE_API_KEY`. Inside the devcontainer, substitute `kilo` for `opencode` — the
+subcommands are identical.
 
 ### The one key that cannot be shared: `model:`
 
