@@ -109,6 +109,7 @@ ARG KILO_VERSION=v7.4.18
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
 ARG KILO_SHA256_AMD64=4f4e870080a4cebaa5a8bd3600cd0d045ec53fbf257fd8fc86a899c8e975ba71
 ARG KILO_SHA256_ARM64=355cf7dc20630f3e73af2bfb130a88b631191d499e312bec00447907b7fb7028
+# Kilo releases use x64/arm64 naming (not amd64) — ARCH_NAME remaps from dpkg convention
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     case "${ARCH}" in \

@@ -26,6 +26,7 @@
     "UV_LINK_MODE": "copy",
     "GH_PAGER": "cat",
     "CONTEXT7_API_KEY": "${localEnv:CONTEXT7_API_KEY}",
+    // Kilo v7 is an opencode-go fork and authenticates with this key
     "OPENCODE_API_KEY": "${localEnv:OPENCODE_API_KEY}"
   },
 
