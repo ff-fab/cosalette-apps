@@ -114,15 +114,29 @@ repos:
       - id: reuse
         name: REUSE (license compliance)
 
-  # Shared agent files carry a union tools: list and no model: key
+  # Shared agent files carry a union tools: list and no model: key;
+  # .claude/rules/ symlinks must resolve
   - repo: local
     hooks:
-      - id: check-agent-parity
-        name: Agent config (.github/agents/)
-        entry: bash scripts/check-agent-parity.sh
+      - id: check-agent-config
+        name: Agent config integrity (.claude/rules/, .github/agents/)
+        entry: bash scripts/check-agent-config.sh
         language: system
-        files: '^\.github/agents/'
+        files: '^(\.claude/rules/|\.github/agents/)'
         pass_filenames: false
+
+  # Claude Code plugin manifest: validate against SchemaStore's schema
+  - repo: https://github.com/python-jsonschema/check-jsonschema
+    rev: 0.37.4
+    hooks:
+      - id: check-jsonschema
+        name: Validate plugin.json (Claude Code plugin manifest)
+        files: '^\.github/\.claude-plugin/plugin\.json$'
+        args:
+          [
+            '--schemafile',
+            'https://json.schemastore.org/claude-code-plugin-manifest.json',
+          ]
 
   # Beads (bd): Guard pushes and keep git in sync
   # pre-push: FAILS if .beads/ has uncommitted changes (forces commit-before-push)

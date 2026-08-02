@@ -113,7 +113,7 @@ does not recognise**. Two vocabularies therefore coexist in the same file:
 **The union `tools:` lists are load-bearing, not belt-and-braces.** Claude Code refuses
 to launch an agent whose tools resolve to nothing, and Copilot silently drops names it
 does not know — so a single-vocabulary list breaks exactly one platform with no error on
-either. `task check-parity` enforces that every `.github/agents/*.agent.md` names at
+either. `task check:agents` enforces that every `.github/agents/*.agent.md` names at
 least one tool from each vocabulary.
 
 For `applyTo: '**'` (unconditional), Claude Code's equivalent is the **absence** of a
@@ -221,7 +221,7 @@ So `.github/agents/*.agent.md` carries **no `model:` key at all** — Copilot us
 user-selected model and Claude Code inherits the session model. Where the choice of
 model was deliberate (the researcher and security reviewers ran on a non-Anthropic
 family on purpose, so the review is not the author's own model), that intent is recorded
-as a comment in the file. Per-tool pins belong in per-tool copies. `task check-parity`
+as a comment in the file. Per-tool pins belong in per-tool copies. `task check:agents`
 fails if a `model:` key reappears.
 
 The same probe settled the companion question: **unknown `tools:` entries are dropped
@@ -239,11 +239,14 @@ These are tracked under the `cap-pm1` epic and are not yet resolved:
 ### Checking your changes
 
 ```bash
-task check-parity        # .github/agents/: union tools:, no model:
-task check-parity:test   # that script's own test suite
+task check:agents        # .claude/rules/ symlinks resolve, claude plugin validate
+                          # (if installed), .github/agents/: union tools:, no model:
+task check:agents:test   # that script's own test suite
 ```
 
-Both run in CI (the `shared` job) and as pre-commit hooks.
+Both run in CI (the `shared` job) and as pre-commit hooks. `plugin.json` itself is
+validated separately, by a `check-jsonschema` pre-commit hook against SchemaStore's
+`claude-code-plugin-manifest.json`.
 
 ## Code Quality
 

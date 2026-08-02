@@ -27,11 +27,14 @@
     // `git -c <cfg>` can set core.pager/core.sshCommand to run arbitrary commands, and
     // force-pushing is not something to auto-approve — so match plain subcommands only.
     "/^git (status|diff|log|show|branch|add|commit|fetch|pull|stash|restore|switch|checkout|rev-parse|blame|remote -v)\\b/": true,
-    //"gh": true,
+
+    // GitHub CLI: read-only subcommands only. No `gh pr create`/`gh pr merge`/`gh issue
+    // close` etc. — those mutate state and stay behind a manual approval.
+    "/^gh (pr view|pr diff|pr list|pr checks|issue list)\\b/": true,
 
     // Task runner. Taskfile.yml is editable by any branch, so `task` is not inherently
     // safe; allow the read-only and quality-gate targets rather than all of them.
-    "/^task (--list|lint|typecheck|check|test:|pre-pr|complexity|similarity|check-parity|reuse:|pr:diff|pr:feedback|pr:list|ci:wait|docs:build)/": true,
+    "/^task (--list|lint|typecheck|check|test:|pre-pr|complexity|similarity|check:agents|reuse:|pr:diff|pr:feedback|pr:list|ci:wait|docs:build)/": true,
 
     // Python via uv. Bare `uv run python -c '...'` is arbitrary execution, so allow the
     // tool invocations we actually use.

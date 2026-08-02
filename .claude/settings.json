@@ -52,7 +52,7 @@
       "Bash(task pre-pr:*)",
       "Bash(task complexity:*)",
       "Bash(task similarity:*)",
-      "Bash(task check-parity:*)",
+      "Bash(task check:agents:*)",
       "Bash(task reuse:*)",
       "Bash(task pr:diff:*)",
       "Bash(task pr:feedback:*)",
@@ -80,6 +80,7 @@
       "Bash(gh pr list:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
+      "Bash(gh issue list:*)",
       "Bash(gh api:*)"
     ],
     "ask": [

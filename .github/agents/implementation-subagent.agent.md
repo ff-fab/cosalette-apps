@@ -3,7 +3,7 @@ name: implementation-subagent
 description: Implementation subagent — executes task-specific work delegated by the orchestrator
 argument-hint: Task objective, files to modify, test requirements, and acceptance criteria from the orchestrator
 # tools: union of Copilot and Claude Code names — see CONTRIBUTING.md "AI Agent Setup".
-# Enforced by `task check-parity`: at least one name from each vocabulary is required.
+# Enforced by `task check:agents`: at least one name from each vocabulary is required.
 tools:
   ['edit', 'search', 'read', 'execute/runInTerminal', 'execute/getTerminalOutput',
    'execute/createAndRunTask', 'todo', 'Read', 'Grep', 'Glob', 'Edit', 'Write', 'Bash',
