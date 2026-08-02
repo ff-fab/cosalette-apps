@@ -1,0 +1,14 @@
+{
+  "name": "cosalette-apps",
+  "description": "Local marketplace serving this repository's own agent configuration to Claude Code.",
+  "owner": {
+    "name": "ff-fab"
+  },
+  "plugins": [
+    {
+      "name": "cosalette",
+      "source": "./.github",
+      "description": "Specialist subagents and workflow skills shared by Copilot, Claude Code and Kilo."
+    }
+  ]
+}

@@ -90,12 +90,12 @@ cosalette-apps/
 Agent configuration lives in `.github/` and is shared by GitHub Copilot, Claude Code and
 Kilo. `AGENTS.md` is the always-on instruction file for all three.
 
-| Surface              | Location                | Notes                                   |
-| -------------------- | ----------------------- | --------------------------------------- |
-| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md`    |
-| File-scoped guidance | `.github/instructions/` | Copilot + Kilo only (see below)         |
-| Repeatable workflows | `.github/skills/`       | `.kilo/skills/` symlinks in             |
-| Specialist agents    | `.github/agents/`       | `.kilo/agents/` is a separate hand copy |
+| Surface              | Location                | Notes                                |
+| -------------------- | ----------------------- | ------------------------------------ |
+| Always-on context    | `AGENTS.md`             | Claude Code reads it via `CLAUDE.md` |
+| File-scoped guidance | `.github/instructions/` | Claude reads it via `.claude/rules/` |
+| Repeatable workflows | `.github/skills/`       | Claude via the plugin manifest       |
+| Specialist agents    | `.github/agents/`       | Claude via the plugin manifest       |
 
 ### Union frontmatter
 
@@ -115,6 +115,58 @@ least one tool from each vocabulary.
 
 For `applyTo: '**'` (unconditional), Claude Code's equivalent is the **absence** of a
 `paths:` key — do not add one to those files.
+
+### How Claude Code reaches `.github/instructions/`
+
+Claude Code only scans `.claude/rules/`, so each instruction file is symlinked into it:
+
+```
+.claude/rules/python.md -> ../../.github/instructions/python.instructions.md
+```
+
+Git stores these as symlinks (mode `120000`), not as copies, so there is one physical
+file and nothing to keep in sync. `.claude/rules/` officially supports symlinks — unlike
+`.claude/skills/`, which has an open discovery bug
+([anthropics/claude-code#25367](https://github.com/anthropics/claude-code/issues/25367)).
+
+Adding a rule means creating the file in `.github/instructions/`. For file-scoped rules
+add both `applyTo:` (Copilot/Kilo) and `paths:` (Claude Code), then symlink it. For
+unconditional rules use `applyTo: '**'` and omit `paths:` — its absence means "load
+every session":
+
+```bash
+ln -s ../../.github/instructions/<name>.instructions.md .claude/rules/<name>.md
+```
+
+Verified against Claude Code 2.1.220: a rule with `paths: ['**/*.py']` loads when a
+`.py` file is read and stays out of context otherwise, and a rule with no `paths:` key
+loads every session.
+
+### How Claude Code reaches `.github/skills/` and `.github/agents/`
+
+Claude Code loads both through a **plugin**, which is why they need no duplication:
+
+| File                                 | Role                                                  |
+| ------------------------------------ | ----------------------------------------------------- |
+| `.github/.claude-plugin/plugin.json` | declares the skills dir and the agent files           |
+| `.claude-plugin/marketplace.json`    | repo-root marketplace whose one plugin is `./.github` |
+| `.claude/settings.json`              | registers the marketplace and enables the plugin      |
+
+Components appear namespaced: `cosalette:orchestrator`, `/cosalette:pr-review`.
+
+**Adding a skill needs no manifest change** — `plugin.json` registers the whole
+`./skills/` directory. **Adding an agent does:** the `agents` key only accepts a list of
+individual files, not a directory (a directory value fails `claude plugin validate`).
+
+Check the manifests after editing them:
+
+```bash
+claude plugin validate ./.github   # the plugin
+claude plugin validate .           # the marketplace
+```
+
+Verified against Claude Code 2.1.220: all 9 agents and all 8 skills load, and the
+`*.agent.md` filenames are accepted as-is — no renaming needed.
 
 ### The one key that cannot be shared: `model:`
 
@@ -153,8 +205,6 @@ are read-only. The union lists are safe.
 
 These are tracked under the `cap-pm1` epic and are not yet resolved:
 
-- **Claude Code does not read `.github/instructions/`.** There is no `.claude/rules/`
-  wiring yet (phase 2). Under Claude Code, open the relevant instruction file yourself.
 - **`.kilo/agents/` is a separate physical copy.** Editing a `.github/agents/*.agent.md`
   body does not update its Kilo mirror; `task check-parity` compares only `description`.
 

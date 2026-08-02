@@ -1,0 +1,1 @@
+../../.github/instructions/cosalette.instructions.md

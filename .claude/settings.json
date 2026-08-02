@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "cosalette-apps": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
+  },
+  "enabledPlugins": {
+    "cosalette@cosalette-apps": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(cat:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(pwd:*)",
+      "Bash(grep:*)",
+      "Bash(diff:*)",
+      "Bash(which:*)",
+      "Bash(echo:*)",
+      "Bash(cd:*)",
+      "Bash(mkdir:*)",
+
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)",
+      "Bash(git restore:*)",
+      "Bash(git switch:*)",
+      "Bash(git checkout:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git blame:*)",
+      "Bash(git remote -v)",
+
+      "Bash(task --list)",
+      "Bash(task lint:*)",
+      "Bash(task typecheck:*)",
+      "Bash(task check:*)",
+      "Bash(task test:*)",
+      "Bash(task pre-pr:*)",
+      "Bash(task complexity:*)",
+      "Bash(task similarity:*)",
+      "Bash(task check-parity:*)",
+      "Bash(task reuse:*)",
+      "Bash(task pr:diff:*)",
+      "Bash(task pr:feedback:*)",
+      "Bash(task pr:list:*)",
+      "Bash(task ci:wait:*)",
+      "Bash(task docs:build:*)",
+
+      "Bash(uv run pytest:*)",
+      "Bash(uv run ruff:*)",
+      "Bash(uv run ty:*)",
+      "Bash(uv run mypy:*)",
+      "Bash(uv run reuse:*)",
+      "Bash(uv run radon:*)",
+      "Bash(uv run xenon:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv lock:*)",
+      "Bash(uv tree:*)",
+      "Bash(uv version:*)",
+
+      "Bash(zensical:*)",
+      "Bash(bd:*)",
+      "Bash(showboat:*)",
+
+      "Bash(gh pr view:*)",
+      "Bash(gh pr list:*)",
+      "Bash(gh pr diff:*)",
+      "Bash(gh pr checks:*)",
+      "Bash(gh api:*)"
+    ],
+    "ask": [
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(task pr:create:*)",
+      "Bash(git push:*)"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./.envrc)",
+      "Read(./**/.envrc)",
+      "Read(./.beads/.beads-credential-key)",
+      "Bash(gh api --method POST:*)",
+      "Bash(gh api --method PATCH:*)",
+      "Bash(gh api --method PUT:*)",
+      "Bash(gh api --method DELETE:*)",
+      "Bash(gh api -X POST:*)",
+      "Bash(gh api -X PATCH:*)",
+      "Bash(gh api -X PUT:*)",
+      "Bash(gh api -X DELETE:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git push --mirror:*)",
+      "Bash(git push --delete:*)"
+    ]
+  }
+}

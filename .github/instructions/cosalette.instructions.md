@@ -1,9 +1,8 @@
 ---
 description: 'cosalette framework development guidance for AI agents'
 # applyTo scopes this file for GitHub Copilot. `paths` is the Claude Code equivalent and
-# is here ahead of the .claude/rules/ wiring that cap-pm1 phase 2 adds — Claude Code does
-# NOT read this file yet. Keep the two keys in sync. Kilo ignores both and loads the file
-# unconditionally.
+# takes effect through the .claude/rules/cosalette.md symlink. Keep the two keys in sync.
+# Kilo ignores both and loads the file unconditionally.
 #
 # WARNING: `cosalette ai init --force` overwrites this file wholesale (shutil.copy2) and
 # silently drops `paths:`. Re-add it after any refresh. See finding 1 in

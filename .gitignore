@@ -254,6 +254,12 @@ legacy/
 # Kilo plans
 .kilo/plans/
 
+# Claude Code runtime state. `.claude/settings.json` and `.claude/rules/` ARE committed
+# — they are shared config. Everything below is per-developer or per-session.
+.claude/worktrees/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # QA task logs
 .qa-logs/
 
