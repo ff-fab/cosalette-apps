@@ -1,6 +1,7 @@
 # Enhancement Proposal: `cosalette ai init` in multi-agent repositories
 
-**Status:** proposal — for hand-off to the cosalette framework
+**Status:** accepted — cosalette will ship the fix; findings 1 and 2 confirmed for
+implementation
 **Raised by:** cosalette-apps, during the multi-agent configuration consolidation
 (beads epic `cap-pm1`)
 **Verified against:** cosalette 0.5.8 (`_package_cli/_ai_init.py`,
@@ -188,13 +189,23 @@ removing.
 Findings 1 and 2 are the ones that actively cost this repository something today, and
 they are best fixed together: non-destructive refresh, plus a way to verify it.
 
-## What cosalette-apps is doing in the meantime
+## What cosalette-apps is doing
 
-- `paths:` is added to `cosalette.instructions.md` with an inline comment explaining that
-  it must survive refreshes.
-- Beads task `cap-pm1.13` tracks the local guard, currently scoped to either a checker
-  assertion (`applyTo != '**'` implies a `paths` key) or a documented re-add step in the
-  CONTRIBUTING "AI Agent Setup" chapter.
+Findings 1 and 2 will be fixed in the framework, so this repository builds **no local
+guard** against them — `cap-pm1.13` was closed as dropped rather than implemented. A
+downstream workaround would defend against a failure mode that is about to disappear,
+and it would have pushed the config checker (`cap-pm1.10`) past the deliberately thin
+scope of symlink resolution plus JSON-schema validation.
+
+- `paths:` stays in `cosalette.instructions.md` with an inline comment explaining that
+  it must survive refreshes. Once the framework preserves downstream frontmatter, that
+  comment becomes documentation rather than a warning.
 - `--opencode` is not used; `opencode.json` is being deleted.
 - The `.vscode/mcp.json` entry is kept as generated, with the absolute path accepted as a
   devcontainer-only constraint.
+
+**One request on the shape of the fix.** The value of finding 1 is entirely in
+preserving keys the framework does not recognise. A fix that preserves a known allowlist
+of extra keys would not help — the next tool this repository adopts will bring a key
+nobody has thought of yet. Unknown keys need to be treated as downstream property by
+default. If the change lands narrower than that, we will need the local guard after all.
