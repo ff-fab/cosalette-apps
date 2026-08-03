@@ -227,7 +227,7 @@ pinned tools (`task`, `dolt`, `beads`) — Renovate version bumps get extra scru
    — SHA-256 guards against corruption, not a wrong binary packaged into the ARM64
    tarball:
    ```bash
-   docker buildx build --platform linux/arm64 -t kilo-arm64-check -f .devcontainer/Dockerfile .
+   docker buildx build --load --platform linux/arm64 -t kilo-arm64-check -f .devcontainer/Dockerfile .
    docker run --rm --platform linux/arm64 kilo-arm64-check kilo --version
    ```
 3. Leave a PR comment confirming both checks passed before merging.

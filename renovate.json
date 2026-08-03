@@ -48,7 +48,7 @@
       "description": "Kilo (Kilo-Org/kilocode) is a smaller-community fork with less audit history — flag version bumps for manual SHA-256 verification before merge",
       "matchManagers": ["dockerfile"],
       "matchDepNames": ["Kilo-Org/kilocode"],
-      "labels": ["needs-manual-sha-verification"],
+      "addLabels": ["needs-manual-sha-verification"],
       "automerge": false
     }
   ],
