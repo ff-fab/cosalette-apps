@@ -212,6 +212,31 @@ accepts the JSONC comments and interpolates `{env:CONTEXT7_API_KEY}`,
 `OPENCODE_API_KEY`. Inside the devcontainer, substitute `kilo` for `opencode` — the
 subcommands are identical.
 
+### Updating Kilo
+
+Kilo-Org/kilocode is a smaller-community fork with less audit history than the other
+pinned tools (`task`, `dolt`, `beads`) — Renovate version bumps get extra scrutiny
+(finding #6, PR #194 review). Renovate labels these PRs `needs-manual-sha-verification`
+(see `renovate.json`) and does not automerge them; green CI alone is not a merge signal.
+
+**Before merging a Kilo version-bump PR:**
+
+1. Open the GitHub release page for the new `KILO_VERSION` tag and manually verify
+   `KILO_SHA256_AMD64` and `KILO_SHA256_ARM64` in `.devcontainer/Dockerfile` against it.
+2. Build the image for `linux/arm64` and actually **execute** the kilo binary inside it
+   — SHA-256 guards against corruption, not a wrong binary packaged into the ARM64
+   tarball:
+   ```bash
+   docker buildx build --platform linux/arm64 -t kilo-arm64-check -f .devcontainer/Dockerfile .
+   docker run --rm --platform linux/arm64 kilo-arm64-check kilo --version
+   ```
+3. Leave a PR comment confirming both checks passed before merging.
+
+**Post-rebuild checklist:** after rebuilding the devcontainer, `kilo --version` only
+proves the binary is installed. Also run `kilo debug config` to confirm
+`OPENCODE_API_KEY` resolves and `kilo.jsonc` loads — this can't be checked at
+image-build time since credentials aren't available then.
+
 ### The one key that cannot be shared: `model:`
 
 Union frontmatter works because tools ignore keys they do not recognise. `model:` is the
