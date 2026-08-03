@@ -62,6 +62,20 @@ while true; do
 
     checks=$(gh pr checks "$PR" --json name,state,link 2>&1) || true
 
+    # gh silently ignores --json and prints this plain-text message to stderr
+    # (exit 1) when a PR has zero checks registered yet — e.g. right after
+    # opening a PR, before CI has started reporting. This is normal and
+    # transient, not an API/auth failure, so it must not count toward
+    # MAX_API_FAILURES. Use printf (echo can misinterpret a leading '-' as an
+    # option) and anchor the match to the start of the message so a valid
+    # JSON response (which always starts with '[') can never false-match.
+    if printf '%s' "$checks" | grep -qi "^no checks reported"; then
+        api_failures=0
+        echo "$(date +%H:%M:%S) — no checks reported yet, waiting for CI to register..."
+        sleep "$INTERVAL"
+        continue
+    fi
+
     # Guard against transient API errors (empty or non-JSON response).
     # Bail out after MAX_API_FAILURES consecutive failures — a persistent
     # non-JSON response usually means the gh auth token has expired.
