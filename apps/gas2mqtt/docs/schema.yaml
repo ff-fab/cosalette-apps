@@ -45,8 +45,8 @@ channels:
               type: integer
               x-cosalette-consumer:
                 display_name: Gas Pulse Counter
-                icon: mdi:counter
                 state_class: total_increasing
+                icon: mdi:counter
             trigger:
               title: Trigger
               type: string
@@ -57,10 +57,10 @@ channels:
               default: null
               title: Consumption M3
               x-cosalette-consumer:
-                device_class: gas
                 display_name: Gas Consumption
+                device_class: gas
+                unit: m³
                 state_class: total_increasing
-                unit: "m\xB3"
           required:
           - counter
           - trigger
@@ -72,8 +72,8 @@ channels:
     x-cosalette-behavior:
     - Read 3-axis magnetic field from QMC5883L via MagnetometerPort
     - Feed Bz value through SchmittTrigger for hysteresis-based edge detection
-    - "Increment counter on rising edge (LOW\u2192HIGH transition)"
-    - "Optionally increment ConsumptionTracker by liters_per_tick/1000 m\xB3"
+    - Increment counter on rising edge (LOW→HIGH transition)
+    - Optionally increment ConsumptionTracker by liters_per_tick/1000 m³
     - Stage updated counter and consumption_m3 to DeviceStore with explicit save
     x-cosalette-effects:
     - Publishes counter, trigger state, and optionally consumption_m3 to MQTT
@@ -99,8 +99,8 @@ channels:
               type: number
               x-cosalette-consumer:
                 device_class: temperature
+                unit: °C
                 state_class: measurement
-                unit: "\xB0C"
           required:
           - temperature
           title: TemperatureReading
