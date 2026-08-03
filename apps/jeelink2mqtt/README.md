@@ -27,10 +27,11 @@ each sensor first appears) was also evaluated and rejected:
 (`jeelink2mqtt/...`) — there is no public API for a device handler to publish to the
 shared `homeassistant/` discovery namespace used by other integrations on the same
 broker. Reaching into the framework's internal MQTT client to bypass that scoping would
-break the ports-and-adapters boundary this codebase otherwise holds to strictly
-(ADR-003), and no other app in this repo does runtime discovery publishing — every
-enriched app relies exclusively on the static, build-time `schema:ha-discovery`
-pipeline.
+break the ports-and-adapters boundary this app otherwise holds to strictly
+(jeelink2mqtt's [ADR-001](docs/adr/ADR-001-application-framework.md), which chose
+cosalette specifically for its hexagonal architecture), and no other app in this repo
+does runtime discovery publishing — every enriched app relies exclusively on the static,
+build-time `schema:ha-discovery` pipeline.
 
 Home Assistant can still consume jeelink2mqtt's sensors today via manually-configured
 [MQTT sensor](https://www.home-assistant.io/integrations/sensor.mqtt/) entities pointed

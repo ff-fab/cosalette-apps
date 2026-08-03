@@ -92,9 +92,10 @@ and both `publish_state()` and `publish()` build their topic as
 topic outside that prefix. The only route we found is the private `ctx._mqtt` attribute
 (`cosalette._mqtt.MqttPort.publish(topic, payload, ...)`, which *does* accept an
 arbitrary topic string) — but that means bypassing the public port abstraction
-entirely, which is exactly the boundary ADR-006 (Protocol-based ports) exists to
-enforce on the framework side, and ADR-003 (hexagonal architecture) enforces on the
-cosalette-apps side.
+entirely, i.e. the Protocol-based port boundary cosalette itself is built on, and the
+same hexagonal-architecture boundary that jeelink2mqtt's own `ADR-001`
+(`apps/jeelink2mqtt/docs/adr/ADR-001-application-framework.md`) cites as the reason it
+chose cosalette.
 
 **Consequence:** even an app willing to hand-roll its own discovery-payload
 construction and publish it imperatively at runtime (bypassing the schema/consumer
@@ -218,8 +219,10 @@ what cap-dnw did at the cosalette-apps level for jeelink2mqtt).
 - **Shape:** none.
 - **Tradeoffs:** zero framework risk or maintenance cost, but every STREAM-archetype
   app in every cosalette-apps consumer permanently loses HA discovery, pushing
-  consumers toward manually-configured MQTT entities or ADR-003-violating private-API
-  workarounds if they want automation badly enough. Consistent with the framework's
+  consumers toward manually-configured MQTT entities or private-API workarounds that
+  violate the app-level hexagonal-architecture boundary (e.g. jeelink2mqtt's `ADR-001`,
+  `apps/jeelink2mqtt/docs/adr/ADR-001-application-framework.md`) if they want automation
+  badly enough. Consistent with the framework's
   declarative-schema philosophy in the narrow sense that it adds nothing undeclared,
   but at the cost of a real capability gap for an entire archetype.
 
@@ -253,9 +256,10 @@ point fix for jeelink2mqtt's specific gap.
 
 jeelink2mqtt documents HA discovery as not applicable (README, cap-dnw), mirroring the
 caldates2mqtt/suncast pattern (commit `9322db1`). No workaround was implemented against
-private cosalette internals (e.g. `ctx._mqtt`) — that would violate this repo's own
-ADR-003 hexagonal-architecture boundary for the sake of a framework gap that belongs
-upstream.
+private cosalette internals (e.g. `ctx._mqtt`) — that would violate jeelink2mqtt's own
+hexagonal-architecture boundary (`ADR-001`,
+`apps/jeelink2mqtt/docs/adr/ADR-001-application-framework.md`) for the sake of a
+framework gap that belongs upstream.
 
 **One request on the shape of the fix.** Whatever combination of (a)–(e) the
 maintainers pursue, we'd ask that the resulting public API be something a STREAM app
