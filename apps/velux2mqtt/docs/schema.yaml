@@ -14,11 +14,6 @@ channels:
             position:
               title: Position
               type: integer
-              x-cosalette-consumer:
-                display_name: Cover Position
-                icon: mdi:window-shutter
-                state_class: measurement
-                unit: '%'
           required:
           - position
           title: CoverState

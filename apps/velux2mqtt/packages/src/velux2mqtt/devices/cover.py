@@ -38,7 +38,6 @@ from dataclasses import dataclass
 from typing import Annotated, Literal
 
 import cosalette
-from cosalette.schema import consumer
 from pydantic import Field
 
 from velux2mqtt.domain.calibration import (
@@ -64,28 +63,31 @@ class CoverState:
 
     Wired as ``state_model=CoverState`` on ``app.device`` in
     :mod:`velux2mqtt.main` so ``cosalette schema init`` emits a typed
-    ``position`` property instead of a bare ``type: object``. The
-    ``x-cosalette-consumer`` annotation that drives Home Assistant MQTT
-    discovery rides on the field via :func:`pydantic.Field`'s
-    ``json_schema_extra``, so schema regeneration reproduces it
-    automatically — no hand-maintained schema block.
+    ``position`` property instead of a bare ``type: object``.
+
+    Deliberately carries **no** ``x-cosalette-consumer`` annotation (no
+    ``cosalette.schema.consumer(...)`` on the field). ``app.device`` is
+    registered with a callable ``name=`` (``_cover_map`` in
+    :mod:`velux2mqtt.main`, keyed off user-configured ``settings.covers``),
+    so cosalette's static schema pipeline collapses every real per-cover
+    device (``blind``, ``window``, ...) into a single channel named after
+    the Python handler's qualname (``cover_device``). A consumer
+    annotation here would make ``cosalette schema ha-discovery`` emit a
+    payload whose ``state_topic`` is ``velux2mqtt/cover_device/state`` —
+    a topic no running cover ever publishes to (real topics are
+    ``velux2mqtt/{cover.name}/state``) — registering a permanently
+    unavailable phantom entity in Home Assistant. Cover names come from
+    per-deployment settings, so they cannot be hardcoded as a workaround.
+    Re-add the annotation once cosalette's schema pipeline resolves
+    callable-``name=`` NameSpecs to per-instance channels; see
+    ``apps/velux2mqtt/README.md`` "Home Assistant Discovery" section.
 
     Mirrors the dict published by :func:`_publish_position`:
     ``{"position": <int 0-100>}``. The model is schema-only; cosalette
     does not validate runtime payloads against it.
     """
 
-    position: Annotated[
-        int,
-        Field(
-            json_schema_extra=consumer(
-                display_name="Cover Position",
-                unit="%",
-                state_class="measurement",
-                icon="mdi:window-shutter",
-            ),
-        ),
-    ]
+    position: Annotated[int, Field(title="Position")]
 
 
 async def cover_device(
