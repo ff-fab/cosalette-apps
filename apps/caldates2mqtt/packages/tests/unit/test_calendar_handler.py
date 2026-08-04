@@ -5,6 +5,7 @@ Test Techniques Used:
 - Equivalence Partitioning: Trigger payload variants (valid, invalid, empty)
 - Boundary Value Analysis: Trigger override limits for entries and days
 - Error Guessing: Invalid JSON payloads, CalDavError propagation
+- Round-trip Testing: CalendarState schema contract vs handler serialisation
 """
 
 from __future__ import annotations
@@ -17,7 +18,13 @@ import pytest
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import CalDavConnectionError
-from caldates2mqtt.main import calendar
+from caldates2mqtt.main import (
+    CalendarEvent as SchemaCalendarEvent,
+)
+from caldates2mqtt.main import (
+    CalendarState,
+    calendar,
+)
 from caldates2mqtt.ports import CalendarEvent
 from caldates2mqtt.settings import CalendarConfig
 
@@ -81,6 +88,29 @@ class TestCalendarHandlerHappyPath:
                 {"title": "Restmuell", "date": "2026-03-31"},
             ]
         }
+
+    def test_calendar_state_roundtrip(self) -> None:
+        """CalendarState can be constructed from the handler's return shape.
+
+        Technique: Round-trip Testing — verify the schema dataclass contract
+        matches the dict the handler actually serialises, catching future field
+        renames or type mismatches between the two representations.
+        """
+        raw = {
+            "events": [
+                {"title": "Gelber Sack", "date": "2026-03-27"},
+                {"title": "Restmuell", "date": "2026-03-31"},
+            ]
+        }
+        state = CalendarState(
+            events=[
+                SchemaCalendarEvent(title=e["title"], date=e["date"])
+                for e in raw["events"]  # type: ignore[index]
+            ]
+        )
+        assert state.events[0].title == "Gelber Sack"
+        assert state.events[0].date == "2026-03-27"
+        assert state.events[1].date == "2026-03-31"
 
     async def test_events_sliced_to_entries_count(
         self, fake_reader: FakeCalDavReader

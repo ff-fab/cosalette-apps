@@ -7,20 +7,31 @@ CalDAV calendar dates to MQTT bridge
 
 ## Home Assistant Discovery
 
-**Not applicable.** This app does not emit Home Assistant MQTT discovery payloads, and
-its `docs/schema.yaml` carries no `x-cosalette-consumer` annotations (running
-`task caldates2mqtt:schema:ha-discovery` yields an empty payload list `[]`).
+**Not yet functional — prepared, not blocked on this app.** Running
+`task caldates2mqtt:schema:ha-discovery` still yields an empty payload list `[]`.
 
-The `calendar` telemetry handler publishes an event-list payload — a `dict[str, object]`
-of the shape `{"events": [{"title": ..., "date": ...}, ...]}` — with one MQTT topic per
-configured calendar (the `_calendar_map` name pattern). Home Assistant has no standard
-`device_class` for a calendar event list, and the payload is a nested structure rather
-than a scalar HA can map directly to a `sensor` / `binary_sensor` entity. Surfacing it
-would require an app-specific value template (for example "days until next event" or
-"event active today") that has no standard discovery mapping.
+`docs/schema.yaml` now carries a typed `state_model` (`CalendarState` in `main.py`,
+wired via `state_model=` on `@app.telemetry`) so the channel is no longer a bare
+`additionalProperties: true` object, and its nested `CalendarEvent` fields (`title`,
+`date`) carry `cosalette.schema.consumer(...)` annotations ready for when discovery
+becomes possible. Two independent things still block a working entity today:
 
-This is a future enhancement, not a gap: it can be revisited once the discovery library
-supports event-list payloads.
+1. **Nested list payload.** The `calendar` handler publishes
+   `{"events": [{"title": ..., "date": ...}, ...]}`. cosalette's HA/OpenHAB generators
+   only walk a channel's top-level properties, never items inside a nested list — so the
+   per-event `consumer()` annotations are currently inert, and Home Assistant has no
+   standard `device_class` for a calendar event list even if they weren't.
+2. **Callable `name=` collapse.** `app.telemetry` is registered with a callable `name=`
+   (`_calendar_map`, keyed off user-configured `settings.calendars`), so cosalette's
+   static schema pipeline collapses every real per-calendar device into one channel
+   named after this handler's qualname (`calendar`) — the same issue that produced a
+   phantom entity for velux2mqtt (see that app's README) before its consumer annotation
+   was removed as a fix. caldates2mqtt never shipped that bug because its channel had no
+   consumer annotations to begin with.
+
+Both are prerequisites for the same upstream settings-aware schema pipeline. This model
+is prepared so caldates2mqtt is ready the moment that pipeline (and list/array payload
+support) lands — no further modeling work needed here.
 
 ## Contributing
 

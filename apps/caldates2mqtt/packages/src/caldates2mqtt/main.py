@@ -7,8 +7,12 @@ with periodic polling and on-demand re-read via MQTT trigger.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
+from typing import Annotated
 
 import cosalette
+from cosalette.schema import consumer
+from pydantic import Field
 
 from caldates2mqtt import __version__
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
@@ -23,6 +27,44 @@ from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
 
 _ENTRIES_MAX = 50
 _DAYS_MAX = 365
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarEvent:
+    """One upcoming event entry within a calendar's event list.
+
+    Mirrors the per-event dict built by :func:`calendar`:
+    ``{"title": ..., "date": ...}``. The ``consumer()`` annotations are
+    preparatory only: cosalette's HA/OpenHAB generators walk a channel's
+    *top-level* properties, never nested list items, so these are inert
+    today — no discovery payload results. They're wired now so this model
+    is ready the moment the schema pipeline gains list/array payload
+    support (tracked upstream).
+    """
+
+    title: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Title"))]
+    date: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Date"))]
+
+
+@dataclass(frozen=True, slots=True)
+class CalendarState:
+    """Typed ``state_model`` for the calendar telemetry channel.
+
+    Mirrors the dict returned by :func:`calendar`: ``{"events": [...]}``.
+    Wiring this (instead of leaving the channel ``additionalProperties:
+    true``) also doesn't yet produce HA discovery: ``app.telemetry`` here
+    is registered with a callable ``name=`` (``_calendar_map``, keyed off
+    user-configured ``settings.calendars``), so cosalette's static schema
+    pipeline collapses every real per-calendar device into one channel
+    named after this handler's qualname (``calendar``) — the same
+    callable-``name=`` limitation documented for velux2mqtt. Both blockers
+    (list payloads, qualname collapse) need the upstream settings-aware
+    schema pipeline before HA discovery becomes functional here. See
+    ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery" section.
+    """
+
+    events: list[CalendarEvent]
+
 
 app = cosalette.App(
     name="caldates2mqtt",
@@ -47,6 +89,7 @@ def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
     triggerable=True,
     retry=3,
     retry_on=(CalDavConnectionError, CalDavTimeoutError),
+    state_model=CalendarState,
 )
 async def calendar(
     cal: CalendarConfig,
