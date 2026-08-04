@@ -58,7 +58,7 @@ def ha_payloads() -> list[dict[str, Any]]:
 # Real runtime state topics follow velux2mqtt/{cover}/state (docs/mqtt-topics.md).
 # The qualname collapse this test guards against would instead produce
 # velux2mqtt/cover_device/state — never a real per-cover topic.
-_REAL_STATE_TOPIC_RE = re.compile(r"^velux2mqtt/(?!cover_device$)[^/]+/state$")
+_REAL_STATE_TOPIC_RE = re.compile(r"^velux2mqtt/(?!cover_device/)[^/]+/state$")
 
 
 @pytest.mark.integration
