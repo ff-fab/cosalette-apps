@@ -25,9 +25,9 @@ members = ["apps/*"]
 # ── Security constraints ───────────────────────────────────────
 # CVE-2026-42561: python-multipart <0.0.27
 # CVE-2026-41066: lxml <6.1.0
-# CVE-2026-34993, CVE-2026-54279 et al: aiohttp <3.14.1
+# CVE-2026-34993, CVE-2026-54279 et al: aiohttp <3.14.1; PYSEC-2026-3545/3546/3547: aiohttp <3.14.3
 # GHSA-6v7p-g79w-8964: msgpack <1.2.1
-# GHSA-537c-gmf6-5ccf: cryptography <48.0.1
+# GHSA-537c-gmf6-5ccf: cryptography <48.0.1; PYSEC-2026-3552: cryptography <50.0.0
 # PYSEC-2026-215: idna <3.15
 # GHSA-4xgf-cpjx-pc3j: pydantic-settings <2.14.2
 # PYSEC-2026-175 et al: pyjwt <2.13.0
@@ -37,8 +37,8 @@ members = ["apps/*"]
 # CVE-2026-48817, CVE-2026-54283 et al: starlette <1.3.1
 [tool.uv]
 constraint-dependencies = [
-    "aiohttp>=3.14.1",
-    "cryptography>=48.0.1",
+    "aiohttp>=3.14.3",
+    "cryptography>=50.0.0",
     "idna>=3.15",
     "lxml>=6.1.0",
     "msgpack>=1.2.1",
@@ -210,5 +210,5 @@ dev = [
     # Platform Compatibility Workarounds
     "urllib3>=2.7.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
     # AI/MCP tooling support (cosalette ai mcp serve)
-    "cosalette[mcp]>=0.5.8,<0.6",
+    "cosalette[mcp]>=0.5.9,<0.6",
 ]

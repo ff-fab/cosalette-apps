@@ -16,9 +16,9 @@ channels:
               type: integer
               x-cosalette-consumer:
                 display_name: Cover Position
-                icon: mdi:window-shutter
-                state_class: measurement
                 unit: '%'
+                state_class: measurement
+                icon: mdi:window-shutter
           required:
           - position
           title: CoverState
@@ -28,7 +28,7 @@ channels:
     x-cosalette-behavior:
     - Startup homing to a known endpoint for reliable position reference
     - Open/close/stop commands via GPIO button presses on KLF 050 remote
-    - "Position targeting (0\u2013100%) with time-based position tracking"
+    - Position targeting (0–100%) with time-based position tracking
     - Calibration sub-entity (start/go/mark/cancel phases)
     - 'Drift compensation: periodic re-homing after consecutive intermediate moves'
     x-cosalette-effects:

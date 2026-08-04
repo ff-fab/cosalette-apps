@@ -16,31 +16,31 @@ channels:
               type: number
               x-cosalette-consumer:
                 device_class: temperature
+                unit: °C
                 state_class: measurement
-                unit: "\xB0C"
             humidity:
               title: Humidity
               type: number
               x-cosalette-consumer:
                 device_class: humidity
-                state_class: measurement
                 unit: '%'
+                state_class: measurement
             radon_24h_avg:
               title: Radon 24H Avg
               type: integer
               x-cosalette-consumer:
                 display_name: Radon (24h avg)
-                icon: mdi:radioactive
+                unit: Bq/m³
                 state_class: measurement
-                unit: "Bq/m\xB3"
+                icon: mdi:radioactive
             radon_long_term_avg:
               title: Radon Long Term Avg
               type: integer
               x-cosalette-consumer:
                 display_name: Radon (long-term avg)
-                icon: mdi:radioactive
+                unit: Bq/m³
                 state_class: measurement
-                unit: "Bq/m\xB3"
+                icon: mdi:radioactive
           required:
           - temperature
           - humidity
