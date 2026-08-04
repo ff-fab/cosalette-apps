@@ -65,9 +65,9 @@ channels:
               title: Brightness Percent
               x-cosalette-consumer:
                 display_name: Display Brightness
-                icon: mdi:brightness-percent
-                state_class: measurement
                 unit: '%'
+                state_class: measurement
+                icon: mdi:brightness-percent
           required:
           - available
           - state
