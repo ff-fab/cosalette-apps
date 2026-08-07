@@ -38,6 +38,7 @@ from dataclasses import dataclass
 from typing import Annotated, Literal
 
 import cosalette
+from cosalette.schema import consumer
 from pydantic import Field
 
 from velux2mqtt.domain.calibration import (
@@ -62,32 +63,40 @@ class CoverState:
     """Typed ``state_model`` for the cover device's MQTT state channel.
 
     Wired as ``state_model=CoverState`` on ``app.device`` in
-    :mod:`velux2mqtt.main` so ``cosalette schema init`` emits a typed
-    ``position`` property instead of a bare ``type: object``.
+    :mod:`velux2mqtt.main` so ``cosalette schema init``/``dump`` emits a
+    typed ``position`` property instead of a bare ``type: object``.
 
-    Deliberately carries **no** ``x-cosalette-consumer`` annotation (no
-    ``cosalette.schema.consumer(...)`` on the field). ``app.device`` is
-    registered with a callable ``name=`` (``_cover_map`` in
-    :mod:`velux2mqtt.main`, keyed off user-configured ``settings.covers``),
-    so cosalette's static schema pipeline collapses every real per-cover
-    device (``blind``, ``window``, ...) into a single channel named after
-    the Python handler's qualname (``cover_device``). A consumer
-    annotation here would make ``cosalette schema ha-discovery`` emit a
-    payload whose ``state_topic`` is ``velux2mqtt/cover_device/state`` —
-    a topic no running cover ever publishes to (real topics are
-    ``velux2mqtt/{cover.name}/state``) — registering a permanently
-    unavailable phantom entity in Home Assistant. Cover names come from
-    per-deployment settings, so they cannot be hardcoded as a workaround.
-    Re-add the annotation once cosalette's schema pipeline resolves
-    callable-``name=`` NameSpecs to per-instance channels; see
-    ``apps/velux2mqtt/README.md`` "Home Assistant Discovery" section.
+    ``app.device`` is registered with a callable ``name=`` (``_cover_map``
+    in :mod:`velux2mqtt.main`, keyed off user-configured
+    ``settings.covers``), so a plain ``cosalette schema init``/``check``
+    still collapses every real per-cover device (``blind``, ``window``,
+    ...) into a single channel named after the Python handler's qualname
+    (``cover_device``) — the ``x-cosalette-consumer`` annotation below
+    would then produce a phantom ``state_topic`` no cover ever publishes
+    to. ``task velux2mqtt:schema:generate`` avoids that by resolving
+    settings first (``cosalette schema dump --resolve-settings``, ADR-051)
+    against the checked-in ``.env.schema`` profile, expanding the NameSpec
+    into real per-cover channels (e.g. ``blindState``/``windowState``)
+    before this annotation is read — see ``docs/schema.yaml`` and cap-0cg.
+    ``cosalette schema check`` (the CI gate) still cannot validate this
+    app at all (no ``--resolve-settings`` support there; cap-wv9 part b,
+    upstream-blocked) — see ``apps/velux2mqtt/README.md`` "Home Assistant
+    Discovery" section.
 
     Mirrors the dict published by :func:`_publish_position`:
     ``{"position": <int 0-100>}``. The model is schema-only; cosalette
     does not validate runtime payloads against it.
     """
 
-    position: Annotated[int, Field(title="Position")]
+    position: Annotated[
+        int,
+        Field(
+            title="Position",
+            json_schema_extra=consumer(
+                display_name="Cover Position", unit="%", state_class="measurement"
+            ),
+        ),
+    ]
 
 
 async def cover_device(
