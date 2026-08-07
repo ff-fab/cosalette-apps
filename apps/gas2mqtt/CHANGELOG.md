@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.4](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.1.3...gas2mqtt-v0.1.4) (2026-08-07)
+
+
+### Features
+
+* **gas2mqtt:** add telemetry retry + review interval timeouts ([#170](https://github.com/ff-fab/cosalette-apps/issues/170)) ([420abcc](https://github.com/ff-fab/cosalette-apps/commit/420abcccd1aeb2a40927329e1529455722aad3bb))
+* HA discovery schema enrichment for gas2mqtt + velux2mqtt (cap-3bz Phase 1) ([#180](https://github.com/ff-fab/cosalette-apps/issues/180)) ([fe1d3cb](https://github.com/ff-fab/cosalette-apps/commit/fe1d3cbb41384e481a5faf5fdbc153a5fffbe2de))
+* upgrade cosalette to 0.5.7 and adopt HA-discovery + error-hardening features ([#182](https://github.com/ff-fab/cosalette-apps/issues/182)) ([f00edd0](https://github.com/ff-fab/cosalette-apps/commit/f00edd00267aaad6f14c6604bc51686ee5727124))
+
+
+### Bug Fixes
+
+* **cosalette:** bump to 0.5.10 for schema fail-loud + settings-resolve mode ([#202](https://github.com/ff-fab/cosalette-apps/issues/202)) ([3107afe](https://github.com/ff-fab/cosalette-apps/commit/3107afe237204d53a48c13d7ee106a2f81370ed4))
+* **cosalette:** unicode schema fix + jeelink2mqtt HA-discovery decision ([#200](https://github.com/ff-fab/cosalette-apps/issues/200)) ([d81b76e](https://github.com/ff-fab/cosalette-apps/commit/d81b76e77b5a89b2eefda606d3c29142205eefdd))
+
 ## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.1.2...gas2mqtt-v0.1.3) (2026-06-27)
 
 

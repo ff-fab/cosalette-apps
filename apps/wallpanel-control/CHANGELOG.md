@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.2](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.2.1...wallpanel-control-v0.2.2) (2026-08-07)
+
+
+### Features
+
+* add unavailable_on to command handlers ([#171](https://github.com/ff-fab/cosalette-apps/issues/171)) ([b6142b3](https://github.com/ff-fab/cosalette-apps/commit/b6142b338355505fad2ec63c7f32e16038cb43c1))
+* HA discovery schema enrichment for wallpanel-control + vito2mqtt (cap-3bz Phase 2) ([#181](https://github.com/ff-fab/cosalette-apps/issues/181)) ([34abe9c](https://github.com/ff-fab/cosalette-apps/commit/34abe9cf36dc879296bb189597d91aae17a52805))
+* upgrade cosalette to 0.5.7 and adopt HA-discovery + error-hardening features ([#182](https://github.com/ff-fab/cosalette-apps/issues/182)) ([f00edd0](https://github.com/ff-fab/cosalette-apps/commit/f00edd00267aaad6f14c6604bc51686ee5727124))
+
+
+### Bug Fixes
+
+* **cosalette:** bump to 0.5.10 for schema fail-loud + settings-resolve mode ([#202](https://github.com/ff-fab/cosalette-apps/issues/202)) ([3107afe](https://github.com/ff-fab/cosalette-apps/commit/3107afe237204d53a48c13d7ee106a2f81370ed4))
+* **cosalette:** unicode schema fix + jeelink2mqtt HA-discovery decision ([#200](https://github.com/ff-fab/cosalette-apps/issues/200)) ([d81b76e](https://github.com/ff-fab/cosalette-apps/commit/d81b76e77b5a89b2eefda606d3c29142205eefdd))
+* resolve cosalette 0.5.1 ephemeral-store warning for store-less apps ([#167](https://github.com/ff-fab/cosalette-apps/issues/167)) ([e67b97c](https://github.com/ff-fab/cosalette-apps/commit/e67b97c054e39a7c40802d573a5ac848fe6a0204))
+
 ## [0.2.1](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.2.0...wallpanel-control-v0.2.1) (2026-06-27)
 
 

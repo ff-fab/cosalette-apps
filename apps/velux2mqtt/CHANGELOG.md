@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.4](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.1.3...velux2mqtt-v0.1.4) (2026-08-07)
+
+
+### Features
+
+* **caldates2mqtt:** add typed state_model as HA-discovery prep (cap-wxg) ([733e954](https://github.com/ff-fab/cosalette-apps/commit/733e95430bdfc5f3cb4c7f7c2a8ee40b144b7161))
+* HA discovery schema enrichment for gas2mqtt + velux2mqtt (cap-3bz Phase 1) ([#180](https://github.com/ff-fab/cosalette-apps/issues/180)) ([fe1d3cb](https://github.com/ff-fab/cosalette-apps/commit/fe1d3cbb41384e481a5faf5fdbc153a5fffbe2de))
+* upgrade cosalette to 0.5.7 and adopt HA-discovery + error-hardening features ([#182](https://github.com/ff-fab/cosalette-apps/issues/182)) ([f00edd0](https://github.com/ff-fab/cosalette-apps/commit/f00edd00267aaad6f14c6604bc51686ee5727124))
+
+
+### Bug Fixes
+
+* **cosalette:** bump to 0.5.10 for schema fail-loud + settings-resolve mode ([#202](https://github.com/ff-fab/cosalette-apps/issues/202)) ([3107afe](https://github.com/ff-fab/cosalette-apps/commit/3107afe237204d53a48c13d7ee106a2f81370ed4))
+* **cosalette:** unicode schema fix + jeelink2mqtt HA-discovery decision ([#200](https://github.com/ff-fab/cosalette-apps/issues/200)) ([d81b76e](https://github.com/ff-fab/cosalette-apps/commit/d81b76e77b5a89b2eefda606d3c29142205eefdd))
+* resolve cosalette 0.5.1 ephemeral-store warning for store-less apps ([#167](https://github.com/ff-fab/cosalette-apps/issues/167)) ([e67b97c](https://github.com/ff-fab/cosalette-apps/commit/e67b97c054e39a7c40802d573a5ac848fe6a0204))
+* **velux2mqtt:** stop shipping phantom HA-discovery entity ([#201](https://github.com/ff-fab/cosalette-apps/issues/201)) ([733e954](https://github.com/ff-fab/cosalette-apps/commit/733e95430bdfc5f3cb4c7f7c2a8ee40b144b7161))
+
 ## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.1.2...velux2mqtt-v0.1.3) (2026-06-27)
 
 
