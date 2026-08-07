@@ -4,36 +4,59 @@ info:
   version: 0.1.3
   x-cosalette-contract-version: '1'
 channels:
-  cover_deviceState:
-    address: velux2mqtt/cover_device/state
+  blindState:
+    address: velux2mqtt/blind/state
     x-cosalette-app: velux2mqtt
     messages:
       message:
         payload:
-          properties:
+          properties: &id001
             position:
               title: Position
               type: integer
-          required:
+              x-cosalette-consumer:
+                display_name: Cover Position
+                unit: '%'
+                state_class: measurement
+          required: &id002
           - position
           title: CoverState
           type: object
     x-cosalette-archetype: device
     x-cosalette-summary: 'Velux cover: GPIO-driven open/close/stop/position control'
-    x-cosalette-behavior:
+    x-cosalette-behavior: &id003
     - Startup homing to a known endpoint for reliable position reference
     - Open/close/stop commands via GPIO button presses on KLF 050 remote
     - Position targeting (0–100%) with time-based position tracking
     - Calibration sub-entity (start/go/mark/cancel phases)
     - 'Drift compensation: periodic re-homing after consecutive intermediate moves'
-    x-cosalette-effects:
+    x-cosalette-effects: &id004
     - Presses GPIO pins (up/stop/down) via GpioSwitchPort
     - Publishes cover position state to MQTT
+  windowState:
+    address: velux2mqtt/window/state
+    x-cosalette-app: velux2mqtt
+    messages:
+      message:
+        payload:
+          properties: *id001
+          required: *id002
+          title: CoverState
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: 'Velux cover: GPIO-driven open/close/stop/position control'
+    x-cosalette-behavior: *id003
+    x-cosalette-effects: *id004
 operations:
-  publishCoverDeviceState:
+  publishBlindState:
     action: send
     channel:
-      $ref: '#/channels/cover_deviceState'
+      $ref: '#/channels/blindState'
+    summary: 'Velux cover: GPIO-driven open/close/stop/position control'
+  publishWindowState:
+    action: send
+    channel:
+      $ref: '#/channels/windowState'
     summary: 'Velux cover: GPIO-driven open/close/stop/position control'
 x-cosalette-enforcement:
   mode: warn

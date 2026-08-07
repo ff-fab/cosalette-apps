@@ -1,31 +1,31 @@
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery generation.
 
 ``app.device`` is registered with a callable ``name=`` (``_cover_map`` in
-:mod:`velux2mqtt.main`, keyed off user-configured ``settings.covers``), so
-cosalette's static schema pipeline collapses every real per-cover device
-(``blind``, ``window``, ...) into a single channel named after the Python
-handler's qualname (``cover_device``). ``CoverState.position`` therefore
-carries **no** ``x-cosalette-consumer`` annotation (see the docstring on
-:class:`velux2mqtt.devices.cover.CoverState`) — annotating it would make
-``cosalette schema ha-discovery`` emit a discovery payload whose
-``state_topic`` (``velux2mqtt/cover_device/state``) matches no topic any
-running cover actually publishes to (real topics are
-``velux2mqtt/{cover.name}/state``, e.g. ``velux2mqtt/blind/state`` — see
-``docs/mqtt-topics.md``), registering a permanently-unavailable phantom
-entity in Home Assistant. This test guards against that regression by
-asserting zero payloads are generated today, and — should that ever change
-(e.g. once cosalette's schema pipeline resolves callable-``name=``
-NameSpecs to per-instance channels) — that every payload's ``state_topic``
-actually matches a real per-cover topic pattern.
+:mod:`velux2mqtt.main`, keyed off user-configured ``settings.covers``). A
+plain ``cosalette schema init``/``check`` would collapse every real per-cover
+device (``blind``, ``window``, ...) into a single channel named after the
+Python handler's qualname (``cover_device``), which is why
+``task velux2mqtt:schema:generate`` instead runs ``cosalette schema dump
+--resolve-settings`` (ADR-051) against the checked-in ``.env.schema``
+profile before writing ``docs/schema.yaml`` — expanding the NameSpec into
+real per-cover channels (``blindState``, ``windowState``, ...). With those
+real channels, ``CoverState.position``'s ``x-cosalette-consumer`` annotation
+(see :class:`velux2mqtt.devices.cover.CoverState`) now produces one discovery
+payload per configured cover, with ``state_topic`` matching the real runtime
+topic (``velux2mqtt/{cover.name}/state``, e.g. ``velux2mqtt/blind/state`` —
+see ``docs/mqtt-topics.md``) rather than the qualname channel
+``velux2mqtt/cover_device/state`` that produced a phantom entity before this
+fix (cap-hze).
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
 
 Test Techniques Used:
-- Specification-based: HA discovery is currently non-functional for velux2mqtt
-  (callable-name devices collapse to a qualname channel); 0 payloads is correct
-- Regression guard: any future payload's state_topic must match a real runtime
-  topic (``velux2mqtt/{cover}/state``), never the qualname channel address
+- Specification-based: every payload must describe a real, currently
+  configured cover with a matching real runtime state_topic
+- Regression guard: no payload may ever target the qualname channel address
+  (``velux2mqtt/cover_device/state``) — the phantom entity this test suite
+  was written to prevent (cap-hze)
 """
 
 from __future__ import annotations
@@ -63,40 +63,35 @@ _REAL_STATE_TOPIC_RE = re.compile(r"^velux2mqtt/(?!cover_device/)[^/]+/state$")
 
 @pytest.mark.integration
 class TestHaDiscoveryGeneration:
-    """Verify HA MQTT discovery generation does not emit a phantom entity."""
+    """Verify HA MQTT discovery generation emits real, per-cover entities."""
 
-    def test_generates_no_payloads_today(
+    def test_generates_one_payload_per_configured_cover(
         self, ha_payloads: list[dict[str, Any]]
     ) -> None:
-        """No discovery payloads are generated while covers use a callable name=.
+        """One discovery payload is generated per cover in .env.schema.
 
-        ``app.device(name=_cover_map, ...)`` collapses every real per-cover
-        device into one qualname-based channel (``cover_device``), so
-        ``CoverState.position`` intentionally carries no
-        ``x-cosalette-consumer`` annotation (see
-        ``velux2mqtt.devices.cover.CoverState``). Generating a payload here
-        would point ``state_topic`` at a topic no cover ever publishes to,
-        registering a permanently-unavailable phantom entity in Home
-        Assistant. This is the honest current state, not a bug — HA
-        discovery for velux2mqtt is non-functional until cosalette's schema
-        pipeline resolves callable-``name=`` NameSpecs to per-instance
-        channels (see ``apps/velux2mqtt/README.md``).
+        ``docs/schema.yaml`` is generated via ``cosalette schema dump
+        --resolve-settings`` against the checked-in ``.env.schema`` profile
+        (``task velux2mqtt:schema:generate``), which expands the
+        ``_cover_map`` NameSpec into real per-cover channels. This test
+        pins the count to that profile's two covers (``blind``, ``window``);
+        update it alongside ``.env.schema`` if the profile's cover count
+        changes.
 
-        Technique: Specification-based — the model-driven schema must not
-        yield an HA entity while the underlying topic can't be known statically.
+        Technique: Specification-based — the resolved schema must yield
+        exactly one HA entity per configured cover.
         """
-        assert ha_payloads == []
+        assert len(ha_payloads) == 2
 
-    def test_any_future_payload_state_topic_must_be_real(
+    def test_payload_state_topic_must_be_real(
         self, ha_payloads: list[dict[str, Any]]
     ) -> None:
-        """Regression guard: any generated payload must target a real topic.
+        """Regression guard: every payload must target a real runtime topic.
 
-        If ``CoverState.position`` ever regains a consumer annotation (e.g.
-        after the upstream settings-aware schema pipeline lands and this
-        test starts failing above), every payload's ``state_topic`` must
-        match a real per-cover runtime topic — never the qualname channel
-        address ``velux2mqtt/cover_device/state``.
+        Every payload's ``state_topic`` must match a real per-cover runtime
+        topic — never the qualname channel address
+        ``velux2mqtt/cover_device/state`` that produced a phantom entity
+        before this fix (cap-hze).
 
         Technique: Error Guessing — anticipating the exact regression this
         test suite exists to prevent.

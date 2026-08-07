@@ -1,11 +1,12 @@
 asyncapi: 3.0.0
 info:
   title: jeelink2mqtt
-  version: 0.1.1
+  version: 0.1.3
   x-cosalette-contract-version: '1'
 channels:
   heartbeatState:
     address: jeelink2mqtt/heartbeat/state
+    x-cosalette-app: jeelink2mqtt
     messages:
       message:
         payload:
@@ -15,6 +16,7 @@ channels:
       interval'
   mappingCommand:
     address: jeelink2mqtt/mapping/set
+    x-cosalette-app: jeelink2mqtt
     messages:
       message:
         payload:
@@ -23,6 +25,7 @@ channels:
     x-cosalette-summary: Return recently-seen sensor IDs that are not yet mapped
   mappingState:
     address: jeelink2mqtt/mapping/state
+    x-cosalette-app: jeelink2mqtt
     messages:
       message:
         payload:
@@ -32,6 +35,7 @@ channels:
     x-cosalette-summary: Manually assign an ephemeral sensor ID to a logical name
   stalenessState:
     address: jeelink2mqtt/staleness/state
+    x-cosalette-app: jeelink2mqtt
     messages:
       message:
         payload:

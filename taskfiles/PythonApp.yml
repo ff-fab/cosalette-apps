@@ -97,7 +97,12 @@ tasks:
   schema:check:
     desc: 'Validate {{.APP_NAME}} registrations against docs/schema.yaml'
     cmds:
-      - uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
+      - |
+        {{if .SCHEMA_CHECK_SKIP}}
+        echo "⚠ schema:check skipped for {{.APP_NAME}}: {{.SCHEMA_CHECK_SKIP}}"
+        exit 0
+        {{end}}
+        uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
 
   schema:generate:
     desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} from the app registrations'
@@ -108,11 +113,32 @@ tasks:
     # hand-author x-cosalette-consumer directly in docs/schema.yaml must re-apply
     # it after running this task. (x-cosalette-app never needs re-adding:
     # cosalette 0.5.7+ auto-emits it per channel from the App registry.)
+    #
+    # Apps with settings-derived (ADR-023 callable name=) registrations set
+    # SCHEMA_ENV_FILE (see caldates2mqtt/velux2mqtt includes in the root
+    # Taskfile.yml): `cosalette schema init` has no --resolve-settings support
+    # (cap-wv9 part b/c), so for those apps this uses `schema dump
+    # --resolve-settings --env-file <profile>` instead and re-layers the same
+    # static x-cosalette-enforcement scaffold init would otherwise add. See
+    # cap-0cg / ADR-051.
     prompt: 'This will overwrite docs/schema.yaml for {{.APP_NAME}}. Hand-authored (non-model-driven) consumer enrichment would need re-applying. Continue?'
     cmds:
       - |
+        {{if .SCHEMA_ENV_FILE}}
+        uv run --package {{.APP_NAME}} cosalette schema dump \
+          --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} \
+          --resolve-settings --env-file {{.SCHEMA_ENV_FILE}} > docs/schema.yaml.tmp
+        cat >> docs/schema.yaml.tmp <<'ENFORCEMENT'
+        x-cosalette-enforcement:
+          mode: warn
+          on_configure: true
+          on_publish: false
+          network_level: false
+        ENFORCEMENT
+        {{else}}
         uv run --package {{.APP_NAME}} cosalette schema init \
           --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml.tmp
+        {{end}}
         mv docs/schema.yaml.tmp docs/schema.yaml
 
   schema:ha-discovery:
