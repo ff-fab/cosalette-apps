@@ -37,9 +37,11 @@ class CalendarEvent:
     ``{"title": ..., "date": ...}``. The ``consumer()`` annotations are
     preparatory only: cosalette's HA/OpenHAB generators walk a channel's
     *top-level* properties, never nested list items, so these are inert
-    today — no discovery payload results. They're wired now so this model
-    is ready the moment the schema pipeline gains list/array payload
-    support (tracked upstream).
+    today — no discovery payload results. This is independent of the
+    callable-``name=`` qualname collapse (see :class:`CalendarState`),
+    which ``task caldates2mqtt:schema:generate`` now resolves. They're
+    wired now so this model is ready the moment the schema pipeline gains
+    list/array payload support (tracked upstream).
     """
 
     title: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Title"))]
@@ -51,16 +53,20 @@ class CalendarState:
     """Typed ``state_model`` for the calendar telemetry channel.
 
     Mirrors the dict returned by :func:`calendar`: ``{"events": [...]}``.
-    Wiring this (instead of leaving the channel ``additionalProperties:
-    true``) also doesn't yet produce HA discovery: ``app.telemetry`` here
-    is registered with a callable ``name=`` (``_calendar_map``, keyed off
-    user-configured ``settings.calendars``), so cosalette's static schema
-    pipeline collapses every real per-calendar device into one channel
-    named after this handler's qualname (``calendar``) — the same
-    callable-``name=`` limitation documented for velux2mqtt. Both blockers
-    (list payloads, qualname collapse) need the upstream settings-aware
-    schema pipeline before HA discovery becomes functional here. See
-    ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery" section.
+    ``app.telemetry`` here is registered with a callable ``name=``
+    (``_calendar_map``, keyed off user-configured ``settings.calendars``)
+    — the same callable-``name=`` pattern documented for velux2mqtt. A
+    plain ``cosalette schema init``/``check`` would collapse every real
+    per-calendar device into one channel named after this handler's
+    qualname (``calendar``), but ``task caldates2mqtt:schema:generate``
+    resolves settings first (``cosalette schema dump --resolve-settings``,
+    ADR-051, against the checked-in ``.env.schema`` profile), expanding
+    the NameSpec into real per-calendar channels (e.g. ``birthdayState``,
+    ``garbageState``) — see ``docs/schema.yaml`` and cap-0cg. HA discovery
+    is still non-functional here, but now solely because of the nested
+    list payload limitation on :class:`CalendarEvent`, not this collapse.
+    See ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery"
+    section.
     """
 
     events: list[CalendarEvent]

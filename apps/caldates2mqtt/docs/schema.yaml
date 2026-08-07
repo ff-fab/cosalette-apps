@@ -4,28 +4,43 @@ info:
   version: 0.1.4
   x-cosalette-contract-version: '1'
 channels:
-  calendarState:
-    address: caldates2mqtt/calendar/state
+  birthdayState:
+    address: caldates2mqtt/birthday/state
     x-cosalette-app: caldates2mqtt
     messages:
       message:
         payload:
-          properties:
+          properties: &id001
             events:
               items:
                 $ref: '#/components/schemas/CalendarEvent'
               title: Events
               type: array
-          required:
+          required: &id002
           - events
           title: CalendarState
           type: object
     x-cosalette-archetype: telemetry
+  garbageState:
+    address: caldates2mqtt/garbage/state
+    x-cosalette-app: caldates2mqtt
+    messages:
+      message:
+        payload:
+          properties: *id001
+          required: *id002
+          title: CalendarState
+          type: object
+    x-cosalette-archetype: telemetry
 operations:
-  publishCalendarState:
+  publishBirthdayState:
     action: send
     channel:
-      $ref: '#/channels/calendarState'
+      $ref: '#/channels/birthdayState'
+  publishGarbageState:
+    action: send
+    channel:
+      $ref: '#/channels/garbageState'
 components:
   schemas:
     CalendarEvent:
