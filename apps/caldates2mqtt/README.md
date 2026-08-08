@@ -25,9 +25,9 @@ becomes possible. Two independent things originally blocked a working entity:
    `cosalette schema dump --resolve-settings` (ADR-051) against the checked-in
    `.env.schema` profile, expanding the NameSpec into real per-calendar channels
    (`birthdayState`, `garbageState`, ...) — see `docs/schema.yaml` and cap-0cg.
-   `cosalette schema check` (the CI gate) still has no `--resolve-settings` support and
-   is skipped with a message referencing cap-44e/cap-0cg (cap-wv9 part b, blocked on
-   upstream).
+   `cosalette schema check` (the CI gate) now validates this app too: cosalette 0.6.0
+   extended `--resolve-settings`/`--env-file` to `schema check` (previously dump-only,
+   cap-wv9 part b), so the task runs it against the same `.env.schema` profile.
 2. **Nested list payload — still blocked.** The `calendar` handler publishes
    `{"events": [{"title": ..., "date": ...}, ...]}`. cosalette's HA/OpenHAB generators
    only walk a channel's top-level properties, never items inside a nested list — so the

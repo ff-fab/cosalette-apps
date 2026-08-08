@@ -60,13 +60,10 @@ includes:
     vars:
       APP_NAME: velux2mqtt
       # 'cover_device' uses a settings-derived (ADR-023 callable name=) NameSpec.
-      # schema:generate resolves it via `schema dump --resolve-settings` against
-      # this checked-in representative profile (see .env.schema, cap-0cg).
+      # schema:generate/schema:check both resolve it via --resolve-settings
+      # against this checked-in representative profile (see .env.schema,
+      # cap-0cg, cap-wv9 part b resolved in cosalette 0.6.0).
       SCHEMA_ENV_FILE: .env.schema
-      # `cosalette schema check` has no --resolve-settings support (cap-wv9 part
-      # b) and unconditionally rejects this app's settings-derived NameSpec at
-      # import time — see cap-44e/cap-0cg.
-      SCHEMA_CHECK_SKIP: 'cosalette schema check cannot validate settings-derived (ADR-023 callable name=) apps yet (cap-wv9 part b, upstream); see cap-44e/cap-0cg'
 
   airthings2mqtt:
     taskfile: ./taskfiles/PythonApp.yml
@@ -80,13 +77,10 @@ includes:
     vars:
       APP_NAME: caldates2mqtt
       # 'calendar' uses a settings-derived (ADR-023 callable name=) NameSpec.
-      # schema:generate resolves it via `schema dump --resolve-settings` against
-      # this checked-in representative profile (see .env.schema, cap-0cg).
+      # schema:generate/schema:check both resolve it via --resolve-settings
+      # against this checked-in representative profile (see .env.schema,
+      # cap-0cg, cap-wv9 part b resolved in cosalette 0.6.0).
       SCHEMA_ENV_FILE: .env.schema
-      # `cosalette schema check` has no --resolve-settings support (cap-wv9 part
-      # b) and unconditionally rejects this app's settings-derived NameSpec at
-      # import time — see cap-44e/cap-0cg.
-      SCHEMA_CHECK_SKIP: 'cosalette schema check cannot validate settings-derived (ADR-023 callable name=) apps yet (cap-wv9 part b, upstream); see cap-44e/cap-0cg'
 
   suncast:
     taskfile: ./taskfiles/PythonApp.yml

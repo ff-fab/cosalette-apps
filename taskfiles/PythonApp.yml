@@ -96,13 +96,20 @@ tasks:
 
   schema:check:
     desc: 'Validate {{.APP_NAME}} registrations against docs/schema.yaml'
+    # Apps with settings-derived (ADR-023 callable name=) registrations set
+    # SCHEMA_ENV_FILE (see caldates2mqtt/velux2mqtt includes in the root
+    # Taskfile.yml): cosalette 0.6.0 extends --resolve-settings/--env-file to
+    # `schema check` (previously dump-only, cap-wv9 part b), so those apps are
+    # validated against the same checked-in profile schema:generate uses.
     cmds:
       - |
-        {{if .SCHEMA_CHECK_SKIP}}
-        echo "⚠ schema:check skipped for {{.APP_NAME}}: {{.SCHEMA_CHECK_SKIP}}"
-        exit 0
-        {{end}}
+        {{if .SCHEMA_ENV_FILE}}
+        uv run --package {{.APP_NAME}} cosalette schema check \
+          --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} \
+          --schema docs/schema.yaml --resolve-settings --env-file {{.SCHEMA_ENV_FILE}}
+        {{else}}
         uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
+        {{end}}
 
   schema:generate:
     desc: 'Regenerate docs/schema.yaml for {{.APP_NAME}} from the app registrations'
@@ -116,11 +123,12 @@ tasks:
     #
     # Apps with settings-derived (ADR-023 callable name=) registrations set
     # SCHEMA_ENV_FILE (see caldates2mqtt/velux2mqtt includes in the root
-    # Taskfile.yml): `cosalette schema init` has no --resolve-settings support
-    # (cap-wv9 part b/c), so for those apps this uses `schema dump
-    # --resolve-settings --env-file <profile>` instead and re-layers the same
-    # static x-cosalette-enforcement scaffold init would otherwise add. See
-    # cap-0cg / ADR-051.
+    # Taskfile.yml). cosalette 0.6.0 extended --resolve-settings/--env-file to
+    # `schema init` too (cap-wv9 part b, previously dump-only), but this task
+    # keeps using `schema dump --resolve-settings --env-file <profile>` and
+    # manually re-layers the static x-cosalette-enforcement scaffold, matching
+    # the non-settings-derived branch below byte-for-byte. See cap-0cg /
+    # ADR-051.
     prompt: 'This will overwrite docs/schema.yaml for {{.APP_NAME}}. Hand-authored (non-model-driven) consumer enrichment would need re-applying. Continue?'
     cmds:
       - |
