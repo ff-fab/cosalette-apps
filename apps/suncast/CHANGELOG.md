@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/suncast-v0.1.2...suncast-v0.1.3) (2026-08-09)
+
+
+### Features
+
+* **gas2mqtt:** add telemetry retry + review interval timeouts ([#170](https://github.com/ff-fab/cosalette-apps/issues/170)) ([420abcc](https://github.com/ff-fab/cosalette-apps/commit/420abcccd1aeb2a40927329e1529455722aad3bb))
+* upgrade cosalette to 0.5.7 and adopt HA-discovery + error-hardening features ([#182](https://github.com/ff-fab/cosalette-apps/issues/182)) ([f00edd0](https://github.com/ff-fab/cosalette-apps/commit/f00edd00267aaad6f14c6604bc51686ee5727124))
+
+
+### Bug Fixes
+
+* **cosalette:** bump to 0.5.10 for schema fail-loud + settings-resolve mode ([#202](https://github.com/ff-fab/cosalette-apps/issues/202)) ([3107afe](https://github.com/ff-fab/cosalette-apps/commit/3107afe237204d53a48c13d7ee106a2f81370ed4))
+* **cosalette:** unicode schema fix + jeelink2mqtt HA-discovery decision ([#200](https://github.com/ff-fab/cosalette-apps/issues/200)) ([d81b76e](https://github.com/ff-fab/cosalette-apps/commit/d81b76e77b5a89b2eefda606d3c29142205eefdd))
+* **deps:** upgrade cosalette to 0.6.0, resolve cap-wv9 schema-check asymmetry ([#204](https://github.com/ff-fab/cosalette-apps/issues/204)) ([2010b5e](https://github.com/ff-fab/cosalette-apps/commit/2010b5e44fe713c01acb73009916449ee580a36b))
+* resolve cosalette 0.5.1 ephemeral-store warning for store-less apps ([#167](https://github.com/ff-fab/cosalette-apps/issues/167)) ([e67b97c](https://github.com/ff-fab/cosalette-apps/commit/e67b97c054e39a7c40802d573a5ac848fe6a0204))
+* **taskfiles:** ignore GPL header in per-app similarity gate (cap-9dr) ([#185](https://github.com/ff-fab/cosalette-apps/issues/185)) ([dab2396](https://github.com/ff-fab/cosalette-apps/commit/dab2396e998a7fce2cd8d0b26cabe86adb59559c))
+
 ## [0.1.2](https://github.com/ff-fab/cosalette-apps/compare/suncast-v0.1.1...suncast-v0.1.2) (2026-06-27)
 
 
