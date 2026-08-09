@@ -47,6 +47,11 @@ includes:
     dir: ./apps/jeelink2mqtt
     vars:
       APP_NAME: jeelink2mqtt
+      # 'sensor_entity' uses a settings-derived (ADR-023 callable name=) NameSpec.
+      # schema:generate/schema:check both resolve it via --resolve-settings
+      # against this checked-in representative profile (see .env.schema,
+      # cap-ayy, ADR-051).
+      SCHEMA_ENV_FILE: .env.schema
 
   vito2mqtt:
     taskfile: ./taskfiles/PythonApp.yml

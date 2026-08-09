@@ -1,12 +1,18 @@
 """Integration tests for the @app.stream receiver handler.
 
 Verifies cap-5xy acceptance: the receiver handler processes readings from
-a cosalette.Stream[SensorReading], publishes raw/sensor/availability MQTT
-messages, and persists registry state — without any manual adapter lifecycle
-code in main.py.
+a cosalette.Stream[SensorReading], publishes the raw diagnostic and mapping
+MQTT messages, and persists registry state — without any manual adapter
+lifecycle code in main.py.
+
+Since cap-ayy, the stream no longer publishes per-sensor state/availability
+itself — it caches the calibrated reading in SharedState for the sensor's
+own per-sensor device (sensor_entity, see test_receiver.py's
+TestSensorEntityTick) to publish. These tests verify the stream's half of
+that contract: routing, calibration, and caching.
 
 Test Techniques Used:
-- Integration Testing: stream → registry → pipeline → publish
+- Integration Testing: stream → registry → pipeline → cache
 - State Transition Testing: registry restore from store
 - Specification-based: MQTT topic/payload contract
 """
@@ -14,7 +20,6 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
-import json
 from datetime import UTC, datetime
 
 import cosalette
@@ -136,11 +141,12 @@ class TestStreamReceiverHandler:
         raw_publishes = [t for t, _, _ in ctx.published if t == "raw/state"]
         assert len(raw_publishes) == 1
 
-    async def test_mapped_sensor_publishes_state_and_availability(self) -> None:
-        """A reading for a mapped sensor publishes state + availability=online,
-        and the published state contains the calibrated temperature value.
+    async def test_mapped_sensor_caches_calibrated_reading(self) -> None:
+        """A reading for a mapped sensor is calibrated and cached in
+        SharedState for the sensor's own device to publish (cap-ayy) —
+        the stream itself no longer publishes state/availability.
 
-        Technique: Integration Testing — registry → pipeline → publish.
+        Technique: Integration Testing — registry → pipeline → cache.
         """
         settings = _make_settings()
         state = build_shared_state(settings)
@@ -152,18 +158,17 @@ class TestStreamReceiverHandler:
         reading = _make_reading(sensor_id=42, temperature=21.5, humidity=55)
         await _run_receiver([reading], ctx, None, settings, state)
 
+        # The stream no longer publishes per-sensor topics itself.
         topics = [t for t, _, _ in ctx.published]
-        assert "office/state" in topics
-        assert "office/availability" in topics
+        assert "office/state" not in topics
+        assert "office/availability" not in topics
 
-        avail = next(p for t, p, _ in ctx.published if t == "office/availability")
-        assert avail == "online"
-
-        # Verify published state contains calibrated temperature (office offset=-0.3)
-        state_payload = next(p for t, p, _ in ctx.published if t == "office/state")
-        state_data = json.loads(state_payload)
-        assert state_data["temperature"] == pytest.approx(21.5 - 0.3, abs=0.01)
-        assert state_data["humidity"] == 55
+        # It caches the calibrated reading (office offset=-0.3) for the
+        # sensor's own device (sensor_entity_tick) to publish.
+        cached = state.last_readings["office"]
+        assert cached.temperature == pytest.approx(21.5 - 0.3, abs=0.01)
+        assert cached.humidity == 55
+        assert "office" in state.last_reading_at
 
     async def test_unmapped_sensor_publishes_only_raw(self) -> None:
         """An unmapped sensor reading publishes only raw, not sensor state.
@@ -182,11 +187,7 @@ class TestStreamReceiverHandler:
         assert "raw/state" in topics
         # No sensor-specific state published (no pipeline for unmapped IDs)
         assert not any(t.endswith("/state") and t != "raw/state" for t in topics)
-        # No "online" availability (only offline comes from shutdown finally block)
-        online_avail = [
-            t for t, p, _ in ctx.published if "availability" in t and p == "online"
-        ]
-        assert len(online_avail) == 0
+        assert state.last_readings == {}
 
     async def test_registry_restore_from_store(self) -> None:
         """Receiver restores registry from persisted store on startup.
@@ -209,13 +210,17 @@ class TestStreamReceiverHandler:
         reading = _make_reading(sensor_id=42, temperature=22.0)
         await _run_receiver([reading], ctx, store_data, settings, fresh_state)
 
-        topics = [t for t, _, _ in ctx.published]
-        assert "office/state" in topics
+        assert "office" in fresh_state.last_readings
 
-    async def test_shutdown_publishes_offline_availability(self) -> None:
-        """When stream ends, receiver publishes offline for all sensors.
+    async def test_shutdown_does_not_publish_availability(self) -> None:
+        """The stream itself no longer publishes availability on shutdown.
 
-        Technique: Specification-based — shutdown availability contract.
+        Technique: Specification-based — cap-ayy moved availability
+        ownership to each sensor's own device (sensor_entity), which the
+        framework marks offline on graceful shutdown via HealthReporter —
+        outside what this stream-only harness exercises. This test guards
+        against the old manual per-sensor offline loop creeping back into
+        the stream's finally block.
         """
         settings = _make_settings()
         state = build_shared_state(settings)
@@ -224,12 +229,8 @@ class TestStreamReceiverHandler:
         # No readings — just shutdown
         await _run_receiver([], ctx, None, settings, state)
 
-        offline_topics = [
-            t for t, p, _ in ctx.published if "availability" in t and p == "offline"
-        ]
-        # Both sensors should receive offline on shutdown
-        assert "office/availability" in offline_topics
-        assert "outdoor/availability" in offline_topics
+        availability_topics = [t for t, _, _ in ctx.published if "availability" in t]
+        assert availability_topics == []
 
     async def test_mapping_event_published_on_new_sensor(self) -> None:
         """A reading for a new sensor_id triggers a mapping/event publish.

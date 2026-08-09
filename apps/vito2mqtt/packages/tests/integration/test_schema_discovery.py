@@ -45,6 +45,9 @@ Test Techniques Used:
 - Equivalence Partitioning: temperature vs modulation/count/duration sensors
 - Golden set: exact object_id set guards against both stripping and leakage
 - Parametrize: per-sensor config fields declared once, no duplication
+- Cross-check (cap-5f8): every state_topic is verified against topics the
+  real app (fakes for hardware only) actually publishes at runtime, not just
+  a string independently derived from the same schema.
 """
 
 from __future__ import annotations
@@ -56,6 +59,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from cosalette.testing import AppHarness
+
+from .conftest import run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -234,3 +240,35 @@ class TestHaDiscoveryGeneration:
         config = configs_by_id["burner_burner_starts"]
         assert "unit_of_measurement" not in config
         assert "device_class" not in config
+
+
+@pytest.mark.integration
+class TestStateTopicsAreReal:
+    """Verify HA-discovery state_topics match runtime-published topics."""
+
+    async def test_state_topics_match_actual_runtime_publishes(
+        self, ha_payloads: list[dict[str, Any]], harness: AppHarness
+    ) -> None:
+        """Every discovery state_topic is a topic the running app publishes.
+
+        Runs the real telemetry/command group registrations via the
+        integration-test ``harness`` (``FakeOptolinkAdapter`` substituted
+        for the serial Optolink connection) and cross-checks each
+        HA-discovery payload's ``state_topic`` against
+        ``harness.mqtt.published``, the set of topics actually published
+        at runtime. A state_topic with no matching runtime publish would
+        ship a phantom HA entity (cap-5f8).
+
+        Technique: Cross-check — the schema-derived expectation
+        (``ha_payloads``) is validated against runtime ground truth, not
+        another string independently derived from the same schema.
+        """
+        await run_app_briefly(harness)
+
+        published_topics = {topic for topic, *_ in harness.mqtt.published}
+        for payload in ha_payloads:
+            state_topic = payload["config"]["state_topic"]
+            assert state_topic in published_topics, (
+                f"state_topic {state_topic!r} was never published at "
+                f"runtime; published topics: {sorted(published_topics)}"
+            )

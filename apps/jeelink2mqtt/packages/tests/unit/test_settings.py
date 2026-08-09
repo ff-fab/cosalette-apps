@@ -300,3 +300,55 @@ class TestSensorNameValidation:
         # Act / Assert
         with pytest.raises(ValidationError, match="name"):
             SensorConfigSettings(name=invalid_name)
+
+
+@pytest.mark.unit
+class TestReservedSensorNameValidation:
+    """Sensor names must not collide with reserved jeelink2mqtt topic segments.
+
+    Each configured sensor becomes a registered ``@app.device`` entity named
+    after it (cap-ayy) — a sensor named ``raw`` or ``mapping`` would collide
+    with topics/registrations the composition root already owns.
+    """
+
+    @pytest.mark.parametrize(
+        "reserved_name", ["raw", "mapping"], ids=["raw", "mapping"]
+    )
+    def test_reserved_name_rejected(self, reserved_name: str) -> None:
+        """A sensor named after a reserved segment raises ValidationError.
+
+        Technique: Error Guessing — known composition-root topic segments.
+        """
+        with pytest.raises(ValidationError, match=reserved_name):
+            Jeelink2MqttSettings(
+                serial_port="/dev/ttyUSB0",
+                sensors=[SensorConfigSettings(name=reserved_name)],
+            )
+
+    def test_reserved_name_among_others_rejected(self) -> None:
+        """A reserved name anywhere in the list is caught, not just alone.
+
+        Technique: Decision Table — reserved name mixed with valid names.
+        """
+        with pytest.raises(ValidationError, match="raw"):
+            Jeelink2MqttSettings(
+                serial_port="/dev/ttyUSB0",
+                sensors=[
+                    SensorConfigSettings(name="office"),
+                    SensorConfigSettings(name="raw"),
+                ],
+            )
+
+    def test_non_reserved_names_accepted(self) -> None:
+        """Ordinary sensor names construct settings without error.
+
+        Technique: Equivalence Partitioning — non-colliding names.
+        """
+        settings = Jeelink2MqttSettings(
+            serial_port="/dev/ttyUSB0",
+            sensors=[
+                SensorConfigSettings(name="office"),
+                SensorConfigSettings(name="outdoor"),
+            ],
+        )
+        assert [s.name for s in settings.sensors] == ["office", "outdoor"]

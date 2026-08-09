@@ -11,6 +11,22 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
+import pydantic
+
+
+class SensorStateModel(pydantic.BaseModel):
+    """Contract for the per-sensor ``{name}/state`` retained payload.
+
+    Declared as ``state_model=`` on the ``sensor_entity`` device
+    (:mod:`jeelink2mqtt.main`) so every ``ctx.publish_state()`` call is
+    validated and normalised against this shape (ADR-046).
+    """
+
+    temperature: float
+    humidity: int
+    low_battery: bool
+    timestamp: datetime
+
 
 @dataclass(frozen=True, slots=True)
 class SensorReading:

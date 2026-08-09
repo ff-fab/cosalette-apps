@@ -17,6 +17,9 @@ Test Techniques Used:
 - Specification-based: schema enrichment must yield the documented HA entities
 - Equivalence Partitioning: typed (device_class) vs untyped (counter) sensors
 - Parametrize: all three enriched fields declared once, no duplication
+- Cross-check (cap-5f8): every state_topic is verified against topics the
+  real app (fakes for hardware only) actually publishes at runtime, not just
+  a string independently derived from the same schema.
 """
 
 from __future__ import annotations
@@ -28,6 +31,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from cosalette import MockMqttClient
+
+from gas2mqtt.settings import Gas2MqttSettings
+
+from .conftest import build_full_integration_app, run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -131,4 +139,38 @@ class TestHaDiscoveryGeneration:
         if "device_class" not in expected_fields:
             assert "device_class" not in config, (
                 f"{object_id}: unexpected device_class={config.get('device_class')!r}"
+            )
+
+
+@pytest.mark.integration
+class TestStateTopicsAreReal:
+    """Verify HA-discovery state_topics match runtime-published topics."""
+
+    async def test_state_topics_match_actual_runtime_publishes(
+        self, ha_payloads: list[dict[str, Any]]
+    ) -> None:
+        """Every discovery state_topic is a topic the running app publishes.
+
+        Runs the real handler registrations (gas_counter, temperature) via
+        ``build_full_integration_app`` — hardware substituted with
+        ``FakeMagnetometer``, everything else identical to
+        ``gas2mqtt.main.create_app()`` — and cross-checks each HA-discovery
+        payload's ``state_topic`` against ``mock_mqtt.published``, the set
+        of topics actually published at runtime. A state_topic with no
+        matching runtime publish would ship a phantom HA entity (cap-5f8).
+
+        Technique: Cross-check — the schema-derived expectation
+        (``ha_payloads``) is validated against runtime ground truth, not
+        another string independently derived from the same schema.
+        """
+        test_app = build_full_integration_app()
+        mock_mqtt = MockMqttClient()
+        await run_app_briefly(test_app, mock_mqtt, Gas2MqttSettings())
+
+        published_topics = {topic for topic, *_ in mock_mqtt.published}
+        for payload in ha_payloads:
+            state_topic = payload["config"]["state_topic"]
+            assert state_topic in published_topics, (
+                f"state_topic {state_topic!r} was never published at "
+                f"runtime; published topics: {sorted(published_topics)}"
             )

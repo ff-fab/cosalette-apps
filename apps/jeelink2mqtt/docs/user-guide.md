@@ -7,7 +7,11 @@ and diagnostics.
 
 ## Processing Pipeline
 
-For each decoded LaCrosse frame the receiver executes these steps in order:
+Publishing is split across two independent components: the `receiver` stream (hardware
+I/O, routing, calibration) and one `sensor_entity` device per configured sensor (state
+publish, heartbeat, availability).
+
+For each decoded LaCrosse frame the `receiver` stream executes these steps in order:
 
 | Step | Action | MQTT topic |
 |------|--------|------------|
@@ -15,14 +19,12 @@ For each decoded LaCrosse frame the receiver executes these steps in order:
 | 2 | Registry: route ephemeral ID → sensor name (auto-adopt / manual) | — |
 | 3 | Median filter: reject outlier readings (default window 7) | — |
 | 4 | Calibration: apply per-sensor temperature/humidity offsets | — |
-| 5 | Publish calibrated state | `jeelink2mqtt/{sensor}/state` (retained) |
-| 6 | Record published reading (heartbeat timer) | — |
-| 7 | Publish availability | `jeelink2mqtt/{sensor}/availability` (retained) |
+| 5 | Cache calibrated reading for the sensor's device to publish | — |
 
-Steps 3–7 only run for **mapped** sensors. Unknown sensor IDs are tracked silently and
+Steps 3–5 only run for **mapped** sensors. Unknown sensor IDs are tracked silently and
 visible via `list_unknown`.
 
-After step 7 the framework runs the **mapping reactor** if any registry events were
+After step 5 the framework runs the **mapping reactor** if any registry events were
 queued in step 2:
 
 | Reactor step | MQTT topic |
@@ -30,6 +32,18 @@ queued in step 2:
 | Publish mapping change | `jeelink2mqtt/mapping/event` |
 | Publish full mapping snapshot | `jeelink2mqtt/mapping/state` |
 | Persist registry to `data/jeelink2mqtt.json` | — |
+
+Independently, each configured sensor's own `sensor_entity` device ticks once a second
+and decides what to publish:
+
+| Condition | Action | MQTT topic |
+|-----------|--------|------------|
+| Stale (no raw frame within the staleness timeout) | `ctx.mark_unavailable()` (once, on the online→offline transition) | `jeelink2mqtt/{sensor}/availability` (retained) |
+| Recovered from stale | `ctx.mark_available()` (once, on recovery) | `jeelink2mqtt/{sensor}/availability` (retained) |
+| Cached reading newer than the last publish, or heartbeat interval elapsed | Publish calibrated state | `jeelink2mqtt/{sensor}/state` (retained) |
+
+This keeps state/availability framework-managed per sensor (ADR-048 retained-entity
+cleanup on sensor removal) instead of hand-built inside the stream loop.
 
 ---
 

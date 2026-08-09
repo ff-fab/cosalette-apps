@@ -13,6 +13,9 @@ Test Techniques Used:
 - Specification-based: schema enrichment must yield the documented HA entities
 - Equivalence Partitioning: numeric (brightness %) vs enum (display state) sensors
 - Parametrize: both enriched display fields declared once, no duplication
+- Cross-check (cap-5f8): every state_topic is verified against topics the
+  real app (fakes for hardware only) actually publishes at runtime, not just
+  a string independently derived from the same schema.
 """
 
 from __future__ import annotations
@@ -24,6 +27,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from cosalette.testing import AppHarness
+
+from .conftest import DISPLAY_SET, run_with_commands
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -138,4 +144,37 @@ class TestHaDiscoveryGeneration:
             assert key not in config, (
                 f"display_state: unexpected {key}={config.get(key)!r} "
                 "on a plain-text sensor"
+            )
+
+
+@pytest.mark.integration
+class TestStateTopicsAreReal:
+    """Verify HA-discovery state_topics match runtime-published topics."""
+
+    async def test_state_topics_match_actual_runtime_publishes(
+        self, ha_payloads: list[dict[str, Any]], harness: AppHarness
+    ) -> None:
+        """Every discovery state_topic is a topic the running app publishes.
+
+        wallpanel-control's ``display`` command only publishes state after
+        an accepted command (no periodic polling), so this drives one real
+        command through the integration-test ``harness``
+        (``FakeWallpanel``/``FakeWol`` substituted for SSH/WoL I/O) and
+        cross-checks each HA-discovery payload's ``state_topic`` against
+        ``harness.mqtt.published``, the set of topics actually published at
+        runtime. A state_topic with no matching runtime publish would ship
+        a phantom HA entity (cap-5f8).
+
+        Technique: Cross-check — the schema-derived expectation
+        (``ha_payloads``) is validated against runtime ground truth, not
+        another string independently derived from the same schema.
+        """
+        await run_with_commands(harness, [(DISPLAY_SET, {"state": "on"})])
+
+        published_topics = {topic for topic, *_ in harness.mqtt.published}
+        for payload in ha_payloads:
+            state_topic = payload["config"]["state_topic"]
+            assert state_topic in published_topics, (
+                f"state_topic {state_topic!r} was never published at "
+                f"runtime; published topics: {sorted(published_topics)}"
             )

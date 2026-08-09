@@ -432,16 +432,21 @@ class TestApp:
         assert "receiver" in {r.name for r in app.stream_registrations}
         assert {c.name for c in app.commands} == {"mapping"}
 
-    def test_app_registers_periodic_handlers(self) -> None:
-        """app registers staleness and heartbeat timing handlers.
+    def test_app_registers_per_sensor_device(self) -> None:
+        """app registers sensor_entity as a callable-NameSpec device.
 
-        Technique: Specification-based — verify cap-i4l refactor wiring.
-        Ensures staleness_checker and heartbeat_publisher are registered
-        as named device handlers.
+        Technique: Specification-based — verify cap-ayy refactor wiring.
+        NameSpec expansion only happens at bootstrap (app.run()), so at
+        import time the registration's name is still the handler's
+        qualname; `name_spec` is set to confirm it's the dict-name
+        (one-per-configured-sensor) form rather than a single static device.
         """
-        device_names = [d.name for d in app.devices]
-        assert "staleness" in device_names, "staleness handler not registered"
-        assert "heartbeat" in device_names, "heartbeat handler not registered"
+        devices_by_name = {d.name: d for d in app.devices}
+        assert "sensor_entity" in devices_by_name
+        assert devices_by_name["sensor_entity"].name_spec is not None
+        # The staleness/heartbeat devices it replaced are gone.
+        assert "staleness" not in devices_by_name
+        assert "heartbeat" not in devices_by_name
 
     def test_shared_state_has_heartbeat_state(self) -> None:
         """SharedState includes last_readings, last_publish_time, and last_availability.
@@ -454,7 +459,9 @@ class TestApp:
         state = build_shared_state(settings)
 
         assert isinstance(state.last_readings, dict)
+        assert isinstance(state.last_reading_at, dict)
         assert isinstance(state.last_publish_time, dict)
+        assert isinstance(state.last_published_reading_at, dict)
         assert isinstance(state.last_availability, dict)
 
 
