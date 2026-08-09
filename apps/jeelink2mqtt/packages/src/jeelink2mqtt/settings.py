@@ -12,8 +12,19 @@ import re
 from typing import Annotated
 
 import cosalette
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
+
+_RESERVED_SENSOR_NAMES = frozenset({"raw", "mapping"})
+"""Topic/entity segments the composition root already uses.
+
+``mapping`` is also caught by cosalette's own registered-name duplicate
+check (it's a real ``@app.command`` registration), but ``raw`` is only
+ever built ad hoc via ``ctx.publish("raw/state", ...)`` — nothing in the
+framework would otherwise catch a sensor literally named ``raw``. Both
+are listed here so the error is explicit and self-documenting rather
+than relying on an accidental catch elsewhere.
+"""
 
 
 class SensorConfigSettings(BaseModel):
@@ -140,3 +151,25 @@ class Jeelink2MqttSettings(cosalette.Settings):
             msg = f"median_filter_window must be odd, got {value}"
             raise ValueError(msg)
         return value
+
+    @model_validator(mode="after")
+    def _sensor_names_must_not_collide_with_reserved_topics(
+        self,
+    ) -> Jeelink2MqttSettings:
+        """Reject sensor names that collide with reserved topic segments.
+
+        Each configured sensor becomes a registered ``@app.device`` entity
+        named after it. A sensor named ``raw`` or ``mapping`` would collide
+        with topics/registrations the composition root already owns —
+        catch it here with a clear message instead of letting it surface
+        as an opaque duplicate-name error at bootstrap.
+        """
+        colliding = sorted({s.name for s in self.sensors} & _RESERVED_SENSOR_NAMES)
+        if colliding:
+            msg = (
+                f"Sensor name(s) {colliding} collide with reserved "
+                f"jeelink2mqtt topic segments {sorted(_RESERVED_SENSOR_NAMES)} "
+                "— choose a different sensor name."
+            )
+            raise ValueError(msg)
+        return self

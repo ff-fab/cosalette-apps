@@ -49,14 +49,28 @@ class SharedState:
     last_readings: dict[str, SensorReading] = field(default_factory=dict)
     """Last calibrated reading per sensor (for heartbeat re-publish)."""
 
+    last_reading_at: dict[str, datetime] = field(default_factory=dict)
+    """When the stream last calibrated a reading for this sensor.
+
+    Written by :meth:`record_calibrated_reading`. Compared against
+    ``last_publish_time`` by the per-sensor device's tick
+    (:func:`jeelink2mqtt.receiver.sensor_entity_tick`) to detect a fresh
+    reading that hasn't been published yet.
+    """
+
     last_publish_time: dict[str, datetime] = field(default_factory=dict)
-    """Last publish timestamp per sensor (for heartbeat interval tracking)."""
+    """Last time the per-sensor device published state (for heartbeat
+    interval tracking). Written by
+    :func:`jeelink2mqtt.receiver.sensor_entity_tick`, not by the stream.
+    """
 
     last_availability: dict[str, str] = field(default_factory=dict)
     """Last published availability per sensor (``'online'`` or ``'offline'``).
 
-    Used by staleness_checker to avoid duplicate retained offline publishes
-    and to correct availability when a sensor recovers mid-publish.
+    Owned exclusively by the per-sensor device's tick
+    (:func:`jeelink2mqtt.receiver.sensor_entity_tick`), which avoids
+    duplicate retained availability publishes and corrects availability
+    on recovery.
     """
 
     def restore_from(
@@ -92,13 +106,17 @@ class SharedState:
             len(self.registry.get_all_mappings()),
         )
 
-    def record_published_reading(
-        self, name: str, reading: SensorReading, published_at: datetime
+    def record_calibrated_reading(
+        self, name: str, reading: SensorReading, calibrated_at: datetime
     ) -> None:
-        """Record a published reading for heartbeat re-publishing."""
+        """Cache a freshly calibrated reading for the sensor's device to publish.
+
+        Called by the stream receiver after filter+calibrate. Publishing
+        itself — and availability — is the per-sensor device's
+        responsibility (:func:`jeelink2mqtt.receiver.sensor_entity_tick`).
+        """
         self.last_readings[name] = reading
-        self.last_publish_time[name] = published_at
-        self.last_availability[name] = "online"
+        self.last_reading_at[name] = calibrated_at
 
     def persist_registry_if_due(
         self,

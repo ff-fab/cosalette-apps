@@ -1,9 +1,12 @@
 """JeeLink receiver device — pipeline helpers.
 
-Provides the helper functions used by the ``@app.stream`` receiver
-registered in :mod:`jeelink2mqtt.main`.  The receiver manages the
-JeeLink adapter lifecycle and routes incoming frames through the
-**filter → calibrate → publish** pipeline.
+Provides the helper functions used by the ``@app.stream`` receiver and
+the per-sensor ``sensor_entity`` device, both registered in
+:mod:`jeelink2mqtt.main`. The stream manages the JeeLink adapter
+lifecycle and routes incoming frames through the **filter → calibrate
+→ cache** pipeline; each configured sensor's own ``sensor_entity``
+device (:func:`sensor_entity_tick`) publishes the cached reading,
+handles heartbeat re-publish, and owns availability.
 
 Helper functions are module-level so they can be imported directly
 by the composition root and by tests.
@@ -46,41 +49,6 @@ async def publish_raw_diagnostic(
     await ctx.publish("raw/state", payload, retain=False)
 
 
-async def publish_sensor_state(
-    ctx: cosalette.DeviceContext,
-    name: str,
-    reading: SensorReading,
-) -> None:
-    """Publish calibrated sensor state for a named sensor (retained).
-
-    Publishes temperature, humidity, battery status, and timestamp as a
-    JSON payload to ``{name}/state``.
-    """
-    payload = json.dumps(
-        {
-            "temperature": round(reading.temperature, 2),
-            "humidity": reading.humidity,
-            "low_battery": reading.low_battery,
-            "timestamp": reading.timestamp.isoformat(),
-        }
-    )
-    await ctx.publish(f"{name}/state", payload, retain=True)
-
-
-async def publish_availability(
-    ctx: cosalette.DeviceContext,
-    name: str,
-    status: str,
-) -> None:
-    """Publish sensor availability status (retained).
-
-    Args:
-        name: Sensor name used in topic ``{name}/availability``.
-        status: ``"online"`` or ``"offline"``.
-    """
-    await ctx.publish(f"{name}/availability", status, retain=True)
-
-
 async def publish_mapping_event(
     ctx: cosalette.DeviceContext,
     event: MappingEvent,
@@ -116,66 +84,62 @@ async def publish_mapping_state(
 
 
 # ---------------------------------------------------------------------------
-# Staleness & heartbeat
+# Per-sensor device tick (state publish + heartbeat + staleness/availability)
 # ---------------------------------------------------------------------------
 
 
-async def _check_staleness(
+async def sensor_entity_tick(
     ctx: cosalette.DeviceContext,
+    name: str,
     settings: Jeelink2MqttSettings,
     state: SharedState,
 ) -> None:
-    """Publish ``offline`` availability for sensors that just became stale.
+    """One tick of a per-sensor ``sensor_entity`` device (see main.py).
 
-    Only publishes on the fresh→stale transition to avoid flooding the
-    broker with duplicate retained messages.  Re-checks staleness after
-    each ``await`` to guard against TOCTOU with the receiver task.
+    Unifies what were three separate publish paths — immediate state,
+    global staleness sweep, global heartbeat sweep — into a single
+    per-sensor check:
+
+    1. Stale (no raw frame within the staleness timeout): mark
+       unavailable once, on the fresh→stale transition.
+    2. Not stale: mark available once, on recovery, then publish state
+       if the stream cached a reading newer than our last publish, or
+       if the heartbeat interval has elapsed since our last publish.
     """
-    for sensor_cfg in settings.sensors:
-        name = sensor_cfg.name
-        if not state.registry.is_stale(name):
-            continue
-        if state.last_availability.get(name) == "offline":
-            continue  # already offline — no duplicate publish
-        await publish_availability(ctx, name, "offline")
-        # Re-validate: if the receiver processed a fresh reading while the
-        # publish was in flight, correct the availability.
-        if state.registry.is_stale(name):
+    if state.registry.is_stale(name):
+        if state.last_availability.get(name) != "offline":
+            await ctx.mark_unavailable()
             state.last_availability[name] = "offline"
-        else:
-            await publish_availability(ctx, name, "online")
+        return
 
+    if state.last_availability.get(name) != "online":
+        await ctx.mark_available()
+        state.last_availability[name] = "online"
 
-async def _maybe_heartbeat(
-    ctx: cosalette.DeviceContext,
-    settings: Jeelink2MqttSettings,
-    state: SharedState,
-) -> None:
-    """Re-publish sensor state if the heartbeat interval has elapsed.
+    reading = state.last_readings.get(name)
+    if reading is None:
+        return
 
-    This ensures Home Assistant (or other consumers) receive periodic
-    updates even when a sensor's readings haven't changed, preventing
-    entity unavailability due to MQTT inactivity.
-    """
     now = datetime.now(UTC)
-    interval = settings.heartbeat_interval_seconds
+    last_publish = state.last_publish_time.get(name)
+    reading_at = state.last_reading_at.get(name)
+    is_fresh = last_publish is None or (
+        reading_at is not None and reading_at > last_publish
+    )
+    is_heartbeat_due = (
+        last_publish is not None
+        and (now - last_publish).total_seconds() >= settings.heartbeat_interval_seconds
+    )
 
-    for sensor_cfg in settings.sensors:
-        name = sensor_cfg.name
-        if state.registry.is_stale(name):
-            continue
+    if not (is_fresh or is_heartbeat_due):
+        return
 
-        last_time = state.last_publish_time.get(name)
-        if last_time is None or (now - last_time).total_seconds() < interval:
-            continue
-
-        # Re-publish last known calibrated reading if available
-        last = state.last_readings.get(name)
-        if last is not None:
-            await publish_sensor_state(ctx, name, last)
-
-        await publish_availability(ctx, name, "online")
-        # Guard: only advance timestamp if receiver hasn't already updated it
-        # during the above awaits (TOCTOU guard for concurrent device tasks).
-        if state.last_publish_time.get(name) is last_time:
-            state.last_publish_time[name] = now
+    await ctx.publish_state(
+        {
+            "temperature": round(reading.temperature, 2),
+            "humidity": reading.humidity,
+            "low_battery": reading.low_battery,
+            "timestamp": reading.timestamp.isoformat(),
+        }
+    )
+    state.last_publish_time[name] = now

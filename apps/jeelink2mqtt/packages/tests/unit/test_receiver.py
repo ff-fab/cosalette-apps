@@ -3,7 +3,7 @@
 Test Techniques Used:
 - Specification-based Testing: JSON structure, retain flags, rounding rules
 - Boundary Value Analysis: heartbeat interval thresholds, staleness edge cases
-- Decision Table Testing: _maybe_heartbeat branch combinations
+- Decision Table Testing: sensor_entity_tick branch combinations
 """
 
 from __future__ import annotations
@@ -19,13 +19,10 @@ from jeelink2mqtt.app import SharedState
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.models import MappingEvent, SensorConfig, SensorReading
 from jeelink2mqtt.receiver import (
-    _check_staleness,
-    _maybe_heartbeat,
-    publish_availability,
     publish_mapping_event,
     publish_mapping_state,
     publish_raw_diagnostic,
-    publish_sensor_state,
+    sensor_entity_tick,
 )
 from jeelink2mqtt.registry import SensorRegistry
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
@@ -154,122 +151,6 @@ class TestPublishRaw:
 
 
 # ===========================================================================
-# publish_sensor_state
-# ===========================================================================
-
-
-@pytest.mark.unit
-class TestPublishSensorState:
-    """Verifies calibrated sensor state publish format and retain=True."""
-
-    async def test_publishes_retained_json(self) -> None:
-        """Publishes to '{name}/state' with retain=True.
-
-        Technique: Specification-based — topic pattern and retain flag.
-        """
-        # Arrange
-        ts = datetime(2025, 6, 15, 12, 0, 0, tzinfo=UTC)
-        reading = _fixed_reading(temperature=21.567, humidity=55, timestamp=ts)
-        ctx = FakeDeviceContext()
-
-        # Act
-        await publish_sensor_state(ctx, "office", reading)
-
-        # Assert
-        assert len(ctx.published) == 1
-        topic, payload, retain = ctx.published[0]
-        assert topic == "office/state"
-        assert retain is True
-
-        data = json.loads(payload)
-        assert data["temperature"] == 21.57  # rounded to 2 decimals
-        assert data["humidity"] == 55
-        assert data["low_battery"] is False
-        assert data["timestamp"] == ts.isoformat()
-
-    async def test_rounds_temperature_to_two_decimals(self) -> None:
-        """Temperature is rounded to 2 decimal places in published JSON.
-
-        Technique: Boundary Value Analysis — rounding precision.
-        """
-        # Arrange
-        reading = _fixed_reading(temperature=21.555)
-        ctx = FakeDeviceContext()
-
-        # Act
-        await publish_sensor_state(ctx, "test", reading)
-
-        # Assert
-        data = json.loads(ctx.published[0][1])
-        assert data["temperature"] == round(21.555, 2)
-
-    async def test_sensor_name_in_topic(self) -> None:
-        """Topic uses the provided sensor name.
-
-        Technique: Specification-based — topic templating.
-        """
-        # Arrange
-        reading = _fixed_reading()
-        ctx = FakeDeviceContext()
-
-        # Act
-        await publish_sensor_state(ctx, "outdoor", reading)
-
-        # Assert
-        assert ctx.published[0][0] == "outdoor/state"
-
-
-# ===========================================================================
-# publish_availability
-# ===========================================================================
-
-
-@pytest.mark.unit
-class TestPublishAvailability:
-    """Verifies availability publish format and retain=True."""
-
-    async def test_publishes_online_retained(self) -> None:
-        """'online' status is published to '{name}/availability' with retain=True.
-
-        Technique: Specification-based — topic pattern and retain flag.
-        """
-        ctx = FakeDeviceContext()
-
-        await publish_availability(ctx, "office", "online")
-
-        assert len(ctx.published) == 1
-        topic, payload, retain = ctx.published[0]
-        assert topic == "office/availability"
-        assert payload == "online"
-        assert retain is True
-
-    async def test_publishes_offline_retained(self) -> None:
-        """'offline' status is published with retain=True.
-
-        Technique: Equivalence Partitioning — offline branch.
-        """
-        ctx = FakeDeviceContext()
-
-        await publish_availability(ctx, "outdoor", "offline")
-
-        topic, payload, retain = ctx.published[0]
-        assert topic == "outdoor/availability"
-        assert payload == "offline"
-        assert retain is True
-
-    async def test_sensor_name_in_topic(self) -> None:
-        """Topic uses the provided sensor name.
-
-        Technique: Specification-based — topic templating.
-        """
-        ctx = FakeDeviceContext()
-
-        await publish_availability(ctx, "garage", "online")
-
-        assert ctx.published[0][0] == "garage/availability"
-
-
-# ===========================================================================
 # publish_mapping_event
 # ===========================================================================
 
@@ -390,82 +271,35 @@ class TestPublishMappingState:
 
 
 # ===========================================================================
-# _check_staleness
+# sensor_entity_tick
 # ===========================================================================
 
 
 @pytest.mark.unit
-class TestCheckStaleness:
-    """Verifies offline availability publishing for stale sensors."""
+class TestSensorEntityTick:
+    """Covers the branch combinations in sensor_entity_tick."""
 
-    async def test_stale_sensor_gets_offline(self) -> None:
-        """A sensor with no mapping (stale) triggers 'offline' availability.
+    async def test_stale_sensor_marked_unavailable(self) -> None:
+        """A sensor with no mapping (stale) triggers mark_unavailable().
 
         Technique: Specification-based — unmapped sensor is always stale.
         """
-        # Arrange — settings and state both have only 'office'
+        # Arrange — no mapping → stale
         configs = [SensorConfig(name="office")]
         settings = _make_settings(sensor_names=["office"])
-        state = _make_shared_state(sensor_configs=configs)  # No mappings → stale
+        state = _make_shared_state(sensor_configs=configs)
         ctx = FakeDeviceContext()
 
         # Act
-        await _check_staleness(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — one offline publish for the single configured sensor
-        assert len(ctx.published) == 1
-        topic, payload, retain = ctx.published[0]
-        assert topic == "office/availability"
-        assert payload == "offline"
-        assert retain is True
+        # Assert
+        assert ctx.availability_calls == ["unavailable"]
+        assert state.last_availability["office"] == "offline"
+        assert ctx.published_state == []
 
-    async def test_non_stale_sensor_skipped(self) -> None:
-        """A recently-seen sensor does NOT get 'offline' published.
-
-        Technique: Equivalence Partitioning — non-stale path.
-        """
-        # Arrange — create a state with a recent mapping
-        configs = [SensorConfig(name="office")]
-        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
-        reading = _fixed_reading(sensor_id=42, timestamp=datetime.now(UTC))
-        state.registry.record_reading(reading)
-
-        settings = _make_settings(sensor_names=["office"])
-        ctx = FakeDeviceContext()
-
-        # Act
-        await _check_staleness(ctx, settings, state)
-
-        # Assert — nothing published (sensor is fresh)
-        assert len(ctx.published) == 0
-
-    async def test_mix_stale_and_fresh(self) -> None:
-        """Only stale sensors get offline; fresh ones are skipped.
-
-        Technique: Decision Table Testing — mixed staleness states.
-        """
-        # Arrange — two sensors: office (mapped/fresh), outdoor (unmapped/stale)
-        configs = [SensorConfig(name="office"), SensorConfig(name="outdoor")]
-        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
-        # Manually assign 'office' so it has a fresh mapping
-        state.registry.assign("office", 42)
-        state.registry.drain_events()
-
-        settings = _make_settings(sensor_names=["office", "outdoor"])
-        ctx = FakeDeviceContext()
-
-        # Act
-        await _check_staleness(ctx, settings, state)
-
-        # Assert — only 'outdoor' (unmapped/stale) gets offline
-        assert len(ctx.published) == 1
-        topic, payload, retain = ctx.published[0]
-        assert topic == "outdoor/availability"
-        assert payload == "offline"
-        assert retain is True
-
-    async def test_already_offline_not_republished(self) -> None:
-        """A sensor already marked offline is not re-published on each tick.
+    async def test_already_offline_not_re_marked(self) -> None:
+        """A sensor already marked offline is not re-marked on each tick.
 
         Technique: Equivalence Partitioning — deduplication of retained offline
         publishes. Without this guard, the handler would spam the MQTT broker
@@ -479,120 +313,74 @@ class TestCheckStaleness:
         ctx = FakeDeviceContext()
 
         # Act
-        await _check_staleness(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — no duplicate publish
-        assert len(ctx.published) == 0
+        # Assert — no duplicate mark_unavailable() call
+        assert ctx.availability_calls == []
 
-    async def test_toctou_corrects_availability_when_sensor_recovers(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """If sensor recovers while the offline publish is in flight,
-        re-publishes online.
+    async def test_recovery_marks_available_once(self) -> None:
+        """A previously-offline sensor that's fresh again is marked available.
 
-        Technique: Boundary Value Analysis — TOCTOU guard path.
-        Simulates the race: receiver updates the registry between the first
-        and second is_stale() check (the check before and after the await).
+        Technique: State Transition Testing — offline → online recovery path.
         """
-        # Arrange — sensor starts stale; registry will report recovered on second check
+        # Arrange — sensor is fresh (mapped) but was last marked offline
         configs = [SensorConfig(name="office")]
+        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
+        reading = _fixed_reading(sensor_id=42, timestamp=datetime.now(UTC))
+        state.registry.record_reading(reading)
+        state.last_availability["office"] = "offline"
+
         settings = _make_settings(sensor_names=["office"])
-        state = _make_shared_state(sensor_configs=configs)
         ctx = FakeDeviceContext()
 
-        # Monkeypatch: first call → stale (triggers publish), second → recovered
-        is_stale_results = iter([True, False])
-        monkeypatch.setattr(
-            state.registry, "is_stale", lambda _name: next(is_stale_results)
-        )
-
         # Act
-        await _check_staleness(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — offline published, then corrected to online
-        assert len(ctx.published) == 2
-        assert ctx.published[0] == ("office/availability", "offline", True)
-        assert ctx.published[1] == ("office/availability", "online", True)
-        # last_availability is NOT set to "offline" (sensor recovered)
-        assert state.last_availability.get("office") != "offline"
+        # Assert
+        assert ctx.availability_calls == ["available"]
+        assert state.last_availability["office"] == "online"
 
+    async def test_already_online_not_re_marked(self) -> None:
+        """A sensor already online is not re-marked available on each tick.
 
-# ===========================================================================
-# _maybe_heartbeat
-# ===========================================================================
-
-
-@pytest.mark.unit
-class TestMaybeHeartbeat:
-    """Covers the branch combinations in _maybe_heartbeat."""
-
-    async def test_stale_sensor_skipped(self) -> None:
-        """Stale sensors are not heartbeated.
-
-        Technique: Decision Table — stale = True → skip.
+        Technique: Equivalence Partitioning — deduplication of availability calls.
         """
-        # Arrange — no mapping → stale
         configs = [SensorConfig(name="office")]
-        state = _make_shared_state(sensor_configs=configs)
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
+        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
+        reading = _fixed_reading(sensor_id=42, timestamp=datetime.now(UTC))
+        state.registry.record_reading(reading)
+        state.last_availability["office"] = "online"
+
+        settings = _make_settings(sensor_names=["office"])
         ctx = FakeDeviceContext()
 
         # Act
-        await _maybe_heartbeat(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — nothing published
-        assert len(ctx.published) == 0
+        # Assert
+        assert ctx.availability_calls == []
 
-    async def test_interval_not_elapsed_skipped(self) -> None:
-        """When heartbeat interval hasn't elapsed, nothing is published.
+    async def test_not_stale_but_no_cached_reading_publishes_nothing(self) -> None:
+        """A fresh mapping with no cached reading yet publishes nothing.
 
-        Technique: Boundary Value Analysis — just below threshold.
+        Technique: Equivalence Partitioning — no reading cached path.
         """
-        # Arrange — map 'office' so it's not stale
         configs = [SensorConfig(name="office")]
         state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
         reading = _fixed_reading(sensor_id=42, timestamp=datetime.now(UTC))
         state.registry.record_reading(reading)
 
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
+        settings = _make_settings(sensor_names=["office"])
         ctx = FakeDeviceContext()
 
-        state.last_readings["office"] = reading
-        state.last_publish_time["office"] = datetime.now(UTC)  # Just now
-
         # Act
-        await _maybe_heartbeat(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — interval not elapsed → nothing published
-        assert len(ctx.published) == 0
+        # Assert
+        assert ctx.published_state == []
 
-    async def test_no_last_publish_time_skipped(self) -> None:
-        """When there's no last_publish_time entry, the sensor is skipped.
-
-        Technique: Equivalence Partitioning — missing time entry path.
-        The code checks `last_time is None` and uses `or` with the interval
-        check, so None means the condition short-circuits to continue.
-        """
-        # Arrange — map 'office' so it's not stale
-        configs = [SensorConfig(name="office")]
-        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
-        reading = _fixed_reading(sensor_id=42, timestamp=datetime.now(UTC))
-        state.registry.record_reading(reading)
-
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
-        ctx = FakeDeviceContext()
-
-        state.last_readings["office"] = reading
-        # No entry in state.last_publish_time
-
-        # Act
-        await _maybe_heartbeat(ctx, settings, state)
-
-        # Assert — no last_time → condition triggers continue
-        assert len(ctx.published) == 0
-
-    async def test_interval_elapsed_with_last_reading_publishes(self) -> None:
-        """When interval elapsed and last reading exists, re-publishes.
+    async def test_fresh_reading_publishes_state(self) -> None:
+        """A calibrated reading newer than the last publish is published.
 
         Technique: Specification-based — full happy path.
         """
@@ -600,125 +388,80 @@ class TestMaybeHeartbeat:
         configs = [SensorConfig(name="office")]
         state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
         now = datetime.now(UTC)
-        reading = _fixed_reading(sensor_id=42, timestamp=now)
-        state.registry.record_reading(reading)
+        mapping_reading = _fixed_reading(sensor_id=42, timestamp=now)
+        state.registry.record_reading(mapping_reading)
 
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
+        reading = _fixed_reading(temperature=21.567, humidity=55, timestamp=now)
+        state.last_readings["office"] = reading
+        state.last_reading_at["office"] = now
+        # No prior publish → the reading is unconditionally fresh
+
+        settings = _make_settings(sensor_names=["office"])
         ctx = FakeDeviceContext()
 
-        state.last_readings["office"] = reading
-        # Last publish was 30 seconds ago → well past 10s interval
-        state.last_publish_time["office"] = now - timedelta(seconds=30)
-
         # Act
-        await _maybe_heartbeat(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — sensor state re-published + availability online
-        assert len(ctx.published) == 2
-        topics = [t for t, _, _ in ctx.published]
-        assert "office/state" in topics
-        assert "office/availability" in topics
+        # Assert
+        assert len(ctx.published_state) == 1
+        payload = ctx.published_state[0]
+        assert payload["temperature"] == 21.57  # rounded to 2 decimals
+        assert payload["humidity"] == 55
+        assert payload["low_battery"] is False
+        assert payload["timestamp"] == now.isoformat()
+        assert state.last_publish_time["office"] is not None
 
-        # Verify availability message
-        for topic, payload, retain in ctx.published:
-            if topic == "office/availability":
-                assert payload == "online"
-                assert retain is True
+    async def test_stale_reading_not_republished_before_heartbeat_due(self) -> None:
+        """An already-published reading is not re-published before the
+        heartbeat interval elapses.
 
-    async def test_interval_elapsed_without_last_reading_publishes_availability_only(
-        self,
-    ) -> None:
-        """When interval elapsed but no last reading, only availability is published.
-
-        Technique: Decision Table — interval elapsed + no cached reading.
+        Technique: Boundary Value Analysis — just below threshold.
         """
-        # Arrange — map 'office' so it's not stale
         configs = [SensorConfig(name="office")]
         state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
         now = datetime.now(UTC)
-        reading = _fixed_reading(sensor_id=42, timestamp=now)
-        state.registry.record_reading(reading)
+        state.registry.record_reading(_fixed_reading(sensor_id=42, timestamp=now))
 
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
+        reading = _fixed_reading(timestamp=now)
+        state.last_readings["office"] = reading
+        state.last_reading_at["office"] = now
+        state.last_publish_time["office"] = now  # already published this reading
+
+        settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
-        # No cached reading in state.last_readings
-        state.last_publish_time["office"] = now - timedelta(seconds=30)
-
         # Act
-        await _maybe_heartbeat(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — only availability, no state re-publish
-        assert len(ctx.published) == 1
-        topic, payload, retain = ctx.published[0]
-        assert topic == "office/availability"
-        assert payload == "online"
-        assert retain is True
+        # Assert — neither fresh nor heartbeat-due → nothing published
+        assert ctx.published_state == []
 
-    async def test_updates_last_publish_time(self) -> None:
-        """After heartbeat, last_publish_time is updated to now.
+    async def test_heartbeat_republishes_unchanged_reading(self) -> None:
+        """When the heartbeat interval has elapsed, the last reading is
+        re-published even though it isn't newer than the last publish.
 
-        Technique: State Transition Testing — side effect verification.
+        Technique: Decision Table Testing — heartbeat-due branch.
         """
-        # Arrange
         configs = [SensorConfig(name="office")]
         state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
         now = datetime.now(UTC)
-        reading = _fixed_reading(sensor_id=42, timestamp=now)
-        state.registry.record_reading(reading)
+        state.registry.record_reading(_fixed_reading(sensor_id=42, timestamp=now))
 
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
+        reading = _fixed_reading(timestamp=now)
+        state.last_readings["office"] = reading
+        state.last_reading_at["office"] = now - timedelta(seconds=200)
+        # Last publish was 200s ago → past the 180s heartbeat interval
+        state.last_publish_time["office"] = now - timedelta(seconds=200)
+
+        settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
-        old_time = now - timedelta(seconds=30)
-        state.last_readings["office"] = reading
-        state.last_publish_time["office"] = old_time
-
         # Act
-        await _maybe_heartbeat(ctx, settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state)
 
-        # Assert — last_publish_time updated (newer than old_time)
-        assert state.last_publish_time["office"] > old_time
-
-    async def test_toctou_guard_preserves_receiver_timestamp(self) -> None:
-        """Heartbeat does not overwrite a more-recent receiver timestamp.
-
-        Technique: State Transition Testing — TOCTOU guard prevents regression.
-        If the receiver updates last_publish_time during heartbeat's awaits,
-        the heartbeat must not overwrite it with the older snapshot value.
-        """
-        # Arrange — interval has elapsed
-        configs = [SensorConfig(name="office")]
-        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
-        now = datetime.now(UTC)
-        reading = _fixed_reading(sensor_id=42, timestamp=now)
-        state.registry.record_reading(reading)
-
-        settings = _make_settings(sensor_names=["office"], heartbeat_interval=10.0)
-
-        old_time = now - timedelta(seconds=30)
-        state.last_readings["office"] = reading
-        state.last_publish_time["office"] = old_time
-
-        # Simulate receiver publishing a fresh reading during the heartbeat awaits
-        receiver_time = datetime.now(UTC)
-
-        class CtxWithReceiverSideEffect(FakeDeviceContext):
-            async def publish(
-                self, topic: str, payload: str, *, retain: bool = False
-            ) -> None:
-                await super().publish(topic, payload, retain=retain)
-                if topic.endswith("/state"):
-                    # Receiver updates the timestamp during publish_sensor_state await
-                    state.last_publish_time["office"] = receiver_time
-
-        ctx = CtxWithReceiverSideEffect()
-
-        # Act
-        await _maybe_heartbeat(ctx, settings, state)
-
-        # Assert — guard prevented heartbeat from overwriting receiver's timestamp
-        assert state.last_publish_time["office"] is receiver_time
+        # Assert
+        assert len(ctx.published_state) == 1
+        assert state.last_publish_time["office"] > now - timedelta(seconds=200)
 
 
 # ===========================================================================
@@ -865,45 +608,44 @@ class TestSharedStatePersistRegistryIfDue:
 
 
 # ===========================================================================
-# SharedState.record_published_reading
+# SharedState.record_calibrated_reading
 # ===========================================================================
 
 
 @pytest.mark.unit
-class TestRecordPublishedReading:
-    """Verifies SharedState.record_published_reading side effects."""
+class TestRecordCalibratedReading:
+    """Verifies SharedState.record_calibrated_reading side effects."""
 
     def test_stores_reading_and_timestamp(self) -> None:
-        """record_published_reading caches the reading and publish timestamp.
+        """record_calibrated_reading caches the reading and calibration timestamp.
 
         Technique: Specification-based — state mutation contract.
         """
         # Arrange
         state = _make_shared_state(sensor_configs=[SensorConfig(name="office")])
         reading = _fixed_reading(sensor_id=42)
-        published_at = datetime.now(UTC)
+        calibrated_at = datetime.now(UTC)
 
         # Act
-        state.record_published_reading("office", reading, published_at)
+        state.record_calibrated_reading("office", reading, calibrated_at)
 
         # Assert — exact object identity, not just equality
         assert state.last_readings["office"] is reading
-        assert state.last_publish_time["office"] is published_at
+        assert state.last_reading_at["office"] is calibrated_at
 
-    def test_sets_last_availability_online(self) -> None:
-        """record_published_reading marks the sensor's availability as online.
+    def test_does_not_touch_availability(self) -> None:
+        """record_calibrated_reading leaves availability untouched.
 
-        Technique: Specification-based — dedup contract for staleness_checker.
-        After a sensor publishes a reading, staleness_checker should not
-        re-publish offline until the sensor actually becomes stale again.
+        Technique: Specification-based — availability is owned exclusively
+        by sensor_entity_tick, not by the stream's calibration caching.
         """
         # Arrange
         state = _make_shared_state(sensor_configs=[SensorConfig(name="office")])
-        state.last_availability["office"] = "offline"  # previously stale
+        state.last_availability["office"] = "offline"
         reading = _fixed_reading(sensor_id=42)
 
         # Act
-        state.record_published_reading("office", reading, datetime.now(UTC))
+        state.record_calibrated_reading("office", reading, datetime.now(UTC))
 
-        # Assert — availability cleared back to online after receiving reading
-        assert state.last_availability["office"] == "online"
+        # Assert — availability is unchanged
+        assert state.last_availability["office"] == "offline"
