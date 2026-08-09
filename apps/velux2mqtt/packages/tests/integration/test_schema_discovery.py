@@ -23,21 +23,26 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: every payload must describe a real, currently
   configured cover with a matching real runtime state_topic
-- Regression guard: no payload may ever target the qualname channel address
-  (``velux2mqtt/cover_device/state``) — the phantom entity this test suite
-  was written to prevent (cap-hze)
+- Cross-check (cap-5f8): every state_topic is verified against topics the
+  real app (fakes for hardware only) actually publishes at runtime — not a
+  regex pattern independently derived from documentation. The prior
+  regex-based regression guard would have passed even if the real cover
+  names had diverged from docs/mqtt-topics.md; this replaces it with the
+  same technique cap-hze's own fix should have used.
 """
 
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
+from cosalette.testing import AppHarness
+
+from .conftest import run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -53,12 +58,6 @@ def ha_payloads() -> list[dict[str, Any]]:
         check=True,
     )
     return json.loads(result.stdout)
-
-
-# Real runtime state topics follow velux2mqtt/{cover}/state (docs/mqtt-topics.md).
-# The qualname collapse this test guards against would instead produce
-# velux2mqtt/cover_device/state — never a real per-cover topic.
-_REAL_STATE_TOPIC_RE = re.compile(r"^velux2mqtt/(?!cover_device/)[^/]+/state$")
 
 
 @pytest.mark.integration
@@ -83,22 +82,32 @@ class TestHaDiscoveryGeneration:
         """
         assert len(ha_payloads) == 2
 
-    def test_payload_state_topic_must_be_real(
-        self, ha_payloads: list[dict[str, Any]]
+    async def test_state_topics_match_actual_runtime_publishes(
+        self, ha_payloads: list[dict[str, Any]], harness_no_homing: AppHarness
     ) -> None:
-        """Regression guard: every payload must target a real runtime topic.
+        """Every discovery state_topic is a topic the running app publishes.
 
-        Every payload's ``state_topic`` must match a real per-cover runtime
-        topic — never the qualname channel address
-        ``velux2mqtt/cover_device/state`` that produced a phantom entity
-        before this fix (cap-hze).
+        Runs the real ``cover_device`` registration (2 covers, matching
+        ``.env.schema``) via the integration-test ``harness_no_homing``
+        (``FakeGpio`` substituted for real GPIO) and cross-checks each
+        HA-discovery payload's ``state_topic`` against
+        ``harness.mqtt.published``, the set of topics actually published
+        at runtime. A state_topic with no matching runtime publish would
+        ship a phantom HA entity — exactly the regression that shipped in
+        production before cap-hze's fix (PR #201), which this test now
+        guards against with runtime ground truth instead of a
+        documentation-derived regex (cap-5f8).
 
-        Technique: Error Guessing — anticipating the exact regression this
-        test suite exists to prevent.
+        Technique: Cross-check — the schema-derived expectation
+        (``ha_payloads``) is validated against runtime ground truth, not
+        another string independently derived from the same schema.
         """
+        await run_app_briefly(harness_no_homing)
+
+        published_topics = {topic for topic, *_ in harness_no_homing.mqtt.published}
         for payload in ha_payloads:
-            state_topic = payload["config"].get("state_topic", "")
-            assert _REAL_STATE_TOPIC_RE.match(state_topic), (
-                f"state_topic {state_topic!r} does not match a real "
-                "velux2mqtt/{cover}/state runtime topic"
+            state_topic = payload["config"]["state_topic"]
+            assert state_topic in published_topics, (
+                f"state_topic {state_topic!r} was never published at "
+                f"runtime; published topics: {sorted(published_topics)}"
             )
