@@ -91,7 +91,7 @@ class TestHaDiscoveryGeneration:
         ``.env.schema``) via the integration-test ``harness_no_homing``
         (``FakeGpio`` substituted for real GPIO) and cross-checks each
         HA-discovery payload's ``state_topic`` against
-        ``harness.mqtt.published``, the set of topics actually published
+        ``harness_no_homing.mqtt.published``, the set of topics actually published
         at runtime. A state_topic with no matching runtime publish would
         ship a phantom HA entity — exactly the regression that shipped in
         production before cap-hze's fix (PR #201), which this test now
