@@ -103,8 +103,9 @@ async def sensor_entity_tick(
     1. Stale (no raw frame within the staleness timeout): mark
        unavailable once, on the fresh→stale transition.
     2. Not stale: mark available once, on recovery, then publish state
-       if the stream cached a reading newer than our last publish, or
-       if the heartbeat interval has elapsed since our last publish.
+       if the stream cached a reading newer than the one we last
+       published, or if the heartbeat interval has elapsed since our
+       last publish.
     """
     if state.registry.is_stale(name):
         if state.last_availability.get(name) != "offline":
@@ -123,8 +124,13 @@ async def sensor_entity_tick(
     now = datetime.now(UTC)
     last_publish = state.last_publish_time.get(name)
     reading_at = state.last_reading_at.get(name)
-    is_fresh = last_publish is None or (
-        reading_at is not None and reading_at > last_publish
+    # Freshness compares the cached reading's calibration timestamp against the
+    # calibration timestamp of the reading we last published — never against the
+    # publish wall-clock. Mixing the two would let a reading cached by the stream
+    # during an in-flight publish be misjudged as already published.
+    last_published_reading_at = state.last_published_reading_at.get(name)
+    is_fresh = reading_at is not None and (
+        last_published_reading_at is None or reading_at > last_published_reading_at
     )
     is_heartbeat_due = (
         last_publish is not None
@@ -143,3 +149,5 @@ async def sensor_entity_tick(
         }
     )
     state.last_publish_time[name] = now
+    if reading_at is not None:
+        state.last_published_reading_at[name] = reading_at

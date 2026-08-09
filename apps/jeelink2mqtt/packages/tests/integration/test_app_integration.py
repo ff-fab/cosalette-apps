@@ -461,6 +461,7 @@ class TestApp:
         assert isinstance(state.last_readings, dict)
         assert isinstance(state.last_reading_at, dict)
         assert isinstance(state.last_publish_time, dict)
+        assert isinstance(state.last_published_reading_at, dict)
         assert isinstance(state.last_availability, dict)
 
 

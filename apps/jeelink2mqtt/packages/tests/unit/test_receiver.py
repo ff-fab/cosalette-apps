@@ -426,6 +426,7 @@ class TestSensorEntityTick:
         state.last_readings["office"] = reading
         state.last_reading_at["office"] = now
         state.last_publish_time["office"] = now  # already published this reading
+        state.last_published_reading_at["office"] = now  # ...this exact reading
 
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
@@ -450,8 +451,10 @@ class TestSensorEntityTick:
         reading = _fixed_reading(timestamp=now)
         state.last_readings["office"] = reading
         state.last_reading_at["office"] = now - timedelta(seconds=200)
-        # Last publish was 200s ago → past the 180s heartbeat interval
+        # Last publish was 200s ago — past the 180s heartbeat interval. The
+        # reading was already published, so only the heartbeat should fire.
         state.last_publish_time["office"] = now - timedelta(seconds=200)
+        state.last_published_reading_at["office"] = now - timedelta(seconds=200)
 
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
@@ -462,6 +465,40 @@ class TestSensorEntityTick:
         # Assert
         assert len(ctx.published_state) == 1
         assert state.last_publish_time["office"] > now - timedelta(seconds=200)
+
+    async def test_reading_older_than_last_publish_wallclock_still_fresh(self) -> None:
+        """Freshness tracks the published reading, not the publish wall-clock.
+
+        Regression for the interleaving race (PR #206 review): the stream can
+        cache a reading whose calibration timestamp predates ``last_publish_time``
+        (set to the tick's wall-clock at publish). Comparing against the
+        *published reading's* calibration timestamp — not the wall-clock — keeps
+        such a reading fresh instead of stalling it until the next heartbeat.
+
+        Technique: Decision Table — reading_at < last_publish_time yet unpublished.
+        """
+        configs = [SensorConfig(name="office")]
+        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
+        now = datetime.now(UTC)
+        state.registry.record_reading(_fixed_reading(sensor_id=42, timestamp=now))
+
+        # A freshly cached reading calibrated *before* the last publish wall-clock,
+        # but newer than the reading we actually last published.
+        reading = _fixed_reading(timestamp=now)
+        state.last_readings["office"] = reading
+        state.last_reading_at["office"] = now - timedelta(seconds=1)
+        state.last_publish_time["office"] = now
+        state.last_published_reading_at["office"] = now - timedelta(seconds=5)
+
+        settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
+        ctx = FakeDeviceContext()
+
+        # Act
+        await sensor_entity_tick(ctx, "office", settings, state)
+
+        # Assert — recognised as fresh despite reading_at < last_publish_time
+        assert len(ctx.published_state) == 1
+        assert state.last_published_reading_at["office"] == now - timedelta(seconds=1)
 
 
 # ===========================================================================
