@@ -4,16 +4,6 @@ info:
   version: 0.1.3
   x-cosalette-contract-version: '1'
 channels:
-  heartbeatState:
-    address: jeelink2mqtt/heartbeat/state
-    x-cosalette-app: jeelink2mqtt
-    messages:
-      message:
-        payload:
-          type: object
-    x-cosalette-archetype: device
-    x-cosalette-summary: 'Heartbeat publisher: re-publish sensor state at configured
-      interval'
   mappingCommand:
     address: jeelink2mqtt/mapping/set
     x-cosalette-app: jeelink2mqtt
@@ -33,32 +23,98 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Manually assign an ephemeral sensor ID to a logical name
-  stalenessState:
-    address: jeelink2mqtt/staleness/state
+  officeState:
+    address: jeelink2mqtt/office/state
+    x-cosalette-app: jeelink2mqtt
+    messages:
+      message:
+        payload:
+          description: 'Contract for the per-sensor ``{name}/state`` retained payload.
+
+
+            Declared as ``state_model=`` on the ``sensor_entity`` device
+
+            (:mod:`jeelink2mqtt.main`) so every ``ctx.publish_state()`` call is
+
+            validated and normalised against this shape (ADR-046).'
+          properties: &id001
+            temperature:
+              title: Temperature
+              type: number
+            humidity:
+              title: Humidity
+              type: integer
+            low_battery:
+              title: Low Battery
+              type: boolean
+            timestamp:
+              format: date-time
+              title: Timestamp
+              type: string
+          required: &id002
+          - temperature
+          - humidity
+          - low_battery
+          - timestamp
+          title: SensorStateModel
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: 'Per-sensor state publisher: calibrated readings, heartbeat
+      re-publish, and staleness availability'
+  outdoorState:
+    address: jeelink2mqtt/outdoor/state
+    x-cosalette-app: jeelink2mqtt
+    messages:
+      message:
+        payload:
+          description: 'Contract for the per-sensor ``{name}/state`` retained payload.
+
+
+            Declared as ``state_model=`` on the ``sensor_entity`` device
+
+            (:mod:`jeelink2mqtt.main`) so every ``ctx.publish_state()`` call is
+
+            validated and normalised against this shape (ADR-046).'
+          properties: *id001
+          required: *id002
+          title: SensorStateModel
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: 'Per-sensor state publisher: calibrated readings, heartbeat
+      re-publish, and staleness availability'
+  receiverState:
+    address: jeelink2mqtt/state
     x-cosalette-app: jeelink2mqtt
     messages:
       message:
         payload:
           type: object
-    x-cosalette-archetype: device
-    x-cosalette-summary: 'Staleness checker: publish offline availability for stale
-      sensors'
+    x-cosalette-archetype: stream
+    x-cosalette-summary: 'JeeLink LaCrosse serial receiver: read sensor frames and
+      publish state'
 operations:
-  publishHeartbeatState:
-    action: send
-    channel:
-      $ref: '#/channels/heartbeatState'
-    summary: 'Heartbeat publisher: re-publish sensor state at configured interval'
   publishMappingState:
     action: send
     channel:
       $ref: '#/channels/mappingState'
     summary: Manually assign an ephemeral sensor ID to a logical name
-  publishStalenessState:
+  publishOfficeState:
     action: send
     channel:
-      $ref: '#/channels/stalenessState'
-    summary: 'Staleness checker: publish offline availability for stale sensors'
+      $ref: '#/channels/officeState'
+    summary: 'Per-sensor state publisher: calibrated readings, heartbeat re-publish,
+      and staleness availability'
+  publishOutdoorState:
+    action: send
+    channel:
+      $ref: '#/channels/outdoorState'
+    summary: 'Per-sensor state publisher: calibrated readings, heartbeat re-publish,
+      and staleness availability'
+  publishReceiverState:
+    action: send
+    channel:
+      $ref: '#/channels/receiverState'
+    summary: 'JeeLink LaCrosse serial receiver: read sensor frames and publish state'
   receiveMappingCommand:
     action: receive
     channel:

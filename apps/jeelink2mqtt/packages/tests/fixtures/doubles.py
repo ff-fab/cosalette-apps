@@ -19,11 +19,29 @@ class FakeDeviceContext:
     """
 
     published: list[tuple[str, str, bool]] = field(default_factory=list)
+    published_state: list[dict[str, object]] = field(default_factory=list)
+    availability_calls: list[str] = field(default_factory=list)
+    """Sequence of ``"available"``/``"unavailable"`` markers, in call order."""
+
     _shutdown: bool = False
 
     async def publish(self, topic: str, payload: str, *, retain: bool = False) -> None:
         """Record a publish call as ``(topic, payload, retain)``."""
         self.published.append((topic, payload, retain))
+
+    async def publish_state(
+        self, payload: dict[str, object], *, retain: bool = True
+    ) -> None:  # noqa: ARG002 — retain unused, mirrors DeviceContext signature
+        """Record a publish_state call."""
+        self.published_state.append(payload)
+
+    async def mark_unavailable(self) -> None:
+        """Record an unavailable marker."""
+        self.availability_calls.append("unavailable")
+
+    async def mark_available(self) -> None:
+        """Record an available marker."""
+        self.availability_calls.append("available")
 
     async def sleep(self, seconds: float) -> None:  # noqa: ARG002
         """No-op sleep for tests — completes instantly."""

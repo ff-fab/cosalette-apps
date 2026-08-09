@@ -6,11 +6,17 @@ the CLI entry point.
 
 Topic layout::
 
-    jeelink2mqtt/{sensor_name}/state      ← calibrated readings
-    jeelink2mqtt/{sensor_name}/availability
-    jeelink2mqtt/raw/state                ← every decoded frame
-    jeelink2mqtt/mapping/state            ← current ID→name map
-    jeelink2mqtt/mapping/event            ← mapping change events
+    jeelink2mqtt/{sensor_name}/state         ← calibrated readings (per-sensor device)
+    jeelink2mqtt/{sensor_name}/availability  ← framework-managed (per-sensor device)
+    jeelink2mqtt/raw/state                   ← every decoded frame
+    jeelink2mqtt/mapping/state               ← current ID→name map
+    jeelink2mqtt/mapping/event               ← mapping change events
+
+Each configured sensor is registered as its own ``@app.device`` entity
+(a callable ``NameSpec`` keyed by ``settings.sensors`` — see
+``sensor_entity`` below); the ``receiver`` stream only decodes frames,
+resolves them through the registry, and caches the calibrated reading
+for the sensor's device to publish (cap-ayy).
 """
 
 from __future__ import annotations
@@ -30,8 +36,8 @@ from jeelink2mqtt import pipeline as _pipeline
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.adapters import FakeJeeLinkAdapter, PyLaCrosseAdapter
 from jeelink2mqtt.errors import error_type_map
-from jeelink2mqtt.models import MappingEvent, SensorReading
-from jeelink2mqtt.settings import Jeelink2MqttSettings
+from jeelink2mqtt.models import MappingEvent, SensorReading, SensorStateModel
+from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import SharedState, build_shared_state_logged
 
 logger = logging.getLogger(__name__)
@@ -123,8 +129,8 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             # 2. Route through registry
             name = state.registry.record_reading(reading)
 
-            # 3. Mapped → filter → calibrate → publish
-            # Hoist timestamp: one call shared by record_published_reading (step 3)
+            # 3. Mapped → filter → calibrate → cache
+            # Hoist timestamp: one call shared by record_calibrated_reading (step 3)
             # and persist_registry_if_due (step 4) to avoid two datetime.now(UTC) calls.
             now = datetime.now(UTC)
 
@@ -134,11 +140,9 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
                     calibrated = _pipeline.filter_and_calibrate(
                         reading, config, state.filter_bank
                     )
-                    # Publish temperature + humidity (environment sensor values)
-                    # and device metadata for this sensor.
-                    await _receiver.publish_sensor_state(ctx, name, calibrated)
-                    state.record_published_reading(name, calibrated, now)
-                    await _receiver.publish_availability(ctx, name, "online")
+                    # Cache the calibrated reading — the sensor's own
+                    # per-sensor device (sensor_entity) publishes it.
+                    state.record_calibrated_reading(name, calibrated, now)
 
             # 4. Periodic persistence for last_seen metadata (ADR-004)
             new_persist_time = state.persist_registry_if_due(
@@ -150,45 +154,34 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             yield
 
     finally:
-        for sensor_cfg in settings.sensors:
-            await _receiver.publish_availability(ctx, sensor_cfg.name, "offline")
         logger.info("Receiver stopped")
 
 
 @app.device(
-    "staleness",
-    summary="Staleness checker: publish offline availability for stale sensors",
+    name=lambda s: {sc.name: sc for sc in s.sensors},
+    summary=(
+        "Per-sensor state publisher: calibrated readings, heartbeat "
+        "re-publish, and staleness availability"
+    ),
+    state_model=SensorStateModel,
 )
-async def staleness(  # pragma: no cover — composition root, tested via helpers
+async def sensor_entity(  # pragma: no cover — composition root, tested via helpers
     ctx: cosalette.DeviceContext,
+    config: SensorConfigSettings,
     settings: Jeelink2MqttSettings,
     state: SharedState,
 ) -> AsyncIterator[None]:
-    """Periodic staleness check: mark sensors offline if no recent readings."""
-    while not ctx.shutdown_requested:
-        await ctx.sleep(1.0)
-        await _receiver._check_staleness(ctx, settings, state)
-        yield
+    """Per-configured-sensor device: publish state, heartbeat, availability.
 
-
-@app.device(
-    "heartbeat",
-    summary="Heartbeat publisher: re-publish sensor state at configured interval",
-)
-async def heartbeat(  # pragma: no cover — composition root, tested via helpers
-    ctx: cosalette.DeviceContext,
-    settings: Jeelink2MqttSettings,
-    state: SharedState,
-) -> AsyncIterator[None]:
-    """Periodic heartbeat: re-publish last known readings to prevent
-    inactivity timeouts.
-
-    Checks every 1 second for eligible sensors (matching the old receiver loop cadence),
-    while _maybe_heartbeat uses settings.heartbeat_interval_seconds as the threshold.
+    One instance is registered per ``settings.sensors`` entry (dict-name
+    ``NameSpec``). Ticks every second, matching the cadence of the
+    staleness/heartbeat devices this replaces; see
+    :func:`jeelink2mqtt.receiver.sensor_entity_tick` for the unified
+    publish/heartbeat/staleness logic.
     """
     while not ctx.shutdown_requested:
         await ctx.sleep(1.0)
-        await _receiver._maybe_heartbeat(ctx, settings, state)
+        await _receiver.sensor_entity_tick(ctx, config.name, settings, state)
         yield
 
 
