@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.1.5](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.1.4...caldates2mqtt-v0.1.5) (2026-08-09)
+
+
+### Features
+
+* **caldates2mqtt:** add typed state_model as HA-discovery prep (cap-wxg) ([733e954](https://github.com/ff-fab/cosalette-apps/commit/733e95430bdfc5f3cb4c7f7c2a8ee40b144b7161))
+* upgrade cosalette to 0.5.7 and adopt HA-discovery + error-hardening features ([#182](https://github.com/ff-fab/cosalette-apps/issues/182)) ([f00edd0](https://github.com/ff-fab/cosalette-apps/commit/f00edd00267aaad6f14c6604bc51686ee5727124))
+
+
+### Bug Fixes
+
+* **cosalette:** bump to 0.5.10 for schema fail-loud + settings-resolve mode ([#202](https://github.com/ff-fab/cosalette-apps/issues/202)) ([3107afe](https://github.com/ff-fab/cosalette-apps/commit/3107afe237204d53a48c13d7ee106a2f81370ed4))
+* **cosalette:** unicode schema fix + jeelink2mqtt HA-discovery decision ([#200](https://github.com/ff-fab/cosalette-apps/issues/200)) ([d81b76e](https://github.com/ff-fab/cosalette-apps/commit/d81b76e77b5a89b2eefda606d3c29142205eefdd))
+* **deps:** upgrade cosalette to 0.6.0, resolve cap-wv9 schema-check asymmetry ([#204](https://github.com/ff-fab/cosalette-apps/issues/204)) ([2010b5e](https://github.com/ff-fab/cosalette-apps/commit/2010b5e44fe713c01acb73009916449ee580a36b))
+* **velux2mqtt:** stop shipping phantom HA-discovery entity ([#201](https://github.com/ff-fab/cosalette-apps/issues/201)) ([733e954](https://github.com/ff-fab/cosalette-apps/commit/733e95430bdfc5f3cb4c7f7c2a8ee40b144b7161))
+
 ## [0.1.4](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.1.3...caldates2mqtt-v0.1.4) (2026-07-11)
 
 
