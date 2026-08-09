@@ -23,11 +23,11 @@ channels (`blindState`, `windowState`, ...) before `docs/schema.yaml` is written
 `CoverState.position` carries an `x-cosalette-consumer` annotation, so those real
 channels do produce discovery payloads.
 
-`cosalette schema check` (the CI gate, `task velux2mqtt:schema:check`) still cannot
-validate this app — it has no `--resolve-settings` support and unconditionally rejects
-any settings-derived NameSpec at import time (cap-wv9 part b, blocked on upstream); the
-task explicitly skips it with a message referencing cap-44e/cap-0cg rather than failing
-CI unexplained. See `packages/tests/integration/test_schema_discovery.py`.
+`cosalette schema check` (the CI gate, `task velux2mqtt:schema:check`) now validates
+this app too: cosalette 0.6.0 extended `--resolve-settings`/`--env-file` to
+`schema check` (previously dump-only, cap-wv9 part b), so the task runs it against the
+same checked-in `.env.schema` profile. See
+`packages/tests/integration/test_schema_discovery.py`.
 
 ## Contributing
 
