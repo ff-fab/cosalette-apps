@@ -1,7 +1,8 @@
 # Enhancement Proposal: a native config-file settings source for cosalette
 
-**Status:** proposed — requests an amendment to cosalette ADR-003 plus three CLI/loader
-changes **Raised by:** cosalette-apps, while specifying `wiz2mqtt`, a bridge exposing 14
+**Status:** **shipped in cosalette 0.6.1** — see
+[Resolution](#resolution-cosalette-061) **Raised by:** cosalette-apps, while specifying
+`wiz2mqtt`, a bridge exposing 14
 WiZ bulbs as 14 independent MQTT entities (beads epic `cap-10u`, issue `cap-10u.2`)
 **Verified against:** cosalette 0.6.0 / pydantic-settings 2.14.2 / Python 3.14
 (`_settings/__init__.py`, `_app/__init__.py`, `_cli.py`, `_schema/_cli.py`,
@@ -506,3 +507,30 @@ in this repository inherits a regeneration path that turns a missing file into a
 successful, empty, committed schema — and that failure is invisible until entities go
 missing in Home Assistant weeks later. Of the three blocking findings, that is the one
 we would least like to see deferred to a follow-up.
+
+## Resolution (cosalette 0.6.1)
+
+Shipped as
+[cosalette#376](https://github.com/ff-fab/cosalette/issues/376), "feat(settings): native
+config-file settings source (env > file > defaults)". Verified against the installed
+0.6.1 wheel; gate `cap-10u.5` closed.
+
+All five findings are addressed, including the fail-loud request:
+
+| #   | 0.6.1                                                                                                                                                                        |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | An explicitly named path must exist. `--config-file absent.toml` → `Error: config file not found: absent.toml`, exit 1. `--env-file` gained the same rule ("Must exist if given") |
+| 2   | New `cosalette.SettingsLoadError`, caught beside `ValidationError`. A malformed file now reports `Error: could not load configuration file 'bad.toml': Expected ']]' …`, exit 1  |
+| 3   | `--config-file` on `schema dump`, `schema check`, `schema init` and the `build_cli` app CLI, with the same "only used with `--resolve-settings`" semantics                        |
+| 4   | cosalette owns the source (`_settings/_config_file.py`), plumbed by a `_config_file=` runtime kwarg on `Settings.__init__` via a ContextVar, as anticipated                       |
+| 5   | Suffix dispatch — `.toml` (stdlib `tomllib`), `.yaml`/`.yml`, `.json`                                                                                                            |
+
+Precedence is `init > env > dotenv > config_file > secrets > defaults`, matching the
+proposed chain. Verified end to end on a probe app whose entity set is derived from a
+`bulbs` inventory: with `probe.toml` alone the schema expands to `hallState` /
+`kitchenState`; with `CFGPROBE_BULBS` also set, the env value wins outright and the
+schema expands to `envwinsState`.
+
+Consumed downstream by `cap-10u.17`, which adds `SCHEMA_CONFIG_FILE` to
+`taskfiles/PythonApp.yml` beside `SCHEMA_ENV_FILE`. Either variable now switches
+`schema:check` and `schema:generate` to the resolving branch, and an app may set both.

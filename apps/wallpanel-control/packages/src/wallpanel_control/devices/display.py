@@ -69,6 +69,15 @@ class DisplayCommand(BaseModel):
         return self
 
 
+# Both annotated DisplayState fields carry read_only=True. This is the send-only
+# state channel of a @app.command entity, and cosalette stamps
+# x-cosalette-archetype: command on it just as it does on the /set channel. Without
+# the marker the HA generator infers a writable component from the archetype alone
+# and emits a number/select carrying no command_topic — a config Home Assistant
+# rejects. read_only pins them to sensors, which is what they are; commands arrive
+# on DisplayCommand over /set. See cap-bo0.
+# NB: the model docstring becomes the schema's payload description, so this stays a
+# comment rather than prose in the docstring.
 class DisplayState(BaseModel):
     """Typed state for wallpanel-control/display/state."""
 
@@ -79,6 +88,7 @@ class DisplayState(BaseModel):
             json_schema_extra=consumer(
                 display_name="Display State",
                 icon="mdi:monitor",
+                read_only=True,
             )
         ),
     ]
@@ -92,6 +102,7 @@ class DisplayState(BaseModel):
                 unit="%",
                 state_class="measurement",
                 icon="mdi:brightness-percent",
+                read_only=True,
             ),
         ),
     ]

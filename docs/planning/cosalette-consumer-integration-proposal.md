@@ -1,6 +1,8 @@
 # Enhancement Proposal: consumer integration overhaul (`_schema/_consumer_gen.py`)
 
-**Status:** proposed — raised upstream, no implementation started
+**Status:** **partially shipped in cosalette 0.6.1** — overhaul steps 1–3 landed,
+steps 4–5 did not; gate `cap-10u.6` stays open. See
+[Status against 0.6.1](#status-against-cosalette-061)
 **Raised by:** cosalette-apps, while planning the wiz2mqtt migration (beads epic
 `cap-10u`)
 **Verified against:** cosalette 0.6.0 (`_schema/_consumer_gen.py`,
@@ -931,7 +933,99 @@ next app hits the same wall from a slightly different angle.
 
 ---
 
-## Appendix A — reproduction schema
+## Status against cosalette 0.6.1
+
+Shipped as
+[cosalette#377](https://github.com/ff-fab/cosalette/issues/377), "fix(schema): correct
+HA/openHAB consumer code generation". **Overhaul steps 1–3 landed in full, plus the
+platform key-filtering half of step 4. Steps 4 and 5 otherwise did not.**
+
+Re-verified by replaying both Appendix A probes through
+`cosalette schema ha-discovery` and `cosalette schema openhab` against the installed
+0.6.1 wheel, plus a third probe for Finding 16.
+
+### Fixed — 13 findings
+
+| #     | Evidence in 0.6.1 output                                                                                    |
+| ----- | ------------------------------------------------------------------------------------------------------------- |
+| 1     | One Thing per device: `wiz2mqtt_desk` carries all ten channels in a single block (`_channels_by_device`)      |
+| 2     | Items link `:brightness_cmd`, matching the emitted channel name                                              |
+| 3     | Command Items gain a `Cmd` segment — `Wiz2Mqtt_Desk_State` vs `Wiz2Mqtt_Desk_State_Cmd`, no duplicates       |
+| 4     | HA gains a `_cmd` suffix — `desk_state` and `desk_state_cmd` no longer share a discovery topic               |
+| 5     | `_resolve_device` uses the structural extractor; `wiz2mqtt/livingroom/ceiling/state` resolves correctly       |
+| 6     | `_effective_schema` unwraps `anyOf`/`oneOf`/`allOf`; `color_temp_kelvin` is a `number`, not a string          |
+| 7     | `array` recognised; `rgb` renders `{{ value_json.rgb \| join(',') }}` instead of a Python repr                |
+| 8     | Switch channels emit `on="true"` / `off="false"`                                                             |
+| 11    | Default `command_template` — e.g. `{"brightness": {{ value }}}`, with a boolean branch for HA's `ON`/`OFF`   |
+| 12    | Command channels emit `formatBeforePublish`; the inbound-only `transformationPattern` is dropped              |
+| 14    | `number` entities carry `min: 0` / `max: 255` from the schema                                                |
+| 15    | `select` entities carry `options: [ocean, romance, party]`                                                   |
+| 17    | `read_only: true` yields a state-only `binary_sensor`                                                        |
+| —     | The `("command", "string")` → `text` gap is filled, and platform-invalid keys are dropped (a `binary_sensor` no longer ships `unit_of_measurement` / `state_class`) |
+
+### Still open — 10 findings
+
+| #   | State in 0.6.1                                                                                                                        |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 9   | `_openhab_channel_type` still maps from JSON type only. The probe's `Color Wiz2Mqtt_Desk_Hsb` Item is still bound to a `string` channel |
+| 10  | `component: light` routes the discovery topic to `homeassistant/light/…` but emits only `state_topic` + `value_template` — still invalid |
+| 13  | `_CONSUMER_FIELD_MAP` is still a four-key allowlist; `ConsumerMeta` has six keys and no `extra` passthrough                             |
+| 16  | `$ref` resolves (a `$ref`-ed property now produces an entity), but nested object properties are still inert — `nested.inner` emits nothing |
+| 18  | No availability keys on any payload                                                                                                    |
+| 19  | Still one HA device per app: `identifiers: [cosalette_<app>]`, `name: <app>`                                                          |
+| 20  | No composite mapping. One bulb still yields five scattered HA entities rather than one `light`                                          |
+| 21  | `OpenHabOverrides` carries `item_type` / `label` / `groups` / `tags` only — no `channel_type`, no `channel_params`                     |
+| 22  | No typed producer for `x-cosalette-ha-discovery` or `x-cosalette-openhab`; only `consumer()` / `temperature()` / `percent()` exist      |
+| 23  | Generation is still offline-only — no runtime publication, no enrichment hook                                                          |
+
+### Newly found in 0.6.1 — Finding 24: component inference ignores channel direction
+
+Tracked as `cap-bo0`, to be filed upstream as a follow-up to #377.
+
+For a `@app.command` entity cosalette stamps `x-cosalette-archetype: command` on **both**
+the `/set` channel (direction `receive`) and the `/state` channel (direction `send`).
+`_infer_component` keys on archetype alone, so the send-only state channel resolves to a
+writable component, while `_apply_topics_and_templates` correctly emits only a
+`state_topic` for a send channel. The result is a `number` / `select` with no
+`command_topic`, which Home Assistant rejects. The Finding 4 `_cmd` suffix is keyed the
+same way, so the state entity is mislabelled too.
+
+`apps/wallpanel-control` is the case in this monorepo:
+
+```text
+0.6.0  homeassistant/sensor/wallpanel_control/display_brightness_percent/config      valid
+0.6.1  homeassistant/number/wallpanel_control/display_brightness_percent_cmd/config  no command_topic
+```
+
+Not a plain regression — under 0.6.0 two bugs cancelled out. The field is
+`anyOf: [{type: integer}, {type: 'null'}]`, which 0.6.0 could not unwrap (Finding 6), so
+it degraded to `string`, and `("command", "string")` was absent from the map, so it fell
+through to `sensor`. Fixing Finding 6 and filling that gap resolves the type correctly
+and thereby exposes the direction-blindness underneath.
+
+The fix is to gate the writable branch on direction: a `send` channel can only observe,
+so it should take the read-only component path regardless of archetype — the same
+treatment `consumer.read_only` already gets.
+
+Mitigated downstream for now by marking both `DisplayState` fields `read_only=True`,
+which is accurate and routes them through the Finding 17 path; output is byte-identical
+to 0.6.0's. A regression guard asserting that no writable component ships without a
+`command_topic` is in `test_schema_discovery.py`.
+
+### Gate decision
+
+`cap-10u.6` **stays open**. This document named Findings 20, 21 and 23 as the three
+wiz2mqtt's migration is gated on, and none of them shipped. The worked example is the
+direct test: an openHAB `Color` item over `hsb` still binds to a `string` channel
+(Finding 21), and one bulb still fans out into five entities instead of one `light`
+(Finding 20).
+
+What 0.6.1 does change is the value of waiting. Steps 1–3 were described here as
+"corrections with no new annotation surface [that] would fix every app currently in
+production", and they did — the generators no longer emit confidently wrong output for
+the eight apps already in this monorepo. The residual gap is purely the additive
+capability, so `cap-10u.14` remains blocked while nothing else in the epic is held back
+by consumer generation.
 
 Both probe schemas below reproduce every finding in Parts 1–5 against cosalette
 0.6.0 with `cosalette schema ha-discovery <file>` and `cosalette schema openhab
