@@ -97,16 +97,21 @@ tasks:
   schema:check:
     desc: 'Validate {{.APP_NAME}} registrations against docs/schema.yaml'
     # Apps with settings-derived (ADR-023 callable name=) registrations set
-    # SCHEMA_ENV_FILE (see caldates2mqtt/velux2mqtt includes in the root
-    # Taskfile.yml): cosalette 0.6.0 extends --resolve-settings/--env-file to
-    # `schema check` (previously dump-only, cap-wv9 part b), so those apps are
-    # validated against the same checked-in profile schema:generate uses.
+    # SCHEMA_ENV_FILE and/or SCHEMA_CONFIG_FILE (see the caldates2mqtt /
+    # velux2mqtt includes in the root Taskfile.yml): cosalette 0.6.0 extends
+    # --resolve-settings/--env-file to `schema check` (previously dump-only,
+    # cap-wv9 part b) and 0.6.1 adds --config-file beside it for apps whose
+    # inventory lives in a TOML/YAML/JSON file (cap-10u.5). Either variable
+    # switches this task to the resolving branch, so those apps are validated
+    # against the same checked-in profile schema:generate uses.
+    vars:
+      RESOLVE_FLAGS: '{{if .SCHEMA_ENV_FILE}}--env-file {{.SCHEMA_ENV_FILE}} {{end}}{{if .SCHEMA_CONFIG_FILE}}--config-file {{.SCHEMA_CONFIG_FILE}}{{end}}'
     cmds:
       - |
-        {{if .SCHEMA_ENV_FILE}}
+        {{if .RESOLVE_FLAGS}}
         uv run --package {{.APP_NAME}} cosalette schema check \
           --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} \
-          --schema docs/schema.yaml --resolve-settings --env-file {{.SCHEMA_ENV_FILE}}
+          --schema docs/schema.yaml --resolve-settings {{.RESOLVE_FLAGS}}
         {{else}}
         uv run --package {{.APP_NAME}} cosalette schema check --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} --schema docs/schema.yaml
         {{end}}
@@ -122,20 +127,23 @@ tasks:
     # cosalette 0.5.7+ auto-emits it per channel from the App registry.)
     #
     # Apps with settings-derived (ADR-023 callable name=) registrations set
-    # SCHEMA_ENV_FILE (see caldates2mqtt/velux2mqtt includes in the root
-    # Taskfile.yml). cosalette 0.6.0 extended --resolve-settings/--env-file to
-    # `schema init` too (cap-wv9 part b, previously dump-only), but this task
-    # keeps using `schema dump --resolve-settings --env-file <profile>` and
+    # SCHEMA_ENV_FILE and/or SCHEMA_CONFIG_FILE (see the caldates2mqtt /
+    # velux2mqtt includes in the root Taskfile.yml). cosalette 0.6.0 extended
+    # --resolve-settings/--env-file to `schema init` too (cap-wv9 part b,
+    # previously dump-only) and 0.6.1 added --config-file (cap-10u.5), but this
+    # task keeps using `schema dump --resolve-settings <profile flags>` and
     # manually re-layers the static x-cosalette-enforcement scaffold, matching
     # the non-settings-derived branch below byte-for-byte. See cap-0cg /
     # ADR-051.
     prompt: 'This will overwrite docs/schema.yaml for {{.APP_NAME}}. Hand-authored (non-model-driven) consumer enrichment would need re-applying. Continue?'
+    vars:
+      RESOLVE_FLAGS: '{{if .SCHEMA_ENV_FILE}}--env-file {{.SCHEMA_ENV_FILE}} {{end}}{{if .SCHEMA_CONFIG_FILE}}--config-file {{.SCHEMA_CONFIG_FILE}}{{end}}'
     cmds:
       - |
-        {{if .SCHEMA_ENV_FILE}}
+        {{if .RESOLVE_FLAGS}}
         uv run --package {{.APP_NAME}} cosalette schema dump \
           --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} \
-          --resolve-settings --env-file {{.SCHEMA_ENV_FILE}} > docs/schema.yaml.tmp
+          --resolve-settings {{.RESOLVE_FLAGS}} > docs/schema.yaml.tmp
         cat >> docs/schema.yaml.tmp <<'ENFORCEMENT'
         x-cosalette-enforcement:
           mode: warn

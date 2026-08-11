@@ -127,6 +127,29 @@ class TestHaDiscoveryGeneration:
                 f"{object_id}: expected {key}={value!r}, got {config.get(key)!r}"
             )
 
+    def test_writable_components_carry_a_command_topic(
+        self, ha_payloads: list[dict[str, Any]]
+    ) -> None:
+        """No writable HA component is emitted without a command_topic.
+
+        The display entities live on a send-only channel that cosalette still
+        stamps ``x-cosalette-archetype: command``. cosalette 0.6.1 infers the
+        component from the archetype alone, so without ``read_only`` on the
+        DisplayState fields it emits a ``number`` / ``select`` carrying only a
+        ``state_topic`` — a config Home Assistant rejects (cap-bo0).
+
+        Technique: Error Guessing — anticipates the specific failure mode of a
+        writable component with no way to write.
+        """
+        writable = {"number", "select", "switch", "text", "light", "climate", "cover"}
+        for payload in ha_payloads:
+            component = payload["topic"].split("/")[1]
+            if component in writable:
+                assert "command_topic" in payload["config"], (
+                    f"{payload['topic']}: {component} is a writable component but "
+                    "carries no command_topic"
+                )
+
     def test_display_state_is_plain_text_sensor(
         self, configs_by_id: dict[str, dict[str, Any]]
     ) -> None:

@@ -1,8 +1,8 @@
 # Index: wiz2mqtt framework proposals
 
-**Status:** phase 0 of beads epic `cap-10u` — all three documents filed **Raised by:**
-cosalette-apps, while planning the wiz2mqtt migration **Verified against:** cosalette
-0.6.0
+**Status:** phase 1 of beads epic `cap-10u` — two of three gates closed by cosalette
+0.6.1 **Raised by:** cosalette-apps, while planning the wiz2mqtt migration **Verified
+against:** cosalette 0.6.0, re-verified against 0.6.1
 
 Specifying `wiz2mqtt` — a bridge exposing 14 WiZ bulbs as 14 independent MQTT entities —
 surfaced three framework-level problems. None of them has a downstream fix worth
@@ -10,15 +10,33 @@ building, so **all three are upstream asks against cosalette**, not work items i
 repository. Phase 0 of the epic is writing them down; the build phase does not start
 until they land.
 
-| Document                                                                            | Kind        | Gate task   | Downstream work it blocks                            |
-| ----------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------- |
-| [Config-file settings source](cosalette-config-file-settings-proposal.md) (`cap-10u.2`) | enhancement | `cap-10u.5` | `cap-10u.8` scaffold, `cap-10u.17` task template     |
-| [Consumer integration overhaul](cosalette-consumer-integration-proposal.md) (`cap-10u.3`) | enhancement | `cap-10u.6` | `cap-10u.8` scaffold, `cap-10u.14` consumer integration |
-| [Command dispatch bug](cosalette-command-dispatch-bug.md) (`cap-10u.1`)             | bug         | `cap-10u.7` | nothing                                              |
+| Document                                                                            | Kind        | Gate task   | Downstream work it blocks                            | Status against 0.6.1 |
+| ----------------------------------------------------------------------------------- | ----------- | ----------- | ---------------------------------------------------- | -------------------- |
+| [Config-file settings source](cosalette-config-file-settings-proposal.md) (`cap-10u.2`) | enhancement | `cap-10u.5` | `cap-10u.8` scaffold, `cap-10u.17` task template     | **closed** — shipped in full |
+| [Consumer integration overhaul](cosalette-consumer-integration-proposal.md) (`cap-10u.3`) | enhancement | `cap-10u.6` | `cap-10u.8` scaffold, `cap-10u.14` consumer integration | **open** — 13 of 23 findings fixed; 20/21/23 outstanding |
+| [Command dispatch bug](cosalette-command-dispatch-bug.md) (`cap-10u.1`)             | bug         | `cap-10u.7` | nothing                                              | **closed** — shipped in full |
 
 Each document is consumed by exactly one gate task, which closes when a cosalette
 release carrying the fix is on PyPI and the app's pin can be bumped. Per AGENTS.md the
 gate tasks hold no decision logic — the documents do.
+
+## Where this stands after cosalette 0.6.1
+
+cosalette 0.6.1 (2026-08-11) answered all three documents. The monorepo is pinned to it
+(`cosalette>=0.6.1,<0.7`) and `cap-10u.5` and `cap-10u.7` are closed; each document
+carries its own resolution section with the verification evidence.
+
+`cap-10u.6` stays open. The consumer overhaul landed as its corrective half — steps 1–3
+of "The overhaul", the changes that fix output the generators were already producing
+wrongly — while the additive half that wiz2mqtt actually needs did not. That gate names
+Findings 20 (composite entity mapping), 21 (openHAB `channel_type` / `channel_params`)
+and 23 (runtime discovery) as its closing conditions and all three are outstanding, so
+`cap-10u.8` (scaffold) and `cap-10u.14` (consumer integration) remain blocked.
+
+The dispatch fix arriving in the same release is the more consequential half for
+shipping: it was the defect that decided whether a 14-bulb app could go in front of a
+household at all, and it landed as the default per-entity dispatch that was asked for
+rather than an opt-in flag.
 
 ## Dependency order
 

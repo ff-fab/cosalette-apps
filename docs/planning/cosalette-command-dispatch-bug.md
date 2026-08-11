@@ -1,8 +1,9 @@
 # Bug Report: command handlers are serialised on the MQTT read loop
 
-**Status:** open — filed upstream from a downstream app repository **Raised by:**
-cosalette-apps, while planning the wiz2mqtt migration (beads epic `cap-10u`)
-**Verified against:** cosalette 0.6.0, installed wheel — `_mqtt/_client.py`,
+**Status:** **resolved in cosalette 0.6.1** — see
+[Resolution](#resolution-cosalette-061) **Raised by:** cosalette-apps, while planning the
+wiz2mqtt migration (beads epic `cap-10u`) **Verified against:** cosalette 0.6.0,
+installed wheel — `_mqtt/_client.py`,
 `_mqtt/_router.py`, `_runners/_command_runner.py`, `_context/_device_context.py`,
 `_runners/_stream_types.py`, `_runners/_telemetry_runner.py`, `_wiring/_context.py`,
 `_wiring/_tasks.py`, `_wiring/_task_lifecycle.py`, `_health/_reporter.py`
@@ -352,3 +353,46 @@ Deployment is gated on the upstream fix: the migration epic carries a gate task
 (`cap-10u.7`) blocked until a cosalette release ships it. If the fix lands narrower than
 part 1 above — an opt-in flag, or a timeout without per-entity dispatch — the gate stays
 open and we will reassess whether the app can ship at all in its 14-bulb configuration.
+
+## Resolution (cosalette 0.6.1)
+
+Shipped as
+[cosalette#374](https://github.com/ff-fab/cosalette/issues/374), "fix(command):
+concurrent per-entity command dispatch". Verified against the installed 0.6.1 wheel;
+gate `cap-10u.7` closed.
+
+All three parts landed, as the default rather than an opt-in:
+
+| Part                          | 0.6.1                                                                                                                                                     |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1 — per-entity dispatch       | `TopicRouter.route` enqueues and returns; `_ensure_worker` spawns one `cmd-dispatch:<entity>` task per entity, draining FIFO (`_mqtt/_router.py:148-225`) |
+| 2 — `timeout=`                | `@app.command(timeout=…)`, carried on `_CommandRegistration.timeout`                                                                                     |
+| 3a — bounded queue            | `maxsize=` / `backpressure=` on `@app.command` and `@app.device`, reusing `BackpressurePolicy` as asked; `DeviceContext._command_queue` now takes a maxsize |
+| 3b — device receive channel   | `_build_channel_entry` keys on `kind in {"command", "device_command"}` (`_schema/_asyncapi.py:437`), so a command-consuming device emits a receive channel |
+
+Replaying the reproduction above against 0.6.1 (with `await router.wait_idle()` added,
+since dispatch is no longer synchronous with `_dispatch`) and one extra entity receiving
+two messages to probe intra-entity ordering:
+
+```text
+t+ 0.00s  slow start wiz2mqtt/bulb_kitchen/set
+t+ 0.00s  fast done  wiz2mqtt/bulb_1/set
+t+ 0.00s  fast done  wiz2mqtt/bulb_2/set
+t+ 0.00s  fast done  wiz2mqtt/bulb_3/set
+t+ 0.00s  seq start  first
+t+ 0.50s  seq done   first
+t+ 0.50s  seq start  second
+t+ 1.00s  seq done   second
+t+ 2.00s  slow done  wiz2mqtt/bulb_kitchen/set
+```
+
+The three unrelated entities complete immediately instead of waiting out the stalled
+handler, and `first`/`second` stay strictly ordered within their entity — the exact
+shape requested. Two lifecycle additions not in the proposal are worth noting for the
+app's tests: `TopicRouter.wait_idle()` (await until every queue drains) and
+`TopicRouter.aclose()` (cancel workers), which is how a test observes a handler that no
+longer runs inline.
+
+The default `maxsize=0` is unbounded, so wiz2mqtt must set `maxsize=`/`backpressure=`
+explicitly per bulb rather than inheriting a bounded default; `drop_oldest` is the
+policy that matches idempotent state-setting commands, per the argument above.
