@@ -73,17 +73,6 @@ def build_integration_app(
     return app
 
 
-async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
-    """Start the harness as a background task, wait, then shut it down cleanly.
-
-    Bounds task completion with asyncio.wait_for to prevent indefinite test hangs.
-    """
-    task = asyncio.create_task(harness.run())
-    await asyncio.sleep(wait)
-    harness.shutdown_event.set()
-    await asyncio.wait_for(task, timeout=wait * 5)
-
-
 _COMMAND_SETTLE_TIME = 0.03
 """Real seconds to wait after each injected command before sending the next.
 
@@ -169,10 +158,51 @@ def _expected_subscriptions(topic: str) -> set[str]:
 _SHUTDOWN_TIMEOUT = 5.0
 """Bound on waiting for the harness task after shutdown is signalled.
 
-Mirrors ``run_app_briefly``'s ``asyncio.wait_for`` bound above: if the
-harness under test ever fails to observe ``shutdown_event``, this fails the
-test with a clear timeout instead of hanging CI indefinitely.
+If the harness under test ever fails to observe ``shutdown_event``, this
+fails the test with a clear timeout instead of hanging CI indefinitely.
 """
+
+
+async def _wait_until_startup_settled(harness: AppHarness) -> None:
+    """Wait for the harness's startup sequence to finish.
+
+    ``subscribe_and_connect()`` subscribes every registered device's
+    topics in one atomic burst with no ``await`` in between (see
+    ``_wait_until_subscribed``'s reasoning) — so waiting for at least one
+    subscription to appear confirms MQTT dispatch is wired up without
+    needing to know the harness's specific devices. That eliminates the
+    default JsonFileStore's thread-pool-backed I/O race, which happens
+    *before* subscribe_and_connect and was the confirmed cause of
+    cap-6rm: 'run_app_briefly's fixed 0.3s wait can still race under heavy
+    combined test-suite load'.
+
+    Startup device work that runs *after* subscriptions are wired (homing,
+    initial state publish, health status) is FakeClock/FakeGpio-driven —
+    no real I/O — so it needs only the same order of real-time margin as
+    ``_COMMAND_SETTLE_TIME``, not another condition to poll for.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + 2.0
+    while not harness.mqtt.subscriptions:
+        if loop.time() >= deadline:
+            raise AssertionError(
+                "App did not subscribe to any command topics within 2.0s "
+                "— router was not listening yet."
+            )
+        await asyncio.sleep(0.005)
+    await asyncio.sleep(_COMMAND_SETTLE_TIME)
+
+
+async def run_app_briefly(harness: AppHarness) -> None:
+    """Start the harness as a background task, wait for startup to settle,
+    then shut it down cleanly.
+
+    Bounds task completion with asyncio.wait_for to prevent indefinite test hangs.
+    """
+    task = asyncio.create_task(harness.run())
+    await _wait_until_startup_settled(harness)
+    harness.shutdown_event.set()
+    await asyncio.wait_for(task, timeout=_SHUTDOWN_TIMEOUT)
 
 
 async def run_app_with_commands(
