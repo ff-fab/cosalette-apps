@@ -84,24 +84,37 @@ async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
     await asyncio.wait_for(task, timeout=wait * 5)
 
 
-_DRAIN_TICKS = 200
-"""Event-loop iterations to yield when settling purely in-process async work.
+_COMMAND_SETTLE_TIME = 0.03
+"""Real seconds to wait after each injected command before sending the next.
 
-Command dispatch, calibration's internal queue hop, and state publication
-involve no real timers (FakeClock — see ``cosalette.testing.FakeClock.sleep``),
-so each becomes runnable within a bounded, code-structure-determined number
-of iterations. This is *not* sufficient for startup: the default JsonFileStore
-does its load via thread-pool-backed file I/O (see
-``cosalette._persistence._stores``), which needs real elapsed time to
-complete regardless of how many event-loop ticks are yielded — that's what
-``_wait_until_subscribed`` polls for below.
+Dispatch is asynchronous — TopicRouter.route enqueues onto a per-entity
+queue and returns immediately; a worker task drains it, and calibration
+commands hop through a second internal queue before anything observable
+happens. This needs to be a real sleep, not just event-loop ticks: an
+earlier version drained a fixed 200 ticks (no real delay) and passed
+dozens of local runs, but still failed intermittently in CI, because tick
+count doesn't bound real thread-scheduling latency (the same category of
+delay as the default JsonFileStore's thread-pool-backed I/O — see
+``_wait_until_subscribed``).
+
+A condition-based wait (poll ``harness.published()`` until growth stops)
+was tried and rejected: cosalette's heartbeat loop publishes to
+``{prefix}/status`` continuously throughout the harness's lifetime,
+because it's paced by ``ctx.sleep()`` against ``FakeClock`` — which
+advances virtual time with no real delay (see
+``cosalette.testing.FakeClock.sleep``) — so it free-runs as fast as the
+event loop allows and the publish count never goes quiet. There is no
+generic observable signal for "this command finished processing" that
+isn't also true for commands with no effect (e.g. calibration silently
+rejecting an out-of-turn command), so this stays a fixed real sleep —
+sized well above the ~2ms margin that failed in CI, while remaining far
+below the original bug's 100ms per command.
+
+This also gives calibration's real-clock timing (see
+``CalibrationStateMachine.time_source`` — ``time.perf_counter``, not
+FakeClock, because it measures actual blind travel) a positive gap
+between consecutive go/mark commands.
 """
-
-
-async def _drain_event_loop(ticks: int = _DRAIN_TICKS) -> None:
-    """Yield to the event loop *ticks* times so pending async work settles."""
-    for _ in range(ticks):
-        await asyncio.sleep(0)
 
 
 async def _wait_until_subscribed(
@@ -113,11 +126,11 @@ async def _wait_until_subscribed(
 ) -> None:
     """Poll until *topics* all appear in ``harness.mqtt.subscriptions``.
 
-    Startup involves real thread-pool-backed store I/O (see module note on
-    ``_DRAIN_TICKS``), so this polls with a real sleep and a generous
-    timeout rather than a fixed tick count — the same condition-over-fixed-
-    wait fix as the rest of this helper, just for the one step that
-    genuinely needs wall-clock patience.
+    Startup involves real thread-pool-backed store I/O (see
+    ``cosalette._persistence._stores``), which needs real elapsed time
+    regardless of how much in-process work is yielded through — a genuine
+    condition to poll for, unlike per-command settling below (see
+    ``_COMMAND_SETTLE_TIME``), which has no such observable signal.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + timeout
@@ -179,14 +192,7 @@ async def run_app_with_commands(
     await _wait_until_subscribed(harness, expected_topics)
     for topic, payload in commands:
         await harness.inject_command(device=None, payload=payload, topic=topic)
-        await _drain_event_loop()
-        # Calibration measures elapsed duration via time.perf_counter (real
-        # wall clock, by design — it times actual blind travel), not
-        # FakeClock. A minimal real sleep gives consecutive go/mark commands
-        # a measurably positive gap without reintroducing a race: unlike the
-        # old fixed wait, this value only needs to be > 0, never "long
-        # enough" for anything, so CI load can't make it insufficient.
-        await asyncio.sleep(0.001)
+        await asyncio.sleep(_COMMAND_SETTLE_TIME)
     harness.shutdown_event.set()
     await asyncio.wait_for(task, timeout=_SHUTDOWN_TIMEOUT)
 
