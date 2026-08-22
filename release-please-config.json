@@ -37,6 +37,10 @@
     "apps/wallpanel-control": {
       "component": "wallpanel-control",
       "release-type": "python"
+    },
+    "apps/wiz2mqtt": {
+      "component": "wiz2mqtt",
+      "release-type": "python"
     }
   }
 }

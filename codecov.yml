@@ -41,6 +41,10 @@ flags:
     paths:
       - apps/wallpanel-control/packages/src/
     carryforward: true
+  wiz2mqtt:
+    paths:
+      - apps/wiz2mqtt/packages/src/
+    carryforward: true
 
 comment:
   layout: 'condensed_header, condensed_files, condensed_footer, components'
