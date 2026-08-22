@@ -80,10 +80,22 @@ cat > "$APP/packages/src/$PKG_NAME/main.py" <<EOF
 
 from __future__ import annotations
 
+import cosalette
+
+app = cosalette.App(
+    name="$NAME",
+    version="0.1.0",
+    description="$DESC",
+)
+
 
 def main() -> None:
-    """Start the application."""
-    raise SystemExit("Not yet implemented. See docs/index.md for next steps.")
+    """CLI entry point."""
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
 EOF
 
 # ── Test files ───────────────────────────────────────────────
@@ -519,7 +531,16 @@ APPS_BRACKET=$((APPS_LINE + 1))
 sed -i "${APPS_BRACKET}a\\      ${NAME}," Taskfile.yml
 
 # 2. Taskfile.yml — add include block after last app include
-LAST_APP_INCLUDE=$(grep -n 'MODULE_NAME:' Taskfile.yml | tail -1 | cut -d: -f1)
+# Scope the search to the includes: block (between "includes:" and "tasks:")
+# — MODULE_NAME: also appears inside individual tasks: entries further down
+# the file, and a whole-file `tail -1` match picks one of those instead of
+# the last per-app include, corrupting the YAML (cap-165).
+INCLUDES_LINE=$(grep -n '^includes:' Taskfile.yml | head -1 | cut -d: -f1)
+TASKS_LINE=$(grep -n '^tasks:' Taskfile.yml | head -1 | cut -d: -f1)
+[[ -n "$INCLUDES_LINE" && -n "$TASKS_LINE" ]] || die "cannot find includes:/tasks: sections in Taskfile.yml"
+LAST_APP_INCLUDE=$(awk -v start="$INCLUDES_LINE" -v end="$TASKS_LINE" \
+  'NR > start && NR < end && /MODULE_NAME:/ { line = NR } END { print line }' Taskfile.yml)
+[[ -n "$LAST_APP_INCLUDE" ]] || die "cannot find an existing MODULE_NAME: entry inside Taskfile.yml's includes: block"
 sed -i "${LAST_APP_INCLUDE}a\\
 \\
   ${NAME}:\\
@@ -594,5 +615,13 @@ grep -q "$NAME" codecov.yml || die "codecov.yml edit failed — $NAME not found"
 grep -q "apps/${NAME}/packages/src" pyproject.toml || die "pyproject.toml extraPaths edit failed"
 grep -q "$NAME" REUSE.toml || die "REUSE.toml edit failed — $NAME not found"
 
+# 9. Seed docs/schema.yaml from the real App registered in main.py, so
+# `task ${NAME}:schema:check` (part of `task ${NAME}:check`, CI's lint job)
+# passes immediately instead of failing with "Path 'docs/schema.yaml' does
+# not exist" on every freshly scaffolded app (cap-a8g).
+echo "Syncing workspace and generating initial schema…"
+uv sync --package "$NAME" >/dev/null
+uv run --package "$NAME" cosalette schema init --app "${PKG_NAME}.main:app" > "$APP/docs/schema.yaml"
+
 echo "✓ Scaffolded apps/$NAME"
-echo "  Next: run 'uv sync' then 'task ${NAME}:test:unit' to verify"
+echo "  Next: run 'task ${NAME}:test:unit' to verify"
