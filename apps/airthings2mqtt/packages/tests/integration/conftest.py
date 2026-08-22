@@ -104,11 +104,14 @@ def make_harness(
 
 
 async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
-    """Start the harness as a background task, wait, then shut it down cleanly."""
+    """Start the harness as a background task, wait, then shut it down cleanly.
+
+    Bounds task completion with asyncio.wait_for to prevent indefinite test hangs.
+    """
     task = asyncio.create_task(harness.run())
     await asyncio.sleep(wait)
     harness.shutdown_event.set()
-    await task
+    await asyncio.wait_for(task, timeout=wait * 5)
 
 
 def make_long_poll_settings() -> Airthings2MqttSettings:

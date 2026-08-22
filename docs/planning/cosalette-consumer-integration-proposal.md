@@ -1012,9 +1012,9 @@ which is accurate and routes them through the Finding 17 path; output is byte-id
 to 0.6.0's. A regression guard asserting that no writable component ships without a
 `command_topic` is in `test_schema_discovery.py`.
 
-### Gate decision
+### Gate decision (superseded — see below)
 
-`cap-10u.6` **stays open**. This document named Findings 20, 21 and 23 as the three
+`cap-10u.6` **stayed open** at 0.6.1. This document named Findings 20, 21 and 23 as the three
 wiz2mqtt's migration is gated on, and none of them shipped. The worked example is the
 direct test: an openHAB `Color` item over `hsb` still binds to a `string` channel
 (Finding 21), and one bulb still fans out into five entities instead of one `light`
@@ -1026,6 +1026,68 @@ production", and they did — the generators no longer emit confidently wrong ou
 the eight apps already in this monorepo. The residual gap is purely the additive
 capability, so `cap-10u.14` remains blocked while nothing else in the epic is held back
 by consumer generation.
+
+## Status against cosalette 0.6.2 and 0.6.3
+
+**All 23 findings are now fixed, plus Finding 24.** 0.6.2 (2026-08-12) shipped the
+additive half of the overhaul — steps 4 and 5 — across five PRs; 0.6.3 (2026-08-22)
+corrected two defects that evaluation of 0.6.2 surfaced.
+
+Re-verified by replaying the Appendix A probes plus purpose-built probes for the
+composite and override paths against each installed wheel.
+
+### Closed by 0.6.2 — the ten findings outstanding at 0.6.1
+
+| #   | Evidence in 0.6.2 output                                                                                                             |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| 9   | `channel_type` override honoured; the probe's `Color` Item binds `Type color : hsb [… colorMode="HSB"]` instead of a `string` channel |
+| 10  | Component-aware payload builders; a composite `light` defaults `schema: "json"`, `climate` drops the invalid generic topics          |
+| 13  | `extra` open passthrough on `consumer()` / `ha_discovery()` / `openhab()`                                                            |
+| 16  | `_expand_property_children` descends one level into array items and nested objects                                                   |
+| 18  | `availability` list + `availability_mode: "all"` + `payload_available` / `payload_not_available` on every payload                    |
+| 19  | Per-device `identifiers: [cosalette_<app>_<device>]` with `via_device`, plus a synthetic per-app bridge `binary_sensor`              |
+| 20  | `ha_entities()` / `ha_entity()` at model level; the worked example yields **one** valid `light`, not five scattered entities          |
+| 21  | `OpenHabOverrides` gains `channel_type` and `channel_params`                                                                          |
+| 22  | Typed `ha_discovery()` / `openhab()` producers plus `merge()`, drift-guarded against their reader-side dataclasses                    |
+| 23  | `App.discovery(discovery_prefix=, enrich=)` publishes retained payloads from the live registry, with orphan cleanup (ADR-059)         |
+
+0.6.2 also extracted the runtime cross-check five of this monorepo's apps hand-rolled
+into `cosalette.testing.assert_discovery_topics_published`.
+
+### Closed by 0.6.3 — Finding 24 and one 0.6.2 regression
+
+Both are written up in
+[Bug report: two defects in HA/openHAB consumer generation](cosalette-consumer-generation-bugs.md),
+shipped as [cosalette#390](https://github.com/ff-fab/cosalette/pull/390) with a
+self-found write-path follow-up in
+[#391](https://github.com/ff-fab/cosalette/pull/391).
+
+- **Finding 24 / `cap-bo0`** — `_infer_component` now takes the channel and treats
+  `direction == "send"` as read-only, so a send-only `command` channel no longer yields
+  a writable component with no `command_topic`.
+- **New in 0.6.2, fixed in 0.6.3** — Finding 16's descent used the flattened *label*
+  (`events[].title`) as a *data accessor*, producing blank HA entities, non-matching
+  JSONPATH, and — most damaging — openHAB Item IDs containing `[`, `]` and `.`,
+  which made the whole generated `.items` file unparsable. Accessors now build from
+  structural path segments, and array-item properties are skipped with a warning rather
+  than emitted with an arbitrary index.
+
+### Gate decision
+
+`cap-10u.6` **closes at 0.6.2**. This document named Findings 20 (composite entity
+mapping), 21 (openHAB `channel_type` / `channel_params`) and 23 (runtime discovery +
+enrichment hook) as wiz2mqtt's gating conditions, and all three shipped. The worked
+example is the direct test and it now passes on both sides: one bulb yields a single HA
+`light` carrying `state_topic`, `command_topic`, `schema: "json"`, `brightness` and
+`supported_color_modes`, while the openHAB `Color` Item binds a real `color` channel
+with `colorMode="HSB"`.
+
+`cap-10u.8` (scaffold) and `cap-10u.14` (consumer integration) are unblocked. The
+monorepo is pinned to `cosalette>=0.6.3,<0.7`.
+
+One authoring note carried into `cap-10u.14`: `HaEntityMeta` types only `component`,
+`name` and `extra`, so HA-native composite keys (`schema`, `brightness`,
+`supported_color_modes`, …) must be passed inside `extra=` or `ty` rejects them.
 
 Both probe schemas below reproduce every finding in Parts 1–5 against cosalette
 0.6.0 with `cosalette schema ha-discovery <file>` and `cosalette schema openhab

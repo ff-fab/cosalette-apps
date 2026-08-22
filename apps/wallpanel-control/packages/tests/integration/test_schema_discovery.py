@@ -21,6 +21,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,7 @@ from .conftest import DISPLAY_SET, run_with_commands
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
+BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 
 
 @pytest.fixture(scope="module")
@@ -43,19 +45,37 @@ def ha_payloads() -> list[dict[str, Any]]:
         capture_output=True,
         text=True,
         check=True,
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+        },
     )
     return json.loads(result.stdout)
 
 
 @pytest.fixture(scope="module")
-def configs_by_id(ha_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Discovery payloads for the app's own entities, without the bridge.
+
+    cosalette 0.6.2 (ADR-058) emits one synthetic per-app ``bridge``
+    binary_sensor so Home Assistant materialises the device every real entity
+    links to via ``via_device``. It is framework plumbing rather than a
+    wallpanel-control entity, so it is asserted once in its own test and
+    excluded from the per-entity expectations here.
+    """
+    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
+
+
+@pytest.fixture(scope="module")
+def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Index discovery payload configs by their object_id."""
-    object_ids = [p["config"]["object_id"] for p in ha_payloads]
+    object_ids = [p["config"]["object_id"] for p in entity_payloads]
     assert len(object_ids) == len(set(object_ids)), (
         f"Duplicate object_ids emitted: "
         f"{[x for x in object_ids if object_ids.count(x) > 1]}"
     )
-    return {p["config"]["object_id"]: p["config"] for p in ha_payloads}
+    return {p["config"]["object_id"]: p["config"] for p in entity_payloads}
 
 
 @pytest.mark.integration
@@ -63,7 +83,7 @@ class TestHaDiscoveryGeneration:
     """Verify the enriched schema produces valid HA MQTT discovery payloads."""
 
     def test_generates_enriched_display_sensors(
-        self, ha_payloads: list[dict[str, Any]]
+        self, entity_payloads: list[dict[str, Any]]
     ) -> None:
         """Only the enriched display fields yield discovery payloads.
 
@@ -71,22 +91,48 @@ class TestHaDiscoveryGeneration:
         carries no x-cosalette-consumer, so it produces no HA entity.
         """
         expected = {"display_brightness_percent", "display_state"}
-        object_ids = {p["config"]["object_id"] for p in ha_payloads}
+        object_ids = {p["config"]["object_id"] for p in entity_payloads}
         assert object_ids == expected
+        for payload in entity_payloads:
+            assert "unique_id" in payload["config"]
 
-    def test_payloads_grouped_under_app_device(
-        self, ha_payloads: list[dict[str, Any]]
+    def test_payloads_grouped_under_per_device_ha_devices(
+        self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """Every entity is a sensor grouped under the wallpanel-control device.
+        """Every entity is a sensor on the per-device ``display`` HA device.
+
+        cosalette 0.6.2 (ADR-058) models each resolved device as its own HA
+        device linked to the app bridge via ``via_device``, replacing the
+        single app-wide device earlier releases emitted.
 
         Technique: Specification-based — HA device grouping contract.
         """
-        for payload in ha_payloads:
+        for payload in entity_payloads:
             assert payload["topic"].startswith(
                 "homeassistant/sensor/wallpanel_control/"
             )
             device = payload["config"]["device"]
-            assert device["identifiers"] == ["cosalette_wallpanel_control"]
+            assert device["identifiers"] == ["cosalette_wallpanel_control_display"]
+            assert device["via_device"] == "cosalette_wallpanel_control"
+
+    def test_emits_app_bridge_entity(self, ha_payloads: list[dict[str, Any]]) -> None:
+        """A single diagnostic bridge entity materialises the app device.
+
+        Technique: Specification-based — ADR-058 bridge contract. Without it
+        the ``via_device`` link on every real entity dangles, because
+        ``via_device`` alone does not create a device in HA's registry.
+        """
+        bridges = [
+            p for p in ha_payloads if p["config"]["object_id"] == BRIDGE_OBJECT_ID
+        ]
+        assert len(bridges) == 1
+        config = bridges[0]["config"]
+        assert bridges[0]["topic"] == (
+            "homeassistant/binary_sensor/wallpanel_control/bridge/config"
+        )
+        assert config["device_class"] == "connectivity"
+        assert config["entity_category"] == "diagnostic"
+        assert config["device"]["identifiers"] == ["cosalette_wallpanel_control"]
 
     @pytest.mark.parametrize(
         "object_id, expected_fields",
@@ -109,7 +155,7 @@ class TestHaDiscoveryGeneration:
             ),
         ],
     )
-    def test_sensor_fields(
+    def test_sensor_config_fields_match_enrichment_annotations(
         self,
         configs_by_id: dict[str, dict[str, Any]],
         object_id: str,
