@@ -11,6 +11,7 @@ vars:
   # Add apps here as they are migrated. Order doesn't matter.
   APPS:
     [
+      wiz2mqtt,
       wallpanel-control,
       suncast,
       caldates2mqtt,
@@ -101,6 +102,13 @@ includes:
     vars:
       APP_NAME: wallpanel-control
       MODULE_NAME: wallpanel_control
+
+  wiz2mqtt:
+    taskfile: ./taskfiles/PythonApp.yml
+    dir: ./apps/wiz2mqtt
+    vars:
+      APP_NAME: wiz2mqtt
+      MODULE_NAME: wiz2mqtt
 
 tasks:
   default:
