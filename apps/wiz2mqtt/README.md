@@ -7,8 +7,8 @@ WiZ smart bulb control over MQTT for openHAB and Home Assistant
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
-structure, and development guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup instructions, common commands,
+project structure, and development guidelines.
 
 ## License
 
