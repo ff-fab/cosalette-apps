@@ -84,28 +84,117 @@ async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
     await asyncio.wait_for(task, timeout=wait * 5)
 
 
+_COMMAND_SETTLE_TIME = 0.03
+"""Real seconds to wait after each injected command before sending the next.
+
+Dispatch is asynchronous — TopicRouter.route enqueues onto a per-entity
+queue and returns immediately; a worker task drains it, and calibration
+commands hop through a second internal queue before anything observable
+happens. This needs to be a real sleep, not just event-loop ticks: an
+earlier version drained a fixed 200 ticks (no real delay) and passed
+dozens of local runs, but still failed intermittently in CI, because tick
+count doesn't bound real thread-scheduling latency (the same category of
+delay as the default JsonFileStore's thread-pool-backed I/O — see
+``_wait_until_subscribed``).
+
+A condition-based wait (poll ``harness.published()`` until growth stops)
+was tried and rejected: cosalette's heartbeat loop publishes to
+``{prefix}/status`` continuously throughout the harness's lifetime,
+because it's paced by ``ctx.sleep()`` against ``FakeClock`` — which
+advances virtual time with no real delay (see
+``cosalette.testing.FakeClock.sleep``) — so it free-runs as fast as the
+event loop allows and the publish count never goes quiet. There is no
+generic observable signal for "this command finished processing" that
+isn't also true for commands with no effect (e.g. calibration silently
+rejecting an out-of-turn command), so this stays a fixed real sleep —
+sized well above the ~2ms margin that failed in CI, while remaining far
+below the original bug's 100ms per command.
+
+This also gives calibration's real-clock timing (see
+``CalibrationStateMachine.time_source`` — ``time.perf_counter``, not
+FakeClock, because it measures actual blind travel) a positive gap
+between consecutive go/mark commands.
+"""
+
+
+async def _wait_until_subscribed(
+    harness: AppHarness,
+    topics: set[str],
+    *,
+    timeout: float = 2.0,
+    poll_interval: float = 0.005,
+) -> None:
+    """Poll until *topics* all appear in ``harness.mqtt.subscriptions``.
+
+    Startup involves real thread-pool-backed store I/O (see
+    ``cosalette._persistence._stores``), which needs real elapsed time
+    regardless of how much in-process work is yielded through — a genuine
+    condition to poll for, unlike per-command settling below (see
+    ``_COMMAND_SETTLE_TIME``), which has no such observable signal.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        unsubscribed = topics - set(harness.mqtt.subscriptions)
+        if not unsubscribed:
+            return
+        if loop.time() >= deadline:
+            raise AssertionError(
+                f"App did not subscribe to {unsubscribed} within {timeout}s "
+                f"— router was not listening yet. "
+                f"Actual subscriptions: {sorted(harness.mqtt.subscriptions)}"
+            )
+        await asyncio.sleep(poll_interval)
+
+
+def _expected_subscriptions(topic: str) -> set[str]:
+    """Subscription topic(s) the router must register before *topic* can route.
+
+    A root command (``{prefix}/{device}/set``) depends on exactly that
+    subscription. A sub-topic command (e.g.
+    ``{prefix}/{device}/calibrate/set``) is matched via the wildcard
+    ``{prefix}/{device}/+/set`` subscription instead — a distinct topic
+    string (see ``TopicRouter.subscriptions``) — so both must be checked to
+    confirm the device's command dispatch is actually wired up.
+    """
+    parts = topic.split("/")
+    if len(parts) <= 2:
+        return {topic}
+    root = f"{parts[0]}/{parts[1]}/set"
+    if len(parts) == 3:
+        return {root}
+    return {root, f"{parts[0]}/{parts[1]}/+/set"}
+
+
+_SHUTDOWN_TIMEOUT = 5.0
+"""Bound on waiting for the harness task after shutdown is signalled.
+
+Mirrors ``run_app_briefly``'s ``asyncio.wait_for`` bound above: if the
+harness under test ever fails to observe ``shutdown_event``, this fails the
+test with a clear timeout instead of hanging CI indefinitely.
+"""
+
+
 async def run_app_with_commands(
     harness: AppHarness,
     commands: list[tuple[str, str | dict[str, object]]],
-    *,
-    startup_wait: float = 0.15,
-    per_command_wait: float = 0.1,
 ) -> None:
     """Start the harness, deliver commands via inject_command, then shut down cleanly.
 
     Args:
         harness: AppHarness wrapping the fully-wired App.
         commands: Ordered list of (topic, payload) pairs to deliver.
-        startup_wait: Seconds to wait before delivering first command.
-        per_command_wait: Seconds to wait after each delivered command.
     """
     task = asyncio.create_task(harness.run())
-    await asyncio.sleep(startup_wait)
+    expected_topics: set[str] = set()
+    for topic, _ in commands:
+        expected_topics |= _expected_subscriptions(topic)
+    await _wait_until_subscribed(harness, expected_topics)
     for topic, payload in commands:
         await harness.inject_command(device=None, payload=payload, topic=topic)
-        await asyncio.sleep(per_command_wait)
+        await asyncio.sleep(_COMMAND_SETTLE_TIME)
     harness.shutdown_event.set()
-    await task
+    await asyncio.wait_for(task, timeout=_SHUTDOWN_TIMEOUT)
 
 
 # ---------------------------------------------------------------------------
