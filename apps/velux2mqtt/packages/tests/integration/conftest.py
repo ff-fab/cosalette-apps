@@ -84,26 +84,91 @@ async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
     await asyncio.wait_for(task, timeout=wait * 5)
 
 
+_DRAIN_TICKS = 200
+"""Event-loop iterations to yield when settling purely in-process async work.
+
+Command dispatch, calibration's internal queue hop, and state publication
+involve no real timers (FakeClock — see ``cosalette.testing.FakeClock.sleep``),
+so each becomes runnable within a bounded, code-structure-determined number
+of iterations. This is *not* sufficient for startup: the default JsonFileStore
+does its load via thread-pool-backed file I/O (see
+``cosalette._persistence._stores``), which needs real elapsed time to
+complete regardless of how many event-loop ticks are yielded — that's what
+``_wait_until_subscribed`` polls for below.
+"""
+
+
+async def _drain_event_loop(ticks: int = _DRAIN_TICKS) -> None:
+    """Yield to the event loop *ticks* times so pending async work settles."""
+    for _ in range(ticks):
+        await asyncio.sleep(0)
+
+
+async def _wait_until_subscribed(
+    harness: AppHarness,
+    topics: set[str],
+    *,
+    timeout: float = 2.0,
+    poll_interval: float = 0.005,
+) -> None:
+    """Poll until *topics* all appear in ``harness.mqtt.subscriptions``.
+
+    Startup involves real thread-pool-backed store I/O (see module note on
+    ``_DRAIN_TICKS``), so this polls with a real sleep and a generous
+    timeout rather than a fixed tick count — the same condition-over-fixed-
+    wait fix as the rest of this helper, just for the one step that
+    genuinely needs wall-clock patience.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + timeout
+    while True:
+        unsubscribed = topics - set(harness.mqtt.subscriptions)
+        if not unsubscribed:
+            return
+        if loop.time() >= deadline:
+            raise AssertionError(
+                f"App did not subscribe to {unsubscribed} within {timeout}s "
+                f"— router was not listening yet."
+            )
+        await asyncio.sleep(poll_interval)
+
+
+def _root_command_topic(topic: str) -> str:
+    """Map *topic* to the ``{prefix}/{device}/set`` topic the router subscribes to.
+
+    Sub-topic commands (e.g. ``{prefix}/{device}/calibrate/set``) are routed
+    through the same per-device subscription as the root ``.../set`` topic
+    (see ``TopicRouter.subscriptions``), so checking the root form is enough
+    to confirm the device is wired up regardless of which topic a command
+    actually targets.
+    """
+    parts = topic.split("/")
+    return topic if len(parts) <= 2 else f"{parts[0]}/{parts[1]}/set"
+
+
 async def run_app_with_commands(
     harness: AppHarness,
     commands: list[tuple[str, str | dict[str, object]]],
-    *,
-    startup_wait: float = 0.15,
-    per_command_wait: float = 0.1,
 ) -> None:
     """Start the harness, deliver commands via inject_command, then shut down cleanly.
 
     Args:
         harness: AppHarness wrapping the fully-wired App.
         commands: Ordered list of (topic, payload) pairs to deliver.
-        startup_wait: Seconds to wait before delivering first command.
-        per_command_wait: Seconds to wait after each delivered command.
     """
     task = asyncio.create_task(harness.run())
-    await asyncio.sleep(startup_wait)
+    expected_topics = {_root_command_topic(topic) for topic, _ in commands}
+    await _wait_until_subscribed(harness, expected_topics)
     for topic, payload in commands:
         await harness.inject_command(device=None, payload=payload, topic=topic)
-        await asyncio.sleep(per_command_wait)
+        await _drain_event_loop()
+        # Calibration measures elapsed duration via time.perf_counter (real
+        # wall clock, by design — it times actual blind travel), not
+        # FakeClock. A minimal real sleep gives consecutive go/mark commands
+        # a measurably positive gap without reintroducing a race: unlike the
+        # old fixed wait, this value only needs to be > 0, never "long
+        # enough" for anything, so CI load can't make it insufficient.
+        await asyncio.sleep(0.001)
     harness.shutdown_event.set()
     await task
 
