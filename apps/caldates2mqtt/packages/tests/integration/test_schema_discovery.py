@@ -36,6 +36,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -70,6 +71,11 @@ def ha_discovery_run() -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+        },
     )
 
 

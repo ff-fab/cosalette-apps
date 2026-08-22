@@ -21,6 +21,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -33,6 +34,7 @@ from .conftest import DISPLAY_SET, run_with_commands
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
+BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 
 
 @pytest.fixture(scope="module")
@@ -43,6 +45,11 @@ def ha_payloads() -> list[dict[str, Any]]:
         capture_output=True,
         text=True,
         check=True,
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+        },
     )
     return json.loads(result.stdout)
 
@@ -57,7 +64,7 @@ def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     wallpanel-control entity, so it is asserted once in its own test and
     excluded from the per-entity expectations here.
     """
-    return [p for p in ha_payloads if p["config"]["object_id"] != "bridge"]
+    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
 
 
 @pytest.fixture(scope="module")
@@ -86,6 +93,8 @@ class TestHaDiscoveryGeneration:
         expected = {"display_brightness_percent", "display_state"}
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
         assert object_ids == expected
+        for payload in entity_payloads:
+            assert "unique_id" in payload["config"]
 
     def test_payloads_grouped_under_per_device_ha_devices(
         self, entity_payloads: list[dict[str, Any]]
@@ -113,7 +122,9 @@ class TestHaDiscoveryGeneration:
         the ``via_device`` link on every real entity dangles, because
         ``via_device`` alone does not create a device in HA's registry.
         """
-        bridges = [p for p in ha_payloads if p["config"]["object_id"] == "bridge"]
+        bridges = [
+            p for p in ha_payloads if p["config"]["object_id"] == BRIDGE_OBJECT_ID
+        ]
         assert len(bridges) == 1
         config = bridges[0]["config"]
         assert bridges[0]["topic"] == (
@@ -144,7 +155,7 @@ class TestHaDiscoveryGeneration:
             ),
         ],
     )
-    def test_sensor_fields(
+    def test_sensor_config_fields_match_enrichment_annotations(
         self,
         configs_by_id: dict[str, dict[str, Any]],
         object_id: str,

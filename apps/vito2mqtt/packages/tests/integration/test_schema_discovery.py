@@ -53,6 +53,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -65,6 +66,7 @@ from .conftest import run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
+BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 
 # The complete set of entities ha-discovery must emit. Kept exhaustive so the
 # test fails if enrichment is stripped (fewer) or if an un-annotated field
@@ -105,6 +107,11 @@ def ha_payloads() -> list[dict[str, Any]]:
         capture_output=True,
         text=True,
         check=True,
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+        },
     )
     return json.loads(result.stdout)
 
@@ -119,7 +126,7 @@ def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     vito2mqtt datapoint, so it is asserted once in its own test and kept out
     of the golden entity set here.
     """
-    return [p for p in ha_payloads if p["config"]["object_id"] != "bridge"]
+    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
 
 
 @pytest.fixture(scope="module")
@@ -146,6 +153,8 @@ class TestHaDiscoveryGeneration:
         leaked; a subset means enrichment is missing from the committed schema.
         """
         assert set(configs_by_id) == EXPECTED_OBJECT_IDS
+        for config in configs_by_id.values():
+            assert "unique_id" in config
 
     def test_payloads_grouped_under_per_device_ha_devices(
         self, entity_payloads: list[dict[str, Any]]
@@ -184,7 +193,9 @@ class TestHaDiscoveryGeneration:
         the ``via_device`` link on every real entity dangles, because
         ``via_device`` alone does not create a device in HA's registry.
         """
-        bridges = [p for p in ha_payloads if p["config"]["object_id"] == "bridge"]
+        bridges = [
+            p for p in ha_payloads if p["config"]["object_id"] == BRIDGE_OBJECT_ID
+        ]
         assert len(bridges) == 1
         config = bridges[0]["config"]
         assert bridges[0]["topic"] == (

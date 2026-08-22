@@ -34,6 +34,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -46,6 +47,7 @@ from .conftest import run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
+BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 
 
 @pytest.fixture(scope="module")
@@ -56,6 +58,11 @@ def ha_payloads() -> list[dict[str, Any]]:
         capture_output=True,
         text=True,
         check=True,
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+        },
     )
     return json.loads(result.stdout)
 
@@ -70,7 +77,7 @@ def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     so it is asserted once in its own test and excluded from the per-cover
     expectations here.
     """
-    return [p for p in ha_payloads if p["config"]["object_id"] != "bridge"]
+    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
 
 
 @pytest.mark.integration
@@ -94,6 +101,8 @@ class TestHaDiscoveryGeneration:
         exactly one HA entity per configured cover.
         """
         assert len(entity_payloads) == 2
+        for payload in entity_payloads:
+            assert "unique_id" in payload["config"]
 
     def test_emits_app_bridge_entity(self, ha_payloads: list[dict[str, Any]]) -> None:
         """A single diagnostic bridge entity materialises the app device.
@@ -102,7 +111,9 @@ class TestHaDiscoveryGeneration:
         the ``via_device`` link on every cover entity dangles, because
         ``via_device`` alone does not create a device in HA's registry.
         """
-        bridges = [p for p in ha_payloads if p["config"]["object_id"] == "bridge"]
+        bridges = [
+            p for p in ha_payloads if p["config"]["object_id"] == BRIDGE_OBJECT_ID
+        ]
         assert len(bridges) == 1
         config = bridges[0]["config"]
         assert bridges[0]["topic"] == (
@@ -111,6 +122,11 @@ class TestHaDiscoveryGeneration:
         assert config["device_class"] == "connectivity"
         assert config["entity_category"] == "diagnostic"
         assert config["device"]["identifiers"] == ["cosalette_velux2mqtt"]
+
+
+@pytest.mark.integration
+class TestStateTopicsAreReal:
+    """Verify HA-discovery state_topics match runtime-published topics."""
 
     async def test_state_topics_match_actual_runtime_publishes(
         self, ha_payloads: list[dict[str, Any]], harness_no_homing: AppHarness

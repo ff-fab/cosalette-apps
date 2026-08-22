@@ -20,6 +20,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -32,6 +33,7 @@ from .conftest import run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
+BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 
 
 @pytest.fixture(scope="module")
@@ -42,6 +44,11 @@ def ha_payloads() -> list[dict[str, Any]]:
         capture_output=True,
         text=True,
         check=True,
+        env={
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+        },
     )
     return json.loads(result.stdout)
 
@@ -56,7 +63,18 @@ def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     airthings2mqtt entity, so it is asserted once in its own test and excluded
     from the per-entity expectations here.
     """
-    return [p for p in ha_payloads if p["config"]["object_id"] != "bridge"]
+    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
+
+
+@pytest.fixture(scope="module")
+def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Index discovery payload configs by their object_id."""
+    object_ids = [p["config"]["object_id"] for p in entity_payloads]
+    assert len(object_ids) == len(set(object_ids)), (
+        f"Duplicate object_ids emitted: "
+        f"{[x for x in object_ids if object_ids.count(x) > 1]}"
+    )
+    return {p["config"]["object_id"]: p["config"] for p in entity_payloads}
 
 
 @pytest.mark.integration
@@ -81,6 +99,8 @@ class TestHaDiscoveryGeneration:
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
         # Assert
         assert object_ids == expected
+        for payload in entity_payloads:
+            assert "unique_id" in payload["config"]
 
     def test_payloads_grouped_under_app_device(
         self, entity_payloads: list[dict[str, Any]]
@@ -107,7 +127,9 @@ class TestHaDiscoveryGeneration:
         the ``via_device`` link on every real entity dangles, because
         ``via_device`` alone does not create a device in HA's registry.
         """
-        bridges = [p for p in ha_payloads if p["config"]["object_id"] == "bridge"]
+        bridges = [
+            p for p in ha_payloads if p["config"]["object_id"] == BRIDGE_OBJECT_ID
+        ]
         # Assert
         assert len(bridges) == 1
         config = bridges[0]["config"]
@@ -157,9 +179,9 @@ class TestHaDiscoveryGeneration:
             ),
         ],
     )
-    def test_sensor_fields(
+    def test_sensor_config_fields_match_enrichment_annotations(
         self,
-        ha_payloads: list[dict[str, Any]],
+        configs_by_id: dict[str, dict[str, Any]],
         object_id: str,
         expected_fields: dict[str, Any],
     ) -> None:
@@ -169,10 +191,7 @@ class TestHaDiscoveryGeneration:
         device_class) vs untyped (radon: unit + state_class, no device_class).
         """
         # Arrange / Act
-        config = next(
-            (p["config"] for p in ha_payloads if p["config"]["object_id"] == object_id),
-            None,
-        )
+        config = configs_by_id.get(object_id)
         # Assert
         assert config is not None, f"No payload found for object_id={object_id!r}"
         for key, value in expected_fields.items():
