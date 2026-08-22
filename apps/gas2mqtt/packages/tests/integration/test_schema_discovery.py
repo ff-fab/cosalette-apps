@@ -53,12 +53,25 @@ def ha_payloads() -> list[dict[str, Any]]:
     return json.loads(result.stdout)
 
 
+@pytest.fixture(scope="module")
+def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Discovery payloads for the app's own entities, without the bridge.
+
+    cosalette 0.6.2 (ADR-058) emits one synthetic per-app ``bridge``
+    binary_sensor so Home Assistant materialises the device every real entity
+    links to via ``via_device``. It is framework plumbing rather than a
+    gas2mqtt entity, so it is asserted once in its own test and excluded from
+    the per-entity expectations here.
+    """
+    return [p for p in ha_payloads if p["config"]["object_id"] != "bridge"]
+
+
 @pytest.mark.integration
 class TestHaDiscoveryGeneration:
     """Verify the enriched schema produces valid HA MQTT discovery payloads."""
 
     def test_generates_expected_enriched_sensors(
-        self, ha_payloads: list[dict[str, Any]]
+        self, entity_payloads: list[dict[str, Any]]
     ) -> None:
         """The three enriched fields yield discovery payloads.
 
@@ -70,20 +83,48 @@ class TestHaDiscoveryGeneration:
             "gas_counter_counter",
             "temperature_temperature",
         }
-        object_ids = {p["config"]["object_id"] for p in ha_payloads}
+        object_ids = {p["config"]["object_id"] for p in entity_payloads}
         assert object_ids == expected
 
-    def test_payloads_grouped_under_app_device(
-        self, ha_payloads: list[dict[str, Any]]
+    def test_payloads_grouped_under_per_device_ha_devices(
+        self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """Every entity is a sensor grouped under the gas2mqtt device.
+        """Each entity sits on its own physical device, linked to the bridge.
+
+        cosalette 0.6.2 (ADR-058) models each resolved device as its own HA
+        device linked to the app bridge via ``via_device``, replacing the
+        single app-wide device earlier releases emitted. gas2mqtt resolves two
+        devices — the counter and the temperature probe.
 
         Technique: Specification-based — HA device grouping contract.
         """
-        for payload in ha_payloads:
+        identifiers = set()
+        for payload in entity_payloads:
             assert payload["topic"].startswith("homeassistant/sensor/gas2mqtt/")
             device = payload["config"]["device"]
-            assert device["identifiers"] == ["cosalette_gas2mqtt"]
+            assert device["via_device"] == "cosalette_gas2mqtt"
+            identifiers.add(device["identifiers"][0])
+        assert identifiers == {
+            "cosalette_gas2mqtt_gas_counter",
+            "cosalette_gas2mqtt_temperature",
+        }
+
+    def test_emits_app_bridge_entity(self, ha_payloads: list[dict[str, Any]]) -> None:
+        """A single diagnostic bridge entity materialises the app device.
+
+        Technique: Specification-based — ADR-058 bridge contract. Without it
+        the ``via_device`` link on every real entity dangles, because
+        ``via_device`` alone does not create a device in HA's registry.
+        """
+        bridges = [p for p in ha_payloads if p["config"]["object_id"] == "bridge"]
+        assert len(bridges) == 1
+        config = bridges[0]["config"]
+        assert bridges[0]["topic"] == (
+            "homeassistant/binary_sensor/gas2mqtt/bridge/config"
+        )
+        assert config["device_class"] == "connectivity"
+        assert config["entity_category"] == "diagnostic"
+        assert config["device"]["identifiers"] == ["cosalette_gas2mqtt"]
 
     @pytest.mark.parametrize(
         "object_id, expected_fields",

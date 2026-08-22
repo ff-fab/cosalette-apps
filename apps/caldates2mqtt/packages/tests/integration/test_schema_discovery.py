@@ -13,11 +13,14 @@ velux2mqtt (cap-hze), verified below by asserting the real channel names appear.
 
 HA discovery itself (``task caldates2mqtt:schema:ha-discovery``) still emits
 zero payloads even with those real channels: ``CalendarState``'s only property
-is ``events``, a nested list, and cosalette's HA/OpenHAB generators only walk a
-channel's top-level properties — never items inside a nested list — so the
-per-event ``consumer()`` annotations on ``CalendarEvent`` (see
-:mod:`caldates2mqtt.main`) remain inert. This is a separate, still-open
-upstream limitation (cap-wxg), independent of the qualname-collapse fix.
+is ``events``, an array of objects, so the per-event ``consumer()`` annotations
+on ``CalendarEvent`` (see :mod:`caldates2mqtt.main`) yield no entity. Since
+cosalette 0.6.3 this is a deliberate, *reported* outcome rather than a silent
+one — an array of objects has no single value an HA sensor could hold, so the
+generator skips those properties and warns, then exits non-zero because the app
+produced no payloads at all. Emitting one scalar entity per array field is the
+open upstream question (cap-wxg); until it is answered, zero payloads plus a
+warning is the honest current state.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
@@ -25,8 +28,9 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: the resolved schema must expose real per-calendar
   channel names, not the qualname placeholder
-- Specification-based: HA discovery is still non-functional (nested list
-  payloads aren't walked); 0 payloads is the correct, honest current state
+- Specification-based: HA discovery is still non-functional (an array of
+  objects yields no scalar entity); 0 payloads plus a diagnostic warning and a
+  non-zero exit is the correct, honest current state
 """
 
 from __future__ import annotations
@@ -53,15 +57,20 @@ def schema_channels() -> dict[str, Any]:
 
 
 @pytest.fixture(scope="module")
-def ha_payloads() -> list[dict[str, Any]]:
-    """Run the schema ha-discovery CLI once and return the parsed payloads."""
-    result = subprocess.run(
+def ha_discovery_run() -> subprocess.CompletedProcess[str]:
+    """Run the schema ha-discovery CLI once and return the completed process.
+
+    ``check=False`` because cosalette 0.6.3 deliberately exits non-zero when a
+    schema has consumer-visible channels but produces no payloads — which is
+    exactly caldates2mqtt's situation, and is asserted below rather than
+    raised as a fixture error.
+    """
+    return subprocess.run(
         [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
         capture_output=True,
         text=True,
-        check=True,
+        check=False,
     )
-    return json.loads(result.stdout)
 
 
 @pytest.mark.integration
@@ -95,16 +104,39 @@ class TestResolvedSchemaChannels:
 class TestHaDiscoveryGeneration:
     """Verify HA MQTT discovery generation is still honestly non-functional."""
 
-    def test_generates_no_payloads(self, ha_payloads: list[dict[str, Any]]) -> None:
+    def test_generates_no_payloads(
+        self, ha_discovery_run: subprocess.CompletedProcess[str]
+    ) -> None:
         """No discovery payloads are generated despite real channel names.
 
-        ``CalendarState``'s only property (``events``) is a nested list;
-        cosalette's HA/OpenHAB generators never walk nested list items, so
-        the per-event ``consumer()`` annotations on ``CalendarEvent`` stay
-        inert. This is the honest current state (cap-wxg), unrelated to the
+        ``CalendarState``'s only property (``events``) is an array of objects,
+        which has no single value an HA sensor could hold, so the per-event
+        ``consumer()`` annotations on ``CalendarEvent`` yield no entity. This
+        is the honest current state (cap-wxg), unrelated to the
         qualname-collapse fix verified above.
 
-        Technique: Specification-based — a channel with no top-level
+        Technique: Specification-based — a channel with no emittable
         consumer-annotated property must not yield an HA entity.
         """
-        assert ha_payloads == []
+        assert json.loads(ha_discovery_run.stdout) == []
+
+    def test_reports_the_array_item_annotations_it_skipped(
+        self, ha_discovery_run: subprocess.CompletedProcess[str]
+    ) -> None:
+        """The CLI names the skipped array-item annotations and exits non-zero.
+
+        cosalette 0.6.3 turned this from a silent ``[]`` into a diagnostic:
+        the warning names the offending channels, and the non-zero exit stops
+        an empty generation from passing unnoticed in a pipeline. Locking both
+        here means the day cap-wxg is answered upstream — and these
+        annotations start producing entities — this test fails and points at
+        the docstring above.
+
+        Technique: Error Guessing — asserts the diagnostic itself, not just
+        the absence of output, so a regression to silence is caught.
+        """
+        assert ha_discovery_run.returncode != 0
+        stderr = ha_discovery_run.stderr
+        assert "array-item properties" in stderr
+        assert "birthdayState" in stderr
+        assert "garbageState" in stderr
