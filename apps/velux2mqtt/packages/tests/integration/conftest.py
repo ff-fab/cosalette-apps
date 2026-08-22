@@ -128,22 +128,38 @@ async def _wait_until_subscribed(
         if loop.time() >= deadline:
             raise AssertionError(
                 f"App did not subscribe to {unsubscribed} within {timeout}s "
-                f"— router was not listening yet."
+                f"— router was not listening yet. "
+                f"Actual subscriptions: {sorted(harness.mqtt.subscriptions)}"
             )
         await asyncio.sleep(poll_interval)
 
 
-def _root_command_topic(topic: str) -> str:
-    """Map *topic* to the ``{prefix}/{device}/set`` topic the router subscribes to.
+def _expected_subscriptions(topic: str) -> set[str]:
+    """Subscription topic(s) the router must register before *topic* can route.
 
-    Sub-topic commands (e.g. ``{prefix}/{device}/calibrate/set``) are routed
-    through the same per-device subscription as the root ``.../set`` topic
-    (see ``TopicRouter.subscriptions``), so checking the root form is enough
-    to confirm the device is wired up regardless of which topic a command
-    actually targets.
+    A root command (``{prefix}/{device}/set``) depends on exactly that
+    subscription. A sub-topic command (e.g.
+    ``{prefix}/{device}/calibrate/set``) is matched via the wildcard
+    ``{prefix}/{device}/+/set`` subscription instead — a distinct topic
+    string (see ``TopicRouter.subscriptions``) — so both must be checked to
+    confirm the device's command dispatch is actually wired up.
     """
     parts = topic.split("/")
-    return topic if len(parts) <= 2 else f"{parts[0]}/{parts[1]}/set"
+    if len(parts) <= 2:
+        return {topic}
+    root = f"{parts[0]}/{parts[1]}/set"
+    if len(parts) == 3:
+        return {root}
+    return {root, f"{parts[0]}/{parts[1]}/+/set"}
+
+
+_SHUTDOWN_TIMEOUT = 5.0
+"""Bound on waiting for the harness task after shutdown is signalled.
+
+Mirrors ``run_app_briefly``'s ``asyncio.wait_for`` bound above: if the
+harness under test ever fails to observe ``shutdown_event``, this fails the
+test with a clear timeout instead of hanging CI indefinitely.
+"""
 
 
 async def run_app_with_commands(
@@ -157,7 +173,9 @@ async def run_app_with_commands(
         commands: Ordered list of (topic, payload) pairs to deliver.
     """
     task = asyncio.create_task(harness.run())
-    expected_topics = {_root_command_topic(topic) for topic, _ in commands}
+    expected_topics: set[str] = set()
+    for topic, _ in commands:
+        expected_topics |= _expected_subscriptions(topic)
     await _wait_until_subscribed(harness, expected_topics)
     for topic, payload in commands:
         await harness.inject_command(device=None, payload=payload, topic=topic)
@@ -170,7 +188,7 @@ async def run_app_with_commands(
         # enough" for anything, so CI load can't make it insufficient.
         await asyncio.sleep(0.001)
     harness.shutdown_event.set()
-    await task
+    await asyncio.wait_for(task, timeout=_SHUTDOWN_TIMEOUT)
 
 
 # ---------------------------------------------------------------------------
