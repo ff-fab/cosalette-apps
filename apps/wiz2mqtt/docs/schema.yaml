@@ -1,0 +1,10 @@
+asyncapi: 3.0.0
+info:
+  title: wiz2mqtt
+  version: 0.1.0
+  x-cosalette-contract-version: '1'
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

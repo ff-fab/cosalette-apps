@@ -2,7 +2,19 @@
 
 from __future__ import annotations
 
+import cosalette
+
+app = cosalette.App(
+    name="wiz2mqtt",
+    version="0.1.0",
+    description="WiZ smart bulb control over MQTT for openHAB and Home Assistant",
+)
+
 
 def main() -> None:
-    """Start the application."""
-    raise SystemExit("Not yet implemented. See docs/index.md for next steps.")
+    """CLI entry point."""
+    app.run()
+
+
+if __name__ == "__main__":
+    main()
