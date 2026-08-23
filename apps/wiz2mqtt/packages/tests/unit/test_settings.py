@@ -19,8 +19,9 @@ from wiz2mqtt.settings import Wiz2MqttSettings
 class TestWiz2MqttSettings:
     """Verify the WIZ2MQTT_ environment prefix is wired and honored."""
 
-    def test_default_mqtt_host(self) -> None:
+    def test_default_mqtt_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """With no env vars set, MQTT host falls back to cosalette's default."""
+        monkeypatch.delenv("WIZ2MQTT_MQTT__HOST", raising=False)
         settings = Wiz2MqttSettings(_env_file=None)
         assert settings.mqtt.host == "localhost"
 

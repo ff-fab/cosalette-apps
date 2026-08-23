@@ -45,6 +45,9 @@ done
 
 APP="apps/$NAME"
 PKG_NAME="${NAME//-/_}"   # Python package name (hyphens → underscores)
+ENV_PREFIX="${PKG_NAME^^}"   # uppercase for env vars and settings prefix
+# PascalCase settings-class name, e.g. wiz2mqtt -> Wiz2Mqtt, wallpanel-control -> WallpanelControl
+CLASS_NAME=$(echo "$NAME" | sed -E 's/(^|-|[0-9]+)([a-z])/\1\U\2/g; s/-//g')
 
 echo "Scaffolding $NAME ($LICENSE) …"
 
@@ -75,6 +78,29 @@ EOF
 
 touch "$APP/packages/src/$PKG_NAME/py.typed"
 
+cat > "$APP/packages/src/$PKG_NAME/settings.py" <<EOF
+"""Application settings for $NAME.
+
+Extends cosalette's Settings with the ${ENV_PREFIX}_ environment prefix. All
+settings are loaded from environment variables, .env files, or CLI flags.
+Priority: CLI > env > .env > defaults.
+"""
+
+import cosalette
+from pydantic_settings import SettingsConfigDict
+
+
+class ${CLASS_NAME}Settings(cosalette.Settings):
+    """$NAME application settings."""
+
+    model_config = SettingsConfigDict(
+        env_prefix="${ENV_PREFIX}_",
+        env_nested_delimiter="__",
+        env_file=".env",
+        env_file_encoding="utf-8",
+    )
+EOF
+
 cat > "$APP/packages/src/$PKG_NAME/main.py" <<EOF
 """Entry point for $NAME."""
 
@@ -82,10 +108,13 @@ from __future__ import annotations
 
 import cosalette
 
+from $PKG_NAME.settings import ${CLASS_NAME}Settings
+
 app = cosalette.App(
     name="$NAME",
     version="0.1.0",
     description="$DESC",
+    settings_class=${CLASS_NAME}Settings,
 )
 
 
@@ -122,6 +151,58 @@ def test_package_imports() -> None:
     """Ensure the scaffolded package can be imported."""
     mod = importlib.import_module("$PKG_NAME")
     assert mod is not None
+EOF
+
+cat > "$APP/packages/tests/unit/test_settings.py" <<EOF
+"""Unit tests for $NAME settings — ${CLASS_NAME}Settings environment wiring.
+
+Test Techniques Used:
+- Specification-based: Default values match cosalette's base Settings
+- Error Guessing: The ${ENV_PREFIX}_ prefix must actually be honored, and an
+  unprefixed var must NOT leak in — env-prefix wiring is easy to get wrong
+  silently (a real prior scaffold gap: cap-a8g).
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from $PKG_NAME.settings import ${CLASS_NAME}Settings
+
+
+@pytest.mark.unit
+class Test${CLASS_NAME}Settings:
+    """Verify the ${ENV_PREFIX}_ environment prefix is wired and honored."""
+
+    def test_default_mqtt_host(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """With no env vars set, MQTT host falls back to cosalette's default."""
+        monkeypatch.delenv("${ENV_PREFIX}_MQTT__HOST", raising=False)
+        settings = ${CLASS_NAME}Settings(_env_file=None)
+        assert settings.mqtt.host == "localhost"
+
+    def test_prefixed_env_var_overrides_mqtt_host(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """${ENV_PREFIX}_MQTT__HOST must be honored — the wiring compose.yml relies on."""
+        monkeypatch.setenv("${ENV_PREFIX}_MQTT__HOST", "mosquitto")
+        settings = ${CLASS_NAME}Settings(_env_file=None)
+        assert settings.mqtt.host == "mosquitto"
+
+    def test_unprefixed_env_var_is_ignored(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A bare MQTT__HOST (no ${ENV_PREFIX}_ prefix) must NOT be picked up."""
+        monkeypatch.setenv("MQTT__HOST", "should-not-apply")
+        settings = ${CLASS_NAME}Settings(_env_file=None)
+        assert settings.mqtt.host == "localhost"
+
+    def test_prefixed_env_var_overrides_logging_level(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """${ENV_PREFIX}_LOGGING__LEVEL must be honored."""
+        monkeypatch.setenv("${ENV_PREFIX}_LOGGING__LEVEL", "DEBUG")
+        settings = ${CLASS_NAME}Settings(_env_file=None)
+        assert settings.logging.level == "DEBUG"
 EOF
 
 # ── pyproject.toml ───────────────────────────────────────────
@@ -275,7 +356,6 @@ ENTRYPOINT ["$NAME"]
 EOF
 
 # ── compose.yml ───────────────────────────────────────
-ENV_PREFIX="${PKG_NAME^^}"   # uppercase for env vars
 cat > "$APP/compose.yml" <<EOF
 services:
   $NAME:
@@ -303,6 +383,44 @@ volumes:
   ${PKG_NAME//-/_}-data:
   mosquitto-data:
   mosquitto-config:
+EOF
+
+# ── .env.example / .env.schema ───────────────────────────────
+cat > "$APP/.env.example" <<EOF
+# $NAME environment configuration
+#
+# Copy this file to .env and adjust values for your deployment. .env is
+# gitignored; only this .example file (with placeholder values) is committed.
+
+# --- MQTT broker connection ---
+${ENV_PREFIX}_MQTT__HOST=localhost
+${ENV_PREFIX}_MQTT__PORT=1883
+# ${ENV_PREFIX}_MQTT__USERNAME=
+# ${ENV_PREFIX}_MQTT__PASSWORD=
+${ENV_PREFIX}_MQTT__TOPIC_PREFIX=$NAME
+
+# TLS (disabled by default — set to true and configure the paths below
+# together to enable broker TLS on port 8883)
+${ENV_PREFIX}_MQTT__TLS=false
+# ${ENV_PREFIX}_MQTT__TLS_CA_FILE=
+# ${ENV_PREFIX}_MQTT__TLS_CERT_FILE=
+# ${ENV_PREFIX}_MQTT__TLS_KEY_FILE=
+
+# --- Logging ---
+${ENV_PREFIX}_LOGGING__LEVEL=INFO
+${ENV_PREFIX}_LOGGING__FORMAT=json
+EOF
+
+cat > "$APP/.env.schema" <<EOF
+# Representative environment profile used by schema tooling
+# (task ${NAME}:schema:check / :schema:generate --resolve-settings).
+# Not a real deployment .env — committed, no secrets.
+
+${ENV_PREFIX}_MQTT__HOST=localhost
+${ENV_PREFIX}_MQTT__PORT=1883
+${ENV_PREFIX}_MQTT__TOPIC_PREFIX=$NAME
+${ENV_PREFIX}_LOGGING__LEVEL=INFO
+${ENV_PREFIX}_LOGGING__FORMAT=json
 EOF
 
 # ── zensical.toml ────────────────────────────────────────────
@@ -530,25 +648,22 @@ APPS_LINE=$(grep -n '^\s*APPS:' Taskfile.yml | head -1 | cut -d: -f1)
 APPS_BRACKET=$((APPS_LINE + 1))
 sed -i "${APPS_BRACKET}a\\      ${NAME}," Taskfile.yml
 
-# 2. Taskfile.yml — add include block after last app include
-# Scope the search to the includes: block (between "includes:" and "tasks:")
-# — MODULE_NAME: also appears inside individual tasks: entries further down
-# the file, and a whole-file `tail -1` match picks one of those instead of
-# the last per-app include, corrupting the YAML (cap-165).
-INCLUDES_LINE=$(grep -n '^includes:' Taskfile.yml | head -1 | cut -d: -f1)
-TASKS_LINE=$(grep -n '^tasks:' Taskfile.yml | head -1 | cut -d: -f1)
-[[ -n "$INCLUDES_LINE" && -n "$TASKS_LINE" ]] || die "cannot find includes:/tasks: sections in Taskfile.yml"
-LAST_APP_INCLUDE=$(awk -v start="$INCLUDES_LINE" -v end="$TASKS_LINE" \
-  'NR > start && NR < end && /MODULE_NAME:/ { line = NR } END { print line }' Taskfile.yml)
-[[ -n "$LAST_APP_INCLUDE" ]] || die "cannot find an existing MODULE_NAME: entry inside Taskfile.yml's includes: block"
-sed -i "${LAST_APP_INCLUDE}a\\
-\\
+# 2. Taskfile.yml — add include block at the end of includes:, i.e.
+# immediately before the tasks: section. Anchoring on the tasks: line —
+# rather than pattern-matching the last per-app MODULE_NAME: entry — avoids
+# corrupting the file if that substring ever also appears in a comment or a
+# hand-added include block (cap-165: a whole-file match previously picked a
+# MODULE_NAME: line inside a tasks: entry instead).
+TASKS_LINE=$(grep -n '^tasks:' Taskfile.yml | head -1 | cut -d: -f1) || true
+[[ -n "$TASKS_LINE" ]] || die "cannot find tasks: section in Taskfile.yml"
+sed -i "${TASKS_LINE}i\\
   ${NAME}:\\
     taskfile: ./taskfiles/PythonApp.yml\\
     dir: ./apps/${NAME}\\
     vars:\\
       APP_NAME: ${NAME}\\
-      MODULE_NAME: ${PKG_NAME}" Taskfile.yml
+      MODULE_NAME: ${PKG_NAME}\\
+" Taskfile.yml
 
 # 3. release-please-config.json — add package entry
 TMP=$(mktemp)
@@ -618,10 +733,14 @@ grep -q "$NAME" REUSE.toml || die "REUSE.toml edit failed — $NAME not found"
 # 9. Seed docs/schema.yaml from the real App registered in main.py, so
 # `task ${NAME}:schema:check` (part of `task ${NAME}:check`, CI's lint job)
 # passes immediately instead of failing with "Path 'docs/schema.yaml' does
-# not exist" on every freshly scaffolded app (cap-a8g).
-echo "Syncing workspace and generating initial schema…"
-uv sync --package "$NAME" >/dev/null
-uv run --package "$NAME" cosalette schema init --app "${PKG_NAME}.main:app" > "$APP/docs/schema.yaml"
+# not exist" on every freshly scaffolded app (cap-a8g). `uv run --package`
+# syncs on demand, so no separate `uv sync` is needed. Written via a .tmp
+# file + mv (matching taskfiles/PythonApp.yml's schema:generate task) so a
+# failed run never leaves a truncated docs/schema.yaml behind.
+echo "Generating initial schema…"
+uv run --package "$NAME" cosalette schema init --app "${PKG_NAME}.main:app" > "$APP/docs/schema.yaml.tmp"
+mv "$APP/docs/schema.yaml.tmp" "$APP/docs/schema.yaml"
+[[ -s "$APP/docs/schema.yaml" ]] || die "cosalette schema init produced an empty docs/schema.yaml"
 
 echo "✓ Scaffolded apps/$NAME"
 echo "  Next: run 'task ${NAME}:test:unit' to verify"
