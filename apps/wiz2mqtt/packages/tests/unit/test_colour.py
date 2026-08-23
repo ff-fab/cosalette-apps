@@ -3,15 +3,22 @@
 Test Techniques Used:
 - Boundary Value Analysis: Kelvin clamping at min/max/mid
 - Equivalence Partitioning: supported vs. unsupported scenes per bulb class
-- Round-trip Testing: RGB -> hue/saturation conversion sanity
+- Round-trip Testing: RGB <-> hue/saturation conversion sanity
 - Error Guessing: unsupported scene raises, missing kelvin range passes through
+- Decision Table: CCT-mode detection from colortemp value
 """
 
 from __future__ import annotations
 
 import pytest
 
-from wiz2mqtt.colour import clamp_kelvin, rgb_to_hue_saturation, validate_scene
+from wiz2mqtt.colour import (
+    clamp_kelvin,
+    hue_saturation_to_rgb,
+    is_cct_mode,
+    rgb_to_hue_saturation,
+    validate_scene,
+)
 from wiz2mqtt.errors import WizUnsupportedCommandError
 from wiz2mqtt.models import BulbCapabilities
 
@@ -137,27 +144,53 @@ class TestValidateScene:
 
 
 class TestRgbToHueSaturation:
-    """rgb_to_hue_saturation converts 0-255 RGB to pywizlight's hue/saturation."""
+    """rgb_to_hue_saturation converts RGB + cold-white to pywizlight's hue/saturation.
+
+    Cases use rgb=(0, 0, 0) + cold_white for "white" rather than
+    rgb=(255, 255, 255) — a real bulb reports colour on the RGB channels
+    and white on the separate cold-white channel, never both saturated at
+    once; ``rgbcw2hs`` derives saturation from ``cold_white``, not from
+    the RGB vector's own magnitude.
+    """
 
     @pytest.mark.parametrize(
-        ("rgb", "expected_hue", "expected_saturation"),
+        ("rgb", "cold_white", "expected_hue", "expected_saturation"),
         [
-            ((255, 0, 0), 0.0, 100.0),  # pure red
-            ((0, 255, 0), 120.0, 100.0),  # pure green
-            ((0, 0, 255), 240.0, 100.0),  # pure blue
-            ((255, 255, 255), 0.0, 0.0),  # white -> zero saturation
+            ((255, 0, 0), 0, 0.0, 100.0),  # pure red, no white channel
+            ((0, 255, 0), 0, 120.0, 100.0),  # pure green, no white channel
+            ((0, 0, 255), 0, 240.0, 100.0),  # pure blue, no white channel
+            ((0, 0, 0), 255, 0.0, 0.0),  # full cold-white -> zero saturation
         ],
     )
     def test_colour_rgb_to_hue_saturation_primary_colours(
-        self, rgb: tuple[int, int, int], expected_hue: float, expected_saturation: float
+        self,
+        rgb: tuple[int, int, int],
+        cold_white: int,
+        expected_hue: float,
+        expected_saturation: float,
     ) -> None:
         """Primary colours map to their known hue/saturation values.
 
         Technique: Round-trip Testing — well-known RGB -> HSV fixed points.
         """
-        hue, saturation = rgb_to_hue_saturation(*rgb)
+        hue, saturation = rgb_to_hue_saturation(*rgb, cold_white)
         assert hue == pytest.approx(expected_hue, abs=0.01)
         assert saturation == pytest.approx(expected_saturation, abs=0.01)
+
+    def test_colour_rgb_to_hue_saturation_blends_cold_white_into_saturation(
+        self,
+    ) -> None:
+        """A partial cold-white channel reduces saturation below fully-saturated red.
+
+        Plain ``colorsys.rgb_to_hsv`` on the RGB channels alone would
+        report 100% saturation here regardless — this is the exact defect
+        the ``rgbcw2hs`` conversion fixes.
+
+        Technique: Round-trip Testing — known rgbcw2hs fixed point.
+        """
+        hue, saturation = rgb_to_hue_saturation(255, 0, 0, cold_white=64)
+        assert hue == pytest.approx(0.0, abs=0.01)
+        assert saturation == pytest.approx(75.0, abs=0.01)
 
     def test_colour_rgb_to_hue_saturation_within_pywizlight_ranges(self) -> None:
         """Output stays within pywizlight's hucolor ranges: hue 0-360, saturation 0-100.
@@ -167,3 +200,57 @@ class TestRgbToHueSaturation:
         hue, saturation = rgb_to_hue_saturation(128, 64, 200)
         assert 0.0 <= hue < 360.0
         assert 0.0 <= saturation <= 100.0
+
+
+# ---------------------------------------------------------------------------
+# hue_saturation_to_rgb
+# ---------------------------------------------------------------------------
+
+
+class TestHueSaturationToRgb:
+    """hue_saturation_to_rgb reconstructs display RGB via standard HSV->RGB."""
+
+    @pytest.mark.parametrize(
+        ("hue", "saturation", "brightness", "expected_rgb"),
+        [
+            (0.0, 100.0, 255, (255, 0, 0)),  # pure red at full brightness
+            (120.0, 100.0, 255, (0, 255, 0)),  # pure green at full brightness
+            (0.0, 0.0, 255, (255, 255, 255)),  # zero saturation -> grey/white
+            (0.0, 100.0, 0, (0, 0, 0)),  # zero brightness -> black regardless of hue
+        ],
+    )
+    def test_colour_hue_saturation_to_rgb_fixed_points(
+        self,
+        hue: float,
+        saturation: float,
+        brightness: int,
+        expected_rgb: tuple[int, int, int],
+    ) -> None:
+        """Known HSV fixed points map to their expected RGB triples.
+
+        Technique: Round-trip Testing — well-known HSV -> RGB fixed points.
+        """
+        assert hue_saturation_to_rgb(hue, saturation, brightness) == expected_rgb
+
+
+# ---------------------------------------------------------------------------
+# is_cct_mode
+# ---------------------------------------------------------------------------
+
+
+class TestIsCctMode:
+    """is_cct_mode keys off colortemp alone, never rgb."""
+
+    @pytest.mark.parametrize(
+        ("color_temp_kelvin", "expected"),
+        [
+            (None, False),  # no colortemp reported -> colour mode
+            (0, False),  # explicit zero -> colour mode
+            (4000, True),  # non-zero colortemp -> CCT mode
+        ],
+    )
+    def test_colour_is_cct_mode_keys_off_colortemp(
+        self, color_temp_kelvin: int | None, expected: bool
+    ) -> None:
+        """Technique: Decision Table — colortemp value -> mode."""
+        assert is_cct_mode(color_temp_kelvin) is expected

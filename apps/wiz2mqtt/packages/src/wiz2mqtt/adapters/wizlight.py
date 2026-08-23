@@ -15,7 +15,12 @@ from collections.abc import Callable
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
 
-from wiz2mqtt.colour import clamp_kelvin, rgb_to_hue_saturation, validate_scene
+from wiz2mqtt.colour import (
+    clamp_kelvin,
+    is_cct_mode,
+    rgb_to_hue_saturation,
+    validate_scene,
+)
 from wiz2mqtt.errors import WizBridgeError, WizConnectionError, WizTimeoutError
 from wiz2mqtt.models import BulbCapabilities, BulbState
 
@@ -293,18 +298,24 @@ def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
     if parser is None:
         return None
 
-    rgb = parser.get_rgb()
+    color_temp_kelvin = parser.get_colortemp()
     hue = saturation = None
-    if rgb is not None:
-        r, g, b = rgb
-        if r is not None and g is not None and b is not None:
-            hue, saturation = rgb_to_hue_saturation(r, g, b)
+    # CCT mode is detected from colortemp, never from get_rgb(): the parser
+    # can report both a non-zero colortemp *and* a fully-populated RGB
+    # tuple at once — stale RGB residue from a prior colour-mode session.
+    if not is_cct_mode(color_temp_kelvin):
+        rgb = parser.get_rgb()
+        if rgb is not None:
+            r, g, b = rgb
+            if r is not None and g is not None and b is not None:
+                cold_white = parser.get_cold_white() or 0
+                hue, saturation = rgb_to_hue_saturation(r, g, b, cold_white)
 
     return BulbState(
         state=parser.get_state(),
         brightness=parser.get_brightness(),
         hue=hue,
         saturation=saturation,
-        color_temp_kelvin=parser.get_colortemp(),
+        color_temp_kelvin=color_temp_kelvin,
         scene=parser.get_scene_id(),
     )

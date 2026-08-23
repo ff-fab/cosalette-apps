@@ -61,13 +61,48 @@ def validate_scene(scene_id: int, caps: BulbCapabilities) -> None:
         raise WizUnsupportedCommandError(msg)
 
 
-def rgb_to_hue_saturation(r: float, g: float, b: float) -> tuple[float, float]:
-    """Convert an 0-255 RGB triple to (hue in 0-360, saturation in 0-100).
+def rgb_to_hue_saturation(
+    r: float, g: float, b: float, cold_white: float = 0
+) -> tuple[float, float]:
+    """Convert an 0-255 RGB triple plus cold-white channel to (hue, saturation).
 
-    ``pywizlight``'s state readback has no hue/saturation getter, only
-    ``get_rgb()`` — this reconstructs the canonical (hue, saturation)
-    pair for state reads, discarding value/brightness (read separately
-    via ``get_brightness()``).
+    Uses ``pywizlight``'s own ``rgbcw2hs`` — *not* ``colorsys.rgb_to_hsv``.
+    The wire splits colour between the RGB channels and a separate
+    cold-white ("c") channel: a pastel colour is represented as a
+    saturated RGB vector *plus* cw, not as desaturated RGB. Ignoring
+    ``cold_white`` (as plain ``colorsys`` conversion does) silently
+    reports full saturation for any colour mixed with white light.
+    ``cold_white`` defaults to 0 for callers with no white channel to
+    report (e.g. pure-RGB test fixtures).
     """
-    hue, saturation, _value = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
-    return hue * 360, saturation * 100
+    from pywizlight.rgbcw import rgbcw2hs  # noqa: PLC0415 — lazy import by design
+
+    return rgbcw2hs((r, g, b), cold_white)
+
+
+def hue_saturation_to_rgb(
+    hue: float, saturation: float, brightness: int
+) -> tuple[int, int, int]:
+    """Reconstruct a display RGB triple from canonical (hue, saturation, brightness).
+
+    Uses standard HSV->RGB (``colorsys``), *not* ``pywizlight``'s own
+    ``get_rgb()`` wire readback or ``hs2rgbcw`` wire encoding — that wire
+    projection discards luminance (e.g. ``(200, 200, 255)`` round-trips
+    through the wire as ``(0, 0, 109)`` with ``w=128``, and every grey and
+    white collapses to an identical ``(0, 0, 0)`` with ``w=128``).
+    ``brightness`` is 0-255, matching :func:`BulbState.brightness`.
+    """
+    r, g, b = colorsys.hsv_to_rgb(hue / 360, saturation / 100, brightness / 255)
+    return round(r * 255), round(g * 255), round(b * 255)
+
+
+def is_cct_mode(color_temp_kelvin: int | None) -> bool:
+    """True when the bulb is in CCT (colour-temperature) mode.
+
+    Must be checked *before* trusting a populated ``get_rgb()`` readback:
+    ``pywizlight``'s parser can return both a non-zero ``get_colortemp()``
+    and a fully-populated RGB tuple at once — stale RGB residue from a
+    prior colour-mode session — so ``get_colortemp() != 0`` is the only
+    reliable mode signal, never ``get_rgb()``.
+    """
+    return bool(color_temp_kelvin)
