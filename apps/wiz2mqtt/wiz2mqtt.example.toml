@@ -1,0 +1,30 @@
+# Example WiZ bulb inventory for wiz2mqtt.
+#
+# Copy this file to wiz2mqtt.toml (gitignored) and fill in real IPs.
+# Note the destination filename is `wiz2mqtt.toml`, not this file's name —
+# cosalette's config-file loader dispatches on the literal `.toml` suffix.
+# This file holds ONLY the bulb inventory — everything else (MQTT broker,
+# logging, etc.) is configured via .env. See .env.example.
+#
+# when_unreachable controls what state a bulb publishes when it stops
+# responding: "unavailable" (default, omit the key to use it) or "off".
+
+[[bulbs]]
+name = "desk"
+ip = "192.168.1.101"
+
+[[bulbs]]
+name = "living-room"
+ip = "192.168.1.102"
+mac = "a8bb5006033d"
+
+[[bulbs]]
+name = "hallway"
+ip = "192.168.1.103"
+when_unreachable = "off"
+
+[[bulbs]]
+name = "sauna"
+ip = "192.168.1.104"
+mac = "a8bb5006033e"
+when_unreachable = "off"

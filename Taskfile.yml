@@ -109,6 +109,11 @@ includes:
     vars:
       APP_NAME: wiz2mqtt
       MODULE_NAME: wiz2mqtt
+      # No settings-derived NameSpec registered yet (bulb-derived devices land in
+      # a later cap-10u sub-issue) — SCHEMA_CONFIG_FILE is wired now so
+      # schema:check/schema:generate already validate the TOML inventory shape
+      # end-to-end via --resolve-settings --config-file (cap-10u.9, ADR-051).
+      SCHEMA_CONFIG_FILE: wiz2mqtt.schema.toml
 
 tasks:
   default:

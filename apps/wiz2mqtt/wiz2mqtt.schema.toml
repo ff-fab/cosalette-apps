@@ -1,0 +1,9 @@
+# Representative wiz2mqtt bulb inventory used ONLY by schema tooling
+# (task wiz2mqtt:schema:check / schema:generate --resolve-settings
+# --config-file). Not a runtime file — no real IPs or MACs. Do not use
+# this as a starting point for a real deployment; copy
+# wiz2mqtt.example.toml instead.
+
+[[bulbs]]
+name = "example"
+ip = "192.0.2.1"

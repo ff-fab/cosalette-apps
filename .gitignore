@@ -155,6 +155,9 @@ celerybeat.pid
 .env
 !**/tests/integration/.env
 .envrc
+
+# Per-app config-file settings sources (real values; *.example/*.schema are committed)
+wiz2mqtt.toml
 .venv
 env/
 venv/
