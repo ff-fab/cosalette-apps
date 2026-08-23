@@ -20,7 +20,7 @@ from cosalette.testing import AppHarness
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 
-from .conftest import TOPIC_PREFIX
+from .conftest import _COMMAND_SETTLE_TIME, TOPIC_PREFIX, wait_until_subscribed
 
 _BULB_IP = "10.0.0.5"
 
@@ -29,16 +29,13 @@ async def _run_with_command(
     harness: AppHarness,
     device: str,
     payload: dict,
-    *,
-    startup_wait: float = 0.3,
-    post_command_wait: float = 0.2,
 ) -> None:
     """Start the harness, deliver a command, then shut down cleanly."""
     task = asyncio.create_task(harness.run())
     try:
-        await asyncio.sleep(startup_wait)
+        await wait_until_subscribed(harness)
         await harness.inject_command(device, payload)
-        await asyncio.sleep(post_command_wait)
+        await asyncio.sleep(_COMMAND_SETTLE_TIME)
         harness.shutdown_event.set()
         await task
     finally:

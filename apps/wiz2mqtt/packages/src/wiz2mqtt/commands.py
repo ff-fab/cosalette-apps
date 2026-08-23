@@ -18,6 +18,7 @@ _STATE_ON_OFF: dict[str, bool] = {"ON": True, "OFF": False}
 class SetStateKwargs(TypedDict):
     """Keyword arguments for ``WizBulbPort.set_state``, typed for ``**`` splatting."""
 
+    # mirrors WizBulbPort.set_state kwargs — keep in sync with ports.py
     state: bool | None
     brightness: int | None
     hue: float | None
@@ -39,7 +40,7 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
         hue, saturation = rgb_to_hue_saturation(cmd.color.r, cmd.color.g, cmd.color.b)
 
     return {
-        "state": _STATE_ON_OFF.get(cmd.state) if cmd.state is not None else None,
+        "state": _STATE_ON_OFF.get(cmd.state),
         "brightness": cmd.brightness,
         "hue": hue,
         "saturation": saturation,

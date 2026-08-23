@@ -15,7 +15,7 @@ from cosalette.testing import AppHarness, FakeClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.errors import error_type_map
-from wiz2mqtt.main import bulb_set
+from wiz2mqtt.main import _bulb_map, bulb_set
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import Wiz2MqttSettings
 
@@ -23,6 +23,12 @@ TOPIC_PREFIX = "wiz2mqtt"
 """Default MQTT topic prefix used by integration tests."""
 
 _DEFAULT_BULB: dict[str, object] = {"name": "office", "ip": "10.0.0.5"}
+
+_COMMAND_SETTLE_TIME = 0.03
+"""Real seconds to wait after command injection for async dispatch to complete."""
+
+_STARTUP_TIMEOUT = 2.0
+"""Maximum seconds to wait for the harness to subscribe before timing out."""
 
 
 def build_integration_app(fake_adapter: FakeWizBulbAdapter) -> App:
@@ -37,11 +43,7 @@ def build_integration_app(fake_adapter: FakeWizBulbAdapter) -> App:
         adapters={WizBulbPort: lambda: fake_adapter},
         error_type_map=error_type_map,
     )
-    app.add_command(
-        lambda settings: {bulb.name: bulb for bulb in settings.bulbs},
-        bulb_set,
-        summary="Apply a partial state update to a bulb",
-    )
+    app.add_command(_bulb_map, bulb_set)
     return app
 
 
@@ -49,6 +51,23 @@ def make_settings(**bulb_overrides: object) -> Wiz2MqttSettings:
     """Isolated settings with a single bulb, ignoring host env/files."""
     bulb = {**_DEFAULT_BULB, **bulb_overrides}
     return Wiz2MqttSettings(bulbs=[bulb], _env_file=None, _config_file=None)  # type: ignore[arg-type,call-arg]
+
+
+async def wait_until_subscribed(harness: AppHarness) -> None:
+    """Poll until the harness has subscribed to command topics or time out.
+
+    Avoids a fixed-duration startup sleep — returns as soon as the MQTT
+    router is listening, keeping the suite fast even on slow CI runners.
+    """
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _STARTUP_TIMEOUT
+    while not harness.mqtt.subscriptions:
+        if loop.time() >= deadline:
+            raise AssertionError(
+                f"App did not subscribe within {_STARTUP_TIMEOUT}s "
+                "— router was not listening yet."
+            )
+        await asyncio.sleep(0.005)
 
 
 # ---------------------------------------------------------------------------

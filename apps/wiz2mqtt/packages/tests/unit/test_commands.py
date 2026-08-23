@@ -100,9 +100,9 @@ class TestColorConversion:
     def test_commands_color_converts_to_hue_saturation(self) -> None:
         """A given color is converted to (hue, saturation), never left as RGB.
 
-        Technique: Round-trip Testing — reconstructing RGB from the emitted
-        hue/saturation approximates the input color (lossy through 8-bit
-        RGB, so exact equality is not expected).
+        Technique: Specification-based — verifies hue/saturation are populated,
+        no raw RGB key leaks through, and round-trip reconstructs pure red exactly
+        (pure-saturated primaries are lossless through the hsv conversion).
         """
         cmd = BulbSetCommand.model_validate({"color": {"r": 255, "g": 0, "b": 0}})
         kwargs = to_set_state_kwargs(cmd)

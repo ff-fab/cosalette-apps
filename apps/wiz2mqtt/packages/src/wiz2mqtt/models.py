@@ -84,11 +84,13 @@ class BulbSetCommand(BaseModel):
     state: Literal["ON", "OFF"] | None = None
     brightness: int | None = Field(default=None, ge=1, le=255)
     color: BulbColor | None = None
-    color_temp: int | None = Field(default=None, gt=0)
-    effect: int | None = None
+    color_temp: int | None = Field(default=None, gt=0, le=10000)
+    effect: int | None = Field(default=None, ge=1, le=1000)
 
     @model_validator(mode="after")
-    def _color_temp_effect_mutually_exclusive(self) -> BulbSetCommand:
+    def _at_most_one_color_mode(self) -> BulbSetCommand:
+        if not any((self.color, self.color_temp, self.effect)):
+            return self
         given = sum(f is not None for f in (self.color, self.color_temp, self.effect))
         if given > 1:
             raise ValueError("color, color_temp and effect are mutually exclusive")

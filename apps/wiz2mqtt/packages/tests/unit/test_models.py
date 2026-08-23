@@ -121,7 +121,7 @@ class TestFieldValidation:
 
         Technique: Boundary Value Analysis — one out-of-range channel.
         """
-        payload = {"color": {"r": 0, "g": 0, "b": 0, channel: 256}}
+        payload = {"color": {c: 256 if c == channel else 0 for c in ("r", "g", "b")}}
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate(payload)
 
@@ -132,6 +132,62 @@ class TestFieldValidation:
         """
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate({"color_temp": 0})
+
+    def test_models_color_temp_accepts_minimum_positive_value(self) -> None:
+        """color_temp=1 is the minimum valid value (strictly above zero).
+
+        Technique: Boundary Value Analysis — just-inside lower bound (gt=0).
+        """
+        cmd = BulbSetCommand.model_validate({"color_temp": 1})
+        assert cmd.color_temp == 1
+
+    def test_models_color_temp_accepts_maximum_value(self) -> None:
+        """color_temp=10000 is the pywizlight hard ceiling, must be accepted.
+
+        Technique: Boundary Value Analysis — upper bound (le=10000).
+        """
+        cmd = BulbSetCommand.model_validate({"color_temp": 10000})
+        assert cmd.color_temp == 10000
+
+    def test_models_color_temp_rejects_above_maximum(self) -> None:
+        """color_temp above 10000 is rejected.
+
+        Technique: Boundary Value Analysis — just outside upper bound.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"color_temp": 10001})
+
+    def test_models_effect_accepts_minimum_value(self) -> None:
+        """effect=1 is the minimum valid scene ID.
+
+        Technique: Boundary Value Analysis — lower bound (ge=1).
+        """
+        cmd = BulbSetCommand.model_validate({"effect": 1})
+        assert cmd.effect == 1
+
+    def test_models_effect_accepts_maximum_value(self) -> None:
+        """effect=1000 is the pywizlight scene ceiling, must be accepted.
+
+        Technique: Boundary Value Analysis — upper bound (le=1000).
+        """
+        cmd = BulbSetCommand.model_validate({"effect": 1000})
+        assert cmd.effect == 1000
+
+    def test_models_effect_rejects_zero(self) -> None:
+        """effect=0 is invalid (scene IDs start at 1).
+
+        Technique: Boundary Value Analysis — just below lower bound.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"effect": 0})
+
+    def test_models_effect_rejects_above_maximum(self) -> None:
+        """effect above 1000 is rejected.
+
+        Technique: Boundary Value Analysis — just outside upper bound.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"effect": 1001})
 
 
 # ---------------------------------------------------------------------------
