@@ -2410,6 +2410,18 @@ wheels = [
 ]
 
 [[package]]
+name = "pywizlight"
+version = "0.6.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/79/1a/974d1313525cd7098ab4a14efb2420a3e64a26f71366abd778bc64d7c010/pywizlight-0.6.6.tar.gz", hash = "sha256:b6c57ee128a5867548181ae9b0a0d8b4333863734a7f80375d42fcda97293100", size = 48863, upload-time = "2026-08-05T09:49:44.791Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/71/63/eb4a4d70539f934a46ae85285a890ef6e9ec3731cf192582a27d725ed5ac/pywizlight-0.6.6-py3-none-any.whl", hash = "sha256:71afd52e1c60ab1002afea9068d3c41243d792c3f824b0eb74f2a3f0fdd96d04", size = 64176, upload-time = "2026-08-05T09:49:43.536Z" },
+]
+
+[[package]]
 name = "pyyaml"
 version = "6.0.3"
 source = { registry = "https://pypi.org/simple" }
@@ -3267,10 +3279,14 @@ version = "0.1.0"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
     { name = "cosalette" },
+    { name = "pywizlight" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cosalette", specifier = ">=0.6.3,<0.7" }]
+requires-dist = [
+    { name = "cosalette", specifier = ">=0.6.3,<0.7" },
+    { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
+]
 
 [[package]]
 name = "x-wr-timezone"
