@@ -73,12 +73,14 @@ class _FakeParser:
         state: bool | None = True,
         brightness: int | None = 200,
         rgb: tuple[float, float, float] | None = (255.0, 0.0, 0.0),
+        cold_white: int | None = 0,
         colortemp: int | None = None,
         scene_id: int | None = None,
     ) -> None:
         self._state = state
         self._brightness = brightness
         self._rgb = rgb
+        self._cold_white = cold_white
         self._colortemp = colortemp
         self._scene_id = scene_id
 
@@ -90,6 +92,9 @@ class _FakeParser:
 
     def get_rgb(self) -> tuple[float, float, float] | None:
         return self._rgb
+
+    def get_cold_white(self) -> int | None:
+        return self._cold_white
 
     def get_colortemp(self) -> int | None:
         return self._colortemp
@@ -303,6 +308,28 @@ class TestGetState:
 
         assert state.hue == pytest.approx(0.0, abs=0.01)
         assert state.saturation == pytest.approx(100.0, abs=0.01)
+
+    async def test_wizlight_get_state_ignores_stale_rgb_in_cct_mode(
+        self, ctx: _Ctx
+    ) -> None:
+        """A non-zero colortemp means CCT mode, even with a populated rgb tuple.
+
+        pywizlight's parser can report stale RGB residue from a prior
+        colour-mode session alongside a non-zero colortemp; colortemp must
+        win, per the CCT-mode detection rule (never ``get_rgb()``).
+
+        Technique: Decision Table — colortemp x rgb populated -> mode.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [
+            _FakeParser(rgb=(255.0, 0.0, 0.0), colortemp=4000)
+        ]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert state.hue is None
+        assert state.saturation is None
+        assert state.color_temp_kelvin == 4000
 
     async def test_wizlight_get_state_uses_push_cache_when_fresh(
         self, ctx: _Ctx
