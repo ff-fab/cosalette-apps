@@ -29,6 +29,8 @@ _DEFAULT_STATE = BulbState(
     saturation=None,
     color_temp_kelvin=None,
     scene=None,
+    effect_speed=None,
+    power_draw_w=None,
 )
 
 

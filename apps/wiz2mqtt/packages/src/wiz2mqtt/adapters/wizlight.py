@@ -187,6 +187,45 @@ class WizBulbAdapter:
         if scene is not None:
             validate_scene(scene, caps)
 
+        have_colour = hue is not None and saturation is not None
+        hucolor = (hue, saturation) if have_colour else None
+        await self._send_pilot(
+            ip,
+            bulb,
+            state=state,
+            brightness=brightness,
+            hucolor=hucolor,
+            color_temp_kelvin=color_temp_kelvin,
+            scene=scene,
+        )
+
+        # Optimistic merge pending the next authoritative push/poll.
+        current = self._state_cache.get(ip, _EMPTY_STATE)
+        self._state_cache[ip] = current.replace_non_none(
+            state=state,
+            brightness=brightness,
+            hue=hue,
+            saturation=saturation,
+            color_temp_kelvin=color_temp_kelvin,
+            scene=scene,
+        )
+
+    async def _send_pilot(
+        self,
+        ip: str,
+        bulb: Any,
+        *,
+        state: bool | None,
+        brightness: int | None,
+        hucolor: tuple[float, float] | None,
+        color_temp_kelvin: int | None,
+        scene: int | None,
+    ) -> None:
+        """Send turn_off/turn_on, wrapping pywizlight's exceptions at the boundary.
+
+        No retry loop here — pywizlight already retries internally
+        (TIMEOUT=13s, 6 datagrams); stacking another would compound delays.
+        """
         from pywizlight import PilotBuilder  # noqa: PLC0415 — lazy import by design
         from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
             WizLightConnectionError,
@@ -194,10 +233,6 @@ class WizBulbAdapter:
             WizLightTimeOutError,
         )
 
-        # No retry loop here — pywizlight already retries internally
-        # (TIMEOUT=13s, 6 datagrams); stacking another would compound delays.
-        have_colour = hue is not None and saturation is not None
-        hucolor = (hue, saturation) if have_colour else None
         try:
             if state is False:
                 await bulb.turn_off()
@@ -218,17 +253,6 @@ class WizBulbAdapter:
         except WizLightError as exc:
             msg = f"pywizlight error sending command to bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
-
-        # Optimistic merge pending the next authoritative push/poll.
-        current = self._state_cache.get(ip, _EMPTY_STATE)
-        self._state_cache[ip] = current.replace_non_none(
-            state=state,
-            brightness=brightness,
-            hue=hue,
-            saturation=saturation,
-            color_temp_kelvin=color_temp_kelvin,
-            scene=scene,
-        )
 
     async def health_check(self) -> bool:
         """Always healthy — UDP is connectionless, there is no single link to probe.
@@ -271,6 +295,8 @@ _EMPTY_STATE = BulbState(
     saturation=None,
     color_temp_kelvin=None,
     scene=None,
+    effect_speed=None,
+    power_draw_w=None,
 )
 
 
@@ -295,17 +321,7 @@ def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
         return None
 
     color_temp_kelvin = parser.get_colortemp()
-    hue = saturation = None
-    # CCT mode is detected from colortemp, never from get_rgb(): the parser
-    # can report both a non-zero colortemp *and* a fully-populated RGB
-    # tuple at once — stale RGB residue from a prior colour-mode session.
-    if not is_cct_mode(color_temp_kelvin):
-        rgb = parser.get_rgb()
-        if rgb is not None:
-            r, g, b = rgb
-            if r is not None and g is not None and b is not None:
-                cold_white = parser.get_cold_white() or 0
-                hue, saturation = rgb_to_hue_saturation(r, g, b, cold_white)
+    hue, saturation = _hue_saturation_from_parser(parser, color_temp_kelvin)
 
     return BulbState(
         state=parser.get_state(),
@@ -314,4 +330,27 @@ def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
         saturation=saturation,
         color_temp_kelvin=color_temp_kelvin,
         scene=parser.get_scene_id(),
+        effect_speed=parser.get_speed(),
+        power_draw_w=parser.get_power(),
     )
+
+
+def _hue_saturation_from_parser(
+    parser: PilotParser, color_temp_kelvin: int | None
+) -> tuple[float | None, float | None]:
+    """Derive (hue, saturation) from the parser's RGB readback, CCT-gated.
+
+    CCT mode is detected from colortemp, never from ``get_rgb()``: the
+    parser can report both a non-zero colortemp *and* a fully-populated RGB
+    tuple at once — stale RGB residue from a prior colour-mode session.
+    """
+    if is_cct_mode(color_temp_kelvin):
+        return None, None
+    rgb = parser.get_rgb()
+    if rgb is None:
+        return None, None
+    r, g, b = rgb
+    if r is None or g is None or b is None:
+        return None, None
+    cold_white = parser.get_cold_white() or 0
+    return rgb_to_hue_saturation(r, g, b, cold_white)

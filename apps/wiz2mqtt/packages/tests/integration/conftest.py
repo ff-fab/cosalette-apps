@@ -10,14 +10,16 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette import App, MockMqttClient, OnChange
 from cosalette.testing import AppHarness, FakeClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.main import _bulb_map, bulb_set
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import Wiz2MqttSettings
+from wiz2mqtt.state import SharedState
 
 TOPIC_PREFIX = "wiz2mqtt"
 """Default MQTT topic prefix used by integration tests."""
@@ -31,11 +33,15 @@ _STARTUP_TIMEOUT = 2.0
 """Maximum seconds to wait for the harness to subscribe before timing out."""
 
 
+def _shared_state_factory() -> SharedState:
+    return SharedState()
+
+
 def build_integration_app(fake_adapter: FakeWizBulbAdapter) -> App:
     """Construct a fully-wired App with FakeWizBulbAdapter.
 
-    Mirrors the command wiring in ``wiz2mqtt.main`` while substituting
-    the adapter so tests stay isolated from real pywizlight I/O.
+    Mirrors the command and telemetry wiring in ``wiz2mqtt.main`` while
+    substituting the adapter so tests stay isolated from real pywizlight I/O.
     """
     app = App(
         name="wiz2mqtt",
@@ -44,6 +50,13 @@ def build_integration_app(fake_adapter: FakeWizBulbAdapter) -> App:
         error_type_map=error_type_map,
     )
     app.add_command(_bulb_map, bulb_set)
+    app.state(_shared_state_factory)
+    app.add_telemetry(
+        _bulb_map,
+        bulb_entity_tick,
+        interval=0.01,
+        publish=OnChange(),
+    )
     return app
 
 

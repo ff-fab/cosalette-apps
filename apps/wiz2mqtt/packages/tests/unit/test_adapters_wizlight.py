@@ -76,6 +76,8 @@ class _FakeParser:
         cold_white: int | None = 0,
         colortemp: int | None = None,
         scene_id: int | None = None,
+        speed: int | None = None,
+        power: float | None = None,
     ) -> None:
         self._state = state
         self._brightness = brightness
@@ -83,6 +85,8 @@ class _FakeParser:
         self._cold_white = cold_white
         self._colortemp = colortemp
         self._scene_id = scene_id
+        self._speed = speed
+        self._power = power
 
     def get_state(self) -> bool | None:
         return self._state
@@ -101,6 +105,12 @@ class _FakeParser:
 
     def get_scene_id(self) -> int | None:
         return self._scene_id
+
+    def get_speed(self) -> int | None:
+        return self._speed
+
+    def get_power(self) -> float | None:
+        return self._power
 
 
 class _FakeWizLight:
@@ -347,6 +357,18 @@ class TestGetState:
 
         assert ctx.fake_bulbs[_IP].update_state_calls == 0
         assert state.brightness == 77
+
+    async def test_wizlight_get_state_parses_effect_speed_and_power_draw(
+        self, ctx: _Ctx
+    ) -> None:
+        """Technique: Specification-based — pass-through of speed/power getters."""
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [_FakeParser(speed=150, power=8.4)]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert state.effect_speed == 150
+        assert state.power_draw_w == 8.4
 
     async def test_wizlight_get_state_falls_back_to_polling_when_stale(
         self, monkeypatch: pytest.MonkeyPatch
