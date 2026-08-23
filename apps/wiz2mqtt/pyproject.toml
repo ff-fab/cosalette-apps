@@ -11,6 +11,7 @@ authors = [
 
 dependencies = [
     "cosalette>=0.6.3,<0.7",
+    "pywizlight>=0.6.6,<0.7",
 ]
 
 [project.scripts]
