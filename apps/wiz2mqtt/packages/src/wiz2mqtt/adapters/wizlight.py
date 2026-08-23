@@ -290,11 +290,7 @@ def _capabilities_from_bulb_type(bulb_type: BulbType) -> BulbCapabilities:
 def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
     if not parsers:
         return None
-    parser = None
-    for p in parsers:
-        if p is not None:
-            parser = p
-            break
+    parser = next((p for p in parsers if p is not None), None)
     if parser is None:
         return None
 

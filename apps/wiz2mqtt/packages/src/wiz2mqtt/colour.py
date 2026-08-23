@@ -1,4 +1,8 @@
-"""Pure colour/capability helpers — zero cosalette or pywizlight imports.
+"""Colour/capability helpers — no top-level pywizlight imports.
+
+``pywizlight`` is a runtime dependency of :func:`rgb_to_hue_saturation` and
+:func:`validate_scene`, which lazy-import it to avoid circular imports and to
+keep the module importable in test environments without the full stack.
 
 ``pywizlight``'s ``PilotBuilder(hucolor=...)`` expects ``(hue, saturation)``
 with hue in ``0..360`` and saturation in ``0..100`` (see
@@ -64,7 +68,7 @@ def validate_scene(scene_id: int, caps: BulbCapabilities) -> None:
 def rgb_to_hue_saturation(
     r: float, g: float, b: float, cold_white: float = 0
 ) -> tuple[float, float]:
-    """Convert an 0-255 RGB triple plus cold-white channel to (hue, saturation).
+    """Convert a 0-255 RGB triple plus cold-white channel to (hue, saturation).
 
     Uses ``pywizlight``'s own ``rgbcw2hs`` — *not* ``colorsys.rgb_to_hsv``.
     The wire splits colour between the RGB channels and a separate
@@ -105,4 +109,4 @@ def is_cct_mode(color_temp_kelvin: int | None) -> bool:
     prior colour-mode session — so ``get_colortemp() != 0`` is the only
     reliable mode signal, never ``get_rgb()``.
     """
-    return bool(color_temp_kelvin)
+    return color_temp_kelvin is not None and color_temp_kelvin > 0

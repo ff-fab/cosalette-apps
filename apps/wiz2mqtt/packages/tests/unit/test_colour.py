@@ -190,6 +190,7 @@ class TestRgbToHueSaturation:
         """
         hue, saturation = rgb_to_hue_saturation(255, 0, 0, cold_white=64)
         assert hue == pytest.approx(0.0, abs=0.01)
+        # rgbcw2hs: cw_norm=64/128=0.5; sat=(1-0.5/2)*100=75.0
         assert saturation == pytest.approx(75.0, abs=0.01)
 
     def test_colour_rgb_to_hue_saturation_within_pywizlight_ranges(self) -> None:
@@ -198,7 +199,7 @@ class TestRgbToHueSaturation:
         Technique: Boundary Value Analysis — range containment, not just fixed points.
         """
         hue, saturation = rgb_to_hue_saturation(128, 64, 200)
-        assert 0.0 <= hue < 360.0
+        assert 0.0 <= hue < 360.0  # rgbcw2hs: [0, 360) — 360.0 is never returned
         assert 0.0 <= saturation <= 100.0
 
 
@@ -215,6 +216,7 @@ class TestHueSaturationToRgb:
         [
             (0.0, 100.0, 255, (255, 0, 0)),  # pure red at full brightness
             (120.0, 100.0, 255, (0, 255, 0)),  # pure green at full brightness
+            (240.0, 100.0, 255, (0, 0, 255)),  # pure blue at full brightness
             (0.0, 0.0, 255, (255, 255, 255)),  # zero saturation -> grey/white
             (0.0, 100.0, 0, (0, 0, 0)),  # zero brightness -> black regardless of hue
         ],
@@ -246,7 +248,8 @@ class TestIsCctMode:
         [
             (None, False),  # no colortemp reported -> colour mode
             (0, False),  # explicit zero -> colour mode
-            (4000, True),  # non-zero colortemp -> CCT mode
+            (-1, False),  # negative is physically impossible: not CCT mode
+            (4000, True),  # non-zero positive colortemp -> CCT mode
         ],
     )
     def test_colour_is_cct_mode_keys_off_colortemp(
