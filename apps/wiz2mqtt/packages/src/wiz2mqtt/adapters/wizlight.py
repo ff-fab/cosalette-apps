@@ -7,8 +7,11 @@ and connected to lazily on first contact — there is no fixed inventory.
 
 from __future__ import annotations
 
+import asyncio
+import ipaddress
 import logging
 import time
+from collections.abc import Callable
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Self
 
@@ -54,6 +57,12 @@ class WizBulbAdapter:
         if ip in self._bulbs:
             return self._bulbs[ip]
 
+        try:
+            ipaddress.ip_address(ip)
+        except ValueError:
+            msg = f"Invalid IP address: {ip!r}"
+            raise WizBridgeError(msg) from None
+
         from pywizlight import wizlight  # noqa: PLC0415 — lazy import by design
         from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
             WizLightConnectionError,
@@ -89,7 +98,9 @@ class WizBulbAdapter:
 
         return bulb
 
-    def _make_push_callback(self, ip: str) -> Any:
+    def _make_push_callback(
+        self, ip: str
+    ) -> Callable[[list[PilotParser | None] | None], None]:
         def _on_push(parsers: list[PilotParser | None] | None) -> None:
             try:
                 state = _parse_state(parsers)
@@ -136,10 +147,8 @@ class WizBulbAdapter:
             msg = f"pywizlight error polling bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
 
-        if ip not in self._warned_stale:
-            logger.warning(
-                "Push not confirmed for bulb %s — falling back to polling", ip
-            )
+        if ip in self._last_push_at and ip not in self._warned_stale:
+            logger.warning("No recent push for bulb %s — falling back to polling", ip)
             self._warned_stale.add(ip)
 
         state = _parse_state(parsers)
@@ -235,9 +244,19 @@ class WizBulbAdapter:
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        """Close every bulb connection opened so far."""
-        for bulb in self._bulbs.values():
-            await bulb.async_close()
+        """Close every bulb connection opened so far, then clear all caches."""
+        results = await asyncio.gather(
+            *(bulb.async_close() for bulb in self._bulbs.values()),
+            return_exceptions=True,
+        )
+        for ip, result in zip(self._bulbs, results, strict=False):
+            if isinstance(result, BaseException):
+                logger.warning("Failed to close bulb %s: %s", ip, result)
+        self._bulbs.clear()
+        self._capabilities.clear()
+        self._state_cache.clear()
+        self._last_push_at.clear()
+        self._warned_stale.clear()
 
 
 _EMPTY_STATE = BulbState(
@@ -266,7 +285,11 @@ def _capabilities_from_bulb_type(bulb_type: BulbType) -> BulbCapabilities:
 def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
     if not parsers:
         return None
-    parser = next((p for p in parsers if p is not None), None)
+    parser = None
+    for p in parsers:
+        if p is not None:
+            parser = p
+            break
     if parser is None:
         return None
 

@@ -113,6 +113,23 @@ class TestValidateScene:
         with pytest.raises(WizUnsupportedCommandError):
             validate_scene(1, _SOCKET_CAPS)
 
+    def test_colour_validate_scene_raises_for_unknown_bulb_class(self) -> None:
+        """validate_scene raises WizUnsupportedCommandError, not KeyError.
+
+        Technique: Error Guessing — future/unknown class not in BulbClass enum.
+        """
+        unknown_caps = BulbCapabilities(
+            bulb_class="COMPLETELY_UNKNOWN_CLASS",
+            color=False,
+            color_tmp=False,
+            effect=False,
+            brightness=False,
+            kelvin_min=None,
+            kelvin_max=None,
+        )
+        with pytest.raises(WizUnsupportedCommandError):
+            validate_scene(1, unknown_caps)
+
 
 # ---------------------------------------------------------------------------
 # rgb_to_hue_saturation

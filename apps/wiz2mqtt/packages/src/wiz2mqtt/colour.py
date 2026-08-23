@@ -50,7 +50,11 @@ def validate_scene(scene_id: int, caps: BulbCapabilities) -> None:
 
     # SCENES_BY_CLASS is keyed by scene *name*, not id — translate first.
     scene_name = SCENES.get(scene_id)
-    bulb_class = BulbClass[caps.bulb_class]
+    try:
+        bulb_class = BulbClass[caps.bulb_class]
+    except KeyError:
+        msg = f"Unknown bulb class {caps.bulb_class!r}"
+        raise WizUnsupportedCommandError(msg) from None
     allowed_names = SCENES_BY_CLASS.get(bulb_class, [])
     if scene_name is None or scene_name not in allowed_names:
         msg = f"Scene {scene_id} is not supported by bulb class {caps.bulb_class}"

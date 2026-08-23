@@ -17,6 +17,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -114,6 +115,7 @@ class _FakeWizLight:
         self.turn_off_calls = 0
         self.turn_off_exc: Exception | None = None
         self.closed = False
+        self.async_close_exc: Exception | None = None
 
     async def get_bulbtype(self) -> BulbType:
         if self.get_bulbtype_exc is not None:
@@ -143,6 +145,8 @@ class _FakeWizLight:
         self.turn_off_calls += 1
 
     async def async_close(self) -> None:
+        if self.async_close_exc is not None:
+            raise self.async_close_exc
         self.closed = True
 
 
@@ -271,18 +275,22 @@ class TestErrorWrapping:
 class TestGetState:
     """get_state prefers the push cache; falls back to polling when stale."""
 
-    async def test_wizlight_get_state_polls_on_first_call(self, ctx: _Ctx) -> None:
-        """No push has ever arrived, so the very first call must poll.
+    async def test_wizlight_get_state_polls_on_first_call(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """No push has ever arrived — first call must poll, no warning logged.
 
         Technique: State Transition Testing — initial state has no push history.
         """
         ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
         ctx.fake_bulbs[_IP].update_state_result = [_FakeParser(brightness=128)]
 
-        state = await ctx.adapter.get_state(_IP)
+        with caplog.at_level(logging.WARNING):
+            state = await ctx.adapter.get_state(_IP)
 
         assert ctx.fake_bulbs[_IP].update_state_calls == 1
         assert state.brightness == 128
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
 
     async def test_wizlight_get_state_parses_rgb_into_hue_saturation(
         self, ctx: _Ctx
@@ -342,6 +350,38 @@ class TestGetState:
 
         assert fake_bulbs[_IP].update_state_calls == 1
         assert state.brightness == 99
+
+    async def test_wizlight_get_state_warns_on_stale_push_not_first_poll(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Warning fires exactly once when a previously-fresh push goes stale.
+
+        Technique: State Transition Testing — received-push then stale-push path.
+        """
+        import pywizlight
+
+        fake_bulbs: dict[str, _FakeWizLight] = {}
+
+        def _factory(
+            ip: str, port: int = 38899, mac: str | None = None
+        ) -> _FakeWizLight:
+            return fake_bulbs.setdefault(ip, _FakeWizLight(ip))
+
+        monkeypatch.setattr(pywizlight, "wizlight", _factory)
+        monkeypatch.setattr(pywizlight, "PilotBuilder", _PilotBuilderSpy)
+        adapter = WizBulbAdapter(push_staleness_threshold=0.0)
+        fake_bulbs[_IP] = _FakeWizLight(_IP)
+        await adapter.get_capabilities(_IP)
+        push_callback = fake_bulbs[_IP].start_push_calls[0]
+        push_callback([_FakeParser(brightness=77)])  # push received
+        fake_bulbs[_IP].update_state_result = [_FakeParser(brightness=99)]
+
+        with caplog.at_level(logging.WARNING):
+            await adapter.get_state(_IP)  # threshold=0 → stale → poll → warn
+
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert len(warnings) == 1
+        assert "recent push" in warnings[0].message.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -445,4 +485,37 @@ class TestLifecycle:
             pass
 
         assert ctx.fake_bulbs["10.0.0.1"].closed is True
+        assert ctx.fake_bulbs["10.0.0.2"].closed is True
+
+    async def test_wizlight_aexit_clears_all_caches(self, ctx: _Ctx) -> None:
+        """All internal caches are empty after __aexit__ — no stale handles remain.
+
+        Technique: State Transition Testing — post-exit state.
+        """
+        await ctx.adapter.get_capabilities(_IP)
+        await ctx.adapter.get_state(_IP)
+
+        async with ctx.adapter:
+            pass
+
+        assert ctx.adapter._bulbs == {}  # noqa: SLF001
+        assert ctx.adapter._capabilities == {}  # noqa: SLF001
+        assert ctx.adapter._state_cache == {}  # noqa: SLF001
+        assert ctx.adapter._last_push_at == {}  # noqa: SLF001
+        assert ctx.adapter._warned_stale == set()  # noqa: SLF001
+
+    async def test_wizlight_aexit_closes_remaining_bulbs_after_close_error(
+        self, ctx: _Ctx
+    ) -> None:
+        """A close exception on one bulb does not prevent closing the others.
+
+        Technique: Error Guessing — exception mid-iteration during teardown.
+        """
+        await ctx.adapter.get_capabilities("10.0.0.1")
+        await ctx.adapter.get_capabilities("10.0.0.2")
+        ctx.fake_bulbs["10.0.0.1"].async_close_exc = RuntimeError("close failed")
+
+        async with ctx.adapter:
+            pass  # __aexit__ should not raise despite the first-bulb error
+
         assert ctx.fake_bulbs["10.0.0.2"].closed is True
