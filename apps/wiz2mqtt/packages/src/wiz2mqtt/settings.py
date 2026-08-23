@@ -10,11 +10,15 @@ from __future__ import annotations
 
 import ipaddress
 import re
-from typing import Literal
+from collections import Counter
+from typing import Annotated, Literal
 
 import cosalette
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
+
+_NAME_RE = re.compile(r"[A-Za-z0-9_-]+")
+_MAC_RE = re.compile(r"[0-9A-Fa-f]{12}")
 
 
 class BulbConfig(BaseModel):
@@ -24,7 +28,8 @@ class BulbConfig(BaseModel):
     that identity against the bulb's own reported MAC on first contact.
     """
 
-    name: str
+    # Mirrors jeelink2mqtt's name validator; keep in sync until a shared utility exists.
+    name: Annotated[str, Field(max_length=64)]
     ip: str
     mac: str | None = None
     when_unreachable: Literal["unavailable", "off"] = "unavailable"
@@ -33,7 +38,7 @@ class BulbConfig(BaseModel):
     @classmethod
     def _name_must_be_valid_topic_segment(cls, value: str) -> str:
         """Reject names that would form invalid MQTT topic segments."""
-        if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        if not _NAME_RE.fullmatch(value):
             raise ValueError(
                 "Bulb name must be a non-empty MQTT topic segment "
                 "matching [A-Za-z0-9_-]+ (no '/', '+', '#', whitespace, "
@@ -46,31 +51,25 @@ class BulbConfig(BaseModel):
     def _ip_must_be_valid_ipv4(cls, value: str) -> str:
         """Reject anything that isn't a literal IPv4 address."""
         try:
-            ipaddress.IPv4Address(value)
+            # Return canonical form; Python ≥3.9 rejects non-decimal representations.
+            return str(ipaddress.IPv4Address(value))
         except ValueError as exc:
             msg = f"Bulb ip must be a valid IPv4 address, got {value!r}"
             raise ValueError(msg) from exc
-        return value
 
     @field_validator("mac")
     @classmethod
     def _mac_must_be_bare_hex(cls, value: str | None) -> str | None:
-        """Reject anything but a bare 12-hex-char MAC, normalized to lowercase.
-
-        WiZ devices report MAC as a bare hex string with no separators
-        (pywizlight's ``PilotParser.get_mac()`` passes the device's own
-        "mac" field through unchanged) — matching that format here means
-        identity verification against the reported MAC is a plain
-        case-insensitive string comparison.
-        """
+        """Reject anything but a bare 12-hex-char MAC; normalize to lowercase."""
         if value is None:
             return value
-        if not re.fullmatch(r"[0-9A-Fa-f]{12}", value):
+        if not _MAC_RE.fullmatch(value):
             msg = (
                 "Bulb mac must be 12 hex characters with no separators "
                 f"(e.g. 'a8bb5006033d'), got {value!r}"
             )
             raise ValueError(msg)
+        # pywizlight's get_mac() returns bare hex; lowercase matches readback format.
         return value.lower()
 
 
@@ -99,25 +98,19 @@ class Wiz2MqttSettings(cosalette.Settings):
     )
 
     @model_validator(mode="after")
-    def _bulbs_unique_names(self) -> Wiz2MqttSettings:
-        names = [b.name for b in self.bulbs]
-        if len(set(names)) != len(names):
-            dupes = {n for n in names if names.count(n) > 1}
-            msg = f"Bulb names must be unique, duplicates: {dupes}"
-            raise ValueError(msg)
-        return self
+    def _bulbs_unique(self) -> Wiz2MqttSettings:
+        def _dupes(seq: list[str]) -> set[str]:
+            return {v for v, c in Counter(seq).items() if c > 1}
 
-    @model_validator(mode="after")
-    def _bulbs_unique_identity(self) -> Wiz2MqttSettings:
-        ips = [b.ip for b in self.bulbs]
-        if len(set(ips)) != len(ips):
-            dupes = {ip for ip in ips if ips.count(ip) > 1}
-            msg = f"Bulb ip addresses must be unique, duplicates: {dupes}"
-            raise ValueError(msg)
-
+        if name_dupes := _dupes([b.name for b in self.bulbs]):
+            raise ValueError(f"Bulb names must be unique, duplicates: {name_dupes}")
+        if ip_dupes := _dupes([b.ip for b in self.bulbs]):
+            raise ValueError(
+                f"Bulb ip addresses must be unique, duplicates: {ip_dupes}"
+            )
         macs = [b.mac for b in self.bulbs if b.mac is not None]
-        if len(set(macs)) != len(macs):
-            dupes = {mac for mac in macs if macs.count(mac) > 1}
-            msg = f"Bulb mac addresses must be unique, duplicates: {dupes}"
-            raise ValueError(msg)
+        if mac_dupes := _dupes(macs):
+            raise ValueError(
+                f"Bulb mac addresses must be unique, duplicates: {mac_dupes}"
+            )
         return self

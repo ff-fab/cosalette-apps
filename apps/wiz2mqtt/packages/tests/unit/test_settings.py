@@ -7,9 +7,9 @@ Test Techniques Used:
   scaffold gap left the app instantiating the base Settings class with no
   prefix, so app.run()'s dependents (e.g. compose.yml's
   WIZ2MQTT_MQTT__HOST) were silently ignored.
-- Equivalence Partitioning: valid/invalid name, ip, and mac value classes
+- Equivalence Partitioning: valid/invalid name, ip, mac, and when_unreachable values
 - Boundary Value Analysis: mac hex-length boundary
-- Decision Table: bulb-list uniqueness across name/ip/mac fields
+- Decision Table: bulb uniqueness across name/ip/mac, including mixed mac presence
 - Round-trip Testing: a real TOML file loaded end-to-end via _config_file
 """
 
@@ -79,6 +79,16 @@ class TestBulbConfigDefaults:
         """Technique: Specification-based."""
         bulb = BulbConfig(name="desk", ip="10.0.0.1")
         assert bulb.when_unreachable == "unavailable"
+
+    def test_bulb_when_unreachable_accepts_off(self) -> None:
+        """Technique: Equivalence Partitioning — valid 'off' literal."""
+        bulb = BulbConfig(name="desk", ip="10.0.0.1", when_unreachable="off")
+        assert bulb.when_unreachable == "off"
+
+    def test_bulb_when_unreachable_rejects_invalid_literal(self) -> None:
+        """Technique: Equivalence Partitioning — invalid literal class."""
+        with pytest.raises(ValidationError):
+            BulbConfig(name="desk", ip="10.0.0.1", when_unreachable="always")  # type: ignore[arg-type]
 
     def test_bulb_mac_defaults_to_none(self) -> None:
         """Technique: Specification-based — mac is optional identity verification."""
@@ -207,6 +217,20 @@ class TestBulbsUniqueness:
         settings = Wiz2MqttSettings(
             bulbs=[
                 {"name": "desk", "ip": "10.0.0.1"},
+                {"name": "lamp", "ip": "10.0.0.2"},
+            ],
+            **_UNCONFIGURED,
+        )
+        assert len(settings.bulbs) == 2
+
+    def test_bulbs_allow_mixed_mac_presence(self) -> None:
+        """One bulb with mac, one without must not raise a false duplicate alarm.
+
+        Technique: Decision Table — absent-mac + present-mac equivalence classes.
+        """
+        settings = Wiz2MqttSettings(
+            bulbs=[
+                {"name": "desk", "ip": "10.0.0.1", "mac": "a8bb5006033d"},
                 {"name": "lamp", "ip": "10.0.0.2"},
             ],
             **_UNCONFIGURED,
