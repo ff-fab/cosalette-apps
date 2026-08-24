@@ -55,8 +55,7 @@ app = cosalette.App(
     # on the next startup (monorepo ADR-004).
 )
 
-# Runtime Home Assistant discovery (monorepo ADR-004): retained config
-# payloads publish from the live registry on first MQTT connect.
+# ADR-004: runtime HA discovery
 app.discovery()
 
 app.include_router(display.router)

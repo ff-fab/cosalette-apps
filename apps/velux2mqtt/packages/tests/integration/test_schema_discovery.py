@@ -38,10 +38,10 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from cosalette._schema._consumer_gen import HaDiscoveryPayload
 from cosalette.testing import AppHarness, assert_discovery_topics_published
 
 from .conftest import run_app_briefly
@@ -60,12 +60,14 @@ def ha_payloads() -> list[dict[str, Any]]:
         text=True,
         check=True,
         env={
-            k: v
-            for k, v in os.environ.items()
-            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+            k: os.environ[k]
+            for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
+            if k in os.environ
         },
     )
-    return json.loads(result.stdout)
+    payloads = json.loads(result.stdout)
+    assert payloads, "ha-discovery CLI returned no payloads"
+    return payloads
 
 
 @pytest.fixture(scope="module")
@@ -146,8 +148,9 @@ class TestStateTopicsAreReal:
 
         The check itself is the framework helper ``assert_discovery_topics_published``
         (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
-        re-wrapped as ``HaDiscoveryPayload`` — the exact type the helper and the
-        runtime publisher carry.
+        wrapped as ``SimpleNamespace`` objects (duck-typed;
+        ``assert_discovery_topics_published`` only accesses
+        ``.config.get('state_topic')``).
 
         Technique: Cross-check — the schema-derived expectation
         (``ha_payloads``) is validated against runtime ground truth, not
@@ -155,8 +158,5 @@ class TestStateTopicsAreReal:
         """
         await run_app_briefly(harness_no_homing)
 
-        payloads = [
-            HaDiscoveryPayload(topic=p["topic"], config=p["config"])
-            for p in ha_payloads
-        ]
+        payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(harness_no_homing, payloads)

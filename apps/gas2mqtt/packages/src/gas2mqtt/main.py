@@ -41,9 +41,7 @@ def create_app() -> cosalette.App:
         },
     )
 
-    # Runtime Home Assistant discovery (monorepo ADR-004): retained config
-    # payloads publish from the live registry on first MQTT connect; entities
-    # removed since the last run are cleared via the store-backed snapshot.
+    # ADR-004: runtime HA discovery
     app.discovery()
 
     @app.state
