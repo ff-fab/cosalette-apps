@@ -82,7 +82,7 @@ class TestSuccessfulPoll:
 class TestFailureDebounce:
     """Failures accumulate; only the 3rd consecutive failure goes offline."""
 
-    async def test_single_failure_stays_online_and_returns_none(self) -> None:
+    async def test_single_failure_below_threshold_returns_none(self) -> None:
         """Technique: Boundary Value Analysis — below threshold (1 of 3)."""
         adapter = FakeWizBulbAdapter()
         adapter.fail_next(_IP, WizTimeoutError("boom"))
@@ -93,6 +93,21 @@ class TestFailureDebounce:
 
         assert ctx.availability_calls == []
         assert state.consecutive_failures["office"] == 1
+        assert result is None
+
+    async def test_second_consecutive_failure_still_below_threshold(self) -> None:
+        """Technique: Boundary Value Analysis — nominal value between boundaries
+        (2 of 3)."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        state.consecutive_failures["office"] = 1
+        ctx = FakeDeviceContext()
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        result = await bulb_entity_tick(ctx, _config(), adapter, state)
+
+        assert ctx.availability_calls == []
+        assert state.consecutive_failures["office"] == 2
         assert result is None
 
     async def test_third_consecutive_failure_marks_unavailable(self) -> None:
@@ -154,3 +169,15 @@ class TestWhenUnreachableOff:
             await bulb_entity_tick(ctx, config, adapter, state)
 
         assert "unavailable" not in ctx.availability_calls
+
+    async def test_when_unreachable_off_already_online_does_not_remark(self) -> None:
+        """Technique: Equivalence Partitioning — dedup guard on the off-policy path."""
+        adapter = FakeWizBulbAdapter()
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        state = SharedState()
+        state.last_availability["office"] = "online"
+        ctx = FakeDeviceContext()
+
+        await bulb_entity_tick(ctx, _config(when_unreachable="off"), adapter, state)
+
+        assert ctx.availability_calls == []

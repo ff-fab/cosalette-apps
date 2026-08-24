@@ -20,7 +20,6 @@ import pytest
 from cosalette.testing import AppHarness
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
-from wiz2mqtt.errors import WizTimeoutError
 
 from .conftest import TOPIC_PREFIX, wait_until_subscribed
 
@@ -35,9 +34,8 @@ async def _run_briefly(harness: AppHarness) -> None:
         await wait_until_subscribed(harness)
         await asyncio.sleep(_SETTLE_TIME)
         harness.shutdown_event.set()
-        await task
+        await asyncio.wait_for(task, timeout=2.0)
     finally:
-        harness.shutdown_event.set()
         if not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
@@ -66,7 +64,7 @@ class TestStatePublication:
         )
 
     async def test_unchanged_state_is_not_republished(
-        self, harness: AppHarness
+        self, harness: AppHarness, fake_adapter: FakeWizBulbAdapter
     ) -> None:
         """OnChange() dedups identical payloads across ticks.
 
@@ -75,6 +73,9 @@ class TestStatePublication:
         """
         await _run_briefly(harness)
 
+        assert fake_adapter.get_state_call_count >= 2, (
+            "too few ticks — dedup assertion would be vacuous"
+        )
         assert len(harness.messages_for(f"{TOPIC_PREFIX}/office/state")) == 1
 
 
@@ -88,19 +89,46 @@ class TestUnreachableBulb:
     ) -> None:
         """Technique: Decision Table — when_unreachable='unavailable' (default).
 
-        ``fail_next`` only primes a single failure before auto-clearing, so
-        every ``get_state`` call is replaced outright to guarantee at least
-        3 consecutive failures regardless of how many ticks the settle
-        window happens to run.
+        ``always_fail`` makes every get_state call raise, guaranteeing
+        at least 3 consecutive failures regardless of tick count.
         """
-
-        async def _always_fail(ip: str) -> None:  # noqa: ARG001 — protocol shape
-            raise WizTimeoutError("simulated timeout")
-
-        fake_adapter.get_state = _always_fail  # type: ignore[method-assign]
+        fake_adapter.always_fail = True
 
         await _run_briefly(harness)
 
         harness.assert_published(
             f"{TOPIC_PREFIX}/office/availability", contains="offline"
+        )
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestUnreachableBulbOffPolicy:
+    """A bulb with when_unreachable='off' publishes OFF state, never goes offline."""
+
+    async def test_unreachable_bulb_off_policy_publishes_off_state(
+        self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Decision Table — when_unreachable='off' end-to-end wiring."""
+        fake_adapter.always_fail = True
+
+        await _run_briefly(harness_when_off)
+
+        harness_when_off.assert_published(f"{TOPIC_PREFIX}/office/state")
+        payload, _retain, _qos = harness_when_off.messages_for(
+            f"{TOPIC_PREFIX}/office/state"
+        )[0]
+        assert json.loads(payload)["state"] == "OFF"
+
+    async def test_unreachable_bulb_off_policy_marks_available(
+        self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Decision Table — when_unreachable='off' never marks
+        unavailable."""
+        fake_adapter.always_fail = True
+
+        await _run_briefly(harness_when_off)
+
+        harness_when_off.assert_published(
+            f"{TOPIC_PREFIX}/office/availability", contains="online"
         )

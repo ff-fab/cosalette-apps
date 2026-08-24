@@ -45,7 +45,7 @@ async def bulb_entity_tick(
             return {"state": "OFF"}
 
         failures = state.consecutive_failures.get(name, 0) + 1
-        state.consecutive_failures[name] = failures
+        state.consecutive_failures[name] = min(failures, _FAILURE_THRESHOLD)
         if (
             failures >= _FAILURE_THRESHOLD
             and state.last_availability.get(name) != "offline"

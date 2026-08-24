@@ -10,6 +10,7 @@ from __future__ import annotations
 from types import TracebackType
 from typing import Self
 
+from wiz2mqtt.errors import WizTimeoutError
 from wiz2mqtt.models import BulbCapabilities, BulbState
 
 _DEFAULT_CAPABILITIES = BulbCapabilities(
@@ -41,6 +42,10 @@ class FakeWizBulbAdapter:
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state: dict[str, BulbState] = {}
         self._fail_next: dict[str, Exception] = {}
+        self.always_fail: bool = (
+            False  # when True, every get_state raises WizTimeoutError
+        )
+        self.get_state_call_count: int = 0  # total get_state invocations
 
     def _raise_if_primed(self, ip: str) -> None:
         exc = self._fail_next.pop(ip, None)
@@ -54,6 +59,9 @@ class FakeWizBulbAdapter:
 
     async def get_state(self, ip: str) -> BulbState:
         """Return the bulb's current state, defaulting to off/unset."""
+        self.get_state_call_count += 1
+        if self.always_fail:
+            raise WizTimeoutError(f"always_fail is set for {ip}")
         self._raise_if_primed(ip)
         return self._state.setdefault(ip, _DEFAULT_STATE)
 

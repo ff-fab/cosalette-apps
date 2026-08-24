@@ -159,3 +159,30 @@ class TestColorMode:
         assert payload["color_mode"] == "color_temp"
         assert "color" not in payload
         assert "hsb" not in payload
+
+    def test_payload_rgb_mode_hsb_wraps_hue_at_boundary(self) -> None:
+        """hue ≥ 359.5 must not produce \"360\" — clamp via % 360.
+
+        Technique: Boundary Value Analysis — the exact rounding boundary.
+        """
+        payload = build_state_payload(
+            _state(state=True, hue=359.5, saturation=100.0, brightness=255)
+        )
+        hue_str = payload["hsb"].split(",")[0]  # type: ignore[union-attr]
+        assert int(hue_str) < 360, f"hue '{hue_str}' is out of range [0, 359]"
+
+    def test_payload_rgb_mode_omits_color_when_only_hue_known(self) -> None:
+        """saturation=None: neither hue nor saturation alone triggers RGB mode.
+
+        Technique: Equivalence Partitioning — one-None partition (hue set, sat absent).
+        """
+        payload = build_state_payload(_state(state=True, hue=0.0, saturation=None))
+        assert "color_mode" not in payload
+
+    def test_payload_rgb_mode_omits_color_when_only_saturation_known(self) -> None:
+        """hue=None: neither hue nor saturation alone triggers RGB mode.
+
+        Technique: Equivalence Partitioning — one-None partition (sat set, hue absent).
+        """
+        payload = build_state_payload(_state(state=True, hue=None, saturation=100.0))
+        assert "color_mode" not in payload

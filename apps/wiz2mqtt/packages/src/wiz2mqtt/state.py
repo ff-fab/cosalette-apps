@@ -8,6 +8,7 @@ identical retained ``state``/``availability`` messages every tick.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 
 @dataclass
@@ -20,7 +21,9 @@ class SharedState:
     consecutive_failures: dict[str, int] = field(default_factory=dict)
     """Consecutive failed polls per bulb; reset to 0 on any successful poll."""
 
-    last_availability: dict[str, str] = field(default_factory=dict)
+    last_availability: dict[str, Literal["online", "offline"]] = field(
+        default_factory=dict
+    )
     """Last published availability per bulb (``"online"``/``"offline"``).
 
     State-payload dedup itself doesn't need a matching field here — the

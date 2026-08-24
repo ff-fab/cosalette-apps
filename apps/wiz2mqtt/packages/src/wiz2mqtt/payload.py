@@ -8,9 +8,13 @@ imports — testable as plain Python.
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from wiz2mqtt.colour import hue_saturation_to_rgb, is_cct_mode
+
+_MAX_BRIGHTNESS: int = 255
+"""HA brightness scale upper bound (0-255)."""
 
 if TYPE_CHECKING:
     from wiz2mqtt.models import BulbState
@@ -38,7 +42,7 @@ def _optional_fields(state: BulbState) -> dict[str, object]:
         fields["effect"] = state.scene
     if state.effect_speed is not None:
         fields["effect_speed"] = state.effect_speed
-    if state.power_draw_w is not None:
+    if state.power_draw_w is not None and math.isfinite(state.power_draw_w):
         fields["power_draw_w"] = round(state.power_draw_w, 1)
     return fields
 
@@ -56,16 +60,18 @@ def _color_fields(state: BulbState) -> dict[str, object]:
         return {
             "color_mode": "color_temp",
             "color_temp": state.color_temp_kelvin,
-            "color_temp_kelvin": True,
+            "color_temp_kelvin": True,  # HA flag: interpret color_temp as K, not mireds
         }
     if state.hue is None or state.saturation is None:
         return {}
 
-    brightness = state.brightness if state.brightness is not None else 255
+    brightness = state.brightness if state.brightness is not None else _MAX_BRIGHTNESS
     r, g, b = hue_saturation_to_rgb(state.hue, state.saturation, brightness)
-    dimming_percent = round(brightness / 255 * 100)
+    dimming_percent = round(brightness / _MAX_BRIGHTNESS * 100)
+    hue_deg = round(state.hue) % 360  # clamp: :.0f rounds 359.5 → "360"
+    sat_pct = round(state.saturation)
     return {
         "color_mode": "rgb",
         "color": {"r": r, "g": g, "b": b},
-        "hsb": f"{state.hue:.0f},{state.saturation:.0f},{dimming_percent}",
+        "hsb": f"{hue_deg},{sat_pct},{dimming_percent}",
     }

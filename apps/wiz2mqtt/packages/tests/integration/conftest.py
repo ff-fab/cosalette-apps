@@ -112,3 +112,23 @@ def harness(
         settings=test_settings,
         shutdown_event=asyncio.Event(),
     )
+
+
+@pytest.fixture
+def settings_when_off() -> Wiz2MqttSettings:
+    """Settings with when_unreachable='off' for the OFF-policy integration tests."""
+    return make_settings(when_unreachable="off")
+
+
+@pytest.fixture
+def harness_when_off(
+    fake_adapter: FakeWizBulbAdapter, settings_when_off: Wiz2MqttSettings
+) -> AppHarness:
+    """AppHarness wired with when_unreachable='off' settings."""
+    return AppHarness(
+        app=build_integration_app(fake_adapter),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=settings_when_off,
+        shutdown_event=asyncio.Event(),
+    )
