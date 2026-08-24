@@ -51,6 +51,9 @@ app = App(
     max_restarts=3,
 )
 
+# ADR-004: runtime HA discovery
+app.discovery()
+
 configure_app(app)
 
 cli = app.cli

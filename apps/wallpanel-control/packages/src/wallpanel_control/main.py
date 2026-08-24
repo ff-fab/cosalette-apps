@@ -49,12 +49,14 @@ app = cosalette.App(
         WallpanelPort: (_make_ssh_wallpanel, FakeWallpanel),
         WolPort: (UdpWol, FakeWol),
     },
-    # Fixed command handlers for a single target — no config-removable entities
-    # for ADR-048 cleanup. cosalette >=0.5.2 auto-suppresses the ephemeral-store
-    # warning for static apps (ADR-049); store=None additionally skips creating
-    # the unused default store object.
-    store=None,
+    # Default JsonFileStore (ADR-049 static app — no config-removable
+    # entities): kept for the runtime-discovery topic snapshot only, so
+    # entities removed in a future release are cleared from Home Assistant
+    # on the next startup (monorepo ADR-004).
 )
+
+# ADR-004: runtime HA discovery
+app.discovery()
 
 app.include_router(display.router)
 app.include_router(system.router)

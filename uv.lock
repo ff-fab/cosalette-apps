@@ -144,13 +144,13 @@ version = "0.1.5"
 source = { editable = "apps/airthings2mqtt" }
 dependencies = [
     { name = "bleak" },
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "bleak", specifier = ">=0.22" },
-    { name = "cosalette", specifier = ">=0.6.3,<0.7" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.6.3,<0.7" },
 ]
 
 [[package]]
@@ -546,6 +546,10 @@ mcp = [
     { name = "fastmcp" },
     { name = "jinja2" },
     { name = "mcp" },
+]
+schema = [
+    { name = "jsonschema" },
+    { name = "pyyaml" },
 ]
 
 [[package]]
@@ -978,7 +982,7 @@ name = "gas2mqtt"
 version = "0.1.4"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "smbus2" },
@@ -986,7 +990,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.6.3,<0.7" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.6.3,<0.7" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "smbus2", specifier = ">=0.6.0" },
@@ -2985,7 +2989,7 @@ name = "velux2mqtt"
 version = "0.1.4"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
     { name = "gpiozero" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
@@ -2993,7 +2997,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.6.3,<0.7" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.6.3,<0.7" },
     { name = "gpiozero", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
@@ -3019,7 +3023,7 @@ name = "vito2mqtt"
 version = "0.1.4"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyserial" },
@@ -3028,7 +3032,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.6.3,<0.7" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.6.3,<0.7" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyserial", specifier = ">=3.5" },
@@ -3041,13 +3045,13 @@ version = "0.2.2"
 source = { editable = "apps/wallpanel-control" }
 dependencies = [
     { name = "asyncssh" },
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "asyncssh", specifier = ">=2.20.0" },
-    { name = "cosalette", specifier = ">=0.6.3,<0.7" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.6.3,<0.7" },
 ]
 
 [[package]]

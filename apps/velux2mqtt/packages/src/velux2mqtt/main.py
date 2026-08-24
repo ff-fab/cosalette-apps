@@ -37,6 +37,9 @@ app = cosalette.App(
     },
 )
 
+# ADR-004: runtime HA discovery
+app.discovery()
+
 app.device(
     name=_cover_map,
     summary="Velux cover: GPIO-driven open/close/stop/position control",

@@ -41,6 +41,9 @@ def create_app() -> cosalette.App:
         },
     )
 
+    # ADR-004: runtime HA discovery
+    app.discovery()
+
     @app.state
     def gas_counter_state(settings: Gas2MqttSettings) -> GasCounterState:
         """State provider for shared GasCounterState.

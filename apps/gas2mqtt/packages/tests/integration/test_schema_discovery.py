@@ -28,15 +28,18 @@ import json
 import os
 import subprocess
 import sys
+from collections import Counter
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from cosalette import MockMqttClient
+from cosalette.testing import assert_discovery_topics_published
 
 from gas2mqtt.settings import Gas2MqttSettings
 
-from .conftest import build_full_integration_app, run_app_briefly
+from .conftest import HarnessView, build_full_integration_app, run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -52,12 +55,14 @@ def ha_payloads() -> list[dict[str, Any]]:
         text=True,
         check=True,
         env={
-            k: v
-            for k, v in os.environ.items()
-            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
+            k: os.environ[k]
+            for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
+            if k in os.environ
         },
     )
-    return json.loads(result.stdout)
+    payloads = json.loads(result.stdout)
+    assert payloads, "ha-discovery CLI returned no payloads"
+    return payloads
 
 
 @pytest.fixture(scope="module")
@@ -77,10 +82,8 @@ def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Index discovery payload configs by their object_id."""
     object_ids = [p["config"]["object_id"] for p in entity_payloads]
-    assert len(object_ids) == len(set(object_ids)), (
-        f"Duplicate object_ids emitted: "
-        f"{[x for x in object_ids if object_ids.count(x) > 1]}"
-    )
+    dupes = [x for x, c in Counter(object_ids).items() if c > 1]
+    assert not dupes, f"Duplicate object_ids emitted: {dupes}"
     return {p["config"]["object_id"]: p["config"] for p in entity_payloads}
 
 
@@ -215,9 +218,17 @@ class TestStateTopicsAreReal:
         ``build_full_integration_app`` — hardware substituted with
         ``FakeMagnetometer``, everything else identical to
         ``gas2mqtt.main.create_app()`` — and cross-checks each HA-discovery
-        payload's ``state_topic`` against ``mock_mqtt.published``, the set
-        of topics actually published at runtime. A state_topic with no
-        matching runtime publish would ship a phantom HA entity (cap-5f8).
+        payload's ``state_topic`` against the topics actually published at
+        runtime. A state_topic with no matching runtime publish would ship a
+        phantom HA entity (cap-5f8).
+
+        The check itself is the framework helper ``assert_discovery_topics_published``
+        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        wrapped as ``SimpleNamespace`` objects (duck-typed;
+        ``assert_discovery_topics_published`` only accesses
+        ``.config.get('state_topic')``). gas2mqtt drives raw ``App`` +
+        ``MockMqttClient`` rather than :class:`AppHarness`, so the mock
+        is adapted via :class:`~conftest.HarnessView`.
 
         Technique: Cross-check — the schema-derived expectation
         (``ha_payloads``) is validated against runtime ground truth, not
@@ -227,10 +238,5 @@ class TestStateTopicsAreReal:
         mock_mqtt = MockMqttClient()
         await run_app_briefly(test_app, mock_mqtt, Gas2MqttSettings())
 
-        published_topics = {topic for topic, *_ in mock_mqtt.published}
-        for payload in ha_payloads:
-            state_topic = payload["config"]["state_topic"]
-            assert state_topic in published_topics, (
-                f"state_topic {state_topic!r} was never published at "
-                f"runtime; published topics: {sorted(published_topics)}"
-            )
+        payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
+        assert_discovery_topics_published(HarnessView(mock_mqtt), payloads)

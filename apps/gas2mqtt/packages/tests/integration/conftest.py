@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 
 from cosalette import (
     App,
@@ -90,6 +91,21 @@ def build_full_integration_app() -> App:
     )(magnetometer)
 
     return app
+
+
+@dataclass
+class HarnessView:
+    """Duck-typed stand-in exposing AppHarness's ``published()`` view.
+
+    gas2mqtt drives raw ``App`` + ``MockMqttClient`` rather than
+    :class:`AppHarness`; ``assert_discovery_topics_published`` only needs an
+    object exposing ``published()``, so tests adapt with this one-method view.
+    """
+
+    mqtt: MockMqttClient
+
+    def published(self) -> list[tuple[str, str, bool, int]]:
+        return self.mqtt.published
 
 
 async def run_app_briefly(

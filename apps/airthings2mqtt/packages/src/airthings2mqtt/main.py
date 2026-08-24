@@ -36,6 +36,9 @@ app = cosalette.App(
     error_type_map=error_type_map,
 )
 
+# ADR-004: runtime HA discovery
+app.discovery()
+
 _read_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
     weakref.WeakKeyDictionary()
 )
