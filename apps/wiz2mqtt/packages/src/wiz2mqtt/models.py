@@ -45,6 +45,11 @@ class BulbState:
     saturation: float | None
     color_temp_kelvin: int | None
     scene: int | None
+    effect_speed: int | None = None
+    """Colour-changing effect speed, from pywizlight's ``get_speed()``."""
+
+    power_draw_w: float | None = None
+    """Live power draw in watts, from pywizlight's ``get_power()``."""
 
     def replace_non_none(self, **updates: object) -> BulbState:
         """Return a copy with only the non-``None`` *updates* applied.
