@@ -95,6 +95,17 @@ See the
 [MQTT Topics reference](https://ff-fab.github.io/cosalette-apps/gas2mqtt/mqtt-topics/)
 for the complete topic table with payload schemas.
 
+## Home Assistant
+
+**Automatic.** Home Assistant discovery config payloads publish to
+`homeassistant/.../config` (retained) on the first successful MQTT connect — gas
+counter, temperature, and (when enabled) magnetometer sensors appear without any manual
+setup step. Entities removed since the last run are cleared automatically.
+
+See the composition root (`packages/src/gas2mqtt/main.py`, monorepo
+[ADR-004](../../docs/adr/ADR-004-runtime-home-assistant-discovery-adoption.md)) and
+`packages/tests/integration/test_schema_discovery.py`.
+
 ## Architecture
 
 The codebase follows a **ports-and-adapters** (hexagonal) architecture. Domain logic has

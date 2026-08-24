@@ -28,7 +28,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette._schema._consumer_gen import HaDiscoveryPayload
+from cosalette.testing import AppHarness, assert_discovery_topics_published
 
 from .conftest import DISPLAY_SET, run_with_commands
 
@@ -229,10 +230,14 @@ class TestStateTopicsAreReal:
         an accepted command (no periodic polling), so this drives one real
         command through the integration-test ``harness``
         (``FakeWallpanel``/``FakeWol`` substituted for SSH/WoL I/O) and
-        cross-checks each HA-discovery payload's ``state_topic`` against
-        ``harness.mqtt.published``, the set of topics actually published at
-        runtime. A state_topic with no matching runtime publish would ship
-        a phantom HA entity (cap-5f8).
+        cross-checks each HA-discovery payload's ``state_topic`` against the
+        topics actually published at runtime. A state_topic with no matching
+        runtime publish would ship a phantom HA entity (cap-5f8).
+
+        The check itself is the framework helper ``assert_discovery_topics_published``
+        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        re-wrapped as ``HaDiscoveryPayload`` — the exact type the helper and the
+        runtime publisher carry.
 
         Technique: Cross-check — the schema-derived expectation
         (``ha_payloads``) is validated against runtime ground truth, not
@@ -240,10 +245,8 @@ class TestStateTopicsAreReal:
         """
         await run_with_commands(harness, [(DISPLAY_SET, {"state": "on"})])
 
-        published_topics = {topic for topic, *_ in harness.mqtt.published}
-        for payload in ha_payloads:
-            state_topic = payload["config"]["state_topic"]
-            assert state_topic in published_topics, (
-                f"state_topic {state_topic!r} was never published at "
-                f"runtime; published topics: {sorted(published_topics)}"
-            )
+        payloads = [
+            HaDiscoveryPayload(topic=p["topic"], config=p["config"])
+            for p in ha_payloads
+        ]
+        assert_discovery_topics_published(harness, payloads)

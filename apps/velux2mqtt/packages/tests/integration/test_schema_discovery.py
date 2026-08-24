@@ -41,7 +41,8 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette._schema._consumer_gen import HaDiscoveryPayload
+from cosalette.testing import AppHarness, assert_discovery_topics_published
 
 from .conftest import run_app_briefly
 
@@ -136,13 +137,17 @@ class TestStateTopicsAreReal:
         Runs the real ``cover_device`` registration (2 covers, matching
         ``.env.schema``) via the integration-test ``harness_no_homing``
         (``FakeGpio`` substituted for real GPIO) and cross-checks each
-        HA-discovery payload's ``state_topic`` against
-        ``harness_no_homing.mqtt.published``, the set of topics actually published
-        at runtime. A state_topic with no matching runtime publish would
-        ship a phantom HA entity — exactly the regression that shipped in
-        production before cap-hze's fix (PR #201), which this test now
-        guards against with runtime ground truth instead of a
-        documentation-derived regex (cap-5f8).
+        HA-discovery payload's ``state_topic`` against the topics actually
+        published at runtime. A state_topic with no matching runtime publish
+        would ship a phantom HA entity — exactly the regression that shipped
+        in production before cap-hze's fix (PR #201), which this test guards
+        against with runtime ground truth instead of a documentation-derived
+        regex (cap-5f8).
+
+        The check itself is the framework helper ``assert_discovery_topics_published``
+        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        re-wrapped as ``HaDiscoveryPayload`` — the exact type the helper and the
+        runtime publisher carry.
 
         Technique: Cross-check — the schema-derived expectation
         (``ha_payloads``) is validated against runtime ground truth, not
@@ -150,10 +155,8 @@ class TestStateTopicsAreReal:
         """
         await run_app_briefly(harness_no_homing)
 
-        published_topics = {topic for topic, *_ in harness_no_homing.mqtt.published}
-        for payload in ha_payloads:
-            state_topic = payload["config"]["state_topic"]
-            assert state_topic in published_topics, (
-                f"state_topic {state_topic!r} was never published at "
-                f"runtime; published topics: {sorted(published_topics)}"
-            )
+        payloads = [
+            HaDiscoveryPayload(topic=p["topic"], config=p["config"])
+            for p in ha_payloads
+        ]
+        assert_discovery_topics_published(harness_no_homing, payloads)

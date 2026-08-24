@@ -51,6 +51,11 @@ app = App(
     max_restarts=3,
 )
 
+# Runtime Home Assistant discovery (monorepo ADR-004): retained config
+# payloads publish from the live registry on first MQTT connect; entities
+# removed since the last run are cleared via the store-backed snapshot.
+app.discovery()
+
 configure_app(app)
 
 cli = app.cli

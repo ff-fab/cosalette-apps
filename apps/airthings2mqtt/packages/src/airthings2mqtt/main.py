@@ -36,6 +36,11 @@ app = cosalette.App(
     error_type_map=error_type_map,
 )
 
+# Runtime Home Assistant discovery (monorepo ADR-004): retained config
+# payloads publish from the live registry on first MQTT connect; entities
+# removed since the last run are cleared automatically.
+app.discovery()
+
 _read_locks: weakref.WeakKeyDictionary[asyncio.AbstractEventLoop, asyncio.Lock] = (
     weakref.WeakKeyDictionary()
 )

@@ -41,6 +41,11 @@ def create_app() -> cosalette.App:
         },
     )
 
+    # Runtime Home Assistant discovery (monorepo ADR-004): retained config
+    # payloads publish from the live registry on first MQTT connect; entities
+    # removed since the last run are cleared via the store-backed snapshot.
+    app.discovery()
+
     @app.state
     def gas_counter_state(settings: Gas2MqttSettings) -> GasCounterState:
         """State provider for shared GasCounterState.

@@ -33,10 +33,12 @@ from typing import Any
 
 import pytest
 from cosalette import MockMqttClient
+from cosalette._schema._consumer_gen import HaDiscoveryPayload
+from cosalette.testing import assert_discovery_topics_published
 
 from gas2mqtt.settings import Gas2MqttSettings
 
-from .conftest import build_full_integration_app, run_app_briefly
+from .conftest import HarnessView, build_full_integration_app, run_app_briefly
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -215,9 +217,16 @@ class TestStateTopicsAreReal:
         ``build_full_integration_app`` — hardware substituted with
         ``FakeMagnetometer``, everything else identical to
         ``gas2mqtt.main.create_app()`` — and cross-checks each HA-discovery
-        payload's ``state_topic`` against ``mock_mqtt.published``, the set
-        of topics actually published at runtime. A state_topic with no
-        matching runtime publish would ship a phantom HA entity (cap-5f8).
+        payload's ``state_topic`` against the topics actually published at
+        runtime. A state_topic with no matching runtime publish would ship a
+        phantom HA entity (cap-5f8).
+
+        The check itself is the framework helper ``assert_discovery_topics_published``
+        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        re-wrapped as ``HaDiscoveryPayload`` — the exact type the helper and the
+        runtime publisher carry. gas2mqtt drives raw ``App`` + ``MockMqttClient``
+        rather than :class:`AppHarness`, so the mock is adapted via
+        :class:`~conftest.HarnessView`.
 
         Technique: Cross-check — the schema-derived expectation
         (``ha_payloads``) is validated against runtime ground truth, not
@@ -227,10 +236,8 @@ class TestStateTopicsAreReal:
         mock_mqtt = MockMqttClient()
         await run_app_briefly(test_app, mock_mqtt, Gas2MqttSettings())
 
-        published_topics = {topic for topic, *_ in mock_mqtt.published}
-        for payload in ha_payloads:
-            state_topic = payload["config"]["state_topic"]
-            assert state_topic in published_topics, (
-                f"state_topic {state_topic!r} was never published at "
-                f"runtime; published topics: {sorted(published_topics)}"
-            )
+        payloads = [
+            HaDiscoveryPayload(topic=p["topic"], config=p["config"])
+            for p in ha_payloads
+        ]
+        assert_discovery_topics_published(HarnessView(mock_mqtt), payloads)

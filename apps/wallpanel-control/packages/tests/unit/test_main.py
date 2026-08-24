@@ -161,22 +161,24 @@ class TestMainEntryPoint:
 
 
 @pytest.mark.unit
-class TestStoreOptOut:
-    """Verify app opts out of the default store."""
+class TestStorePolicy:
+    """Verify the app's store policy under runtime discovery adoption."""
 
-    def test_store_opt_out(self) -> None:
-        """App opts out of the default store (no config-removable entities).
+    def test_store_defaults_on_for_discovery_snapshot(self) -> None:
+        """App keeps the framework-default store (discovery snapshot backing).
 
-        Technique: Specification-based — the composition root passes store=None,
-        which prevents cosalette from creating the default store object. On
-        cosalette >=0.5.2 the ephemeral-store warning is auto-suppressed for
-        static apps (ADR-049), so store=None is an explicit belt-and-braces
-        opt-out. app.store is the public store accessor (None when the store is
-        opted out).
+        Adopting ``app.discovery()`` (monorepo ADR-004) needs a Store to
+        persist the discovery-topic snapshot so entities removed in a future
+        release are reconciled (cleared) on the next startup. The registry is
+        still static (ADR-049), so the store holds only that snapshot.
+
+        Technique: Specification-based — the composition root omits ``store=``
+        so cosalette auto-resolves the default JsonFileStore. ``app.store`` is
+        the public store accessor.
         """
         from wallpanel_control.main import app
 
-        assert app.store is None
+        assert app.store is not None
 
     def test_app_is_static(self) -> None:
         """App is classified static, so cosalette skips the ephemeral warning.

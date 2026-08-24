@@ -37,6 +37,12 @@ app = cosalette.App(
     },
 )
 
+# Runtime Home Assistant discovery (monorepo ADR-004): retained config
+# payloads publish from the live, post-expand registry on first MQTT
+# connect — per-cover topics derive from real settings, so the ADR-051
+# phantom-entity class is dissolved structurally.
+app.discovery()
+
 app.device(
     name=_cover_map,
     summary="Velux cover: GPIO-driven open/close/stop/position control",
