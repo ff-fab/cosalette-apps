@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from typing import override
 
 import cosalette
 import pytest
+from cosalette import EntityNotifier
 
 from jeelink2mqtt.main import receiver
 from jeelink2mqtt.models import SensorReading
@@ -49,6 +51,23 @@ def _make_settings(**overrides: object) -> Jeelink2MqttSettings:
     return Jeelink2MqttSettings(**defaults)  # type: ignore[arg-type]
 
 
+class RecordingNotifier(EntityNotifier):
+    """An :class:`EntityNotifier` that records arms instead of binding slots.
+
+    The real notifier raises ``NotifierNotReadyError`` until the framework
+    late-binds its trigger slots (lifecycle Phase 2), which these harness-free
+    tests never reach.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.armed: list[str] = []
+
+    @override
+    def __call__(self, entity_name: str) -> None:
+        self.armed.append(entity_name)
+
+
 def _make_reading(
     sensor_id: int = 42,
     temperature: float = 21.5,
@@ -69,6 +88,7 @@ async def _run_receiver(
     store_data: dict[str, object] | None,
     settings: Jeelink2MqttSettings,
     state: SharedState,
+    notify: RecordingNotifier | None = None,
 ) -> None:
     """Run the receiver async generator, injecting readings then shutting down.
 
@@ -104,6 +124,7 @@ async def _run_receiver(
         store=device_store,
         settings=settings,
         state=state,
+        notify=notify or RecordingNotifier(),
     )
 
     async def _drain_gen() -> None:
@@ -168,7 +189,72 @@ class TestStreamReceiverHandler:
         cached = state.last_readings["office"]
         assert cached.temperature == pytest.approx(21.5 - 0.3, abs=0.01)
         assert cached.humidity == 55
-        assert "office" in state.last_reading_at
+
+    async def test_mapped_reading_arms_the_sensors_trigger(self) -> None:
+        """Caching a calibrated reading wakes that sensor's own device.
+
+        Technique: Specification-based — ADR-065 local trigger contract.
+        The arm is the freshness signal sensor_entity_tick reads, so a missing
+        arm means the reading waits for the heartbeat.
+        """
+        settings = _make_settings()
+        state = build_shared_state(settings)
+        state.registry.assign("office", 42)
+        ctx = FakeDeviceContext()
+        notify = RecordingNotifier()
+
+        await _run_receiver(
+            [_make_reading(sensor_id=42)], ctx, None, settings, state, notify
+        )
+
+        assert notify.armed == ["office"]
+
+    async def test_arm_follows_the_cache_write(self) -> None:
+        """The reading is cached *before* the trigger is armed.
+
+        Technique: State Transition — ordering contract. Arming first would let
+        the woken device run against a stale cache and publish nothing.
+        """
+        settings = _make_settings()
+        state = build_shared_state(settings)
+        state.registry.assign("office", 42)
+        ctx = FakeDeviceContext()
+
+        cached_at_arm: list[bool] = []
+
+        class _OrderingNotifier(RecordingNotifier):
+            @override
+            def __call__(self, entity_name: str) -> None:
+                cached_at_arm.append(entity_name in state.last_readings)
+                super().__call__(entity_name)
+
+        await _run_receiver(
+            [_make_reading(sensor_id=42)],
+            ctx,
+            None,
+            settings,
+            state,
+            _OrderingNotifier(),
+        )
+
+        assert cached_at_arm == [True]
+
+    async def test_unmapped_sensor_arms_nothing(self) -> None:
+        """A frame from an unmapped sensor ID arms no trigger.
+
+        Technique: Decision Table — unmapped ID has no entity to wake, and
+        arming an unknown name raises UnknownEntityError in production.
+        """
+        settings = _make_settings()
+        state = build_shared_state(settings)
+        ctx = FakeDeviceContext()
+        notify = RecordingNotifier()
+
+        await _run_receiver(
+            [_make_reading(sensor_id=99)], ctx, None, settings, state, notify
+        )
+
+        assert notify.armed == []
 
     async def test_unmapped_sensor_publishes_only_raw(self) -> None:
         """An unmapped sensor reading publishes only raw, not sensor state.
@@ -292,6 +378,7 @@ class TestStreamReceiverHandler:
             store=device_store,
             settings=settings,
             state=state,  # type: ignore[arg-type]
+            notify=RecordingNotifier(),
         )
 
         async def _drain() -> None:

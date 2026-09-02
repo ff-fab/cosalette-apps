@@ -367,3 +367,103 @@ class TestAppRestartConfig:
         from jeelink2mqtt.main import app
 
         assert app._max_restarts == 3
+
+
+# ── sensor_entity trigger wiring ──────────────────────────────────────────────
+
+
+@pytest.mark.unit
+class TestSensorEntityTrigger:
+    """Guards the ADR-065 local-trigger wiring on the per-sensor device."""
+
+    def _registration(self) -> object:
+        from jeelink2mqtt.main import app
+
+        return next(r for r in app._devices if r.func.__name__ == "sensor_entity")
+
+    def test_device_declares_a_local_trigger_source(self) -> None:
+        """sensor_entity is woken in-process by the stream receiver.
+
+        Technique: Specification-based — "local" is the only source a device
+        accepts (ADR-065); anything else means the stream's notify() call
+        raises UnknownEntityError at runtime.
+        """
+        assert self._registration().triggerable == "local"
+
+    def test_no_min_interval_throttle(self) -> None:
+        """No storm throttle is configured.
+
+        Technique: Specification-based — with min_interval= set, a "scheduled"
+        payload no longer means "no reading arrived" (DeviceTrigger.wait), which
+        is exactly how sensor_entity_tick reads its ``triggered`` flag.
+        """
+        assert self._registration().min_interval is None
+
+    def test_tick_interval_preserves_staleness_granularity(self) -> None:
+        """The heartbeat bound stays at one second.
+
+        Technique: Boundary Value Analysis — regression guard. The trigger only
+        fires when a *frame* arrives; staleness (default 600s) and the heartbeat
+        re-publish (default 180s) are resolved to the granularity of this bound,
+        so raising it would silently delay offline detection.
+        """
+        from jeelink2mqtt.main import _TICK_INTERVAL_SECONDS
+
+        assert _TICK_INTERVAL_SECONDS == 1.0
+
+    @pytest.mark.asyncio
+    async def test_loop_waits_on_the_trigger_with_the_tick_bound(self) -> None:
+        """Each iteration awaits the trigger bounded by the tick interval.
+
+        Technique: Integration of the handler with a DeviceTrigger double —
+        verifies the loop passes the bound through and forwards the payload's
+        ``is_triggered`` flag to the tick, so a wake publishes immediately while
+        a timeout still drives the staleness/heartbeat paths.
+        """
+        from cosalette import TriggerPayload
+
+        from jeelink2mqtt.main import _TICK_INTERVAL_SECONDS, sensor_entity
+        from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
+
+        timeouts: list[float | None] = []
+        payloads = [TriggerPayload.local(), TriggerPayload.scheduled()]
+
+        class _FakeTrigger:
+            async def wait(self, timeout: float | None = None) -> TriggerPayload:
+                timeouts.append(timeout)
+                return payloads[len(timeouts) - 1]
+
+        ctx = FakeDeviceContext()
+        config = SensorConfigSettings(name="office")
+        settings = Jeelink2MqttSettings(sensors=[config], serial_port="/dev/null")
+        state = SharedState(
+            registry=SensorRegistry([SensorConfig(name="office")], 600.0),
+            filter_bank=FilterBank(7),
+        )
+
+        seen: list[bool] = []
+
+        async def _spy(
+            _ctx: object,
+            _name: str,
+            _settings: object,
+            _state: object,
+            *,
+            triggered: bool,
+        ) -> None:
+            seen.append(triggered)
+
+        with patch("jeelink2mqtt.main._receiver.sensor_entity_tick", _spy):
+            gen = sensor_entity(
+                ctx=ctx,  # type: ignore[arg-type]
+                config=config,
+                settings=settings,
+                state=state,
+                trigger=_FakeTrigger(),  # type: ignore[arg-type]
+            )
+            async for _ in gen:
+                if len(seen) == 2:
+                    ctx.request_shutdown()
+
+        assert timeouts == [_TICK_INTERVAL_SECONDS, _TICK_INTERVAL_SECONDS]
+        assert seen == [True, False]
