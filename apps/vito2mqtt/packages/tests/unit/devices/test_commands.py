@@ -30,9 +30,10 @@ from collections.abc import Sequence
 from typing import Any
 
 import pytest
+from cosalette import EntityNotifier
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
-from vito2mqtt.devices import COMMAND_GROUPS
+from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
 from vito2mqtt.devices.commands import (
     COMMAND_SUMMARIES,
     _parse_payload,
@@ -41,6 +42,32 @@ from vito2mqtt.devices.commands import (
 )
 from vito2mqtt.errors import InvalidSignalError
 from vito2mqtt.optolink.commands import COMMANDS
+
+_EMPTY_TIMER: list[list[list[int | None]]] = [
+    [[None, None], [None, None]] for _ in range(4)
+]
+"""A CycleTime payload with all four slots cleared.
+
+The ``system`` command group contains only timer signals, so a wake test
+covering it needs a structurally valid CT value rather than a scalar.
+"""
+
+
+class RecordingNotifier(EntityNotifier):
+    """An :class:`EntityNotifier` that records names instead of arming slots.
+
+    Subclasses the real type rather than duck-typing it so the handler's
+    ``notify: EntityNotifier`` annotation stays honest, and so a future
+    change to the notifier's constructor breaks here loudly.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.armed: list[str] = []
+
+    def __call__(self, entity_name: str) -> None:
+        self.armed.append(entity_name)
+
 
 # ---------------------------------------------------------------------------
 # Spec-table tests for COMMAND_SUMMARIES
@@ -164,7 +191,7 @@ class TestMakeHandler:
         value = _test_value_for_type(type_code)
         payload = json.dumps({first_signal: value, "__force": True})
 
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert first_signal in fake.writes, (
             f"Expected write for {first_signal!r}, got writes: {fake.writes}"
@@ -186,7 +213,7 @@ class TestMakeHandler:
             }
         )
 
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert fake.writes["hot_water_setpoint"] == 55
         assert fake.writes["hot_water_pump_overrun"] == 120
@@ -200,7 +227,7 @@ class TestMakeHandler:
         handler = make_command_handler("hot_water")
 
         payload = json.dumps({"hot_water_setpoint": 50})
-        result = await handler(payload=payload, port=fake)
+        result = await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert result is None
 
@@ -212,7 +239,7 @@ class TestMakeHandler:
         fake = FakeOptolinkAdapter()
         handler = make_command_handler("hot_water")
 
-        result = await handler(payload="{}", port=fake)
+        result = await handler(payload="{}", port=fake, notify=RecordingNotifier())
 
         assert result is None
         assert fake.writes == {}
@@ -235,7 +262,7 @@ class TestMakeHandler:
         ]
         payload = json.dumps({"timer_hw_monday": schedule})
 
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert "timer_hw_monday" in fake.writes
         assert fake.writes["timer_hw_monday"] == schedule
@@ -249,7 +276,7 @@ class TestMakeHandler:
         fake = FakeOptolinkAdapter()
 
         with pytest.raises(InvalidSignalError, match="Invalid JSON payload"):
-            await handler(payload="{bad", port=fake)
+            await handler(payload="{bad", port=fake, notify=RecordingNotifier())
 
     async def test_unknown_signal_raises_invalid_signal_error(self) -> None:
         """Unknown key in handler payload must raise InvalidSignalError.
@@ -262,7 +289,7 @@ class TestMakeHandler:
         payload = json.dumps({"nonexistent_signal": 99})
 
         with pytest.raises(InvalidSignalError, match="nonexistent_signal"):
-            await handler(payload=payload, port=fake)
+            await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
 
 # ---------------------------------------------------------------------------
@@ -297,8 +324,12 @@ class TestHandlerClosureIsolation:
             }
         )
 
-        await handler_hot_water(payload=payload_hw, port=fake_hw)
-        await handler_system(payload=payload_sys, port=fake_sys)
+        await handler_hot_water(
+            payload=payload_hw, port=fake_hw, notify=RecordingNotifier()
+        )
+        await handler_system(
+            payload=payload_sys, port=fake_sys, notify=RecordingNotifier()
+        )
 
         assert "hot_water_setpoint" in fake_hw.writes
         assert "timer_cp_monday" in fake_sys.writes
@@ -429,7 +460,7 @@ class TestReadBeforeWrite:
 
         # IUNON default from fake adapter is 42
         payload = json.dumps({"hot_water_setpoint": 42})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert "hot_water_setpoint" not in fake.writes
 
@@ -443,7 +474,7 @@ class TestReadBeforeWrite:
 
         # IUNON default is 42, sending 55 should trigger a write
         payload = json.dumps({"hot_water_setpoint": 55})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert fake.writes["hot_water_setpoint"] == 55
 
@@ -457,7 +488,7 @@ class TestReadBeforeWrite:
 
         # Value matches default (42), but __force=true bypasses the read
         payload = json.dumps({"hot_water_setpoint": 42, "__force": True})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert fake.writes["hot_water_setpoint"] == 42
 
@@ -471,7 +502,7 @@ class TestReadBeforeWrite:
 
         # Matches default (42) with __force=false — should skip write
         payload = json.dumps({"hot_water_setpoint": 42, "__force": False})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert "hot_water_setpoint" not in fake.writes
 
@@ -490,7 +521,7 @@ class TestReadBeforeWrite:
                 "hot_water_pump_overrun": 999,  # changed
             }
         )
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert "hot_water_setpoint" not in fake.writes
         assert fake.writes["hot_water_pump_overrun"] == 999
@@ -522,7 +553,7 @@ class TestReadBeforeWrite:
                 "hot_water_pump_overrun": 120,
             }
         )
-        await handler(payload=payload, port=adapter)
+        await handler(payload=payload, port=adapter, notify=RecordingNotifier())
 
         assert len(adapter.read_signals_calls) == 1
         assert set(adapter.read_signals_calls[0]) == {
@@ -549,7 +580,7 @@ class TestReadBeforeWrite:
         payload = json.dumps({"hot_water_setpoint": 55})
 
         with pytest.raises(OSError, match="Simulated read failure"):
-            await handler(payload=payload, port=adapter)
+            await handler(payload=payload, port=adapter, notify=RecordingNotifier())
 
         # No writes should have occurred
         assert adapter.writes == {}
@@ -566,7 +597,7 @@ class TestReadBeforeWrite:
 
         # IS10 default is 20.5 — sending same value should skip write
         payload = json.dumps({"heating_curve_gradient_m1": 20.5})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert "heating_curve_gradient_m1" not in fake.writes
 
@@ -579,7 +610,7 @@ class TestReadBeforeWrite:
         handler = make_command_handler("heating_radiator")
 
         payload = json.dumps({"heating_curve_gradient_m1": 15.0})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert fake.writes["heating_curve_gradient_m1"] == 15.0
 
@@ -593,7 +624,7 @@ class TestReadBeforeWrite:
         handler = make_command_handler("hot_water")
 
         payload = json.dumps({"__force": True})
-        result = await handler(payload=payload, port=fake)
+        result = await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert result is None
         assert fake.writes == {}
@@ -615,7 +646,7 @@ class TestReadBeforeWrite:
 
         # Send the same default CT schedule — should skip write
         payload = json.dumps({"timer_hw_monday": default_schedule})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert "timer_hw_monday" not in fake.writes
 
@@ -634,7 +665,7 @@ class TestReadBeforeWrite:
         handler = make_command_handler("hot_water")
 
         payload = json.dumps({"timer_hw_monday": new_schedule})
-        await handler(payload=payload, port=fake)
+        await handler(payload=payload, port=fake, notify=RecordingNotifier())
 
         assert fake.writes["timer_hw_monday"] == new_schedule
 
@@ -678,7 +709,7 @@ class TestBatchWrite:
             }
         )
 
-        await handler(payload=payload, port=spy)
+        await handler(payload=payload, port=spy, notify=RecordingNotifier())
 
         # Exactly one batch call — not two individual write_signal calls
         assert len(spy.write_signals_calls) == 1
@@ -717,7 +748,7 @@ class TestBatchWrite:
             }
         )
 
-        await handler(payload=payload, port=spy)
+        await handler(payload=payload, port=spy, notify=RecordingNotifier())
 
         assert len(spy.write_signals_calls) == 1
         batch = spy.write_signals_calls[0]
@@ -747,7 +778,122 @@ class TestBatchWrite:
             }
         )
 
-        await handler(payload=payload, port=spy)
+        await handler(payload=payload, port=spy, notify=RecordingNotifier())
 
         assert spy.write_signals_calls == []
         assert spy.writes == {}
+
+
+# ---------------------------------------------------------------------------
+# Command-triggered telemetry refresh (cosalette ADR-064/ADR-067)
+# ---------------------------------------------------------------------------
+
+
+class TestCommandTriggeredRefresh:
+    """Verify that a successful write wakes the matching telemetry group.
+
+    Test Techniques Used:
+    - Specification-based: the woken name must be the command group, which
+      ADR-002 guarantees is also the telemetry entity name.
+    - Equivalence Partitioning: wrote / skipped-by-read-before-write /
+      empty payload / write raised — only the first partition wakes.
+    """
+
+    @pytest.mark.parametrize(
+        ("group", "signal", "value"),
+        [
+            ("hot_water", "hot_water_setpoint", 55),
+            ("heating_radiator", "heating_curve_gradient_m1", 1.4),
+            ("heating_floor", "heating_curve_gradient_m2", 1.2),
+            ("system", "timer_cp_monday", _EMPTY_TIMER),
+        ],
+    )
+    async def test_successful_write_wakes_own_group(
+        self, group: str, signal: str, value: object
+    ) -> None:
+        """A write arms the notifier exactly once, with this group's name.
+
+        Covers all four command groups, including ``system`` — the group
+        whose ``polling_system`` default of 3600 s made this the change
+        with the largest latency win.
+        """
+        fake = FakeOptolinkAdapter()
+        notifier = RecordingNotifier()
+        handler = make_command_handler(group)
+
+        # __force sidesteps the read-before-write comparison: this test is
+        # about the wake, not about value equality per type code.
+        payload = json.dumps({signal: value, "__force": True})
+        await handler(payload=payload, port=fake, notify=notifier)
+
+        assert signal in fake.writes, f"precondition: {signal} should be written"
+        assert notifier.armed == [group]
+
+    def test_every_command_group_is_a_signal_group(self) -> None:
+        """Every command group names a telemetry entity that can be woken.
+
+        Guards the ADR-002 invariant the wake depends on: notifying a name
+        that is not a locally-triggerable telemetry entity raises
+        ``UnknownEntityError`` at runtime, not at registration.
+        """
+        assert set(COMMAND_GROUPS) <= set(SIGNAL_GROUPS)
+
+    async def test_skipped_write_does_not_wake(self) -> None:
+        """Read-before-write suppression publishes nothing, so it must not wake."""
+        fake = FakeOptolinkAdapter()
+        notifier = RecordingNotifier()
+        handler = make_command_handler("hot_water")
+
+        # 42 is the FakeOptolinkAdapter IUNON default — the write is skipped.
+        payload = json.dumps({"hot_water_setpoint": 42})
+        await handler(payload=payload, port=fake, notify=notifier)
+
+        assert fake.writes == {}
+        assert notifier.armed == []
+
+    async def test_empty_payload_does_not_wake(self) -> None:
+        """An empty payload short-circuits before any write, so it must not wake."""
+        notifier = RecordingNotifier()
+        handler = make_command_handler("hot_water")
+
+        await handler(payload="{}", port=FakeOptolinkAdapter(), notify=notifier)
+
+        assert notifier.armed == []
+
+    async def test_failed_write_does_not_wake(self) -> None:
+        """A write that raises must propagate before the wake is reached."""
+
+        class FailingWriteAdapter(FakeOptolinkAdapter):
+            """Adapter whose write_signals always raises."""
+
+            async def write_signals(self, signals: dict[str, Any]) -> None:
+                msg = "Simulated write failure"
+                raise OSError(msg)
+
+        notifier = RecordingNotifier()
+        handler = make_command_handler("hot_water")
+        payload = json.dumps({"hot_water_setpoint": 55})
+
+        with pytest.raises(OSError, match="Simulated write failure"):
+            await handler(payload=payload, port=FailingWriteAdapter(), notify=notifier)
+
+        assert notifier.armed == []
+
+    async def test_burst_of_writes_arms_once_per_write(self) -> None:
+        """The handler does not deduplicate — throttling is the slot's job.
+
+        ``min_interval=`` lives on the framework's ``_TriggerSlot``
+        (ADR-066); the handler stays a dumb, coalescing-agnostic caller.
+        """
+        fake = FakeOptolinkAdapter()
+        notifier = RecordingNotifier()
+        handler = make_command_handler("hot_water")
+
+        for value in (50, 51, 52):
+            await handler(
+                payload=json.dumps({"hot_water_setpoint": value}),
+                port=fake,
+                notify=notifier,
+            )
+
+        assert notifier.armed == ["hot_water"] * 3

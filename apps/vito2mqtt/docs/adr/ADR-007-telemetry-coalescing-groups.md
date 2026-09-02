@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-03-03
+Accepted **Date:** 2026-03-03 | Amended **Date:** 2026-09-02
 
 ## Context
 
@@ -165,4 +165,53 @@ that provide no guarantee of coalescing, especially at startup.
 - Floating-point tick arithmetic requires care to avoid precision issues
   (mitigated: use integer-millisecond internal representation)
 
-_2026-03-03_
+## Amendment (2026-09-02) — Additive
+
+**Rationale:** cosalette 0.8.0 (ADR-067) lifted the mutual exclusion between triggerable= and group=. Until then a coalescing-group member could not declare a trigger source at all, which is why the command path was documented as eventually consistent: after a write, the retained state topic waited for the group's next scheduled tick - up to polling_system = 3600 s for the system group, 300 s for the rest. The coalescing decision itself is unchanged and still correct; what is added is a second, event-driven entry point into the same shared scheduler, so this is recorded as an additive sub-decision rather than a correction.
+
+### Additional Sub-Decision: Command-Triggered Wake Inside the Coalescing Group
+
+Every `optolink` group member is additionally registered `triggerable="local"`, and a command handler calls the injected `EntityNotifier` with its own group name after a successful write.
+
+```python
+app.add_telemetry(
+    name=group,
+    interval=setting_ref(INTERVAL_ATTR[group]),
+    group="optolink",
+    triggerable="local",
+    min_interval=COMMAND_WAKE_MIN_INTERVAL_SECONDS,
+    ...
+)
+```
+
+**Bus exclusion is preserved.** The arm does not start a task of its own. cosalette's group scheduler races the group's tick deadline against its members' arms; a woken member is merged into the group's next batch (`batch = sorted(set(due) | released)`), so it still runs inside the one shared P300 session this ADR exists to guarantee. Requirements 1-3 of this ADR are untouched: the wake adds a fire event to the shared timeline, it does not bypass it.
+
+**`triggerable="local"` adds no public surface.** Unlike `triggerable=True` (MQTT), a local source subscribes no `/set` topic. The only arming path is the in-process notifier call in `devices/commands.py`; the MQTT topic layout of ADR-002 is unchanged.
+
+**Why every group, not only the four writable ones.** `COMMAND_GROUPS` is a subset of `SIGNAL_GROUPS`, and `EntityNotifier` raises `UnknownEntityError` at *call* time for a name that declares no local source. Registering all seven uniformly costs one trigger slot each and removes a class of latent runtime error if a group later becomes writable.
+
+### Additional Sub-Decision: Storm Throttle Sized to the Serial Bus
+
+`min_interval=COMMAND_WAKE_MIN_INTERVAL_SECONDS` (15 s) bounds the spacing between two *trigger-initiated* runs of a member (cosalette ADR-066). It is not decoration: a full weekly timer schedule is written as seven separate `/set` payloads, and without a floor each would queue a full group read on a 4800-baud bus.
+
+The throttle is enforced on the consuming end, never on the arm, so the notifier call from the command handler stays non-blocking. An arm landing inside a closed window is *held*, not dropped - the last write of a burst is still reflected once the window reopens. The `interval=` heartbeat is unaffected in both directions: it neither postpones the window nor is postponed by it.
+
+15 s sits well below the shortest poll interval (300 s), so the throttle bounds bursts without becoming the effective floor for a single write.
+
+### Additional Sub-Decision: Acceleration, Not Confirmation
+
+A group's command signals and its telemetry signals are disjoint - the intersection of `COMMAND_GROUPS[g]` and `SIGNAL_GROUPS[g]` is empty for all four writable groups. Writing `heating_curve_gradient_m1` does not put that value on `heating_radiator/state`; it changes what the Vitotronic subsequently reports for `flow_temperature_setpoint_m1`.
+
+The wake therefore accelerates the pickup of the boiler's *reaction*, and the eventual-consistency model of the command path is narrowed rather than replaced: state is still published by telemetry, never by command confirmation. Where the boiler has not yet reacted when the woken read runs, `OnChange()` gates the publish and the `interval=` heartbeat remains the backstop. Only a write that actually reached the bus wakes - a payload fully suppressed by the read-before-write guard changes nothing and arms nothing.
+
+### Additional Positive Consequences
+
+- A command write is reflected in the retained state topic within seconds of the boiler reacting, instead of waiting up to a full poll interval - 3600 s for the system group under the ADR-005 defaults
+- The `interval=` setting becomes a heartbeat and staleness bound rather than the sole determinant of command feedback latency, so poll intervals can be tuned for bus load without trading away responsiveness
+- The wake path reuses the group's existing scheduler, publish strategy, error isolation and persistence unchanged - a woken run is indistinguishable downstream from a ticked one
+
+### Additional Negative Consequences
+
+- A second entry point into the group scheduler: reasoning about when a group runs now requires reading both the interval and the command path, where before the interval alone was sufficient
+- `min_interval=` is a third timing constant alongside the per-group poll intervals, and unlike them it is a module constant rather than a setting - tuning it for an unusually slow bus needs a code change
+- The command handler now depends on the ADR-002 invariant that every command group name is also a telemetry entity name; violating it produces an `UnknownEntityError` at write time rather than at registration, which is why an integration test asserts it per group

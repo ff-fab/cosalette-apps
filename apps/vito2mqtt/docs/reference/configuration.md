@@ -70,6 +70,18 @@ read from the boiler (see [ADR-005](../adr/ADR-005-configuration-settings.md)).
     5 minutes (300s). The system group defaults to 1 hour (3600s) since its signals
     change infrequently. Adjust based on your monitoring needs vs. serial bus load.
 
+!!! info "Polling intervals no longer bound command feedback"
+    A successful write on a `/set` topic wakes that group's telemetry handler
+    directly, so the boiler is re-read within seconds rather than at the next
+    tick — see [ADR-007](../adr/ADR-007-telemetry-coalescing-groups.md), amended
+    2026-09-02. Treat these intervals as the heartbeat and staleness bound, not
+    as the latency you will observe after changing a setting.
+
+    Repeated writes are throttled to one extra read per group per 15 seconds
+    (`COMMAND_WAKE_MIN_INTERVAL_SECONDS`) so a burst — a full weekly timer
+    schedule is seven separate payloads — cannot saturate the 4800-baud bus. A
+    write arriving inside that window is held, not dropped.
+
 ### Legionella Treatment
 
 Settings for the automated legionella prevention cycle. The treatment temporarily

@@ -27,6 +27,7 @@ import pytest
 from cosalette import App
 
 from vito2mqtt import __version__
+from vito2mqtt._registration import COMMAND_WAKE_MIN_INTERVAL_SECONDS
 from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
 from vito2mqtt.devices.legionella import legionella_device
@@ -143,6 +144,59 @@ class TestTelemetryRegistration:
         Technique: Cross-reference — INTERVAL_ATTR keys must equal SIGNAL_GROUPS keys.
         """
         assert set(INTERVAL_ATTR.keys()) == set(SIGNAL_GROUPS.keys())
+
+
+class TestTelemetryTriggerConfig:
+    """Verify the command-triggered refresh registration (cosalette ADR-064/067).
+
+    Test Techniques Used:
+    - Specification-based: ``triggerable="local"`` is what makes
+      ``EntityNotifier(group)`` legal; without it the command handler's
+      wake raises ``UnknownEntityError`` at runtime, not at registration.
+    - Cross-reference: the trigger source must coexist with
+      ``group="optolink"`` — the pairing cosalette rejected before 0.8.0.
+    """
+
+    def test_all_telemetry_is_locally_triggerable(self) -> None:
+        """Every group declares triggerable='local'.
+
+        ``"local"`` subscribes no MQTT topic, so this adds no public
+        surface — the only arming path is the in-process notifier.
+        """
+        from vito2mqtt.main import app
+
+        for reg in app.telemetry_registrations:
+            assert reg.triggerable == "local", (
+                f"{reg.name!r} triggerable is {reg.triggerable!r}, expected 'local'"
+            )
+
+    def test_trigger_source_coexists_with_coalescing_group(self) -> None:
+        """triggerable= and group= are set on the same registration.
+
+        cosalette < 0.8.0 rejected this pairing outright; ADR-067 relaxed
+        it to a per-member wake inside the group's own scheduler, which is
+        what preserves Optolink bus exclusion.
+        """
+        from vito2mqtt.main import app
+
+        for reg in app.telemetry_registrations:
+            assert reg.group == "optolink" and reg.triggerable == "local"
+
+    def test_all_telemetry_carries_the_storm_throttle(self) -> None:
+        """Every group bounds trigger-initiated runs at the shared floor."""
+        from vito2mqtt.main import app
+
+        for reg in app.telemetry_registrations:
+            assert reg.min_interval == COMMAND_WAKE_MIN_INTERVAL_SECONDS
+
+    def test_storm_throttle_is_positive_and_below_every_poll_interval(self) -> None:
+        """The throttle must bound bursts without outliving a poll cycle.
+
+        A ``min_interval`` above the shortest poll interval (300 s) would
+        make the scheduled tick, not the throttle, the effective floor —
+        the wake would buy nothing for the fastest groups.
+        """
+        assert 0 < COMMAND_WAKE_MIN_INTERVAL_SECONDS < 300.0
 
 
 class TestCommandRegistration:

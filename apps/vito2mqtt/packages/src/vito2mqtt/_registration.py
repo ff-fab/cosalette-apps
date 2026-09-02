@@ -35,7 +35,21 @@ from vito2mqtt.devices.telemetry import (
 from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
 from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
 
-__all__ = ["configure_app"]
+__all__ = ["configure_app", "COMMAND_WAKE_MIN_INTERVAL_SECONDS"]
+
+COMMAND_WAKE_MIN_INTERVAL_SECONDS = 15.0
+"""Floor on the spacing between two command-triggered telemetry runs (seconds).
+
+Each signal group is registered ``triggerable="local"`` so a successful
+command write can wake its telemetry member immediately (ADR-007 §
+Command-Triggered Refresh, cosalette ADR-066/ADR-067).  The Optolink is a
+single 4800-baud serial bus: a burst of writes — a full weekly timer
+schedule arrives as seven separate ``/set`` payloads — would otherwise
+queue seven full group reads behind it.  The throttle bounds
+*trigger-initiated* run starts only; the ``interval=`` heartbeat is
+untouched, and an arm landing inside a closed window is held, not
+dropped, so the last write in a burst is still reflected.
+"""
 
 
 def configure_app(app: App) -> None:
@@ -55,6 +69,13 @@ def configure_app(app: App) -> None:
             interval=setting_ref(INTERVAL_ATTR[group]),
             publish=OnChange(),
             group="optolink",
+            # cosalette ADR-067: a group= member may declare a trigger
+            # source; the wake batches that member into the group's own
+            # cycle, so Optolink bus exclusion is preserved.  "local"
+            # subscribes no MQTT topic — the only arming path is the
+            # EntityNotifier call in the command handler.
+            triggerable="local",
+            min_interval=COMMAND_WAKE_MIN_INTERVAL_SECONDS,
             summary=GROUP_SUMMARIES[group],
             state_model=GROUP_STATE_MODELS[group],
             retry=3,

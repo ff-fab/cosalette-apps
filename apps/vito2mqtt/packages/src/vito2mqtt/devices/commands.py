@@ -35,11 +35,30 @@ reduces serial bus traffic and avoids unnecessary EEPROM wear on the
 boiler controller.  The ``__force`` meta-key in the JSON payload bypasses
 the comparison and writes unconditionally.
 
-Eventual Consistency
---------------------
-Command handlers return ``None`` — state is published by telemetry
-polling, not by command confirmation.  After a write, the next telemetry
-cycle picks up the changed value.
+Command-Triggered Refresh
+-------------------------
+Command handlers still return ``None``: the retained state topic is
+written by the telemetry path, never by command confirmation.  What
+changed is *when* that path next runs.  A successful write wakes the
+matching telemetry group through the injected
+:class:`~cosalette.EntityNotifier`, so the boiler is re-read within
+seconds instead of at the next scheduled poll — up to ``polling_system``
+= 3600 s for the ``system`` group.  Bus exclusion is preserved: the woken
+member joins the ``optolink`` coalescing group's own cycle rather than
+opening a concurrent serial session (cosalette ADR-067).
+
+This is an acceleration, not a confirmation.  A group's command signals
+and its telemetry signals are disjoint by design — writing
+``heating_curve_gradient_m1`` does not put that value on
+``heating_radiator/state``; it changes what the Vitotronic reports for
+``flow_temperature_setpoint_m1``.  The woken read therefore publishes the
+boiler's *reaction*, and only once the boiler has reacted; ``OnChange()``
+gates it until then, and the ``interval=`` heartbeat remains the backstop.
+
+Only an actual write wakes.  A payload the read-before-write guard fully
+suppresses writes nothing and does not wake; a write that raises
+propagates before the wake is reached.  Bursts are bounded by
+:data:`~vito2mqtt._registration.COMMAND_WAKE_MIN_INTERVAL_SECONDS`.
 """
 
 from __future__ import annotations
@@ -48,6 +67,8 @@ import json
 from collections.abc import Awaitable, Callable, Mapping
 from types import MappingProxyType
 from typing import Any
+
+from cosalette import EntityNotifier
 
 from vito2mqtt.devices import COMMAND_GROUPS
 from vito2mqtt.devices._serialization import deserialize_value, serialize_value
@@ -157,7 +178,9 @@ def make_command_handler(
         Async callable suitable for ``app.add_command(func=...)``.
     """
 
-    async def handler(payload: str, port: OptolinkPort) -> dict[str, object] | None:
+    async def handler(
+        payload: str, port: OptolinkPort, notify: EntityNotifier
+    ) -> dict[str, object] | None:
         data, force = _parse_payload(payload, group)
         if not data:
             return None
@@ -187,6 +210,10 @@ def make_command_handler(
             # Batch all writes into a single serial session (cap-7xk) — avoids
             # N+1 connect-per-write round-trips on slow serial links.
             await port.write_signals(writes)
+            # Every command group is also a signal group (ADR-002), so the
+            # command name is the telemetry entity name.  Arming is coalescing
+            # and non-blocking; the group scheduler runs the read.
+            notify(group)
 
         return None
 

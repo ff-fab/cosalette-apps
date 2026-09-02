@@ -42,6 +42,15 @@ from vito2mqtt.adapters.fake import FakeOptolinkAdapter
 
 from .conftest import TOPIC_PREFIX
 
+_EMPTY_TIMER: list[list[list[int | None]]] = [
+    [[None, None], [None, None]] for _ in range(4)
+]
+"""A CycleTime payload with all four slots cleared.
+
+The ``system`` command group contains only timer signals, so covering it
+needs a structurally valid CT value rather than a scalar.
+"""
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -370,3 +379,98 @@ class TestCommandIsolation:
             f"writes: {fake_adapter.writes}"
         )
         assert fake_adapter.writes["hot_water_setpoint"] == 55
+
+
+# ---------------------------------------------------------------------------
+# TestCommandTriggeredRefresh
+# ---------------------------------------------------------------------------
+
+
+class TestCommandTriggeredRefresh:
+    """Verify the command → EntityNotifier → telemetry wake wiring end to end.
+
+    The failure mode this guards is silent in unit tests and loud only in
+    production: the notifier resolves a name against the *expanded*
+    telemetry registrations, so a group registered without
+    ``triggerable="local"`` — or renamed on one side only — raises
+    ``UnknownEntityError`` from inside the command handler and turns a
+    successful boiler write into a published error.
+
+    What is deliberately NOT asserted here is timing.  ``FakeClock.sleep``
+    advances virtual time with no real delay, so the group scheduler ticks
+    as fast as the loop runs and an out-of-cycle run is indistinguishable
+    from a scheduled one.  The latency claim is a property of the
+    framework's ADR-067 scheduler, tested upstream; what this repo owns is
+    that the name it arms exists.
+
+    Test Techniques Used
+    --------------------
+    - **Negative state-based testing**: absence of an error message is the
+      observable, because ``UnknownEntityError`` is the only way this
+      wiring can fail.
+    - **Parametrize**: all four command groups, so a group added to
+      COMMAND_GROUPS without a matching triggerable telemetry registration
+      fails here.
+    """
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    @pytest.mark.parametrize(
+        ("group", "payload"),
+        [
+            ("hot_water", {"hot_water_setpoint": 60}),
+            ("heating_radiator", {"heating_curve_gradient_m1": 1.4}),
+            ("heating_floor", {"heating_curve_gradient_m2": 1.2}),
+            ("system", {"timer_cp_monday": _EMPTY_TIMER}),
+        ],
+    )
+    async def test_write_wakes_its_group_without_error(
+        self,
+        harness: AppHarness,
+        fake_adapter: FakeOptolinkAdapter,
+        group: str,
+        payload: dict[str, object],
+    ) -> None:
+        """A real command write arms a real EntityNotifier for its own group.
+
+        Arrange: fully-wired app; every telemetry group is registered
+                 ``triggerable="local"``.
+        Act: deliver a forcing payload to ``{prefix}/{group}/set``.
+        Assert: the write reached the adapter and no error was published —
+                proving ``notify(group)`` resolved a bound trigger slot.
+        """
+        await _run_with_commands(
+            harness,
+            [(f"{TOPIC_PREFIX}/{group}/set", {**payload, "__force": True})],
+        )
+
+        assert fake_adapter.writes, (
+            f"precondition: the {group!r} write should have reached the adapter"
+        )
+        assert not _has_error_message(harness, group), (
+            f"notify({group!r}) failed — the group is most likely registered "
+            f"without triggerable='local'; published topics: "
+            f"{[t for t, *_ in harness.mqtt.published]}"
+        )
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_suppressed_write_publishes_no_error(
+        self,
+        harness: AppHarness,
+        fake_adapter: FakeOptolinkAdapter,
+    ) -> None:
+        """A read-before-write no-op neither writes nor wakes, and stays silent.
+
+        Guards the ordering of the wake against the ``if writes:`` guard:
+        moving ``notify()`` outside it would arm on every inbound payload,
+        turning an idempotent ``/set`` into a serial-bus read.
+        """
+        await _run_with_commands(
+            harness,
+            # 42 is the FakeOptolinkAdapter IUNON default — write suppressed.
+            [(f"{TOPIC_PREFIX}/hot_water/set", {"hot_water_setpoint": 42})],
+        )
+
+        assert fake_adapter.writes == {}
+        assert not _has_error_message(harness, "hot_water")

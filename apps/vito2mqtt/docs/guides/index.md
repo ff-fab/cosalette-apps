@@ -203,6 +203,29 @@ mosquitto_pub -h localhost \
 Unused slots must be `[null, null]`. Each day has exactly 4 pairs of 2 time slots,
 where each slot is `[hours, minutes]` with `int` or `null` elements.
 
+### What to expect after a write
+
+Commands are never acknowledged on their own topic — the boiler's state is
+published by telemetry only. Since a successful write now wakes its own
+telemetry group, that refresh happens within seconds instead of at the next
+poll (which for the `system` group is an hour by default).
+
+Two things are worth knowing before you go looking for a value:
+
+- **A group's `/set` signals are not the same signals as its `/state` signals.**
+  Writing `heating_curve_gradient_m1` does not make that value appear on
+  `heating_radiator/state`; it changes what the boiler reports for
+  `flow_temperature_setpoint_m1`. You are watching for the boiler's reaction,
+  not for an echo.
+- **Nothing is published if nothing changed.** State is published on change, so
+  a write the boiler has not yet acted on produces no message until it has, or
+  until the next scheduled poll.
+
+Writes that the read-before-write guard suppresses do not trigger a refresh at
+all — there was no write. Bursts of writes are throttled to one extra read per
+group per 15 seconds so a full weekly schedule (seven payloads) cannot saturate
+the serial bus; the last write is still picked up.
+
 ### Checking error history
 
 Subscribe to the diagnosis state topic:

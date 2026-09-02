@@ -24,7 +24,7 @@ ADRs follow the format described by Michael Nygard in
 | [ADR-004](ADR-004-optolink-protocol-design.md) | Optolink Protocol Design | Accepted | 2026-02-27 |
 | [ADR-005](ADR-005-configuration-settings.md) | Configuration and Settings | Accepted | 2026-02-27 |
 | [ADR-006](ADR-006-configurable-signal-language.md) | Configurable Signal Language (DE/EN) | Accepted | 2026-02-28 |
-| [ADR-007](ADR-007-telemetry-coalescing-groups.md) | Telemetry Coalescing Groups | Accepted | 2026-03-03 |
+| [ADR-007](ADR-007-telemetry-coalescing-groups.md) | Telemetry Coalescing Groups | Accepted (amended 2026-09-02) | 2026-03-03 |
 
 ---
 
@@ -70,3 +70,7 @@ Controlled by `VITO2MQTT_SIGNAL_LANGUAGE`. Numeric types are language-neutral.
 Telemetry handlers sharing the `"optolink"` coalescing group have their ticks
 aligned by cosalette, so signals due at the same time are batched into a single
 serial session — reducing Optolink bus occupancy and improving throughput.
+
+**Amended 2026-09-02:** every group member is also `triggerable="local"`, so a
+successful command write wakes its own group inside the same shared scheduler
+instead of waiting for the next tick. Bus exclusion is unchanged.
