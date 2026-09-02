@@ -63,6 +63,13 @@ mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
 The fresh reading is published to `airthings2mqtt/airthings/state` using the same schema
 as scheduled polls.
 
+!!! note "Re-reads are rate limited"
+
+    Consecutive re-reads are spaced at least 30 seconds apart. A request that arrives
+    inside that window is *delayed*, not dropped — the re-read still happens once the
+    window reopens. This keeps a stuck automation or a held-down dashboard button from
+    turning into a stream of BLE connections to a battery-powered sensor.
+
 ### Availability
 
 **Topic:** `airthings2mqtt/airthings/availability`

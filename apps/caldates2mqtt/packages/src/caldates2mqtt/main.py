@@ -89,10 +89,23 @@ def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
     return {cal.key: cal for cal in s.calendars}
 
 
+_TRIGGER_MIN_INTERVAL_SECONDS: float = 60.0
+"""Minimum spacing between trigger-initiated fetches (cosalette ADR-066).
+
+``caldates2mqtt/{calendar}/set`` is a public MQTT topic and each wake is a full
+CalDAV round-trip against someone else's server; a stuck automation would
+otherwise turn into a request flood.  A wake inside a closed window is *held*,
+not dropped, so an on-demand refresh still happens — it just waits for the window
+to reopen.  Enforced per calendar entity, and independent of ``schedule=``, which
+continues to fire on its own cron cadence.
+"""
+
+
 @app.telemetry(
     name=_calendar_map,
     schedule=lambda cal: cal.schedule,
     triggerable=True,
+    min_interval=_TRIGGER_MIN_INTERVAL_SECONDS,
     retry=3,
     retry_on=(CalDavConnectionError, CalDavTimeoutError),
     state_model=CalendarState,

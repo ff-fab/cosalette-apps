@@ -77,6 +77,14 @@ mosquitto_pub -h localhost -t "caldates2mqtt/garbage/set" -m '{"entries":10,"day
 Overrides apply only to this single re-read; the next scheduled poll uses the configured
 defaults.
 
+!!! note "Re-reads are rate limited"
+
+    Consecutive re-reads of the same calendar are spaced at least 60 seconds apart. A
+    command that arrives inside that window is *delayed*, not dropped — the re-read
+    still happens once the window reopens. This keeps a stuck automation from turning
+    into a request flood against the CalDAV server. The configured schedule is
+    unaffected.
+
 ### Availability
 
 **Topic:** `caldates2mqtt/{calendar}/availability`
