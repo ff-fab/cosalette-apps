@@ -63,3 +63,60 @@ class TestBulbMap:
 
         with pytest.raises(TypeError, match="OtherSettings"):
             _bulb_map(OtherSettings())  # type: ignore[arg-type]
+
+
+class TestTelemetryTriggerConfig:
+    """The ``bulb_entity`` registration is what makes push-driven publish work.
+
+    Registration flags are easy to drop in a refactor and produce no
+    failure — the app simply reverts to polling. These pin them.
+    """
+
+    @staticmethod
+    def _bulb_entity_registration() -> object:
+        from wiz2mqtt.main import app  # noqa: PLC0415 — module-level app singleton
+
+        regs = [r for r in app._telemetry if r.func.__name__ == "bulb_entity"]  # noqa: SLF001
+        assert len(regs) == 1, f"expected one bulb_entity registration, got {regs!r}"
+        return regs[0]
+
+    def test_bulb_entity_is_locally_triggerable(self) -> None:
+        """Technique: Specification-based — ``local``, not ``True``/``mqtt``.
+
+        ``triggerable=True`` is an alias for ``"mqtt"``, which would
+        subscribe a per-bulb trigger topic nobody publishes to and still
+        leave the push path dead.
+        """
+        assert self._bulb_entity_registration().triggerable == "local"  # ty: ignore[unresolved-attribute]
+
+    def test_bulb_entity_carries_no_storm_throttle(self) -> None:
+        """Technique: Specification-based — deliberate absence of min_interval.
+
+        A WiZ bulb pushes only on change and ``OnChange()`` already drops
+        identical payloads, so a throttle would add latency for no gain.
+        """
+        assert self._bulb_entity_registration().min_interval is None  # ty: ignore[unresolved-attribute]
+
+    def test_bulb_entity_publishes_on_change(self) -> None:
+        """Technique: Specification-based — trigger wakes reuse the publish gate.
+
+        A triggered run goes through the identical publish cycle, so a
+        push that carries no actual change must still be suppressed.
+        """
+        from cosalette import OnChange  # noqa: PLC0415
+
+        assert isinstance(self._bulb_entity_registration().publish_strategy, OnChange)  # ty: ignore[unresolved-attribute]
+
+    def test_heartbeat_interval_matches_the_push_staleness_threshold(self) -> None:
+        """Technique: Specification-based — the two constants are one decision.
+
+        A heartbeat tick is only a liveness probe if it finds the push
+        cache stale; if the interval drops below the threshold the tick
+        just re-reads a cache that cannot have expired.
+        """
+        from wiz2mqtt.adapters.wizlight import (  # noqa: PLC0415
+            _DEFAULT_PUSH_STALENESS_THRESHOLD,
+        )
+        from wiz2mqtt.main import _TICK_INTERVAL_SECONDS  # noqa: PLC0415
+
+        assert _TICK_INTERVAL_SECONDS == _DEFAULT_PUSH_STALENESS_THRESHOLD

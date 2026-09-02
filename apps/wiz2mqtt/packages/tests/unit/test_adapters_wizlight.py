@@ -18,10 +18,12 @@ Test Techniques Used:
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
 import pytest
+from cosalette import EntityNotifier
 from pywizlight.bulblibrary import BulbClass, BulbType, Features, KelvinRange
 from pywizlight.exceptions import (
     WizLightConnectionError,
@@ -36,8 +38,41 @@ from wiz2mqtt.errors import (
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
+from wiz2mqtt.settings import Wiz2MqttSettings
 
 _IP = "10.0.0.42"
+_NAME = "office"
+_UNCONFIGURED_IP = "10.0.0.99"
+
+
+class _RecordingNotifier(EntityNotifier):
+    """An ``EntityNotifier`` that records names instead of arming real slots.
+
+    Subclassing keeps the adapter's ``notify: EntityNotifier`` annotation
+    honest while sidestepping the framework's Phase-2 slot binding, which
+    a unit test has no App to perform.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.armed: list[str] = []
+        self.on_arm: Callable[[str], None] | None = None
+        """Optional hook, run after recording — lets a test observe arm ordering."""
+
+    def __call__(self, entity_name: str) -> None:
+        self.armed.append(entity_name)
+        if self.on_arm is not None:
+            self.on_arm(entity_name)
+
+
+def _settings() -> Wiz2MqttSettings:
+    """Isolated settings with exactly one bulb, ``office`` at ``_IP``."""
+    return Wiz2MqttSettings(
+        bulbs=[{"name": _NAME, "ip": _IP}],  # type: ignore[list-item]
+        _env_file=None,  # type: ignore[call-arg]
+        _config_file=None,  # type: ignore[call-arg]
+    )
+
 
 _RGB_BULB_TYPE = BulbType(
     features=Features(
@@ -177,6 +212,7 @@ class _Ctx:
     """Bundles the adapter under test with its patched pywizlight transport."""
 
     adapter: WizBulbAdapter
+    notifier: _RecordingNotifier
     fake_bulbs: dict[str, _FakeWizLight] = field(default_factory=dict)
     pilot_calls: list[dict[str, Any]] = field(default_factory=list)
 
@@ -185,7 +221,8 @@ class _Ctx:
 def ctx(monkeypatch: pytest.MonkeyPatch) -> _Ctx:
     import pywizlight
 
-    c = _Ctx(adapter=WizBulbAdapter())
+    notifier = _RecordingNotifier()
+    c = _Ctx(adapter=WizBulbAdapter(_settings(), notifier), notifier=notifier)
 
     def _factory(ip: str, port: int = 38899, mac: str | None = None) -> _FakeWizLight:
         return c.fake_bulbs.setdefault(ip, _FakeWizLight(ip))
@@ -388,7 +425,9 @@ class TestGetState:
 
         monkeypatch.setattr(pywizlight, "wizlight", _factory)
         monkeypatch.setattr(pywizlight, "PilotBuilder", _PilotBuilderSpy)
-        adapter = WizBulbAdapter(push_staleness_threshold=0.0)
+        adapter = WizBulbAdapter(
+            _settings(), _RecordingNotifier(), push_staleness_threshold=0.0
+        )
         fake_bulbs[_IP] = _FakeWizLight(_IP)
         await adapter.get_capabilities(_IP)
         push_callback = fake_bulbs[_IP].start_push_calls[0]
@@ -418,7 +457,9 @@ class TestGetState:
 
         monkeypatch.setattr(pywizlight, "wizlight", _factory)
         monkeypatch.setattr(pywizlight, "PilotBuilder", _PilotBuilderSpy)
-        adapter = WizBulbAdapter(push_staleness_threshold=0.0)
+        adapter = WizBulbAdapter(
+            _settings(), _RecordingNotifier(), push_staleness_threshold=0.0
+        )
         fake_bulbs[_IP] = _FakeWizLight(_IP)
         await adapter.get_capabilities(_IP)
         push_callback = fake_bulbs[_IP].start_push_calls[0]
@@ -568,3 +609,112 @@ class TestLifecycle:
             pass  # __aexit__ should not raise despite the first-bulb error
 
         assert ctx.fake_bulbs["10.0.0.2"].closed is True
+
+
+# ---------------------------------------------------------------------------
+# Push-driven trigger arming (cosalette ADR-064)
+# ---------------------------------------------------------------------------
+
+
+class TestPushWakesTelemetry:
+    """A parsed push arms the matching telemetry entity's local trigger.
+
+    The push callback used to be publication's dead end: it wrote the
+    cache and returned, leaving the payload sitting there until the next
+    ``interval=`` tick. These tests pin the wake that replaced that wait.
+    """
+
+    async def test_wizlight_push_arms_the_configured_entity_name(
+        self, ctx: _Ctx
+    ) -> None:
+        """Technique: Specification-based — the arm uses the bulb's name, not its IP.
+
+        The telemetry entities are named by ``main._bulb_map`` (bulb name),
+        so arming by IP would raise ``UnknownEntityError`` at runtime.
+        """
+        await ctx.adapter.get_capabilities(_IP)
+        push_callback = ctx.fake_bulbs[_IP].start_push_calls[0]
+
+        push_callback([_FakeParser(brightness=77)])
+
+        assert ctx.notifier.armed == [_NAME]
+
+    async def test_wizlight_push_arms_after_the_cache_write(self, ctx: _Ctx) -> None:
+        """The armed entity must find the *new* state, not the one it replaced.
+
+        Technique: State Transition Testing — ordering of cache write vs. arm.
+        """
+        seen: list[int | None] = []
+        await ctx.adapter.get_capabilities(_IP)
+        push_callback = ctx.fake_bulbs[_IP].start_push_calls[0]
+
+        def _record(entity_name: str) -> None:  # noqa: ARG001 — name unused here
+            seen.append(ctx.adapter._state_cache[_IP].brightness)  # noqa: SLF001
+
+        ctx.notifier.on_arm = _record
+        push_callback([_FakeParser(brightness=77)])
+
+        assert seen == [77]
+
+    async def test_wizlight_unparseable_push_does_not_arm(self, ctx: _Ctx) -> None:
+        """No state, no publish-worthy change — nothing to wake for.
+
+        Technique: Error Guessing — empty/None parser list.
+        """
+        await ctx.adapter.get_capabilities(_IP)
+        push_callback = ctx.fake_bulbs[_IP].start_push_calls[0]
+
+        push_callback(None)
+        push_callback([])
+        push_callback([None])
+
+        assert ctx.notifier.armed == []
+
+    async def test_wizlight_push_for_unconfigured_ip_does_not_arm(
+        self, ctx: _Ctx
+    ) -> None:
+        """An IP outside ``settings.bulbs`` has no telemetry entity to arm.
+
+        Technique: Error Guessing — arming an unmapped IP would raise
+        ``UnknownEntityError`` inside a UDP callback.
+        """
+        await ctx.adapter.get_capabilities(_UNCONFIGURED_IP)
+        push_callback = ctx.fake_bulbs[_UNCONFIGURED_IP].start_push_calls[0]
+
+        push_callback([_FakeParser(brightness=77)])
+
+        assert ctx.notifier.armed == []
+        assert ctx.adapter._state_cache[_UNCONFIGURED_IP].brightness == 77  # noqa: SLF001
+
+    async def test_wizlight_every_push_arms_once(self, ctx: _Ctx) -> None:
+        """Arming is per-push; coalescing is the framework slot's job, not ours.
+
+        Technique: Equivalence Partitioning — burst of pushes.
+        """
+        await ctx.adapter.get_capabilities(_IP)
+        push_callback = ctx.fake_bulbs[_IP].start_push_calls[0]
+
+        for brightness in (10, 20, 30):
+            push_callback([_FakeParser(brightness=brightness)])
+
+        assert ctx.notifier.armed == [_NAME] * 3
+
+    def test_wizlight_resolves_through_the_frameworks_adapter_injection(self) -> None:
+        """The framework must be able to build this adapter at all.
+
+        Technique: Specification-based — adapter resolution contract.
+        ``_call_factory`` injects *every* annotated ``__init__`` parameter,
+        so a plain ``float`` default would fail with "no provider is
+        registered for type float". ``Annotated[float, Optional()]`` is
+        what keeps it out of the plan; this test fails if that is dropped.
+        """
+        from cosalette._wiring._adapter_lifecycle import (  # noqa: PLC0415
+            _build_adapter_providers,
+            _call_factory,
+        )
+
+        providers = _build_adapter_providers(_settings(), _RecordingNotifier())
+        adapter = _call_factory(WizBulbAdapter, providers)
+
+        assert isinstance(adapter, WizBulbAdapter)
+        assert adapter._name_by_ip == {_IP: _NAME}  # noqa: SLF001

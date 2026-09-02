@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient, OnChange
+from cosalette import App, EntityNotifier, MockMqttClient, OnChange
 from cosalette.testing import AppHarness, FakeClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
@@ -32,21 +32,58 @@ _COMMAND_SETTLE_TIME = 0.03
 _STARTUP_TIMEOUT = 2.0
 """Maximum seconds to wait for the harness to subscribe before timing out."""
 
+_FAST_TICK_INTERVAL = 0.01
+"""Interval for the polling-oriented tests; with FakeClock this spins freely."""
+
+NO_TICK_INTERVAL = 30.0
+"""An interval no test window can reach — see :class:`RealSleepClock`."""
+
+
+class RealSleepClock(FakeClock):
+    """A :class:`FakeClock` whose ``sleep`` actually waits.
+
+    ``FakeClock.sleep`` advances *virtual* time with no real delay, so
+    every ``interval=`` collapses into a busy loop and the question
+    "did this publish without waiting for a scheduled tick?" has no
+    answer.  Sleeping for real makes :data:`NO_TICK_INTERVAL` genuinely
+    unreachable inside a test, so a publish that does arrive can only
+    have come from a trigger.
+    """
+
+    async def sleep(self, seconds: float) -> None:
+        """Sleep for *seconds* of wall-clock time, keeping ``now()`` in step."""
+        await asyncio.sleep(seconds)
+        if seconds > 0:
+            self._time += seconds
+
 
 def _shared_state_factory() -> SharedState:
     return SharedState()
 
 
-def build_integration_app(fake_adapter: FakeWizBulbAdapter) -> App:
+def build_integration_app(
+    fake_adapter: FakeWizBulbAdapter, *, interval: float = _FAST_TICK_INTERVAL
+) -> App:
     """Construct a fully-wired App with FakeWizBulbAdapter.
 
     Mirrors the command and telemetry wiring in ``wiz2mqtt.main`` while
     substituting the adapter so tests stay isolated from real pywizlight I/O.
     """
+
+    def _adapter_factory(
+        settings: Wiz2MqttSettings, notify: EntityNotifier
+    ) -> FakeWizBulbAdapter:
+        # Registering the pre-built fake through a closure skips constructor
+        # injection, so hand it the same two dependencies by name.  Without
+        # this the fake's push path is inert and every test here silently
+        # falls back to the interval= heartbeat.
+        fake_adapter.bind(settings, notify)
+        return fake_adapter
+
     app = App(
         name="wiz2mqtt",
         settings_class=Wiz2MqttSettings,
-        adapters={WizBulbPort: lambda: fake_adapter},
+        adapters={WizBulbPort: _adapter_factory},
         error_type_map=error_type_map,
     )
     app.add_command(_bulb_map, bulb_set)
@@ -54,7 +91,8 @@ def build_integration_app(fake_adapter: FakeWizBulbAdapter) -> App:
     app.add_telemetry(
         _bulb_map,
         bulb_entity_tick,
-        interval=0.01,
+        interval=interval,
+        triggerable="local",
         publish=OnChange(),
     )
     return app
@@ -109,6 +147,24 @@ def harness(
         app=build_integration_app(fake_adapter),
         mqtt=MockMqttClient(),
         clock=FakeClock(),
+        settings=test_settings,
+        shutdown_event=asyncio.Event(),
+    )
+
+
+@pytest.fixture
+def push_harness(
+    fake_adapter: FakeWizBulbAdapter, test_settings: Wiz2MqttSettings
+) -> AppHarness:
+    """Harness whose scheduled tick is far outside any test window.
+
+    Pair with :class:`RealSleepClock` so the only thing that can produce
+    a second publish is the adapter's push wake.
+    """
+    return AppHarness(
+        app=build_integration_app(fake_adapter, interval=NO_TICK_INTERVAL),
+        mqtt=MockMqttClient(),
+        clock=RealSleepClock(),
         settings=test_settings,
         shutdown_event=asyncio.Event(),
     )

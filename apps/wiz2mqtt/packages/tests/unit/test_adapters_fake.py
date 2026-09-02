@@ -10,12 +10,15 @@ Test Techniques Used:
 from __future__ import annotations
 
 import pytest
+from cosalette import EntityNotifier
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.errors import WizTimeoutError
 from wiz2mqtt.models import BulbCapabilities, BulbState
+from wiz2mqtt.settings import Wiz2MqttSettings
 
 _IP = "10.0.0.42"
+_NAME = "office"
 
 
 @pytest.fixture
@@ -170,3 +173,75 @@ class TestLifecycle:
         """Technique: Specification-based — __aenter__/__aexit__ contract."""
         async with fake as entered:
             assert entered is fake
+
+
+# ---------------------------------------------------------------------------
+# Push-driven trigger arming (cosalette ADR-064)
+# ---------------------------------------------------------------------------
+
+
+class _RecordingNotifier(EntityNotifier):
+    """An ``EntityNotifier`` that records names instead of arming real slots."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.armed: list[str] = []
+
+    def __call__(self, entity_name: str) -> None:
+        self.armed.append(entity_name)
+
+
+def _settings() -> Wiz2MqttSettings:
+    """Isolated settings with exactly one bulb, ``office`` at ``_IP``."""
+    return Wiz2MqttSettings(
+        bulbs=[{"name": _NAME, "ip": _IP}],  # type: ignore[list-item]
+        _env_file=None,  # type: ignore[call-arg]
+        _config_file=None,  # type: ignore[call-arg]
+    )
+
+
+class TestInjectPushArmsTrigger:
+    """``inject_push`` mirrors the production push: cache write, then wake.
+
+    Without this the fake silently loses the event-driven path, and every
+    ``--dry-run`` or integration run would fall back to the ``interval=``
+    heartbeat while appearing to pass.
+    """
+
+    async def test_fake_inject_push_arms_the_configured_entity_name(self) -> None:
+        """Technique: Specification-based — arm by bulb name, not IP."""
+        notifier = _RecordingNotifier()
+        fake = FakeWizBulbAdapter(_settings(), notifier)
+
+        fake.inject_push(_IP, await fake.get_state(_IP))
+
+        assert notifier.armed == [_NAME]
+
+    async def test_fake_bind_restores_injection_for_a_prebuilt_fake(self) -> None:
+        """Technique: State Transition Testing — unbound then bound.
+
+        The integration harness registers a pre-built fake through a
+        closure, which bypasses constructor injection entirely.
+        """
+        notifier = _RecordingNotifier()
+        fake = FakeWizBulbAdapter()
+        state = await fake.get_state(_IP)
+
+        fake.inject_push(_IP, state)  # unbound — nothing to arm
+        assert notifier.armed == []
+
+        fake.bind(_settings(), notifier)
+        fake.inject_push(_IP, state)
+
+        assert notifier.armed == [_NAME]
+
+    async def test_fake_inject_push_for_unconfigured_ip_does_not_arm(self) -> None:
+        """Technique: Error Guessing — no entity exists for an unmapped IP."""
+        notifier = _RecordingNotifier()
+        fake = FakeWizBulbAdapter(_settings(), notifier)
+        state = await fake.get_state(_IP)
+
+        fake.inject_push("10.0.0.99", state)
+
+        assert notifier.armed == []
+        assert (await fake.get_state("10.0.0.99")) == state
