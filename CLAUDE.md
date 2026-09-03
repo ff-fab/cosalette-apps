@@ -31,8 +31,8 @@ ln -s ../../.github/instructions/<name>.instructions.md .claude/rules/<name>.md
 <!-- END COSALETTE AI SUPPORT -->
 
 <!-- The cosalette pointer block is deliberately empty here — AGENTS.md carries it and
-     is imported above. `cosalette ai init` re-injects it into both files; see finding 4
-     in docs/planning/cosalette-ai-init-enhancement-proposal.md. -->
+     is imported above. `cosalette ai init` re-injects it into both files, so expect this
+     block to reappear populated after a refresh; emptying it again is the intended fix. -->
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
 

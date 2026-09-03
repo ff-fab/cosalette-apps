@@ -221,10 +221,13 @@ Framework guidance is maintained in
 **Refresh guidance:** `cosalette ai init --force` **Framework overview:**
 `cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
 
-> **Warning — `--force` is destructive here.** It overwrites
-> `.github/instructions/cosalette.instructions.md` wholesale (`shutil.copy2`), silently
-> dropping the downstream `paths:` key this repo adds. Re-add it after any refresh. See
-> [cosalette-ai-init-enhancement-proposal.md](docs/planning/cosalette-ai-init-enhancement-proposal.md)
-> finding 1; remove this warning once the upstream fix ships.
+> **What `--force` keeps and what it replaces.** Since cosalette 0.8.0 a refresh merges
+> instead of overwriting: template-owned frontmatter keys are updated and every other
+> top-level key — including the downstream `paths:` this repo adds — is preserved
+> (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
+> **comments inside the frontmatter**, and **the entire body**, which is replaced by the
+> shipped template. So any repo-specific note in the body (e.g. the MQTT TLS pinning
+> note) must be re-added after a refresh. Run `cosalette ai init --check` first to see
+> the diff.
 
 <!-- END COSALETTE AI SUPPORT -->

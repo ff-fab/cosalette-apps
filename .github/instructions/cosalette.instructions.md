@@ -4,9 +4,11 @@ description: 'cosalette framework development guidance for AI agents'
 # takes effect through the .claude/rules/cosalette.md symlink. Keep the two keys in sync.
 # Kilo ignores both and loads the file unconditionally.
 #
-# WARNING: `cosalette ai init --force` overwrites this file wholesale (shutil.copy2) and
-# silently drops `paths:`. Re-add it after any refresh. See finding 1 in
-# docs/planning/cosalette-ai-init-enhancement-proposal.md.
+# REFRESH BEHAVIOUR: since cosalette 0.8.0 `cosalette ai init --force` MERGES rather than
+# overwrites — `paths:` and every other non-template frontmatter key survive. What does
+# NOT survive is these comments and the entire body below, both replaced by the shipped
+# template. Re-add any downstream body note (see "MQTT TLS" below) after a refresh, and
+# run `cosalette ai init --check` first to preview the diff.
 applyTo: '**/*.py'
 paths:
   - '**/*.py'
