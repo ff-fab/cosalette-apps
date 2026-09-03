@@ -28,6 +28,7 @@ visualizations flow to your MQTT broker.
         env_file: .env
         environment:
           SUNCAST_MQTT__HOST: mosquitto
+          SUNCAST_MQTT__TLS: ${SUNCAST_MQTT__TLS:-false}
         volumes:
           - shadow-output:/output
           - suncast-data:/app/data
@@ -47,7 +48,7 @@ visualizations flow to your MQTT broker.
         image: eclipse-mosquitto:2
         restart: unless-stopped
         ports:
-          - '1883:1883'
+          - '127.0.0.1:1883:1883'
         volumes:
           - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
           - mosquitto-data:/mosquitto/data

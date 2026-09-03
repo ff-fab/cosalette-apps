@@ -129,6 +129,7 @@ services:
     environment:
       - VITO2MQTT_SERIAL_PORT=/dev/ttyUSB0
       - VITO2MQTT_MQTT__HOST=mosquitto
+      - VITO2MQTT_MQTT__TLS=${VITO2MQTT_MQTT__TLS:-false}
     depends_on:
       - mosquitto
 
@@ -136,7 +137,7 @@ services:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - "1883:1883"
+      - "127.0.0.1:1883:1883"
     volumes:
       - mosquitto-data:/mosquitto/data
       - mosquitto-config:/mosquitto/config

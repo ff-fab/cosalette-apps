@@ -54,6 +54,7 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         env_file: .env
         environment:
           AIRTHINGS2MQTT_MQTT__HOST: localhost
+          AIRTHINGS2MQTT_MQTT__TLS: ${AIRTHINGS2MQTT_MQTT__TLS:-false}
         volumes:
           - airthings2mqtt-data:/app/data
           - /var/run/dbus:/var/run/dbus:ro
@@ -64,7 +65,7 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         image: eclipse-mosquitto:2
         restart: unless-stopped
         ports:
-          - '1883:1883'
+          - '127.0.0.1:1883:1883'
         volumes:
           - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
           - mosquitto-data:/mosquitto/data

@@ -25,6 +25,18 @@ taskfiles/
   PythonApp.yml    # Reusable per-app task template
 ```
 
+## MQTT Transport Posture
+
+- Do not pin `mqtt.tls` in application code.
+- Shipped deployments expose `<PREFIX>_MQTT__TLS` next to `<PREFIX>_MQTT__HOST` in
+  `compose.yml` and default it with Compose interpolation
+  (`${<PREFIX>_MQTT__TLS:-false}`) for the bundled plaintext broker.
+- If an app ships `.env.example`, keep `<PREFIX>_MQTT__TLS=false` there so copying the
+  template preserves the bundled-broker default while leaving a visible opt-in path to
+  `true`.
+- The decision and rationale live in
+  [docs/adr/ADR-006-mqtt-transport-security-posture.md](docs/adr/ADR-006-mqtt-transport-security-posture.md).
+
 ## Tooling
 
 - **Use `task <name>` for all operations** (`task --list` to discover). Fall back to

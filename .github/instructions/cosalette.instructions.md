@@ -285,11 +285,13 @@ Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 >
 > **`mqtt.tls` defaults to `True` since cosalette 0.7.0** (ADR-062), and this monorepo
 > keeps that default in application code. Transport security is a per-deployment setting:
-> every shipped `compose.yml` declares `<PREFIX>_MQTT__TLS=false` next to its broker host,
-> because the brokers here terminate plaintext MQTT. When adding an app, declare the
-> setting in its deployment config — omitting it inherits `tls=True` and the app fails to
-> connect. Do not reintroduce a `tls` pin in application code; the decision and its
-> rationale live in `docs/adr/ADR-006-mqtt-transport-security-posture.md`.
+> every shipped `compose.yml` exposes `<PREFIX>_MQTT__TLS` next to its broker host and
+> defaults it with Compose interpolation (`${<PREFIX>_MQTT__TLS:-false}`) for the bundled
+> plaintext broker. If an app ships `.env.example`, keep `<PREFIX>_MQTT__TLS=false` there
+> as the operator-facing default. When adding an app, wire the deployment setting rather
+> than reintroducing a `tls` pin in code — omitting it inherits `tls=True` and the app
+> fails to connect. The durable repo-wide rule lives in `AGENTS.md`; ADR-006 records the
+> decision and rationale in `docs/adr/ADR-006-mqtt-transport-security-posture.md`.
 >
 > **A command handler's `timeout=` is NOT unbounded by default.** The "Command Handling"
 > section above says `Default None (no timeout)`; that is wrong. Omitting `timeout=`

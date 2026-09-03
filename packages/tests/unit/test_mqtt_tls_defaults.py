@@ -21,8 +21,31 @@ from importlib import import_module
 from pathlib import Path
 
 import pytest
+import yaml
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _shipped_app_dirs() -> set[str]:
+    """Return shipped app directories with a first-party compose service."""
+    app_dirs: set[str] = set()
+    for compose_path in sorted((_REPO_ROOT / "apps").glob("*/compose.yml")):
+        compose_doc = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
+        if not isinstance(compose_doc, dict):
+            continue
+
+        services = compose_doc.get("services")
+        if not isinstance(services, dict):
+            continue
+
+        app_dir = compose_path.parent.name
+        service = services.get(app_dir)
+        if not isinstance(service, dict):
+            continue
+
+        app_dirs.add(app_dir)
+
+    return app_dirs
 
 
 @dataclass(frozen=True)
@@ -50,17 +73,54 @@ class SettingsSpec:
             **self.ctor_kwargs,
         )
 
-    def compose_settings(self) -> list[str]:
-        """Return the uncommented lines of this app's ``compose.yml``."""
-        compose = _REPO_ROOT / "apps" / self.app_dir / "compose.yml"
-        return [
-            stripped
-            for line in compose.read_text(encoding="utf-8").splitlines()
-            if (stripped := line.strip()) and not stripped.startswith("#")
-        ]
+    def compose_path(self) -> Path:
+        """Return this app's shipped compose file."""
+        return _REPO_ROOT / "apps" / self.app_dir / "compose.yml"
+
+    def env_example_path(self) -> Path:
+        """Return this app's shipped environment template."""
+        return _REPO_ROOT / "apps" / self.app_dir / ".env.example"
+
+    def compose_environment(self) -> dict[str, str]:
+        """Return this app service's compose environment mapping."""
+        compose_doc = yaml.safe_load(self.compose_path().read_text(encoding="utf-8"))
+        if not isinstance(compose_doc, dict):
+            raise AssertionError(f"{self.compose_path()} must parse to a mapping")
+
+        services = compose_doc.get("services")
+        if not isinstance(services, dict):
+            raise AssertionError(
+                f"{self.compose_path()} must define a services mapping"
+            )
+
+        service = services.get(self.app_dir)
+        if not isinstance(service, dict):
+            raise AssertionError(
+                f"{self.compose_path()} must define a {self.app_dir} service"
+            )
+
+        environment = service.get("environment")
+        if not isinstance(environment, dict):
+            raise AssertionError(
+                f"{self.compose_path()} must define "
+                f"{self.app_dir}.environment as a mapping"
+            )
+
+        return {str(key): str(value) for key, value in environment.items()}
+
+    def env_example_settings(self) -> dict[str, str]:
+        """Return uncommented settings from this app's ``.env.example``."""
+        settings: dict[str, str] = {}
+        for line in self.env_example_path().read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#") or "=" not in stripped:
+                continue
+            key, value = stripped.split("=", maxsplit=1)
+            settings[key] = value
+        return settings
 
 
-_SPECS = [
+_SPEC_MATRIX = (
     pytest.param(
         SettingsSpec(
             module_name="airthings2mqtt.settings",
@@ -162,7 +222,18 @@ _SPECS = [
         ),
         id="wiz2mqtt",
     ),
+)
+
+_SPECS = list(_SPEC_MATRIX)
+_ENV_EXAMPLE_SPECS = [
+    spec for spec in _SPEC_MATRIX if spec.values[0].env_example_path().exists()
 ]
+
+
+@pytest.mark.unit
+def test_spec_matrix_covers_every_shipped_app() -> None:
+    """Every shipped compose deployment with MQTT TLS must be in the matrix."""
+    assert {spec.values[0].app_dir for spec in _SPEC_MATRIX} == _shipped_app_dirs()
 
 
 @pytest.mark.unit
@@ -217,15 +288,30 @@ def test_sibling_mqtt_env_var_preserves_configured_tls(
 
 @pytest.mark.unit
 @pytest.mark.parametrize("spec", _SPECS)
-def test_compose_declares_the_tls_posture(spec: SettingsSpec) -> None:
-    """Every shipped deployment states its transport posture explicitly.
+def test_compose_defaults_tls_to_false_without_masking_overrides(
+    spec: SettingsSpec,
+) -> None:
+    """Every shipped deployment keeps a false default without blocking opt-in.
 
     Technique: Specification-based — ADR-006 moves the posture into deployment
-    config. An app whose compose file omits the declaration inherits TLS-on and
-    fails to reach the plaintext broker.
+    config. The compose layer must keep the bundled plaintext broker working,
+    while still letting `.env` or shell overrides opt back into TLS.
     """
-    declaration = f"{spec.env_prefix}_MQTT__TLS:"
+    setting_name = f"{spec.env_prefix}_MQTT__TLS"
+    expected_value = f"${{{setting_name}:-false}}"
 
-    assert any(line.startswith(declaration) for line in spec.compose_settings()), (
-        f"{spec.app_dir}/compose.yml must declare {declaration} (see ADR-006)"
+    assert spec.compose_environment().get(setting_name) == expected_value, (
+        f"{spec.app_dir}/compose.yml must set {setting_name} to {expected_value} "
+        "(see ADR-006)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("spec", _ENV_EXAMPLE_SPECS)
+def test_env_example_defaults_tls_to_false(spec: SettingsSpec) -> None:
+    """Every shipped environment template keeps the bundled-broker default visible."""
+    setting_name = f"{spec.env_prefix}_MQTT__TLS"
+
+    assert spec.env_example_settings().get(setting_name) == "false", (
+        f"{spec.app_dir}/.env.example must set {setting_name}=false (see ADR-006)"
     )

@@ -36,12 +36,12 @@ you need.
     For mutual TLS (client authentication), also set `TLS_CERT_FILE` and
     `TLS_KEY_FILE`. See `.env.example` for commented examples.
 
-!!! note "Why the shipped deployment sets `false`"
+!!! note "Why the shipped deployment defaults to `false`"
     cosalette defaults `MqttSettings.tls` to `true` (ADR-062). This app keeps
     that default in code and states its transport posture in deployment config
-    instead: `compose.yml` sets `WALLPANEL_CONTROL_MQTT__TLS=false` because its
-    broker terminates plaintext MQTT. Remove that line once the broker has a
-    TLS listener. See
+    instead: `compose.yml` defaults `WALLPANEL_CONTROL_MQTT__TLS` to `false`
+    for its bundled plaintext broker. Set `WALLPANEL_CONTROL_MQTT__TLS=true`
+    in `.env` or a Compose override once the broker has a TLS listener. See
     [ADR-006](../../../docs/adr/ADR-006-mqtt-transport-security-posture.md).
 
 !!! info "Double-underscore delimiter"

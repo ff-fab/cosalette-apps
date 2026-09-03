@@ -16,7 +16,7 @@ services:
       # With network_mode: host, use localhost (or the IP of your broker)
       AIRTHINGS2MQTT_MQTT__HOST: localhost
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
-      AIRTHINGS2MQTT_MQTT__TLS: 'false'
+      AIRTHINGS2MQTT_MQTT__TLS: ${AIRTHINGS2MQTT_MQTT__TLS:-false}
       AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
       # AIRTHINGS2MQTT_DEVICE_MAC: "XX:XX:XX:XX:XX:XX"
       # AIRTHINGS2MQTT_POLL_INTERVAL: "1500"
@@ -38,7 +38,7 @@ services:
   #   env_file: .env
   #   environment:
   #     AIRTHINGS2MQTT_MQTT__HOST: localhost
-  #     AIRTHINGS2MQTT_MQTT__TLS: "false"
+  #     AIRTHINGS2MQTT_MQTT__TLS: ${AIRTHINGS2MQTT_MQTT__TLS:-false}
   #     AIRTHINGS2MQTT_DEVICE_MAC: "AA:BB:CC:DD:EE:FF"
   #     AIRTHINGS2MQTT_DEVICE_NAME: "bedroom"
   #   volumes:
@@ -51,7 +51,7 @@ services:
     image: eclipse-mosquitto:2
     restart: unless-stopped
     ports:
-      - '1883:1883'
+      - '127.0.0.1:1883:1883'
     volumes:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto-data:/mosquitto/data

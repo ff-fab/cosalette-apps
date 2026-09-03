@@ -9,7 +9,7 @@ services:
     environment:
       WIZ2MQTT_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
-      WIZ2MQTT_MQTT__TLS: 'false'
+      WIZ2MQTT_MQTT__TLS: ${WIZ2MQTT_MQTT__TLS:-false}
     depends_on:
       - mosquitto
 

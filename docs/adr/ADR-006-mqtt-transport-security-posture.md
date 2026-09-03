@@ -27,7 +27,7 @@ Deployment is exclusively via the shipped compose files; there are no bare-metal
 
 ## Decision
 
-Treat MQTT transport security as a per-deployment setting rather than a per-app code default: remove the nine `_MqttSettings` subclasses, inherit cosalette's TLS-on default, and have each shipped deployment configuration declare `<PREFIX>_MQTT__TLS=false` explicitly alongside the broker host it depends on. The posture for every current deployment remains plaintext, but it is now stated in configuration where an operator can see and change it.
+Treat MQTT transport security as a per-deployment setting rather than a per-app code default: remove the nine `_MqttSettings` subclasses, inherit cosalette's TLS-on default, and have each shipped deployment configuration expose `<PREFIX>_MQTT__TLS` alongside the broker host it depends on, defaulting it to `false` via Compose interpolation for the bundled plaintext broker. The posture for every current deployment remains plaintext, but it is now stated in configuration where an operator can see and change it.
 
 ```yaml
 services:
@@ -35,7 +35,7 @@ services:
     environment:
       GAS2MQTT_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
-      GAS2MQTT_MQTT__TLS: "false"
+      GAS2MQTT_MQTT__TLS: ${GAS2MQTT_MQTT__TLS:-false}
 ```
 
 ## Decision Drivers
@@ -43,7 +43,7 @@ services:
 - The posture must be visible where it is decided — at deploy time, next to the broker host — not buried in an application-code default.
 - No broker in this repository terminates TLS: every mosquitto.conf is a plaintext listener on 1883, so enabling TLS is broker work (certificates, a TLS listener, a CA distributed to nine containers), not an application flag.
 - Upstream ADR-062 made TLS-on the default for a real finding (F-CU1, CWE-1188/319); silently opting out of it in perpetuity, in code, is a position this repository should state rather than inherit by accident.
-- The existing cross-app regression test asserts a code-level default; it should instead assert the deployment declaration that actually determines the posture.
+- The existing cross-app regression test asserts a code-level default; it should instead assert the deployment declaration that actually determines the posture and keeps the opt-in path visible.
 - Nine byte-identical 16-line subclasses must each be re-verified at every cosalette upgrade.
 - Settings precedence (init > env > dotenv > config_file > secrets > defaults) already supports per-deployment declaration without any code-level subclass.
 
@@ -65,9 +65,9 @@ Remove the subclasses and let cosalette's `tls=True` default take effect, requir
 
 ### Option 3: Declare MQTT__TLS per deployment (chosen)
 
-Remove the subclasses so the `mqtt` field is inherited from `cosalette.Settings` with its TLS-on default, and declare `<PREFIX>_MQTT__TLS=false` explicitly in each shipped deployment configuration, adjacent to the broker host setting that establishes the topology.
+Remove the subclasses so the `mqtt` field is inherited from `cosalette.Settings` with its TLS-on default, and expose `<PREFIX>_MQTT__TLS` in each shipped deployment configuration adjacent to the broker host setting that establishes the topology, defaulting it to `false` for the bundled plaintext broker.
 
-- *Advantages:* The posture is stated in configuration, visible to whoever deploys the app, next to the broker host it depends on.; Runtime behaviour is unchanged on day one for every compose-based deployment.; Removes roughly 150 lines of duplicated scaffolding and the per-upgrade re-verification burden.; Enabling TLS later becomes a one-line configuration change rather than a source-code edit.; Keeps a single repository-wide record in this ADR rather than nine docstring copies.
+- *Advantages:* The posture is stated in configuration, visible to whoever deploys the app, next to the broker host it depends on.; Runtime behaviour is unchanged on day one for every compose-based deployment.; Removes roughly 150 lines of duplicated scaffolding and the per-upgrade re-verification burden.; Enabling TLS later becomes a one-line `.env` or Compose-override change rather than a source-code edit.; Keeps a single repository-wide record in this ADR rather than nine docstring copies.
 - *Disadvantages:* Any deployment that does not use the shipped compose files must add the setting before upgrading or it will fail to connect.; The effective posture is still plaintext, so finding F-CU1 remains unaddressed in substance until the broker gains a TLS listener.; Each new app must remember to declare the setting; the inherited default will not do it for them.
 
 ## Decision Matrix
@@ -89,14 +89,14 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 - The transport posture is declared in each deployment's configuration, adjacent to the broker host, where an operator changing the broker will see it.
 - Roughly 150 lines of duplicated compatibility scaffolding are removed from the source tree, along with the obligation to re-verify nine identical subclasses at each cosalette upgrade.
-- Enabling TLS becomes a one-line configuration change per deployment plus broker work, with no source edit.
+- Enabling TLS becomes a one-line `.env` or Compose-override change per deployment plus broker work, with no source edit.
 - The repository-wide record lives in this ADR rather than in an agent-instructions file that `cosalette ai init --force` overwrites.
-- The cross-app regression test now asserts that every shipped compose file declares the posture, so deleting the declaration fails CI rather than surfacing as a failed broker connection.
+- The cross-app regression test now asserts that every shipped compose file declares the posture on the app service and defaults it to `false`, so deleting the declaration or masking TLS opt-in fails CI rather than surfacing as a failed broker connection.
 
 ### Negative
 
 - The effective posture remains plaintext MQTT, so upstream finding F-CU1 (CWE-1188/319) is documented rather than remediated; credentials and payloads stay readable to anything on the broker's network segment.
-- Any deployment not using the shipped compose files must add `<PREFIX>_MQTT__TLS=false` before upgrading, or the app will inherit `tls=True` and fail to connect. Deployment is currently compose-only, which bounds this risk to future installations.
+- Any deployment not using the shipped compose files must still set `<PREFIX>_MQTT__TLS=false` before upgrading, or the app will inherit `tls=True` and fail to connect. Deployment is currently compose-only, which bounds this risk to future installations.
 - Each new app must declare the setting in its deployment configuration; the inherited default will not supply it.
 - cosalette's `_log_transport_posture()` check continues to warn on every connect, since all nine apps target a non-loopback broker host over plaintext.
 
