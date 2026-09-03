@@ -211,6 +211,26 @@ no `model:` at all and `task check:agents` fails if one reappears. See
 keep in sync. Kilo is deliberately allowed to drift: `.github/agents/` is not wired into
 it, and it will get purpose-built agents once it specialises.
 
+## Refreshing cosalette guidance
+
+> This section sits **outside** the generated block below on purpose.
+> `cosalette ai init` replaces everything between the `COSALETTE AI SUPPORT` markers, so
+> downstream notes only survive out here.
+
+**What `--force` keeps and what it replaces.** A refresh merges
+`.github/instructions/cosalette.instructions.md` rather than overwriting it:
+template-owned frontmatter keys are updated and every other top-level key — including
+the downstream `paths:` this repo adds — is preserved
+(`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
+**comments inside the frontmatter**, and **the entire body**, which is replaced by the
+shipped template. Any repo-specific body note (the MQTT TLS pinning and the command
+`timeout=` correction) must be re-added afterwards. Run `cosalette ai init --check`
+first to see the diff.
+
+A refresh also rewrites `.vscode/mcp.json`, pointing the cosalette server at
+`uv run --package cosalette`. That fails here — `cosalette` is a dependency, not a
+workspace member — so restore the checked-in interpreter path after refreshing.
+
 <!-- BEGIN COSALETTE AI SUPPORT v:1 -->
 
 ## cosalette Framework Support
@@ -220,14 +240,5 @@ Framework guidance is maintained in
 
 **Refresh guidance:** `cosalette ai init --force` **Framework overview:**
 `cosalette ai prime` **Topic-specific help:** `cosalette ai help <topic>`
-
-> **What `--force` keeps and what it replaces.** Since cosalette 0.8.0 a refresh merges
-> instead of overwriting: template-owned frontmatter keys are updated and every other
-> top-level key — including the downstream `paths:` this repo adds — is preserved
-> (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
-> **comments inside the frontmatter**, and **the entire body**, which is replaced by the
-> shipped template. So any repo-specific note in the body (e.g. the MQTT TLS pinning
-> note) must be re-added after a refresh. Run `cosalette ai init --check` first to see
-> the diff.
 
 <!-- END COSALETTE AI SUPPORT -->
