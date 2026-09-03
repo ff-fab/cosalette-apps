@@ -60,9 +60,6 @@
       "Bash(bd:*)",
       "Bash(showboat:*)",
       "Bash(gh pr view:*)",
-      "Bash(gh pr list:*)",
-      "Bash(gh pr diff:*)",
-      "Bash(gh pr checks:*)",
       "Bash(gh issue list:*)",
       "Bash(task typecheck *)",
       "Bash(task pre-pr *)",
@@ -73,7 +70,6 @@
       "Bash(git add *)",
       "Bash(task beads:sync)",
       "Bash(git commit -m ' *)",
-      "Bash(task ci:wait -- 216)",
       "Bash(git checkout *)",
       "Bash(git pull *)"
     ],

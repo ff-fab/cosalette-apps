@@ -17,7 +17,7 @@ from pydantic_settings import PydanticBaseSettingsSource
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import error_type_map
-from airthings2mqtt.main import _telemetry
+from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS, _telemetry
 from airthings2mqtt.ports import AirthingsReaderPort
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -72,7 +72,7 @@ class RealSleepClock(FakeClock):
 def build_integration_app(
     adapter: type | object = FakeAirthingsReader,
     *,
-    min_interval: float | None = None,
+    min_interval: float | None = _TRIGGER_MIN_INTERVAL_SECONDS,
 ) -> App:
     """Construct a fully-wired App with the given reader adapter.
 
@@ -82,9 +82,10 @@ def build_integration_app(
     Args:
         adapter: Adapter class or factory callable for AirthingsReaderPort.
             Defaults to FakeAirthingsReader.
-        min_interval: Optional ADR-066 trigger throttle.  Production uses
-            ``main._TRIGGER_MIN_INTERVAL_SECONDS``; tests that assert throttle
-            *behaviour* pass a fraction of a second so they stay fast.
+        min_interval: ADR-066 trigger throttle. Defaults to the production
+            value; tests that assert throttle *behaviour* pass a fraction of a
+            second so they stay fast, and the negative control passes
+            ``None`` explicitly to disable the throttle.
     """
     test_app = App(
         name="airthings2mqtt",

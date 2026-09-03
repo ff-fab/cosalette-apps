@@ -38,9 +38,10 @@ class _MqttSettings(MqttSettings):
     the broker cannot answer. Deployments opt in per environment with
     ``VITO2MQTT_MQTT__TLS=true``.
 
-    A ``default_factory`` on the ``mqtt`` field would not achieve this: any
-    sibling ``MQTT__*`` variable makes pydantic-settings rebuild the nested
-    model from its field defaults, restoring ``tls=True``.
+    A ``default_factory`` only works here because ``mqtt`` is annotated as this
+    subclass with ``tls=False`` overridden. If the field stayed typed as the
+    base ``MqttSettings``, sibling ``MQTT__*`` variables would restore
+    ``tls=True`` during nested-model reconstruction.
     """
 
     tls: bool = False

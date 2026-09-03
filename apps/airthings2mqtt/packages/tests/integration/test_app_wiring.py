@@ -183,7 +183,7 @@ class TestTelemetryPublishing:
 
 
 class TestTriggeredTelemetry:
-    """Verify MQTT /set messages trigger immediate Airthings re-reads."""
+    """Verify MQTT /set messages trigger Airthings re-reads."""
 
     @pytest.mark.integration
     @pytest.mark.slow
@@ -191,7 +191,8 @@ class TestTriggeredTelemetry:
         """Empty /set payload triggers an extra sensor read and state publish.
 
         Uses a 1-hour poll interval so the second state publish cannot be a
-        scheduled tick — it must be the triggered re-read.
+        scheduled tick — it must be the triggered re-read, whether immediate or
+        delayed by the production throttle window.
 
         Technique: Integration — verify MQTT inbound trigger reaches telemetry.
         """

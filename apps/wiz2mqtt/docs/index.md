@@ -6,6 +6,10 @@
 
 **WiZ smart bulb control over MQTT for openHAB and Home Assistant**
 
+wiz2mqtt turns one or more WiZ bulbs into MQTT entities with low-latency,
+push-driven state publication and partial JSON command handling. Each configured
+bulb gets its own retained state topic, command topic, and availability signal.
+
 ---
 
 ## Quick Links
@@ -45,3 +49,22 @@
     [:octicons-arrow-right-24: Decisions](adr/)
 
 </div>
+
+## Features
+
+- Per-bulb command topic with partial JSON updates (`state`, `brightness`,
+    `color`, `color_temp`, `effect`)
+- Push-driven state publication via local triggers, with a 60-second heartbeat
+    as the liveness floor
+- Retained MQTT state payloads shaped for Home Assistant and openHAB
+- Optional bare-hex MAC verification to detect IP/bulb mismatches at startup
+- Config-file bulb inventory (`wiz2mqtt.toml`) with environment overrides
+
+## Deployment Model
+
+| Item | Notes |
+| ---- | ----- |
+| Bulbs | One or more WiZ bulbs reachable on the local network |
+| Identity | Configure a stable `name`, IPv4 `ip`, and optional bare-hex `mac` |
+| MQTT | Inherits cosalette MQTT settings; default topic prefix is `wiz2mqtt` |
+| Freshness | Push updates publish immediately; the heartbeat probes idle bulbs |
