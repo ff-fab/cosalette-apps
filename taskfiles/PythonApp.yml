@@ -104,6 +104,19 @@ tasks:
     # inventory lives in a TOML/YAML/JSON file (cap-10u.5). Either variable
     # switches this task to the resolving branch, so those apps are validated
     # against the same checked-in profile schema:generate uses.
+    #
+    # EXPECTED WARNINGS — these are not drift, and the task still exits 0:
+    #   jeelink2mqtt "receiver — EXTRA": `receiver` is a ROOT entity (@app.stream
+    #     with no name=), so its address is `jeelink2mqtt/state` — two segments.
+    #     The channel IS in docs/schema.yaml as `receiverState`, but the checker
+    #     re-derives device names from addresses and cosalette's
+    #     _schema/__init__.py::_device_name_from_archetype deliberately returns
+    #     None below three segments, so no root entity can ever match. Affects
+    #     any app with a root-level entity. Naming the stream would move a
+    #     retained topic, which is not worth a cosmetic warning. See cap-85q.
+    #   wiz2mqtt "example — EXTRA": different cause — docs/schema.yaml carries no
+    #     channels at all (the bulb inventory is TOML-driven), so the resolved
+    #     placeholder bulb has nothing to match. Also tracked under cap-85q.
     vars:
       RESOLVE_FLAGS: '{{if .SCHEMA_ENV_FILE}}--env-file {{.SCHEMA_ENV_FILE}} {{end}}{{if .SCHEMA_CONFIG_FILE}}--config-file {{.SCHEMA_CONFIG_FILE}}{{end}}'
     cmds:

@@ -189,6 +189,23 @@ class MySettings(cosalette.Settings):
 Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 `mqtt.tls_cert_file`/`mqtt.tls_key_file` for broker TLS on port 8883.
 
+> **Downstream note — not from the shipped template; re-add after `ai init`.**
+>
+> **`mqtt.tls` defaults to `True` since cosalette 0.7.0** (ADR-062). All nine apps in
+> this monorepo pin it back to `False` with a local `_MqttSettings(cosalette.MqttSettings)`
+> subclass overriding `tls: bool = False` (eight `settings.py`, plus
+> `apps/vito2mqtt/packages/src/vito2mqtt/config.py`), because every deployment talks to a
+> plaintext broker on the LAN. Keep the subclass when adding an app — dropping it silently
+> restores `tls=True` and the app fails to connect. The per-deployment posture is being
+> revisited under `cap-50n`; until that lands, `tls=False` is the deliberate default here.
+>
+> **A command handler's `timeout=` is NOT unbounded by default.** The shipped template
+> says `Default None (no timeout)`; the code disagrees. Omitting `timeout=` applies a
+> bounded default of 30 s (`_utils.py::_DEFAULT_COMMAND_TIMEOUT`, applied by
+> `_wiring/_resolution.py::resolve_timeouts_commands` per ADR-060). Only an explicit
+> `timeout=None` is unbounded. Verified against the installed 0.8.0 wheel; upstream doc
+> bug tracked as `cap-l2p`.
+
 See `cosalette ai help configuration`.
 
 ## Typed Handler Contracts
