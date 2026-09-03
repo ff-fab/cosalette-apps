@@ -50,3 +50,7 @@ class FakeDeviceContext:
     def shutdown_requested(self) -> bool:
         """Return the current shutdown flag value."""
         return self._shutdown
+
+    def request_shutdown(self) -> None:
+        """Raise the shutdown flag so a handler loop exits at its next check."""
+        self._shutdown = True

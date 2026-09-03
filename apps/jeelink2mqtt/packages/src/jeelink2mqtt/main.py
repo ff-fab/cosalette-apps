@@ -112,6 +112,7 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
     store: DeviceStore,
     settings: Jeelink2MqttSettings,
     state: SharedState,
+    notify: cosalette.EntityNotifier,
 ) -> AsyncIterator[None]:
     """Main receiver loop: read frames from stream, process, publish."""
 
@@ -130,23 +131,23 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
             name = state.registry.record_reading(reading)
 
             # 3. Mapped → filter → calibrate → cache
-            # Hoist timestamp: one call shared by record_calibrated_reading (step 3)
-            # and persist_registry_if_due (step 4) to avoid two datetime.now(UTC) calls.
-            now = datetime.now(UTC)
-
             if name is not None:
                 config = state.sensor_configs.get(name)
                 if config is not None:
                     calibrated = _pipeline.filter_and_calibrate(
                         reading, config, state.filter_bank
                     )
-                    # Cache the calibrated reading — the sensor's own
-                    # per-sensor device (sensor_entity) publishes it.
-                    state.record_calibrated_reading(name, calibrated, now)
+                    # Cache the calibrated reading, then wake the sensor's
+                    # own device (sensor_entity) to publish it.  The arm is
+                    # the freshness signal: sensor_entity_tick publishes iff
+                    # it was triggered (or the heartbeat is due), so the
+                    # cache write must happen first.
+                    state.record_calibrated_reading(name, calibrated)
+                    notify(name)
 
             # 4. Periodic persistence for last_seen metadata (ADR-004)
             new_persist_time = state.persist_registry_if_due(
-                store, now, last_persist_time, 60
+                store, datetime.now(UTC), last_persist_time, 60
             )
             if new_persist_time is not None:
                 last_persist_time = new_persist_time
@@ -157,6 +158,19 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
         logger.info("Receiver stopped")
 
 
+_TICK_INTERVAL_SECONDS: float = 1.0
+"""Heartbeat bound on :meth:`cosalette.DeviceTrigger.wait`.
+
+Deliberately unchanged from the pre-trigger ``ctx.sleep(1.0)``: a wake only
+arrives when a *frame* does, and the whole point of the remaining timeout is
+the paths a frame never drives — staleness (``staleness_timeout_seconds``,
+default 600 s) and the heartbeat re-publish (``heartbeat_interval_seconds``,
+default 180 s).  Both are resolved to the granularity of this bound, so
+lengthening it would trade a silent staleness-detection regression for
+sleeps that are already free.
+"""
+
+
 @app.device(
     name=lambda s: {sc.name: sc for sc in s.sensors},
     summary=(
@@ -164,24 +178,37 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
         "re-publish, and staleness availability"
     ),
     state_model=SensorStateModel,
+    # cosalette ADR-065: "local" is the only source a device accepts, and it
+    # requires the DeviceTrigger parameter below.  The stream receiver arms
+    # this entity after caching a calibrated reading.
+    #
+    # No min_interval=: with a throttle set, a "scheduled" payload no longer
+    # means "no reading arrived" (DeviceTrigger.wait docstring), which is
+    # exactly how the tick reads it.  Frame rate is bounded by the hardware
+    # anyway — a LaCrosse sensor transmits every ~30 s.
+    triggerable="local",
 )
 async def sensor_entity(  # pragma: no cover — composition root, tested via helpers
     ctx: cosalette.DeviceContext,
     config: SensorConfigSettings,
     settings: Jeelink2MqttSettings,
     state: SharedState,
+    trigger: cosalette.DeviceTrigger,
 ) -> AsyncIterator[None]:
     """Per-configured-sensor device: publish state, heartbeat, availability.
 
     One instance is registered per ``settings.sensors`` entry (dict-name
-    ``NameSpec``). Ticks every second, matching the cadence of the
-    staleness/heartbeat devices this replaces; see
-    :func:`jeelink2mqtt.receiver.sensor_entity_tick` for the unified
+    ``NameSpec``). Runs when the stream receiver caches a reading for this
+    sensor, and otherwise every :data:`_TICK_INTERVAL_SECONDS` so the
+    heartbeat and staleness paths still fire while the hardware is quiet;
+    see :func:`jeelink2mqtt.receiver.sensor_entity_tick` for the unified
     publish/heartbeat/staleness logic.
     """
     while not ctx.shutdown_requested:
-        await ctx.sleep(1.0)
-        await _receiver.sensor_entity_tick(ctx, config.name, settings, state)
+        payload = await trigger.wait(timeout=_TICK_INTERVAL_SECONDS)
+        await _receiver.sensor_entity_tick(
+            ctx, config.name, settings, state, triggered=payload.is_triggered
+        )
         yield
 
 

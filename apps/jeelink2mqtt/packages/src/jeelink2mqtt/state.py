@@ -49,32 +49,10 @@ class SharedState:
     last_readings: dict[str, SensorReading] = field(default_factory=dict)
     """Last calibrated reading per sensor (for heartbeat re-publish)."""
 
-    last_reading_at: dict[str, datetime] = field(default_factory=dict)
-    """When the stream last calibrated a reading for this sensor.
-
-    Written by :meth:`record_calibrated_reading`. Compared against
-    :attr:`last_published_reading_at` by the per-sensor device's tick
-    (:func:`jeelink2mqtt.receiver.sensor_entity_tick`) to detect a fresh
-    reading that hasn't been published yet.
-    """
-
     last_publish_time: dict[str, datetime] = field(default_factory=dict)
     """Last time the per-sensor device published state (for heartbeat
     interval tracking). Written by
     :func:`jeelink2mqtt.receiver.sensor_entity_tick`, not by the stream.
-    """
-
-    last_published_reading_at: dict[str, datetime] = field(default_factory=dict)
-    """Calibration timestamp of the *last published* reading per sensor.
-
-    Distinct from :attr:`last_publish_time` (publish wall-clock, used for
-    the heartbeat interval): this tracks *which* reading was last published
-    by storing its ``last_reading_at`` value. The per-sensor tick compares
-    the currently cached ``last_reading_at`` against this to decide freshness,
-    so a reading the stream caches while a publish is in flight is never
-    mistaken for already-published (no interleaving race between the stream
-    and the tick). Written by
-    :func:`jeelink2mqtt.receiver.sensor_entity_tick`.
     """
 
     last_availability: dict[str, str] = field(default_factory=dict)
@@ -119,17 +97,20 @@ class SharedState:
             len(self.registry.get_all_mappings()),
         )
 
-    def record_calibrated_reading(
-        self, name: str, reading: SensorReading, calibrated_at: datetime
-    ) -> None:
+    def record_calibrated_reading(self, name: str, reading: SensorReading) -> None:
         """Cache a freshly calibrated reading for the sensor's device to publish.
 
-        Called by the stream receiver after filter+calibrate. Publishing
+        Called by the stream receiver after filter+calibrate, which then arms
+        the sensor's trigger (:class:`cosalette.EntityNotifier`). Publishing
         itself — and availability — is the per-sensor device's
         responsibility (:func:`jeelink2mqtt.receiver.sensor_entity_tick`).
+
+        No "calibrated at" timestamp is kept: the arm *is* the freshness
+        signal, and it coalesces, so a reading cached during an in-flight
+        publish leaves the slot armed for the next run rather than needing a
+        timestamp comparison to be noticed.
         """
         self.last_readings[name] = reading
-        self.last_reading_at[name] = calibrated_at
 
     def persist_registry_if_due(
         self,

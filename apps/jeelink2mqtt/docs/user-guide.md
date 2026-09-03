@@ -19,7 +19,7 @@ For each decoded LaCrosse frame the `receiver` stream executes these steps in or
 | 2 | Registry: route ephemeral ID → sensor name (auto-adopt / manual) | — |
 | 3 | Median filter: reject outlier readings (default window 7) | — |
 | 4 | Calibration: apply per-sensor temperature/humidity offsets | — |
-| 5 | Cache calibrated reading for the sensor's device to publish | — |
+| 5 | Cache calibrated reading, then wake the sensor's device to publish it | — |
 
 Steps 3–5 only run for **mapped** sensors. Unknown sensor IDs are tracked silently and
 visible via `list_unknown`.
@@ -33,14 +33,19 @@ queued in step 2:
 | Publish full mapping snapshot | `jeelink2mqtt/mapping/state` |
 | Persist registry to `data/jeelink2mqtt.json` | — |
 
-Independently, each configured sensor's own `sensor_entity` device ticks once a second
-and decides what to publish:
+Each configured sensor's own `sensor_entity` device runs when step 5 wakes it, and
+otherwise once a second, then decides what to publish:
 
 | Condition | Action | MQTT topic |
 |-----------|--------|------------|
 | Stale (no raw frame within the staleness timeout) | `ctx.mark_unavailable()` (once, on the online→offline transition) | `jeelink2mqtt/{sensor}/availability` (retained) |
 | Recovered from stale | `ctx.mark_available()` (once, on recovery) | `jeelink2mqtt/{sensor}/availability` (retained) |
-| Cached reading newer than the last publish, or heartbeat interval elapsed | Publish calibrated state | `jeelink2mqtt/{sensor}/state` (retained) |
+| Woken by a fresh reading, or heartbeat interval elapsed | Publish calibrated state | `jeelink2mqtt/{sensor}/state` (retained) |
+
+The wake is in-process (a cosalette `EntityNotifier`, no MQTT round-trip): a frame is
+published as soon as it has been filtered and calibrated, rather than waiting up to a
+second for the next tick.  The one-second tick remains as the heartbeat and staleness
+bound — those paths have no frame to wake them.
 
 This keeps state/availability framework-managed per sensor (ADR-048 retained-entity
 cleanup on sensor removal) instead of hand-built inside the stream loop.

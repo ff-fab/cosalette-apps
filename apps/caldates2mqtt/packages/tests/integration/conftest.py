@@ -68,9 +68,26 @@ class _FastPollSettings(CalDates2MqttSettings):
         return (init_settings,)
 
 
+class RealSleepClock(FakeClock):
+    """A :class:`FakeClock` whose ``sleep`` actually waits.
+
+    ``FakeClock.sleep`` advances virtual time instantly, which erases every
+    delay the app asks for — including the ADR-066 ``min_interval=`` throttle
+    window.  Tests that assert a *spacing* need the sleep to cost real time;
+    they pay for it by using a throttle measured in fractions of a second.
+    """
+
+    async def sleep(self, seconds: float) -> None:
+        await asyncio.sleep(seconds)
+        if seconds > 0:
+            self._time += seconds
+
+
 def build_integration_app(
     fake_reader: FakeCalDavReader,
     calendars: list[CalendarConfig],
+    *,
+    min_interval: float | None = None,
 ) -> App:
     """Construct a fully-wired App with FakeCalDavReader.
 
@@ -81,6 +98,9 @@ def build_integration_app(
     Args:
         fake_reader: FakeCalDavReader instance to inject.
         calendars: Calendar configurations to register as telemetries.
+        min_interval: Optional ADR-066 trigger throttle.  Production uses
+            ``main._TRIGGER_MIN_INTERVAL_SECONDS``; tests that assert throttle
+            *behaviour* pass a fraction of a second so they stay fast.
     """
     app = App(
         name="caldates2mqtt",
@@ -105,6 +125,7 @@ def build_integration_app(
             _make_handler(cal),
             schedule=cal.schedule,
             triggerable=True,
+            min_interval=min_interval,
         )
     return app
 
@@ -114,6 +135,8 @@ def make_harness(
     calendars: list[CalendarConfig],
     *,
     settings: CalDates2MqttSettings | None = None,
+    min_interval: float | None = None,
+    clock: FakeClock | None = None,
 ) -> AppHarness:
     """Construct an AppHarness wrapping the integration app.
 
@@ -122,13 +145,15 @@ def make_harness(
         calendars: Calendar configurations to register as telemetries.
         settings: Optional settings override; defaults to _FastPollSettings
             with the provided calendars.
+        min_interval: Optional ADR-066 trigger throttle for the registrations.
+        clock: Optional clock override; defaults to a virtual-time FakeClock.
     """
     if settings is None:
         settings = _FastPollSettings(calendars=calendars)  # type: ignore[arg-type]
     return AppHarness(
-        app=build_integration_app(fake_reader, calendars),
+        app=build_integration_app(fake_reader, calendars, min_interval=min_interval),
         mqtt=MockMqttClient(),
-        clock=FakeClock(),
+        clock=clock or FakeClock(),
         settings=settings,
         shutdown_event=asyncio.Event(),
     )

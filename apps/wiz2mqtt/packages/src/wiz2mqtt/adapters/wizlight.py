@@ -3,6 +3,12 @@
 Owns the ``pywizlight`` connection, the push subscription, and the state
 cache for every bulb it has been asked about. Bulbs are identified by IP
 and connected to lazily on first contact — there is no fixed inventory.
+
+A push does more than refresh the cache: it arms the matching telemetry
+entity through the injected :class:`~cosalette.EntityNotifier`, so the
+bulb's own UDP notification is what drives publication (cosalette
+ADR-064). The ``interval=`` tick in ``wiz2mqtt.main`` degrades to a
+heartbeat.
 """
 
 from __future__ import annotations
@@ -13,7 +19,9 @@ import logging
 import time
 from collections.abc import Callable
 from types import TracebackType
-from typing import TYPE_CHECKING, Any, Self
+from typing import TYPE_CHECKING, Annotated, Any, Self
+
+from cosalette import EntityNotifier, Optional
 
 from wiz2mqtt.colour import (
     clamp_kelvin,
@@ -23,6 +31,7 @@ from wiz2mqtt.colour import (
 )
 from wiz2mqtt.errors import WizBridgeError, WizConnectionError, WizTimeoutError
 from wiz2mqtt.models import BulbCapabilities, BulbState
+from wiz2mqtt.settings import Wiz2MqttSettings
 
 if TYPE_CHECKING:
     from pywizlight.bulb import PilotParser
@@ -48,9 +57,22 @@ class WizBulbAdapter:
     """
 
     def __init__(
-        self, push_staleness_threshold: float = _DEFAULT_PUSH_STALENESS_THRESHOLD
+        self,
+        settings: Wiz2MqttSettings,
+        notify: EntityNotifier,
+        # Annotated[..., Optional()] keeps this out of the DI resolution:
+        # a bare ``float`` puts the parameter in the injection plan, where
+        # it fails with "no provider is registered for type float".
+        push_staleness_threshold: Annotated[float, Optional()] = (
+            _DEFAULT_PUSH_STALENESS_THRESHOLD
+        ),
     ) -> None:
         self._push_staleness_threshold = push_staleness_threshold
+        self._notify = notify
+        # Total and injective: Wiz2MqttSettings._bulbs_unique guarantees both
+        # names and IPs are unique, and the telemetry entity names come from
+        # the same list (main._bulb_map).
+        self._name_by_ip = {bulb.ip: bulb.name for bulb in settings.bulbs}
         self._bulbs: dict[str, Any] = {}
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state_cache: dict[str, BulbState] = {}
@@ -115,8 +137,21 @@ class WizBulbAdapter:
             if state is not None:
                 self._state_cache[ip] = state
                 self._last_push_at[ip] = time.monotonic()
+                self._wake(ip)
 
         return _on_push
+
+    def _wake(self, ip: str) -> None:
+        """Arm *ip*'s telemetry entity so the fresh cache publishes now.
+
+        A no-op for an IP outside ``settings.bulbs``: nothing registered a
+        telemetry entity for it, so there is no slot to arm.  Arming is
+        coalescing and thread-safe, so a burst of pushes collapses into one
+        out-of-cycle run and an off-loop callback is marshalled for us.
+        """
+        name = self._name_by_ip.get(ip)
+        if name is not None:
+            self._notify(name)
 
     async def get_capabilities(self, ip: str) -> BulbCapabilities:
         """Return the bulb's auto-detected capabilities."""

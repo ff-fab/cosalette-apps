@@ -93,6 +93,8 @@ async def sensor_entity_tick(
     name: str,
     settings: Jeelink2MqttSettings,
     state: SharedState,
+    *,
+    triggered: bool,
 ) -> None:
     """One tick of a per-sensor ``sensor_entity`` device (see main.py).
 
@@ -103,9 +105,15 @@ async def sensor_entity_tick(
     1. Stale (no raw frame within the staleness timeout): mark
        unavailable once, on the fresh→stale transition.
     2. Not stale: mark available once, on recovery, then publish state
-       if the stream cached a reading newer than the one we last
-       published, or if the heartbeat interval has elapsed since our
-       last publish.
+       if this run was woken by a fresh reading, or if the heartbeat
+       interval has elapsed since our last publish.
+
+    Args:
+        triggered: ``True`` when the stream armed this device's trigger
+            after caching a reading — the wake *is* the freshness
+            signal, which is why no published-reading timestamp is kept.
+            ``False`` on the loop's own timeout, where only the
+            heartbeat can publish.
     """
     if state.registry.is_stale(name):
         if state.last_availability.get(name) != "offline":
@@ -123,21 +131,15 @@ async def sensor_entity_tick(
 
     now = datetime.now(UTC)
     last_publish = state.last_publish_time.get(name)
-    reading_at = state.last_reading_at.get(name)
-    # Freshness compares the cached reading's calibration timestamp against the
-    # calibration timestamp of the reading we last published — never against the
-    # publish wall-clock. Mixing the two would let a reading cached by the stream
-    # during an in-flight publish be misjudged as already published.
-    last_published_reading_at = state.last_published_reading_at.get(name)
-    is_fresh = reading_at is not None and (
-        last_published_reading_at is None or reading_at > last_published_reading_at
-    )
+    # "Never published" counts as due: it is the recovery path for a wake
+    # consumed by a publish that failed, which would otherwise strand the
+    # sensor until its next frame.
     is_heartbeat_due = (
-        last_publish is not None
-        and (now - last_publish).total_seconds() >= settings.heartbeat_interval_seconds
+        last_publish is None
+        or (now - last_publish).total_seconds() >= settings.heartbeat_interval_seconds
     )
 
-    if not (is_fresh or is_heartbeat_due):
+    if not (triggered or is_heartbeat_due):
         return
 
     await ctx.publish_state(
@@ -149,5 +151,3 @@ async def sensor_entity_tick(
         }
     )
     state.last_publish_time[name] = now
-    if reading_at is not None:
-        state.last_published_reading_at[name] = reading_at

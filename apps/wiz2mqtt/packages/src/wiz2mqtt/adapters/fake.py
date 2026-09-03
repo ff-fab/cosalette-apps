@@ -3,15 +3,23 @@
 No ``pywizlight`` import at all — state and capabilities live in plain
 dicts, seeded with sensible defaults so tests don't need boilerplate setup
 unless they care about specific values.
+
+Mirrors the production adapter's push→wake path: :meth:`inject_push`
+stands in for a real UDP notification and arms the same telemetry
+trigger, so ``--dry-run`` and the integration suite exercise
+event-driven publication rather than falling back to the heartbeat.
 """
 
 from __future__ import annotations
 
 from types import TracebackType
-from typing import Self
+from typing import Annotated, Self
+
+from cosalette import EntityNotifier, Optional
 
 from wiz2mqtt.errors import WizTimeoutError
 from wiz2mqtt.models import BulbCapabilities, BulbState
+from wiz2mqtt.settings import Wiz2MqttSettings
 
 _DEFAULT_CAPABILITIES = BulbCapabilities(
     bulb_class="RGB",
@@ -38,7 +46,20 @@ _DEFAULT_STATE = BulbState(
 class FakeWizBulbAdapter:
     """Fake adapter satisfying :class:`wiz2mqtt.ports.WizBulbPort` structurally."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        # Both are Optional() so a bare ``FakeWizBulbAdapter()`` still works
+        # in unit tests that never touch the push path.  Under the framework
+        # (``--dry-run``) both providers exist and are always injected.
+        settings: Annotated[Wiz2MqttSettings | None, Optional()] = None,
+        notify: Annotated[EntityNotifier | None, Optional()] = None,
+    ) -> None:
+        self._notify = notify
+        self._name_by_ip = (
+            {bulb.ip: bulb.name for bulb in settings.bulbs}
+            if settings is not None
+            else {}
+        )
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state: dict[str, BulbState] = {}
         self._fail_next: dict[str, Exception] = {}
@@ -110,9 +131,26 @@ class FakeWizBulbAdapter:
         """Seed the capabilities a subsequent :meth:`get_capabilities` returns."""
         self._capabilities[ip] = caps
 
+    def bind(self, settings: Wiz2MqttSettings, notify: EntityNotifier) -> None:
+        """Hand a pre-built fake the two dependencies DI would have injected.
+
+        Integration harnesses build the fake before the ``App`` exists so
+        tests can prime it, then register it via a closure — which bypasses
+        constructor injection.  This restores it.
+        """
+        self._notify = notify
+        self._name_by_ip = {bulb.ip: bulb.name for bulb in settings.bulbs}
+
     def inject_push(self, ip: str, state: BulbState) -> None:
-        """Simulate a push arriving, overwriting the cached state directly."""
+        """Simulate a push arriving: overwrite the cache, then arm the entity.
+
+        The arm is skipped for an unbound fake or an IP outside
+        ``settings.bulbs`` — same no-op rule as the production ``_wake``.
+        """
         self._state[ip] = state
+        name = self._name_by_ip.get(ip)
+        if self._notify is not None and name is not None:
+            self._notify(name)
 
     def fail_next(self, ip: str, exc: Exception) -> None:
         """Raise *exc* on the next call for *ip*, then clear."""

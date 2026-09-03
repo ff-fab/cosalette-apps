@@ -61,11 +61,24 @@ def _get_read_lock() -> asyncio.Lock:
     return lock
 
 
+_TRIGGER_MIN_INTERVAL_SECONDS: float = 30.0
+"""Minimum spacing between trigger-initiated reads (cosalette ADR-066).
+
+A BLE connect/read to the Airthings takes seconds and drains a battery-powered
+sensor, and ``airthings2mqtt/airthings/set`` is a public MQTT topic - a dashboard
+button held down, or an automation loop, would otherwise queue one round-trip per
+message. A wake inside a closed window is *held*, not dropped, so the re-read
+still happens; it just waits for the window to reopen. Well under the default
+``poll_interval`` so it never throttles the scheduled cadence.
+"""
+
+
 @app.telemetry(
     "airthings",
     interval=setting_ref("poll_interval"),
     timeout=setting_ref("poll_timeout"),
     triggerable=True,
+    min_interval=_TRIGGER_MIN_INTERVAL_SECONDS,
     retry=3,
     retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",

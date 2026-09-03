@@ -20,6 +20,7 @@ import pytest
 from cosalette.testing import AppHarness
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.models import BulbState
 
 from .conftest import TOPIC_PREFIX, wait_until_subscribed
 
@@ -132,3 +133,91 @@ class TestUnreachableBulbOffPolicy:
         harness_when_off.assert_published(
             f"{TOPIC_PREFIX}/office/availability", contains="online"
         )
+
+
+_BULB_IP = "10.0.0.5"
+"""IP of the single bulb the ``test_settings`` fixture configures."""
+
+_STATE_TOPIC = f"{TOPIC_PREFIX}/office/state"
+
+_PUSH_WINDOW = 1.0
+"""Seconds to wait for a push-driven publish before calling it a failure."""
+
+_QUIET_WINDOW = 0.2
+"""Seconds of deliberate inactivity used to prove no tick is due."""
+
+_PUSHED_STATE = BulbState(
+    state=True,
+    brightness=42,
+    hue=None,
+    saturation=None,
+    color_temp_kelvin=3000,
+    scene=None,
+)
+"""A state that differs from the fake's default, so OnChange() lets it through."""
+
+
+async def _wait_for_messages(harness: AppHarness, topic: str, count: int) -> None:
+    """Poll until *topic* has at least *count* messages, or fail with the count."""
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + _PUSH_WINDOW
+    while len(harness.messages_for(topic)) < count:
+        if loop.time() >= deadline:
+            raise AssertionError(
+                f"{topic} had {len(harness.messages_for(topic))} message(s), "
+                f"expected {count}, after {_PUSH_WINDOW}s"
+            )
+        await asyncio.sleep(0.005)
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestPushDrivenPublication:
+    """A bulb push publishes immediately, without waiting for a scheduled tick.
+
+    These run against ``push_harness``: ``interval=NO_TICK_INTERVAL`` (30 s)
+    on a clock that really sleeps. Only the startup run and a trigger wake
+    can publish inside the test window, so a second message is proof the
+    ``triggerable="local"`` path works end to end — registration, adapter
+    injection, ``EntityNotifier`` name resolution and the runner's trigger
+    race all included.
+    """
+
+    async def test_push_publishes_before_the_next_scheduled_tick(
+        self, push_harness: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Integration — the whole push→publish path in one assertion."""
+        task = asyncio.create_task(push_harness.run())
+        try:
+            await wait_until_subscribed(push_harness)
+            await _wait_for_messages(push_harness, _STATE_TOPIC, 1)  # startup run
+
+            fake_adapter.inject_push(_BULB_IP, _PUSHED_STATE)
+            await _wait_for_messages(push_harness, _STATE_TOPIC, 2)
+
+            payload, retain, _qos = push_harness.messages_for(_STATE_TOPIC)[1]
+            assert json.loads(payload)["brightness"] == 42
+            assert retain is True
+        finally:
+            push_harness.shutdown_event.set()
+            await asyncio.wait_for(task, timeout=2.0)
+
+    async def test_without_a_push_the_long_interval_really_holds(
+        self, push_harness: AppHarness
+    ) -> None:
+        """The negative control for the test above.
+
+        Technique: Specification-based — without it, a second publish could
+        just be a fast tick and the trigger assertion would be vacuous.
+        """
+        task = asyncio.create_task(push_harness.run())
+        try:
+            await wait_until_subscribed(push_harness)
+            await _wait_for_messages(push_harness, _STATE_TOPIC, 1)
+
+            await asyncio.sleep(_QUIET_WINDOW)
+
+            assert len(push_harness.messages_for(_STATE_TOPIC)) == 1
+        finally:
+            push_harness.shutdown_event.set()
+            await asyncio.wait_for(task, timeout=2.0)

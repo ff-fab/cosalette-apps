@@ -291,7 +291,7 @@ class TestSensorEntityTick:
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
 
         # Assert
         assert ctx.availability_calls == ["unavailable"]
@@ -313,7 +313,7 @@ class TestSensorEntityTick:
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
 
         # Assert — no duplicate mark_unavailable() call
         assert ctx.availability_calls == []
@@ -334,7 +334,7 @@ class TestSensorEntityTick:
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
 
         # Assert
         assert ctx.availability_calls == ["available"]
@@ -355,7 +355,7 @@ class TestSensorEntityTick:
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
 
         # Assert
         assert ctx.availability_calls == []
@@ -374,7 +374,7 @@ class TestSensorEntityTick:
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=True)
 
         # Assert
         assert ctx.published_state == []
@@ -393,14 +393,12 @@ class TestSensorEntityTick:
 
         reading = _fixed_reading(temperature=21.567, humidity=55, timestamp=now)
         state.last_readings["office"] = reading
-        state.last_reading_at["office"] = now
-        # No prior publish → the reading is unconditionally fresh
 
         settings = _make_settings(sensor_names=["office"])
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=True)
 
         # Assert
         assert len(ctx.published_state) == 1
@@ -424,15 +422,13 @@ class TestSensorEntityTick:
 
         reading = _fixed_reading(timestamp=now)
         state.last_readings["office"] = reading
-        state.last_reading_at["office"] = now
         state.last_publish_time["office"] = now  # already published this reading
-        state.last_published_reading_at["office"] = now  # ...this exact reading
 
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
 
         # Assert — neither fresh nor heartbeat-due → nothing published
         assert ctx.published_state == []
@@ -450,55 +446,74 @@ class TestSensorEntityTick:
 
         reading = _fixed_reading(timestamp=now)
         state.last_readings["office"] = reading
-        state.last_reading_at["office"] = now - timedelta(seconds=200)
-        # Last publish was 200s ago — past the 180s heartbeat interval. The
-        # reading was already published, so only the heartbeat should fire.
+        # Last publish was 200s ago — past the 180s heartbeat interval, and no
+        # wake arrived, so only the heartbeat can fire.
         state.last_publish_time["office"] = now - timedelta(seconds=200)
-        state.last_published_reading_at["office"] = now - timedelta(seconds=200)
 
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
 
         # Assert
         assert len(ctx.published_state) == 1
         assert state.last_publish_time["office"] > now - timedelta(seconds=200)
 
-    async def test_reading_older_than_last_publish_wallclock_still_fresh(self) -> None:
-        """Freshness tracks the published reading, not the publish wall-clock.
+    async def test_trigger_publishes_reading_older_than_last_publish(self) -> None:
+        """A wake publishes regardless of the publish wall-clock.
 
         Regression for the interleaving race (PR #206 review): the stream can
-        cache a reading whose calibration timestamp predates ``last_publish_time``
-        (set to the tick's wall-clock at publish). Comparing against the
-        *published reading's* calibration timestamp — not the wall-clock — keeps
-        such a reading fresh instead of stalling it until the next heartbeat.
+        cache a reading whose own timestamp predates ``last_publish_time``
+        (set to the tick's wall-clock at publish). The wake — not a timestamp
+        comparison — is the freshness signal, so such a reading publishes
+        instead of stalling until the next heartbeat.
 
-        Technique: Decision Table — reading_at < last_publish_time yet unpublished.
+        Technique: Decision Table — triggered=True, heartbeat not due.
         """
         configs = [SensorConfig(name="office")]
         state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
         now = datetime.now(UTC)
         state.registry.record_reading(_fixed_reading(sensor_id=42, timestamp=now))
 
-        # A freshly cached reading calibrated *before* the last publish wall-clock,
-        # but newer than the reading we actually last published.
-        reading = _fixed_reading(timestamp=now)
-        state.last_readings["office"] = reading
-        state.last_reading_at["office"] = now - timedelta(seconds=1)
-        state.last_publish_time["office"] = now
-        state.last_published_reading_at["office"] = now - timedelta(seconds=5)
+        state.last_readings["office"] = _fixed_reading(
+            timestamp=now - timedelta(seconds=1)
+        )
+        state.last_publish_time["office"] = now  # published a moment ago
 
         settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
         ctx = FakeDeviceContext()
 
         # Act
-        await sensor_entity_tick(ctx, "office", settings, state)
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=True)
 
-        # Assert — recognised as fresh despite reading_at < last_publish_time
+        # Assert
         assert len(ctx.published_state) == 1
-        assert state.last_published_reading_at["office"] == now - timedelta(seconds=1)
+
+    async def test_never_published_reading_publishes_without_a_trigger(self) -> None:
+        """A cached reading that was never published publishes on a timeout.
+
+        Recovery path: a wake coalesces, so one consumed by a publish that
+        raised would otherwise strand the sensor until its next frame. With no
+        ``last_publish_time``, the heartbeat is due immediately.
+
+        Technique: Boundary Value Analysis — last_publish_time absent.
+        """
+        configs = [SensorConfig(name="office")]
+        state = _make_shared_state(sensor_configs=configs, staleness_timeout=600.0)
+        now = datetime.now(UTC)
+        state.registry.record_reading(_fixed_reading(sensor_id=42, timestamp=now))
+        state.last_readings["office"] = _fixed_reading(timestamp=now)
+
+        settings = _make_settings(sensor_names=["office"], heartbeat_interval=180.0)
+        ctx = FakeDeviceContext()
+
+        # Act — no wake, no prior publish
+        await sensor_entity_tick(ctx, "office", settings, state, triggered=False)
+
+        # Assert
+        assert len(ctx.published_state) == 1
+        assert state.last_publish_time["office"] is not None
 
 
 # ===========================================================================
@@ -653,22 +668,20 @@ class TestSharedStatePersistRegistryIfDue:
 class TestRecordCalibratedReading:
     """Verifies SharedState.record_calibrated_reading side effects."""
 
-    def test_stores_reading_and_timestamp(self) -> None:
-        """record_calibrated_reading caches the reading and calibration timestamp.
+    def test_stores_reading(self) -> None:
+        """record_calibrated_reading caches the reading.
 
         Technique: Specification-based — state mutation contract.
         """
         # Arrange
         state = _make_shared_state(sensor_configs=[SensorConfig(name="office")])
         reading = _fixed_reading(sensor_id=42)
-        calibrated_at = datetime.now(UTC)
 
         # Act
-        state.record_calibrated_reading("office", reading, calibrated_at)
+        state.record_calibrated_reading("office", reading)
 
         # Assert — exact object identity, not just equality
         assert state.last_readings["office"] is reading
-        assert state.last_reading_at["office"] is calibrated_at
 
     def test_does_not_touch_availability(self) -> None:
         """record_calibrated_reading leaves availability untouched.
@@ -682,7 +695,7 @@ class TestRecordCalibratedReading:
         reading = _fixed_reading(sensor_id=42)
 
         # Act
-        state.record_calibrated_reading("office", reading, datetime.now(UTC))
+        state.record_calibrated_reading("office", reading)
 
         # Assert — availability is unchanged
         assert state.last_availability["office"] == "offline"

@@ -17,10 +17,23 @@ from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
-_TICK_INTERVAL_SECONDS = 5.0
-"""Per-bulb poll cadence; ``get_state`` is push-cache-cheap most ticks.
+_TICK_INTERVAL_SECONDS = 60.0
+"""Per-bulb heartbeat cadence — the *floor* on publication, not the driver.
 
-Real-bulb push/heartbeat cadence is validated separately (cap-10u.19).
+State reaches MQTT when the bulb pushes (see ``triggerable="local"`` on
+``bulb_entity`` below), so this interval no longer sets command→state
+latency; it only guarantees a periodic re-read for bulbs that have gone
+quiet.  A WiZ bulb pushes on *change* only, so silence is ambiguous —
+"nothing happened" and "the push subscription died" look identical from
+here.
+
+Deliberately equal to ``WizBulbAdapter._DEFAULT_PUSH_STALENESS_THRESHOLD``
+(``adapters/wizlight.py``): a tick that finds the push cache older than
+that threshold does a real ``updateState()`` poll, so every heartbeat tick
+on an idle bulb is also a liveness probe.  Changing one without the other
+either wastes ticks on a cache that cannot have gone stale, or lets stale
+cache entries publish unchallenged.  Real-bulb push/heartbeat cadence is
+validated separately (cap-10u.19).
 """
 
 app = cosalette.App(
@@ -69,6 +82,14 @@ def shared_state() -> SharedState:
 @app.telemetry(
     name=_bulb_map,
     interval=_TICK_INTERVAL_SECONDS,
+    # cosalette ADR-064: "local" subscribes no MQTT trigger topic — the only
+    # arming path is WizBulbAdapter's push callback calling EntityNotifier.
+    # A push therefore publishes through this same handler, with the same
+    # OnChange() gating and availability debounce a scheduled tick gets.
+    triggerable="local",
+    # No min_interval=: a WiZ bulb only pushes on *change*, and OnChange()
+    # already drops identical payloads, so a throttle would buy nothing but
+    # latency.  Revisit only if cap-10u.19 finds real push storms.
     publish=cosalette.OnChange(),
     summary="Per-bulb state publisher: retained state, availability debounce",
     # No state_model: the payload's keys are conditionally present (see
@@ -87,6 +108,11 @@ async def bulb_entity(
     ``NameSpec``, reusing ``_bulb_map`` — telemetry and command names may
     coexist, unlike device/command). See
     :func:`wiz2mqtt.entity.bulb_entity_tick` for the tick logic.
+
+    Runs on two wakes, indistinguishably: the ``interval=`` heartbeat and
+    a local trigger armed by the adapter's push callback.  The tick reads
+    the adapter's push cache either way, so no branch on the wake reason
+    is needed here.
     """
     return await bulb_entity_tick(ctx, config, port, state)
 

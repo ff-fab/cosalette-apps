@@ -18,7 +18,11 @@
       "moby": false
     },
     "ghcr.io/devcontainers/features/git:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      // Keep this pinned: the feature's implicit version=latest regressed in
+      // CI when gh 2.99.0 failed to install during the devcontainer build.
+      "version": "2.97.0"
+    }
   },
 
   "remoteEnv": {

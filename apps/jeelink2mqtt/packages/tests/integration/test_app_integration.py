@@ -459,9 +459,7 @@ class TestApp:
         state = build_shared_state(settings)
 
         assert isinstance(state.last_readings, dict)
-        assert isinstance(state.last_reading_at, dict)
         assert isinstance(state.last_publish_time, dict)
-        assert isinstance(state.last_published_reading_at, dict)
         assert isinstance(state.last_availability, dict)
 
 
@@ -936,6 +934,10 @@ class TestMappingSubCommandErrors:
     ) -> None:
         """Unknown command like 'explode' publishes error_type='unknown_sub_command'.
 
+        The raw sub-command is deliberately NOT echoed onto the error
+        topic: cosalette 0.7.0 (ADR-061, CWE-209) publishes only a
+        non-reversible fingerprint, keeping the value in the local log.
+
         Technique: Error Guessing — unknown sub-command through framework.
         """
         # Act
@@ -955,7 +957,10 @@ class TestMappingSubCommandErrors:
 
         error_data = json.loads(error_msgs[0])
         assert error_data["error_type"] == "unknown_sub_command"
-        assert "explode" in error_data["message"]
+        # Broker-visible error topics must not leak the submitted value.
+        assert "explode" not in error_data["message"]
+        assert "mapping" in error_data["message"]
+        assert "fp=" in error_data["message"]
 
         # Assert — no mapping/state response for errors
         mapping_state_msgs = [

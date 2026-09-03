@@ -383,3 +383,42 @@ class TestAppVersion:
 
         assert app.version == __version__
         assert not app.version.startswith("0.0.0")
+
+
+@pytest.mark.unit
+class TestTriggerThrottleRegistration:
+    """Guard the ADR-066 throttle declared on the production registration."""
+
+    def _registration(self) -> object:
+        from airthings2mqtt.main import app
+
+        return next(r for r in app._telemetry if r.name == "airthings")
+
+    def test_public_set_topic_is_throttled(self) -> None:
+        """The /set trigger carries the declared min_interval.
+
+        Technique: Specification-based — airthings2mqtt/airthings/set is a
+        public MQTT topic, so an unthrottled trigger lets any client queue one
+        BLE round-trip per message.
+        """
+        from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS
+
+        assert self._registration().min_interval == _TRIGGER_MIN_INTERVAL_SECONDS
+
+    def test_throttle_is_still_triggerable(self) -> None:
+        """min_interval= throttles the trigger, it does not disable it.
+
+        Technique: Specification-based — the throttle requires triggerable=.
+        """
+        assert self._registration().triggerable is not None
+
+    def test_throttle_cannot_slow_the_scheduled_poll(self) -> None:
+        """The throttle stays well below the minimum allowed poll interval.
+
+        Technique: Boundary Value Analysis — a min_interval above the scheduled
+        cadence would start delaying ordinary polls, not just trigger storms.
+        """
+        from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS
+
+        min_poll_interval = 60.0  # Airthings2MqttSettings.poll_interval ge=60
+        assert min_poll_interval > _TRIGGER_MIN_INTERVAL_SECONDS

@@ -73,6 +73,24 @@ class BulbConfig(BaseModel):
         return value.lower()
 
 
+class _MqttSettings(cosalette.MqttSettings):
+    """MQTT settings pinned to the pre-0.7.0 ``tls=False`` default.
+
+    cosalette 0.7.0 flipped ``MqttSettings.tls`` to ``True`` (ADR-062,
+    F-CU1). Redeclaring the field here preserves this app's existing
+    runtime behaviour, so upgrading never silently starts a TLS handshake
+    the broker cannot answer. Deployments opt in per environment with
+    ``WIZ2MQTT_MQTT__TLS=true``.
+
+    A ``default_factory`` only works here because ``mqtt`` is annotated as this
+    subclass with ``tls=False`` overridden. If the field stayed typed as the
+    base ``MqttSettings``, sibling ``MQTT__*`` variables would restore
+    ``tls=True`` during nested-model reconstruction.
+    """
+
+    tls: bool = False
+
+
 class Wiz2MqttSettings(cosalette.Settings):
     """wiz2mqtt application settings."""
 
@@ -86,11 +104,18 @@ class Wiz2MqttSettings(cosalette.Settings):
         # SettingsConfigDict TypedDict doesn't declare this key.
         config_file="wiz2mqtt.toml",  # type: ignore
         # Safe to tighten from the base Settings' extra="ignore": env_prefix
-        # is set, so only WIZ2MQTT_* env vars are ever seen. This also
-        # rejects any TOML top-level key other than "bulbs" — the config-file
-        # source merges the whole parsed file the same way env vars merge.
+        # is set, so only WIZ2MQTT_* env vars are ever seen. This also rejects
+        # any TOML top-level key that is not a declared field — the config-file
+        # source merges the whole parsed file the same way env vars merge. The
+        # legal set is exactly this model's fields: "bulbs" and the overridden
+        # "mqtt", plus "logging" and "schema_" inherited from cosalette.Settings.
+        # Adding a new top-level TOML table therefore means adding a field here
+        # (this is the real blocker behind cap-fux's [[groups]], not any
+        # framework-side validator).
         extra="forbid",
     )
+
+    mqtt: _MqttSettings = Field(default_factory=_MqttSettings)
 
     bulbs: list[BulbConfig] = Field(
         default_factory=list,
