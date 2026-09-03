@@ -8,6 +8,8 @@ services:
     env_file: .env
     environment:
       SUNCAST_MQTT__HOST: mosquitto
+      # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+      SUNCAST_MQTT__TLS: 'false'
     volumes:
       - shadow-output:/output
       - suncast-data:/app/data

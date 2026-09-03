@@ -8,6 +8,8 @@ services:
     env_file: .env
     environment:
       CALDATES2MQTT_MQTT__HOST: mosquitto
+      # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+      CALDATES2MQTT_MQTT__TLS: 'false'
       CALDATES2MQTT_STORE_PATH: /app/data/store.json
     volumes:
       - caldates2mqtt-data:/app/data

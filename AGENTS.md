@@ -223,7 +223,7 @@ template-owned frontmatter keys are updated and every other top-level key — in
 the downstream `paths:` this repo adds — is preserved
 (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
 **comments inside the frontmatter**, and **the entire body**, which is replaced by the
-shipped template. Any repo-specific body note (the MQTT TLS pinning and the command
+shipped template. Any repo-specific body note (the MQTT TLS posture and the command
 `timeout=` correction) must be re-added afterwards. Run `cosalette ai init --check`
 first to see the diff.
 

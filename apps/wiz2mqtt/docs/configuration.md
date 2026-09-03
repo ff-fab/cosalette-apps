@@ -48,11 +48,12 @@ model. Common environment variables are:
 | Username | `WIZ2MQTT_MQTT__USERNAME` | unset |
 | Password | `WIZ2MQTT_MQTT__PASSWORD` | unset |
 | Topic prefix | `WIZ2MQTT_MQTT__TOPIC_PREFIX` | `wiz2mqtt` |
-| TLS | `WIZ2MQTT_MQTT__TLS` | `false` |
+| TLS | `WIZ2MQTT_MQTT__TLS` | `true` (set to `false` by the shipped deployment) |
 
-The repo currently pins `tls = false` by default to preserve existing plaintext
-LAN-broker deployments after cosalette 0.7.0 flipped its own default to
-`true`. Set `WIZ2MQTT_MQTT__TLS=true` when your broker expects TLS.
+Transport security is a per-deployment setting. cosalette defaults `tls` to
+`true`; the shipped `compose.yml` sets `WIZ2MQTT_MQTT__TLS=false` because its
+broker terminates plaintext MQTT. Remove that line when your broker expects
+TLS. See [ADR-006](../../../docs/adr/ADR-006-mqtt-transport-security-posture.md).
 
 ## Config-file and environment interplay
 

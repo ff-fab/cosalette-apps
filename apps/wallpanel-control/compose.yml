@@ -15,6 +15,8 @@ services:
     env_file: .env
     environment:
       WALLPANEL_CONTROL_MQTT__HOST: mosquitto
+      # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+      WALLPANEL_CONTROL_MQTT__TLS: 'false'
       WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
       WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
     volumes:

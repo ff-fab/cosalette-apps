@@ -12,6 +12,8 @@ services:
     env_file: .env
     environment:
       VELUX2MQTT_MQTT__HOST: mosquitto
+      # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+      VELUX2MQTT_MQTT__TLS: 'false'
       VELUX2MQTT_STORE_PATH: /app/data/store.json
     volumes:
       - velux2mqtt-data:/app/data

@@ -12,6 +12,8 @@ services:
     env_file: .env
     environment:
       GAS2MQTT_MQTT__HOST: mosquitto
+      # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+      GAS2MQTT_MQTT__TLS: 'false'
     volumes:
       - gas2mqtt-data:/app/data
     depends_on:
