@@ -76,6 +76,7 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
         env_file: .env
         environment:
           WALLPANEL_CONTROL_MQTT__HOST: mosquitto
+          WALLPANEL_CONTROL_MQTT__TLS: ${WALLPANEL_CONTROL_MQTT__TLS:-false}
           WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
           WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
         volumes:

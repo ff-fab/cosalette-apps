@@ -25,6 +25,18 @@ taskfiles/
   PythonApp.yml    # Reusable per-app task template
 ```
 
+## MQTT Transport Posture
+
+- Do not pin `mqtt.tls` in application code.
+- Shipped deployments expose `<PREFIX>_MQTT__TLS` next to `<PREFIX>_MQTT__HOST` in
+  `compose.yml` and default it with Compose interpolation
+  (`${<PREFIX>_MQTT__TLS:-false}`) for the bundled plaintext broker.
+- If an app ships `.env.example`, keep `<PREFIX>_MQTT__TLS=false` there so copying the
+  template preserves the bundled-broker default while leaving a visible opt-in path to
+  `true`.
+- The decision and rationale live in
+  [docs/adr/ADR-006-mqtt-transport-security-posture.md](docs/adr/ADR-006-mqtt-transport-security-posture.md).
+
 ## Tooling
 
 - **Use `task <name>` for all operations** (`task --list` to discover). Fall back to
@@ -223,7 +235,7 @@ template-owned frontmatter keys are updated and every other top-level key — in
 the downstream `paths:` this repo adds — is preserved
 (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
 **comments inside the frontmatter**, and **the entire body**, which is replaced by the
-shipped template. Any repo-specific body note (the MQTT TLS pinning and the command
+shipped template. Any repo-specific body note (the MQTT TLS posture and the command
 `timeout=` correction) must be re-added afterwards. Run `cosalette ai init --check`
 first to see the diff.
 

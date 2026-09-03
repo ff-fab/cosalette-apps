@@ -283,13 +283,15 @@ Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 
 > **Downstream note — not from the shipped template; re-add after `ai init`.**
 >
-> **`mqtt.tls` defaults to `True` since cosalette 0.7.0** (ADR-062). All nine apps in
-> this monorepo pin it back to `False` with a local `_MqttSettings(cosalette.MqttSettings)`
-> subclass overriding `tls: bool = False` (eight `settings.py`, plus
-> `apps/vito2mqtt/packages/src/vito2mqtt/config.py`), because every deployment talks to a
-> plaintext broker on the LAN. Keep the subclass when adding an app — dropping it silently
-> restores `tls=True` and the app fails to connect. The per-deployment posture is being
-> revisited under `cap-50n`; until that lands, `tls=False` is the deliberate default here.
+> **`mqtt.tls` defaults to `True` since cosalette 0.7.0** (ADR-062), and this monorepo
+> keeps that default in application code. Transport security is a per-deployment setting:
+> every shipped `compose.yml` exposes `<PREFIX>_MQTT__TLS` next to its broker host and
+> defaults it with Compose interpolation (`${<PREFIX>_MQTT__TLS:-false}`) for the bundled
+> plaintext broker. If an app ships `.env.example`, keep `<PREFIX>_MQTT__TLS=false` there
+> as the operator-facing default. When adding an app, wire the deployment setting rather
+> than reintroducing a `tls` pin in code — omitting it inherits `tls=True` and the app
+> fails to connect. The durable repo-wide rule lives in `AGENTS.md`; ADR-006 records the
+> decision and rationale in `docs/adr/ADR-006-mqtt-transport-security-posture.md`.
 >
 > **A command handler's `timeout=` is NOT unbounded by default.** The "Command Handling"
 > section above says `Default None (no timeout)`; that is wrong. Omitting `timeout=`

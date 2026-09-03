@@ -32,6 +32,7 @@ calendars, and verifying that event data flows to your MQTT broker.
         env_file: .env
         environment:
           CALDATES2MQTT_MQTT__HOST: mosquitto
+          CALDATES2MQTT_MQTT__TLS: ${CALDATES2MQTT_MQTT__TLS:-false}
         volumes:
           - caldates2mqtt-data:/app/data
         depends_on:
@@ -41,7 +42,7 @@ calendars, and verifying that event data flows to your MQTT broker.
         image: eclipse-mosquitto:2
         restart: unless-stopped
         ports:
-          - '1883:1883'
+          - '127.0.0.1:1883:1883'
         volumes:
           - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
           - mosquitto-data:/mosquitto/data

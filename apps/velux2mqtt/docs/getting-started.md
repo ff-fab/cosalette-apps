@@ -50,6 +50,7 @@ triggering the VELUX motor.
         env_file: .env
         environment:
           VELUX2MQTT_MQTT__HOST: mosquitto
+          VELUX2MQTT_MQTT__TLS: ${VELUX2MQTT_MQTT__TLS:-false}
         volumes:
           - velux2mqtt-data:/app/data
         depends_on:
@@ -59,7 +60,7 @@ triggering the VELUX motor.
         image: eclipse-mosquitto:2
         restart: unless-stopped
         ports:
-          - '1883:1883'
+          - '127.0.0.1:1883:1883'
         volumes:
           - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
           - mosquitto-data:/mosquitto/data

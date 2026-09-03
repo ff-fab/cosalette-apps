@@ -55,6 +55,7 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
         environment:
           # Override MQTT host to use Docker Compose service name
           GAS2MQTT_MQTT__HOST: mosquitto
+          GAS2MQTT_MQTT__TLS: ${GAS2MQTT_MQTT__TLS:-false}
         volumes:
           - gas2mqtt-data:/app/data
         depends_on:
@@ -64,7 +65,7 @@ Connect the QMC5883L to the Raspberry Pi I2C pins:
         image: eclipse-mosquitto:2
         restart: unless-stopped
         ports:
-          - '1883:1883'
+          - '127.0.0.1:1883:1883'
         volumes:
           - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
           - mosquitto-data:/mosquitto/data
