@@ -1,16 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "extraKnownMarketplaces": {
-    "cosalette-apps": {
-      "source": {
-        "source": "directory",
-        "path": "."
-      }
-    }
-  },
-  "enabledPlugins": {
-    "cosalette@cosalette-apps": true
-  },
   "permissions": {
     "allow": [
       "Bash(cat:*)",
@@ -26,7 +15,6 @@
       "Bash(echo:*)",
       "Bash(cd:*)",
       "Bash(mkdir:*)",
-
       "Bash(git status:*)",
       "Bash(git diff:*)",
       "Bash(git log:*)",
@@ -43,7 +31,6 @@
       "Bash(git rev-parse:*)",
       "Bash(git blame:*)",
       "Bash(git remote -v)",
-
       "Bash(task --list)",
       "Bash(task lint:*)",
       "Bash(task typecheck:*)",
@@ -58,7 +45,6 @@
       "Bash(task pr:list:*)",
       "Bash(task ci:wait:*)",
       "Bash(task docs:build:*)",
-
       "Bash(uv run pytest:*)",
       "Bash(uv run ruff:*)",
       "Bash(uv run ty:*)",
@@ -70,22 +56,26 @@
       "Bash(uv lock:*)",
       "Bash(uv tree:*)",
       "Bash(uv version:*)",
-
       "Bash(zensical:*)",
       "Bash(bd:*)",
       "Bash(showboat:*)",
-
       "Bash(gh pr view:*)",
       "Bash(gh pr list:*)",
       "Bash(gh pr diff:*)",
       "Bash(gh pr checks:*)",
-      "Bash(gh issue list:*)"
-    ],
-    "ask": [
-      "Bash(gh pr create:*)",
-      "Bash(gh pr merge:*)",
-      "Bash(task pr:create:*)",
-      "Bash(git push:*)"
+      "Bash(gh issue list:*)",
+      "Bash(task typecheck *)",
+      "Bash(task pre-pr *)",
+      "Bash(task wiz2mqtt:lint)",
+      "Bash(task wiz2mqtt:lint:fix)",
+      "Bash(task wiz2mqtt:typecheck)",
+      "Bash(task wiz2mqtt:test:unit)",
+      "Bash(git add *)",
+      "Bash(task beads:sync)",
+      "Bash(git commit -m ' *)",
+      "Bash(task ci:wait -- 216)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)"
     ],
     "deny": [
       "Read(./.env)",
@@ -106,6 +96,23 @@
       "Bash(git push --force-with-lease:*)",
       "Bash(git push --mirror:*)",
       "Bash(git push --delete:*)"
+    ],
+    "ask": [
+      "Bash(gh pr create:*)",
+      "Bash(gh pr merge:*)",
+      "Bash(task pr:create:*)",
+      "Bash(git push:*)"
     ]
+  },
+  "enabledPlugins": {
+    "cosalette@cosalette-apps": true
+  },
+  "extraKnownMarketplaces": {
+    "cosalette-apps": {
+      "source": {
+        "source": "directory",
+        "path": "."
+      }
+    }
   }
 }
