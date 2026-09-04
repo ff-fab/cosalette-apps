@@ -74,3 +74,8 @@ Payload values are `online` and `offline`.
 
 wiz2mqtt publishes immediately when a bulb push update arrives, and it also runs
 a 60-second heartbeat tick so idle bulbs still get periodic liveness checks.
+
+`set` is the only topic wiz2mqtt subscribes. The push wake is in-process, so
+there is no trigger topic to publish to; see
+[configuration.md](configuration.md) for the heartbeat and push-staleness
+values.

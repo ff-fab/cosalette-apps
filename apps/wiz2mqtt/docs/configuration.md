@@ -54,7 +54,7 @@ Transport security is a per-deployment setting. cosalette defaults `tls` to
 `true`; the shipped `compose.yml` defaults `WIZ2MQTT_MQTT__TLS` to `false` for
 its bundled plaintext broker. Set `WIZ2MQTT_MQTT__TLS=true` in `.env` or a
 Compose override when your broker expects TLS. See
-[ADR-006](../../../docs/adr/ADR-006-mqtt-transport-security-posture.md).
+[ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/).
 
 ## Config-file and environment interplay
 
@@ -62,3 +62,25 @@ The TOML file owns the bulb inventory, while environment variables are the
 usual place for deployment-specific MQTT details. Environment variables outrank
 the config file, so `WIZ2MQTT_MQTT__HOST=broker.local` overrides any broker
 settings implied elsewhere without rewriting `wiz2mqtt.toml`.
+
+## Publication Behaviour
+
+Publication is push-driven and has no configuration surface. State reaches MQTT
+when the bulb sends a UDP push; the 60-second `interval=` tick is a heartbeat
+and liveness probe rather than the publication driver.
+
+Two related values are fixed constants in the code, not settings:
+
+| Value | Where | Behaviour |
+| ----- | ----- | --------- |
+| Heartbeat tick, 60 s | `main._TICK_INTERVAL_SECONDS` | Refreshes idle bulbs and re-checks availability |
+| Push-staleness threshold, 60 s | `adapters.wizlight._DEFAULT_PUSH_STALENESS_THRESHOLD` | A read falls back to polling the bulb when the last push is older than this |
+
+They are deliberately equal: a bulb only pushes on *change*, so a healthy but
+idle bulb produces no traffic, and every heartbeat tick finds the push cache
+stale and polls once.
+
+The bulb entity is declared `triggerable="local"`, so the wake is in-process
+only — wiz2mqtt subscribes **no** trigger topic. The only inbound topic is each
+bulb's `set` command topic documented in
+[mqtt-topics.md](mqtt-topics.md).
