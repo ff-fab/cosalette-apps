@@ -71,7 +71,9 @@
       "Bash(task beads:sync)",
       "Bash(git commit -m ' *)",
       "Bash(git checkout *)",
-      "Bash(git pull *)"
+      "Bash(git pull *)",
+      "Bash(bd update *)",
+      "Bash(git commit -q -m 'chore: update beads state *)"
     ],
     "deny": [
       "Read(./.env)",
