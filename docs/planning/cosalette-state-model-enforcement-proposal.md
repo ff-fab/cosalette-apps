@@ -1,15 +1,15 @@
 # Enhancement Proposal: make `state_model=` mean what the docs say it means
 
-**Status:** proposed — upstream ask against cosalette; no downstream fix worth building
-**Raised by:** cosalette-apps, out of the `cap-8au` acceptance work (criterion 8 of
-[the event-driven publication proposal](cosalette-event-driven-publication-proposal.md))
-**Verified against:** cosalette 0.8.0 and pydantic 2.12.5, both the installed wheels,
-source read directly (`_runners/_contracts.py`, `_runners/_telemetry_runner.py`,
-`_runners/_command_runner.py`, `_wiring/_context.py`,
-`_ai_content/_help_extra.py`) plus live reproduction against the ten affected
-registrations in this monorepo **Implementation lands:** in the cosalette framework
-repository, **not here**. Nothing downstream changes before a release carries the fix.
-**Tracking bead:** `cap-b8h`
+- **Status:** proposed — upstream ask against cosalette; no downstream fix worth building
+- **Raised by:** cosalette-apps, out of the `cap-8au` acceptance work (criterion 8 of
+   [the event-driven publication proposal](cosalette-event-driven-publication-proposal.md))
+- **Verified against:** cosalette 0.8.0 and pydantic 2.12.5, both the installed wheels,
+   source read directly (`_runners/_contracts.py`, `_runners/_telemetry_runner.py`,
+   `_runners/_command_runner.py`, `_wiring/_context.py`, `_ai_content/_help_extra.py`)
+   plus live reproduction against the ten affected registrations in this monorepo
+- **Implementation lands:** in the cosalette framework repository, **not here**.
+   Nothing downstream changes before a release carries the fix.
+- **Tracking bead:** `cap-b8h`
 
 ## Summary
 

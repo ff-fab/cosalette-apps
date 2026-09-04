@@ -64,7 +64,7 @@ from cosalette.testing import (
 )
 from pydantic import BaseModel, Field
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.slow]
 
 APP_NAME = "acceptance"
 """Topic prefix for every app built here."""
@@ -90,6 +90,9 @@ _QUIET_SECONDS = 0.2
 _WAIT_TIMEOUT = 2.0
 """How long :func:`_wait_until` polls before calling a condition failed."""
 
+_WAIT_POLL_SECONDS = 0.01
+"""Polling cadence for condition waits in this suite."""
+
 _FAST_TICK_SECONDS = 0.02
 """A genuinely short interval, for the ticked half of a parity comparison."""
 
@@ -110,9 +113,9 @@ class RealSleepClock(FakeClock):
     genuinely unreachable inside a test, so ``now()`` stays where the
     test left it and a publish that does arrive can only have been woken.
 
-    A fourth copy of this class (airthings2mqtt, caldates2mqtt and
-    wiz2mqtt each hand-rolled one).  Giving it a single home is cap-o9x;
-    this module is one of the sites that task has to collect.
+    One of several copies app suites currently hand-roll.  cap-o9x tracks
+    giving it a single home; this module is one of the sites that task has
+    to collect.
     """
 
     async def sleep(self, seconds: float) -> None:
@@ -243,7 +246,7 @@ async def _wait_until(condition: Callable[[], bool], what: str) -> None:
     while not condition():
         if loop.time() >= deadline:
             raise AssertionError(f"timed out after {_WAIT_TIMEOUT}s waiting for {what}")
-        await asyncio.sleep(0.005)
+        await asyncio.sleep(_WAIT_POLL_SECONDS)
 
 
 @contextlib.asynccontextmanager
@@ -717,7 +720,8 @@ class TestParity:
             ticked.shutdown_event.set()
             await asyncio.wait_for(task, timeout=_WAIT_TIMEOUT)
 
-        assert woken_errors[0] == ticked_errors[0]
+        assert len(woken_errors) == len(ticked_errors) == 1
+        assert woken_errors == ticked_errors
 
     async def test_a_dict_return_bypasses_the_declared_state_model(
         self, recorder: Recorder, notifier_sink: list[EntityNotifier]
@@ -757,6 +761,43 @@ class TestParity:
             payload, _retain, _qos = state_messages(harness, WOKEN)[1]
             assert json.loads(payload) == {"reading": "not-an-int"}
             assert not harness.messages_for(error_topic(WOKEN))
+
+    async def test_a_ticked_dict_return_also_bypasses_the_declared_state_model(
+        self,
+    ) -> None:
+        """The plain-``dict`` bypass is the same on the scheduled path.
+
+        Technique: Equivalence Partitioning — identical bad payload,
+        delivered by a scheduled tick instead of a local wake.
+        """
+        recorder = Recorder()
+        ticked = build_harness(
+            build_app(
+                recorder,
+                triggerable=False,
+                interval=_FAST_TICK_SECONDS,
+                state_model=StateModel,
+            )
+        )
+        task = asyncio.create_task(ticked.run())
+        try:
+            await _wait_until(
+                lambda: len(state_messages(ticked, WOKEN)) == 1,
+                f"the startup publish on {state_topic(WOKEN)}",
+            )
+            recorder.payloads[WOKEN] = {"reading": "not-an-int"}
+
+            await _wait_until(
+                lambda: len(state_messages(ticked, WOKEN)) >= 2,
+                f"the ticked publish on {state_topic(WOKEN)}",
+            )
+
+            payload, _retain, _qos = state_messages(ticked, WOKEN)[1]
+            assert json.loads(payload) == {"reading": "not-an-int"}
+            assert not ticked.messages_for(error_topic(WOKEN))
+        finally:
+            ticked.shutdown_event.set()
+            await asyncio.wait_for(task, timeout=_WAIT_TIMEOUT)
 
     async def test_availability_is_unchanged_on_a_woken_run(
         self, harness: AppHarness, recorder: Recorder, notify: Callable[[str], None]
@@ -1099,10 +1140,10 @@ class TestAdoptionSet:
         assert _apps_declaring("both") == set()
 
     def test_pre_existing_mqtt_triggers_are_untouched(self) -> None:
-        """Criterion 14 in production: ``triggerable=True`` still means MQTT.
+        """Criterion 14 in production: the declared MQTT-trigger set is stable.
 
         Both apps predate the local source and still normalise to
-        ``'mqtt'``, so their subscription sets are what they were.
+        ``'mqtt'``, so the accepted app-level declaration set is unchanged.
 
         Technique: Golden set — the exact set of MQTT-triggerable apps.
         """

@@ -52,6 +52,7 @@ from jeelink2mqtt.errors import error_type_map
 from jeelink2mqtt.models import SensorReading, SensorStateModel
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
+from tests.fixtures.async_utils import wait_for_condition
 
 TOPIC_PREFIX = "jeelink2mqtt"
 """Default MQTT topic prefix used by these tests."""
@@ -82,12 +83,15 @@ _QUIET_SECONDS = 0.2
 _WAIT_TIMEOUT = 2.0
 """How long :func:`_wait_until` polls before calling a condition failed."""
 
+_WAIT_POLL_SECONDS = 0.01
+"""Polling cadence for condition waits in this suite."""
+
 
 class RealSleepClock(FakeClock):
     """A :class:`FakeClock` whose ``sleep`` actually waits.
 
-    A fourth copy of a class airthings2mqtt, caldates2mqtt and wiz2mqtt
-    each hand-rolled; giving it one home is cap-o9x.
+    One of several copies app suites currently hand-roll; cap-o9x tracks
+    giving it a single home.
     """
 
     async def sleep(self, seconds: float) -> None:
@@ -123,11 +127,11 @@ def make_reading() -> SensorReading:
 def build_integration_app(captured: dict[str, Any]) -> cosalette.App:
     """Mirror ``jeelink2mqtt.main``'s receiver/sensor wiring for the harness.
 
-    Registers the real ``receiver`` and ``sensor_entity`` handlers, with
-    a heartbeat bound out of test reach.  The state factory records the
+    Registers the real per-sensor ``sensor_entity`` handler, with the
+    heartbeat bound out of test reach.  The state factory records the
     ``SharedState`` and the ``EntityNotifier`` the framework builds, so
-    ``inject_stream`` can be handed the same two objects the running
-    device is using.
+    :func:`_deliver` can drive the real ``receiver`` with the same two
+    objects the running device is using.
     """
     app = cosalette.App(
         name=TOPIC_PREFIX,
@@ -172,12 +176,17 @@ def build_integration_app(captured: dict[str, Any]) -> cosalette.App:
 
 async def _wait_until(condition, what: str) -> None:
     """Poll *condition* until true, or fail naming *what* was awaited."""
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + _WAIT_TIMEOUT
-    while not condition():
-        if loop.time() >= deadline:
-            raise AssertionError(f"timed out after {_WAIT_TIMEOUT}s waiting for {what}")
-        await asyncio.sleep(0.005)
+    try:
+        await wait_for_condition(
+            condition,
+            timeout=_WAIT_TIMEOUT,
+            interval=_WAIT_POLL_SECONDS,
+            description=what,
+        )
+    except TimeoutError as exc:
+        raise AssertionError(
+            f"timed out after {_WAIT_TIMEOUT}s waiting for {what}"
+        ) from exc
 
 
 def state_topic(name: str = SENSOR_NAME) -> str:

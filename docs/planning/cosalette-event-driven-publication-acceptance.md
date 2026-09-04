@@ -1,16 +1,18 @@
 # Downstream acceptance: event-driven publication (cosalette 0.8.0)
 
-**Status:** complete — all sixteen validation criteria discharged **Discharges:**
-`cap-8au`, definition-of-done item D4 of
-[the event-driven publication proposal](cosalette-event-driven-publication-proposal.md)
-**Verified against:** cosalette 0.8.0, the installed wheel — assertions run against it,
-source claims read from it (`_runners/_notifier.py`, `_runners/_device_trigger.py`,
-`_runners/_telemetry_runner.py`, `_runners/_contracts.py`, `_wiring/_context.py`,
-`_wiring/_resolution.py`, `testing/_harness.py`, `testing/_clock.py`) **Decision record:**
-[ADR-005](../adr/ADR-005-event-driven-publication-adoption.md) — the repo-wide
-adoption decision this evidence backs **Adopting apps:** jeelink2mqtt, vito2mqtt and
-wiz2mqtt with `triggerable="local"`; airthings2mqtt and caldates2mqtt keep their
-pre-existing `triggerable=True` and gained only a `min_interval=` throttle
+- **Status:** complete — all sixteen validation criteria discharged
+- **Discharges:** `cap-8au`, definition-of-done item D4 of
+  [the event-driven publication proposal](cosalette-event-driven-publication-proposal.md)
+- **Verified against:** cosalette 0.8.0, the installed wheel — assertions run against it,
+  source claims read from it (`_runners/_notifier.py`, `_runners/_device_trigger.py`,
+  `_runners/_telemetry_runner.py`, `_runners/_contracts.py`, `_wiring/_context.py`,
+  `_wiring/_resolution.py`, `testing/_harness.py`, `testing/_clock.py`)
+- **Decision record:**
+  [ADR-005](../adr/ADR-005-event-driven-publication-adoption.md) — the repo-wide
+  adoption decision this evidence backs
+- **Adopting apps:** jeelink2mqtt, vito2mqtt and wiz2mqtt with `triggerable="local"`;
+  airthings2mqtt and caldates2mqtt keep their pre-existing `triggerable=True` and
+  gained only a `min_interval=` throttle
 
 ## Where the assertions live
 
