@@ -35,7 +35,29 @@ from vito2mqtt.devices.telemetry import (
 from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
 from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
 
-__all__ = ["configure_app", "COMMAND_WAKE_MIN_INTERVAL_SECONDS"]
+__all__ = [
+    "configure_app",
+    "COMMAND_WAKE_MIN_INTERVAL_SECONDS",
+    "COMMAND_TIMEOUT_SECONDS",
+]
+
+COMMAND_TIMEOUT_SECONDS = 90.0
+"""Per-invocation backstop for every Optolink command handler (seconds).
+
+cosalette 0.7.0 (ADR-060) made an omitted ``timeout=`` a bounded 30 s
+default. A full command payload for a group like ``heating_radiator`` is
+13 READ_WRITE signals (seven of them 8-byte weekly-timer blocks): the
+handler batch-reads all 13 for the read-before-write guard, then batch-
+writes the changed ones, and each batch can queue behind an in-flight
+``optolink`` telemetry cycle (``diagnosis`` is 11 reads) before its own
+I/O starts on the shared 4800-baud bus. Sizing conservatively at ~0.5 s
+per telegram round trip, that worst case is ~34 s — over the 30 s
+default, which would cancel a legitimate schedule write mid-batch. 90 s
+clears it with margin while still bounding a wedged bus. Paired with
+``unavailable_on`` so a timeout also marks the device offline, and with
+the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so the cancel
+cannot leave a half-written schedule (cap-ug0).
+"""
 
 COMMAND_WAKE_MIN_INTERVAL_SECONDS = 15.0
 """Floor on the spacing between two command-triggered telemetry runs (seconds).
@@ -96,6 +118,15 @@ def configure_app(app: App) -> None:
                 group, f"Control {group} parameters via Optolink serial"
             ),
             payload_model=dict,
+            # See COMMAND_TIMEOUT_SECONDS — the 30 s default is too tight for a
+            # full-group schedule write queued behind a telemetry cycle.
+            timeout=COMMAND_TIMEOUT_SECONDS,
             unavailable_on=(OptolinkConnectionError, OptolinkTimeoutError),
         )
+    # No timeout=: legionella is a long-running device generator, not a
+    # per-invocation handler, so cosalette's 30 s command backstop does not
+    # wrap it. It manages its own ctx.commands() budgets (5 s / 60 s) and
+    # runs a shutdown-safe restore so the boiler is never left at the
+    # elevated setpoint; its writes are single-signal and protocol-atomic
+    # (cap-ug0).
     app.add_device("legionella", legionella_device)

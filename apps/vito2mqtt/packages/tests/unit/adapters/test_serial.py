@@ -21,6 +21,7 @@ Test Techniques Used:
 - AAA pattern: Arrange-Act-Assert structure throughout
 - Error mapping: Verify domain exceptions for transport-level failures
 - Concurrency: Verify asyncio.Lock serializes access
+- Error Guessing: Batch write survives a mid-flight timeout cancellation
 
 Since real serial hardware is unavailable in CI, all I/O is mocked.
 The ``_open_session`` private method is patched to yield a
@@ -508,6 +509,40 @@ class TestWriteSignals:
 
         assert result is None
         assert not session_opened
+
+    async def test_write_signals_completes_batch_despite_timeout_cancel(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """A command-timeout cancel mid-batch still writes every signal.
+
+        Technique: Error Guessing — cosalette's per-command backstop must
+        not tear a multi-signal write (e.g. a weekly schedule), which would
+        leave the boiler with some values applied and others not (cap-ug0).
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
+
+        async def _slow_write(_address: int, _payload: bytes) -> None:
+            await asyncio.sleep(0.05)
+
+        mock_session.write.side_effect = _slow_write
+
+        # Timeout fires while the first of three writes is still in flight.
+        with pytest.raises(TimeoutError):
+            await asyncio.wait_for(
+                adapter.write_signals(
+                    {
+                        "hot_water_setpoint": 50,
+                        "hot_water_pump_overrun": 10,
+                        "heating_curve_gradient_m1": 1.4,
+                    }
+                ),
+                timeout=0.02,
+            )
+
+        assert mock_session.write.await_count == 3
 
 
 class TestErrorMapping:

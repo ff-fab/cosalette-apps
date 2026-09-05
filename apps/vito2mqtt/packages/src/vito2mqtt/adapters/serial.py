@@ -259,9 +259,25 @@ class OptolinkAdapter:
             )
             encoded_writes.append((cmd.address, encoded))
 
-        async with self._lock, self._open_session() as session:
-            for address, encoded in encoded_writes:
-                await session.write(address, encoded)
+        async def _flush() -> None:
+            async with self._lock, self._open_session() as session:
+                for address, encoded in encoded_writes:
+                    await session.write(address, encoded)
+
+        # cap-ug0: a command-timeout cancellation must not tear a multi-signal
+        # batch. A full weekly schedule is seven independent 8-byte writes; the
+        # serial path has no lower-level read timeout, so cosalette's command
+        # backstop is the only thing that can cancel a wedged bus mid-batch,
+        # which would leave some days written and others not. Shield the flush:
+        # if an outer asyncio.wait_for cancels us, let the in-flight session
+        # finish before unwinding. The TimeoutError still reaches the error
+        # topic (vito2mqtt._registration sizes timeout= well above the batch).
+        flush = asyncio.create_task(_flush())
+        try:
+            await asyncio.shield(flush)
+        except asyncio.CancelledError:
+            await flush
+            raise
 
     # -- private helpers ----------------------------------------------------
 
