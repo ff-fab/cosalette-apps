@@ -173,7 +173,7 @@ After receiving a valid command, gas2mqtt publishes an updated state to
 ## Framework Topics
 
 Alongside the gas2mqtt-specific topics above, cosalette itself publishes two
-framework-owned topics. Both are always on -- no setting disables them -- retained,
+framework-owned topics. Both are always on — no setting disables them — retained,
 QoS 1, and republished byte-identically on every broker connect.
 
 | Topic                               | Payload                           | Retain | QoS |
@@ -191,7 +191,7 @@ command surface is not exposed to anyone who can subscribe on a shared broker.
 
 A machine-readable snapshot of `state_model` declaration drift (ADR-069): a handler
 whose `state_model=` argument disagrees with its return type annotation. The topic is
-published even when there is no drift -- a clean app publishes `drift_count: 0` rather
+published even when there is no drift — a clean app publishes `drift_count: 0` rather
 than omitting the topic, so "no drift" is distinguishable from "never ran a version
 that publishes this topic".
 
@@ -209,7 +209,7 @@ that publishes this topic".
 | `drift_count`                    | integer | Number of handlers with a declaration/annotation conflict          |
 | `entries[].handler`              | string  | Registered handler name                                            |
 | `entries[].archetype`            | string  | `"telemetry"` or `"command"`                                       |
-| `entries[].kind`                 | string  | Drift kind -- currently only `"annotation_conflict"`               |
+| `entries[].kind`                 | string  | Drift kind — currently only `"annotation_conflict"`               |
 | `entries[].declared_model`       | string  | The `state_model=` class name declared on the handler              |
 | `entries[].effective_annotation` | string  | The handler's actual return type annotation                        |
 
@@ -228,11 +228,11 @@ that publishes this topic".
 
 Both topics disclose handler names, channel addresses, and payload schemas. If you
 run a production broker ACL file, protect `_meta/#` the same way you protect
-`_meta/registry` -- see
+`_meta/registry` — see
 [ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/)
 for this repo's transport posture. Every `mosquitto.conf` shipped in this repo is
 dev-only (`allow_anonymous true`, no ACL file), so there is nothing to change
-in-repo -- this note only applies if you deploy your own broker ACLs.
+in-repo — this note only applies if you deploy your own broker ACLs.
 
 ---
 
