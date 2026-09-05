@@ -55,8 +55,8 @@ per telegram round trip, that worst case is ~34 s — over the 30 s
 default, which would cancel a legitimate schedule write mid-batch. 90 s
 clears it with margin while still bounding a wedged bus. Paired with
 ``unavailable_on`` so a timeout also marks the device offline, and with
-the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so the cancel
-cannot leave a half-written schedule (cap-ug0).
+the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so a healthy
+bus still lands every signal after the cancel unwinds (cap-ug0).
 """
 
 COMMAND_WAKE_MIN_INTERVAL_SECONDS = 15.0

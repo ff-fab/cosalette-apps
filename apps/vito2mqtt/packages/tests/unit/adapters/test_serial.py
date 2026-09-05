@@ -21,7 +21,8 @@ Test Techniques Used:
 - AAA pattern: Arrange-Act-Assert structure throughout
 - Error mapping: Verify domain exceptions for transport-level failures
 - Concurrency: Verify asyncio.Lock serializes access
-- Error Guessing: Batch write survives a mid-flight timeout cancellation
+- Error Guessing: Batch write finishes detached after a mid-flight timeout
+  cancellation, and a wedged write still unwinds the caller promptly
 
 Since real serial hardware is unavailable in CI, all I/O is mocked.
 The ``_open_session`` private method is patched to yield a
@@ -519,7 +520,8 @@ class TestWriteSignals:
 
         Technique: Error Guessing — cosalette's per-command backstop must
         not tear a multi-signal write (e.g. a weekly schedule), which would
-        leave the boiler with some values applied and others not (cap-ug0).
+        leave the boiler with some values applied and others not. The
+        shielded batch finishes detached after the caller unwinds (cap-ug0).
         """
         adapter = OptolinkAdapter(vito2mqtt_settings)
         adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
@@ -542,7 +544,50 @@ class TestWriteSignals:
                 timeout=0.02,
             )
 
+        # The caller unwound promptly, but the shielded batch keeps running
+        # in the background — every signal still reaches the hardware.
+        async def _batch_finished() -> None:
+            while mock_session.write.await_count < 3:
+                await asyncio.sleep(0.01)
+
+        await asyncio.wait_for(_batch_finished(), timeout=1.0)
         assert mock_session.write.await_count == 3
+
+    async def test_write_signals_timeout_cancel_unwinds_promptly_on_wedged_bus(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        mock_session: MockP300Session,
+    ) -> None:
+        """A cancel is not blocked by an in-flight write that never returns.
+
+        Technique: Error Guessing — the serial path has no lower-level read
+        timeout, so a wedged ``session.write`` must not turn the command
+        backstop (or shutdown) into an unbounded wait (cap-ug0).
+        """
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+        adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
+
+        wedged = asyncio.Event()
+
+        async def _never_returns(_address: int, _payload: bytes) -> None:
+            await wedged.wait()
+
+        mock_session.write.side_effect = _never_returns
+
+        try:
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(
+                    adapter.write_signals({"hot_water_setpoint": 50}),
+                    timeout=0.02,
+                )
+        finally:
+            # Release the detached flush task and drain it so it does not leak.
+            wedged.set()
+            pending = asyncio.all_tasks() - {asyncio.current_task()}
+            if pending:
+                await asyncio.wait_for(
+                    asyncio.gather(*pending, return_exceptions=True), timeout=1.0
+                )
 
 
 class TestErrorMapping:
