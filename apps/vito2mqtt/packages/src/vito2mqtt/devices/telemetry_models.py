@@ -15,9 +15,10 @@
 
 """Typed ``state_model`` payloads for every telemetry signal group.
 
-Each frozen dataclass mirrors the serialized dict returned by the
-corresponding telemetry handler (see :mod:`vito2mqtt.devices.telemetry`).
-Wiring these as ``state_model=`` on ``app.add_telemetry`` makes
+Each frozen dataclass is the value returned by the corresponding
+telemetry handler (see :mod:`vito2mqtt.devices.telemetry`), which
+constructs it from the group's serialized signal values. Wiring these as
+``state_model=`` on ``app.add_telemetry`` makes
 ``cosalette schema init`` emit *typed* payload properties instead of a
 bare ``type: object``.  Typed properties can then carry
 ``x-cosalette-consumer`` metadata that drives Home Assistant MQTT
@@ -27,16 +28,17 @@ Design notes
 ------------
 - ``state_model`` is the runtime contract as well as the schema one: since
   cosalette 0.9.0 (ADR-068) it outranks the handler's return annotation and
-  every returned ``dict`` is validated against it, so a group whose fields
+  every returned value is validated against it, so a group whose fields
   drift from :data:`~vito2mqtt.devices.SIGNAL_GROUPS` publishes
-  ``ReturnValidationError`` to the error topic instead of state. Handlers
-  still return plain ``dict`` values; they carry no return annotation,
-  because one that disagreed with ``state_model`` would be a registration
-  warning.
+  ``ReturnValidationError`` to the error topic instead of state. Each
+  handler returns an instance of its group's model and its return
+  annotation is set to that same model (cap-z02), so the two agree.
 - Field types match the *serialized* form (post
   :func:`~vito2mqtt.devices._serialization.serialize_value`), not the raw
-  codec types.  Notably ``ReturnStatus`` signals serialize to ``str`` and
-  ES (error-history) signals serialize to :class:`ErrorHistoryEntry`.
+  codec types.  Notably ``ReturnStatus`` signals serialize to ``str``;
+  ES (error-history) signals serialize to a ``{"error", "timestamp"}``
+  dict that the handler's :class:`~pydantic.TypeAdapter` coerces into an
+  :class:`ErrorHistoryEntry` when it builds the model.
 - :data:`GROUP_STATE_MODELS` maps each signal-group key to its model so the
   registration loop can look models up by group name.
 
@@ -191,8 +193,11 @@ class BurnerState:
             )
         ),
     ]
+    # float, not int: the PR3 codec is (first byte / 2), so an odd raw byte
+    # decodes to a half-percent value (e.g. 20.5). An int field would reject
+    # that under state_model validation and publish ReturnValidationError.
     plant_power_output: Annotated[
-        int, Field(json_schema_extra=_percent("Plant Power Output", icon="mdi:gauge"))
+        float, Field(json_schema_extra=_percent("Plant Power Output", icon="mdi:gauge"))
     ]
 
 

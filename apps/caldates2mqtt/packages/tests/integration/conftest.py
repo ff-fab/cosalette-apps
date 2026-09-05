@@ -19,7 +19,7 @@ from pydantic_settings import PydanticBaseSettingsSource
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import error_type_map
-from caldates2mqtt.main import calendar
+from caldates2mqtt.main import CalendarState, calendar
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
 
@@ -99,7 +99,7 @@ def build_integration_app(
             trigger: cosalette.TriggerPayload,
             reader: CalDavPort,
             logger: logging.Logger,
-        ) -> dict[str, object]:
+        ) -> CalendarState:
             return await calendar(cal, trigger, reader, logger)
 
         return _handler
@@ -111,6 +111,7 @@ def build_integration_app(
             schedule=cal.schedule,
             triggerable=True,
             min_interval=min_interval,
+            state_model=CalendarState,
         )
     return app
 

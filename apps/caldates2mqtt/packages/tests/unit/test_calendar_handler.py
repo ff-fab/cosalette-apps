@@ -82,12 +82,12 @@ class TestCalendarHandlerHappyPath:
             logger=_logger,
         )
 
-        assert result == {
-            "events": [
-                {"title": "Gelber Sack", "date": "2026-03-27"},
-                {"title": "Restmuell", "date": "2026-03-31"},
+        assert result == CalendarState(
+            events=[
+                SchemaCalendarEvent(title="Gelber Sack", date="2026-03-27"),
+                SchemaCalendarEvent(title="Restmuell", date="2026-03-31"),
             ]
-        }
+        )
 
     def test_calendar_state_roundtrip(self) -> None:
         """CalendarState can be constructed from the handler's return shape.
@@ -125,7 +125,7 @@ class TestCalendarHandlerHappyPath:
             logger=_logger,
         )
 
-        assert len(result["events"]) == 3  # type: ignore[arg-type]
+        assert len(result.events) == 3
 
     async def test_empty_calendar(self, fake_reader: FakeCalDavReader) -> None:
         """Empty calendar returns {"events": []}."""
@@ -138,7 +138,7 @@ class TestCalendarHandlerHappyPath:
             logger=_logger,
         )
 
-        assert result == {"events": []}
+        assert result == CalendarState(events=[])
 
     async def test_fewer_events_than_entries(
         self, fake_reader: FakeCalDavReader
@@ -154,7 +154,7 @@ class TestCalendarHandlerHappyPath:
             logger=_logger,
         )
 
-        assert len(result["events"]) == 1  # type: ignore[arg-type]
+        assert len(result.events) == 1
 
     async def test_passes_correct_credentials(
         self, fake_reader: FakeCalDavReader
@@ -211,7 +211,7 @@ class TestCalendarHandlerTrigger:
         )
 
         assert fake_reader.calls[-1][4] == 30
-        assert len(result["events"]) == 10  # type: ignore[arg-type]
+        assert len(result.events) == 10
 
     @pytest.mark.parametrize(
         ("raw_entries", "expected_count"),
@@ -239,7 +239,7 @@ class TestCalendarHandlerTrigger:
         )
 
         assert fake_reader.calls[-1][4] == 30
-        assert len(result["events"]) == expected_count  # type: ignore[arg-type]
+        assert len(result.events) == expected_count
 
     @pytest.mark.parametrize(
         ("raw_days", "expected_days"),
