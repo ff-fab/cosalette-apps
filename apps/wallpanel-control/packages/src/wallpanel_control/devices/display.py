@@ -261,6 +261,12 @@ async def _execute_display_command(
     state_model=DisplayState,
     init=create_display_handler_state,
     summary="Control display state and brightness",
+    # No explicit timeout=: the longest path is ~4 sequential SSH round trips
+    # (screen toggle + max/current brightness + screen-state read), each
+    # self-bounded by asyncio.wait_for(ssh_timeout=5.0) and degrading to
+    # _UNAVAILABLE, so worst case ~25 s stays inside cosalette's 30 s backstop.
+    # Every mutation is a single idempotent sysfs/busctl write — a cancel
+    # cannot leave the panel half-configured (cap-ug0).
     unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_display(
