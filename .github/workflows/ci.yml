@@ -115,6 +115,11 @@ jobs:
         with:
           run-cmd: task check:agents:test
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Run repo-root unit test suite inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task test:unit
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues
   security:

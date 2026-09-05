@@ -198,7 +198,7 @@ class TestPushDrivenPublication:
             await wait_until_subscribed(push_harness)
             await push_harness.wait_for_publish_count(_STATE_TOPIC, 1)
 
-            await push_harness.clock.settle(stable_rounds=20)  # type: ignore[union-attr]
+            await push_harness.clock.settle(stable_rounds=20)
 
             assert len(push_harness.messages_for(_STATE_TOPIC)) == 1
         finally:

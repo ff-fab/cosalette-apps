@@ -2,7 +2,10 @@
 
 Checks the sixteen validation criteria of
 ``docs/planning/cosalette-event-driven-publication-proposal.md`` against the
-shipped 0.8.0 wheel.  The criteria are framework contracts, not app behaviour,
+installed wheel — 0.8.0 when the proposal shipped, 0.9.0 now.  ``TestParity``'s
+two return-validation criteria were rewritten for the ADR-068 change 0.9.0
+made to that ordering; see their own docstrings for the before/after.  The
+criteria are framework contracts, not app behaviour,
 so they are asserted here against purpose-built minimal apps rather than in
 either adopting app's suite — an assertion phrased in terms of a bulb or a
 LaCrosse frame would be answering a different question.
