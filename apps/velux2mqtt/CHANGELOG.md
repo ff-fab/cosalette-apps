@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.0](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.1.4...velux2mqtt-v0.2.0) (2026-09-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* state_model= now outranks the return annotation and validates every telemetry and command return (ADR-068). A handler declaring state_model=M alongside a differently typed annotation emits a UserWarning at registration, which filterwarnings=["error"] turns into a collection error — it broke five registrations here, covering ten entities. The loose "-> dict[str, object]" annotations are dropped so state_model= is the sole contract, per the upstream migration note: airthings _telemetry, caldates calendar, gas2mqtt gas_counter and temperature, and vito's telemetry handler factory for all seven Optolink signal groups.
+
+### Features
+
+* adopt App.discovery() runtime HA discovery across apps ([8ccd74d](https://github.com/ff-fab/cosalette-apps/commit/8ccd74d87509b32e5238d9b9e55d263e25ba609a))
+* migrate to cosalette 0.6.1, close two of three wiz2mqtt gates ([#208](https://github.com/ff-fab/cosalette-apps/issues/208)) ([13b72e0](https://github.com/ff-fab/cosalette-apps/commit/13b72e06eaee774163e0c1d89371d140c17ce574))
+* migrate to cosalette 0.6.3, close the final wiz2mqtt gate ([#210](https://github.com/ff-fab/cosalette-apps/issues/210)) ([30850af](https://github.com/ff-fab/cosalette-apps/commit/30850afb62cf2a3b906179d91a3f0c03d6868955))
+* upgrade to cosalette 0.9.0 and adopt state_model enforcement ([#228](https://github.com/ff-fab/cosalette-apps/issues/228)) ([7a9c0ef](https://github.com/ff-fab/cosalette-apps/commit/7a9c0ef3e1079bb780d465147db579101630586c))
+
+
+### Bug Fixes
+
+* **velux2mqtt:** replace fixed wall-clock waits with condition polling in calibration test helper ([#211](https://github.com/ff-fab/cosalette-apps/issues/211)) ([db9bab1](https://github.com/ff-fab/cosalette-apps/commit/db9bab17f0423209ebaed7b638a155fa5c255d56))
+* **velux2mqtt:** replace run_app_briefly's fixed wait with poll-based startup settling ([#212](https://github.com/ff-fab/cosalette-apps/issues/212)) ([86e5f82](https://github.com/ff-fab/cosalette-apps/commit/86e5f82a0440d0c457001a69ee3c15895450f1b2))
+
+
+### Documentation
+
+* fix ADR-006 link, scope airthings2mqtt device claim, document _meta/ topics ([#229](https://github.com/ff-fab/cosalette-apps/issues/229)) ([4c2f7af](https://github.com/ff-fab/cosalette-apps/commit/4c2f7af29c635d597f95c99f40cc61db95f80c64))
+
 ## [0.1.4](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.1.3...velux2mqtt-v0.1.4) (2026-08-09)
 
 
