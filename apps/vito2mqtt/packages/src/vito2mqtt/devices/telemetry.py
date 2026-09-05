@@ -87,7 +87,7 @@ def make_telemetry_handler(
         Async callable suitable for ``app.add_telemetry(func=...)``.
     """
 
-    async def handler(port: OptolinkPort) -> dict[str, object]:
+    async def handler(port: OptolinkPort):
         raw = await port.read_signals(SIGNAL_GROUPS[group])
         return {
             name: serialize_value(value, COMMANDS[name].type_code)

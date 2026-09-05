@@ -89,7 +89,7 @@ async def _telemetry(
     settings: Airthings2MqttSettings,
     trigger: cosalette.TriggerPayload,
     logger: logging.Logger,
-) -> dict[str, object]:
+):
     """Read all sensor values and return state dict."""
     if trigger.is_triggered:
         logger.info("On-demand Airthings re-read triggered")

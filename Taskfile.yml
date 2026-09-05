@@ -124,8 +124,12 @@ tasks:
   # ── Cross-app orchestration ────────────────────────────────
 
   test:all:
-    desc: Run tests for all apps (unit + integration)
+    desc: Run the repo-root suite plus tests for all apps (unit + integration)
     cmds:
+      # The root packages/tests/ suite holds the cross-app framework-contract
+      # assertions (event-driven publication acceptance, MQTT TLS defaults).
+      # It is not owned by any app, so nothing else would run it.
+      - task: test:unit
       - for: { var: APPS }
         task: '{{.ITEM}}:test'
       - for: { var: APPS }

@@ -198,7 +198,7 @@ async def gas_counter(
     state: GasCounterState,
     magnetometer: MagnetometerPort,
     logger: logging.Logger,
-) -> dict[str, object] | None:
+):
     """Gas counter telemetry handler (read-only).
 
     Called periodically to read magnetometer and count ticks.

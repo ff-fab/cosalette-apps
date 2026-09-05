@@ -25,9 +25,14 @@ discovery (device_class, unit, state_class, …).
 
 Design notes
 ------------
-- ``state_model`` is schema-only: cosalette does **not** validate runtime
-  payloads against it, so handlers keep returning plain ``dict`` values.
-  The dataclasses exist purely to shape the generated AsyncAPI schema.
+- ``state_model`` is the runtime contract as well as the schema one: since
+  cosalette 0.9.0 (ADR-068) it outranks the handler's return annotation and
+  every returned ``dict`` is validated against it, so a group whose fields
+  drift from :data:`~vito2mqtt.devices.SIGNAL_GROUPS` publishes
+  ``ReturnValidationError`` to the error topic instead of state. Handlers
+  still return plain ``dict`` values; they carry no return annotation,
+  because one that disagreed with ``state_model`` would be a registration
+  warning.
 - Field types match the *serialized* form (post
   :func:`~vito2mqtt.devices._serialization.serialize_value`), not the raw
   codec types.  Notably ``ReturnStatus`` signals serialize to ``str`` and

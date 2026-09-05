@@ -58,7 +58,7 @@ from cosalette.schema import consumer
 from cosalette.stores import MemoryStore
 from cosalette.testing import (
     AppHarness,
-    FakeClock,
+    ManualClock,
     assert_discovery_topics_published,
     make_settings,
 )
@@ -76,7 +76,12 @@ WOKEN = ENTITIES[0]
 """The entity every notify test arms."""
 
 NO_TICK_INTERVAL = 3600.0
-"""An interval no test window can reach — see :class:`RealSleepClock`."""
+"""The interval on every notify-driven harness — see :func:`build_harness`.
+
+The gating ``ManualClock`` is what makes it unreachable: no interval fires
+without an explicit ``advance()``, and these tests make none.  The value
+stays large so the registration still reads as "no tick is due here".
+"""
 
 _IN_FLIGHT_SECONDS = 0.05
 """How long the coalescing handler stays busy, so arms land mid-run."""
@@ -101,28 +106,6 @@ _VOLATILE_ERROR_FIELDS = ("timestamp", "id")
 
 _FAILURE_RUNS = 3
 """Consecutive failures compared between a woken and a ticked entity."""
-
-
-class RealSleepClock(FakeClock):
-    """A :class:`FakeClock` whose ``sleep`` actually waits.
-
-    ``FakeClock.sleep`` advances *virtual* time with no real delay, so
-    ``interval=3600`` collapses into a busy loop that races the virtual
-    clock forward and "published without the clock advancing" becomes
-    unfalsifiable.  Sleeping for real makes :data:`NO_TICK_INTERVAL`
-    genuinely unreachable inside a test, so ``now()`` stays where the
-    test left it and a publish that does arrive can only have been woken.
-
-    One of several copies app suites currently hand-roll.  cap-o9x tracks
-    giving it a single home; this module is one of the sites that task has
-    to collect.
-    """
-
-    async def sleep(self, seconds: float) -> None:
-        """Sleep for *seconds* of wall-clock time, keeping ``now()`` in step."""
-        await asyncio.sleep(seconds)
-        if seconds > 0:
-            self._time += seconds
 
 
 class StateModel(BaseModel):
@@ -209,9 +192,7 @@ def build_app(
         publish=publish if publish is not None else OnChange(),
         summary="Acceptance telemetry entity",
     )
-    async def entity(
-        ctx: DeviceContext, config: str, state: Recorder
-    ) -> dict[str, Any] | None:
+    async def entity(ctx: DeviceContext, config: str, state: Recorder):
         state.entries[config] += 1
         if state.in_flight_seconds:
             await asyncio.sleep(state.in_flight_seconds)
@@ -228,12 +209,18 @@ def build_app(
     return app
 
 
-def build_harness(app: App, *, real_sleep: bool = True) -> AppHarness:
-    """Wrap *app* in a harness whose clock only moves when something sleeps."""
+def build_harness(app: App) -> AppHarness:
+    """Wrap *app* in a harness on a gating clock.
+
+    A ``ManualClock`` releases no sleep without an explicit ``advance()``, so
+    ``interval=`` cannot fire on its own and "published without the clock
+    advancing" is falsifiable.  The ticked half of a parity comparison drives
+    its scheduler with :meth:`AppHarness.advance_time`, one call per tick.
+    """
     return AppHarness(
         app=app,
         mqtt=MockMqttClient(),
-        clock=RealSleepClock() if real_sleep else FakeClock(),
+        clock=ManualClock(),
         settings=make_settings(),
         shutdown_event=asyncio.Event(),
     )
@@ -667,13 +654,12 @@ class TestParity:
     ) -> None:
         """Criterion 8: return validation is blind to how the run was woken.
 
-        The criterion as written ("a woken run returning a non-conforming
-        payload raises ``ReturnValidationError`` and publishes to the error
-        topic") asserts two things at once, and only the second half is
-        about event-driven publication.  The first half does not hold in
-        0.8.0 for *any* wake reason — see
-        :meth:`test_a_dict_return_bypasses_the_declared_state_model` — so
-        parity is asserted here against the failure mode that does raise.
+        Both halves of the criterion hold since cosalette 0.9.0 (ADR-068):
+        a non-conforming return raises ``ReturnValidationError`` whatever
+        woke the run.  This asserts the parity half — that the *same*
+        error reaches the *same* topic on both paths — while
+        :meth:`test_a_dict_return_is_validated_against_the_declared_state_model`
+        asserts that validation happens at all.
 
         Technique: Equivalence Partitioning — woken run vs ticked run,
         same handler, same non-serialisable return.
@@ -708,6 +694,7 @@ class TestParity:
         )
         task = asyncio.create_task(ticked.run())
         try:
+            await ticked.advance_time(_FAST_TICK_SECONDS)
             await _wait_until(
                 lambda: bool(ticked.messages_for(error_topic(WOKEN))),
                 f"a ticked error publish on {error_topic(WOKEN)}",
@@ -723,25 +710,22 @@ class TestParity:
         assert len(woken_errors) == len(ticked_errors) == 1
         assert woken_errors == ticked_errors
 
-    async def test_a_dict_return_bypasses_the_declared_state_model(
+    async def test_a_dict_return_is_validated_against_the_declared_state_model(
         self, recorder: Recorder, notifier_sink: list[EntityNotifier]
     ) -> None:
-        """A plain-``dict`` telemetry return is never validated — cap-8au finding.
+        """A plain-``dict`` telemetry return is validated — cap-b8h, fixed.
 
-        ``normalize_return`` tries ``TypeAdapter(model).dump_python(value)``
-        first and only falls back to ``validate_python`` when that raises
-        (``_runners/_contracts.py:288-296``).  Pydantic serialises a plain
-        dict against a ``BaseModel`` adapter with a ``UserWarning`` rather
-        than an exception, so the fallback never runs and a field of the
-        wrong type is published unchallenged.
+        This asserted the opposite through 0.8.0: ``normalize_return`` tried
+        ``TypeAdapter(model).dump_python(value)`` first and only fell back to
+        ``validate_python`` when that raised, and pydantic serialises a plain
+        dict against a model adapter with a ``UserWarning`` rather than an
+        exception — so the fallback never ran and a wrongly typed field was
+        published unchallenged.  cosalette 0.9.0 passes ``warnings="error"``
+        on that dump (ADR-068 clause B), so the mismatch now falls through to
+        validation and the publish is suppressed in favour of an error.
 
-        Predates 0.8.0 and applies to ticked and woken runs alike, so it
-        is not a regression of event-driven publication — but criterion 8
-        asked, and this is the answer.  Tracked upstream as cap-b8h.  The
-        ``@app.device`` archetype is unaffected: its ``state_model`` is
-        threaded onto the context (``_wiring/_context.py:120``) and
-        ``publish_state`` validates directly, which is the path
-        jeelink2mqtt's ``sensor_entity`` takes.
+        Kept inverted rather than deleted so the contract stays asserted in
+        the direction that holds.
 
         Technique: Error Guessing — the wrong field type, the shape a
         handler most often returns.
@@ -754,18 +738,18 @@ class TestParity:
 
             notifier_sink[0](WOKEN)
             await _wait_until(
-                lambda: len(state_messages(harness, WOKEN)) == 2,
-                f"the woken publish on {state_topic(WOKEN)}",
+                lambda: bool(harness.messages_for(error_topic(WOKEN))),
+                f"an error publish on {error_topic(WOKEN)}",
             )
 
-            payload, _retain, _qos = state_messages(harness, WOKEN)[1]
-            assert json.loads(payload) == {"reading": "not-an-int"}
-            assert not harness.messages_for(error_topic(WOKEN))
+            assert len(state_messages(harness, WOKEN)) == 1, (
+                "a payload that failed validation reached the state topic"
+            )
 
-    async def test_a_ticked_dict_return_also_bypasses_the_declared_state_model(
+    async def test_a_ticked_dict_return_is_also_validated(
         self,
     ) -> None:
-        """The plain-``dict`` bypass is the same on the scheduled path.
+        """The plain-``dict`` enforcement is the same on the scheduled path.
 
         Technique: Equivalence Partitioning — identical bad payload,
         delivered by a scheduled tick instead of a local wake.
@@ -781,20 +765,18 @@ class TestParity:
         )
         task = asyncio.create_task(ticked.run())
         try:
-            await _wait_until(
-                lambda: len(state_messages(ticked, WOKEN)) == 1,
-                f"the startup publish on {state_topic(WOKEN)}",
-            )
+            await ticked.wait_for_publish_count(state_topic(WOKEN), 1)
             recorder.payloads[WOKEN] = {"reading": "not-an-int"}
 
+            await ticked.advance_time(_FAST_TICK_SECONDS)
             await _wait_until(
-                lambda: len(state_messages(ticked, WOKEN)) >= 2,
-                f"the ticked publish on {state_topic(WOKEN)}",
+                lambda: bool(ticked.messages_for(error_topic(WOKEN))),
+                f"a ticked error publish on {error_topic(WOKEN)}",
             )
 
-            payload, _retain, _qos = state_messages(ticked, WOKEN)[1]
-            assert json.loads(payload) == {"reading": "not-an-int"}
-            assert not ticked.messages_for(error_topic(WOKEN))
+            assert len(state_messages(ticked, WOKEN)) == 1, (
+                "a payload that failed validation reached the state topic"
+            )
         finally:
             ticked.shutdown_event.set()
             await asyncio.wait_for(task, timeout=_WAIT_TIMEOUT)
@@ -1081,12 +1063,14 @@ class TestHealthAccounting:
             # failures from the same online state — otherwise the
             # comparison is between an entity that came online and one
             # that never did.
-            await _wait_until(
-                lambda: len(state_messages(ticked, WOKEN)) == 1,
-                "the ticked entity's startup run",
-            )
+            await ticked.wait_for_publish_count(state_topic(WOKEN), 1)
             ticked_recorder.raise_next = RuntimeError("boom")
             entered_at = ticked_recorder.entries[WOKEN]
+            # One advance per tick, so the ticked side runs exactly as many
+            # times as the woken side was armed — a free-running clock would
+            # keep ticking through the wait and inflate the comparison.
+            for _ in range(_FAILURE_RUNS):
+                await ticked.advance_time(_FAST_TICK_SECONDS)
             await _wait_until(
                 lambda: ticked_recorder.entries[WOKEN] >= entered_at + _FAILURE_RUNS,
                 f"{_FAILURE_RUNS} ticked failures",

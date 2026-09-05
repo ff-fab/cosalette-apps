@@ -54,21 +54,6 @@ class _FastPollSettings(Airthings2MqttSettings):
         return (init_settings,)
 
 
-class RealSleepClock(FakeClock):
-    """A :class:`FakeClock` whose ``sleep`` actually waits.
-
-    ``FakeClock.sleep`` advances virtual time instantly, which erases every
-    delay the app asks for — including the ADR-066 ``min_interval=`` throttle
-    window.  Tests that assert a *spacing* need the sleep to cost real time;
-    they pay for it by using a throttle measured in fractions of a second.
-    """
-
-    async def sleep(self, seconds: float) -> None:
-        await asyncio.sleep(seconds)
-        if seconds > 0:
-            self._time += seconds
-
-
 def build_integration_app(
     adapter: type | object = FakeAirthingsReader,
     *,
@@ -139,9 +124,11 @@ async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
 def make_long_poll_settings() -> Airthings2MqttSettings:
     """Settings with a 1-hour poll interval for trigger-causality tests.
 
-    A 3600-second poll cannot fire within the test's 2-second window, so
-    the second state publish is guaranteed to be the triggered re-read,
-    not an accidental scheduler tick.
+    Pair with a ``ManualClock``: nothing but an explicit ``advance()``
+    releases a sleep, so the 3600-second poll cannot fire at all and the
+    second state publish can only be the triggered re-read.  Under
+    ``FakeClock`` the same interval fires immediately and repeatedly, which
+    makes the causality claim unassertable (cosalette ADR-071).
     """
     return _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=3600)  # type: ignore[return-value]
 

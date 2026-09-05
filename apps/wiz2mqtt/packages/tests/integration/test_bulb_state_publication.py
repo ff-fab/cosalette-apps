@@ -140,12 +140,6 @@ _BULB_IP = "10.0.0.5"
 
 _STATE_TOPIC = f"{TOPIC_PREFIX}/office/state"
 
-_PUSH_WINDOW = 1.0
-"""Seconds to wait for a push-driven publish before calling it a failure."""
-
-_QUIET_WINDOW = 0.2
-"""Seconds of deliberate inactivity used to prove no tick is due."""
-
 _PUSHED_STATE = BulbState(
     state=True,
     brightness=42,
@@ -157,27 +151,14 @@ _PUSHED_STATE = BulbState(
 """A state that differs from the fake's default, so OnChange() lets it through."""
 
 
-async def _wait_for_messages(harness: AppHarness, topic: str, count: int) -> None:
-    """Poll until *topic* has at least *count* messages, or fail with the count."""
-    loop = asyncio.get_running_loop()
-    deadline = loop.time() + _PUSH_WINDOW
-    while len(harness.messages_for(topic)) < count:
-        if loop.time() >= deadline:
-            raise AssertionError(
-                f"{topic} had {len(harness.messages_for(topic))} message(s), "
-                f"expected {count}, after {_PUSH_WINDOW}s"
-            )
-        await asyncio.sleep(0.005)
-
-
 @pytest.mark.integration
-@pytest.mark.slow
 class TestPushDrivenPublication:
     """A bulb push publishes immediately, without waiting for a scheduled tick.
 
     These run against ``push_harness``: ``interval=NO_TICK_INTERVAL`` (30 s)
-    on a clock that really sleeps. Only the startup run and a trigger wake
-    can publish inside the test window, so a second message is proof the
+    on a gating ``ManualClock``. Neither test advances that clock, so the
+    scheduled tick cannot fire at all and only the startup run and a trigger
+    wake can publish. A second message is therefore proof the
     ``triggerable="local"`` path works end to end — registration, adapter
     injection, ``EntityNotifier`` name resolution and the runner's trigger
     race all included.
@@ -190,10 +171,10 @@ class TestPushDrivenPublication:
         task = asyncio.create_task(push_harness.run())
         try:
             await wait_until_subscribed(push_harness)
-            await _wait_for_messages(push_harness, _STATE_TOPIC, 1)  # startup run
+            await push_harness.wait_for_publish_count(_STATE_TOPIC, 1)  # startup run
 
             fake_adapter.inject_push(_BULB_IP, _PUSHED_STATE)
-            await _wait_for_messages(push_harness, _STATE_TOPIC, 2)
+            await push_harness.wait_for_publish_count(_STATE_TOPIC, 2)
 
             payload, retain, _qos = push_harness.messages_for(_STATE_TOPIC)[1]
             assert json.loads(payload)["brightness"] == 42
@@ -202,20 +183,22 @@ class TestPushDrivenPublication:
             push_harness.shutdown_event.set()
             await asyncio.wait_for(task, timeout=2.0)
 
-    async def test_without_a_push_the_long_interval_really_holds(
+    async def test_without_a_push_no_tick_can_publish(
         self, push_harness: AppHarness
     ) -> None:
         """The negative control for the test above.
 
         Technique: Specification-based — without it, a second publish could
-        just be a fast tick and the trigger assertion would be vacuous.
+        just be a tick and the trigger assertion would be vacuous. Generous
+        ``stable_rounds``: ``settle()`` is a bounded heuristic and this reads
+        an *absence*.
         """
         task = asyncio.create_task(push_harness.run())
         try:
             await wait_until_subscribed(push_harness)
-            await _wait_for_messages(push_harness, _STATE_TOPIC, 1)
+            await push_harness.wait_for_publish_count(_STATE_TOPIC, 1)
 
-            await asyncio.sleep(_QUIET_WINDOW)
+            await push_harness.clock.settle(stable_rounds=20)  # type: ignore[union-attr]
 
             assert len(push_harness.messages_for(_STATE_TOPIC)) == 1
         finally:
