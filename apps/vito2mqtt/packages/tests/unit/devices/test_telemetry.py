@@ -233,6 +233,18 @@ class TestHandlerSerializationIntegration:
             timestamp="2025-06-15T10:30:00",
         )
 
+    async def test_plant_power_output_accepts_half_percent(self) -> None:
+        """PR3 (byte / 2) yields half-percent values; the float field keeps them.
+
+        Technique: Boundary — an odd raw byte decodes to X.5, which an int
+        field would reject under state_model validation.
+        """
+        fake = FakeOptolinkAdapter(responses={"plant_power_output": 20.5})
+        handler = make_telemetry_handler("burner")
+        result = await handler(port=fake)
+
+        assert result.plant_power_output == 20.5
+
     async def test_handler_with_mixed_types_in_heating_floor(self) -> None:
         """heating_floor group contains IS10, RT, PR2, IUNON, BA signals.
 

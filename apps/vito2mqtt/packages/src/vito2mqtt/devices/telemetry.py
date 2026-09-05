@@ -82,7 +82,7 @@ GROUP_SUMMARIES: dict[str, str] = {
 
 def make_telemetry_handler(
     group: str,
-) -> Callable[..., Awaitable[Any]]:
+) -> Callable[[OptolinkPort], Awaitable[Any]]:
     """Create an async handler closure for a signal group.
 
     The factory pattern avoids the late-binding closure pitfall — each

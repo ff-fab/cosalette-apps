@@ -193,8 +193,11 @@ class BurnerState:
             )
         ),
     ]
+    # float, not int: the PR3 codec is (first byte / 2), so an odd raw byte
+    # decodes to a half-percent value (e.g. 20.5). An int field would reject
+    # that under state_model validation and publish ReturnValidationError.
     plant_power_output: Annotated[
-        int, Field(json_schema_extra=_percent("Plant Power Output", icon="mdi:gauge"))
+        float, Field(json_schema_extra=_percent("Plant Power Output", icon="mdi:gauge"))
     ]
 
 
