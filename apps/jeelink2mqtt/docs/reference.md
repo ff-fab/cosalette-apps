@@ -102,6 +102,58 @@ JEELINK2MQTT_SENSORS='[
 
 Event types: `auto_adopt`, `manual_assign`, `manual_reset`, `reset_all`.
 
+### Framework Topics
+
+Alongside the topics above, cosalette itself publishes two framework-owned topics.
+Both are always on -- no setting disables them -- retained, QoS 1, and republished
+byte-identically on every broker connect.
+
+| Topic                                   | Payload                           | Retain | QoS |
+| ----------------------------------------- | ---------------------------------- | ------ | --- |
+| `jeelink2mqtt/_meta/registry`            | Canonical AsyncAPI 3.0.0 document   | yes    | 1   |
+| `jeelink2mqtt/_meta/state_model_drift`   | `state_model` drift snapshot JSON   | yes    | 1   |
+
+`_meta/registry` is the canonical AsyncAPI document describing every channel
+jeelink2mqtt publishes and subscribes to; inbound command channels are stripped from
+the published copy so the command surface is not exposed to anyone who can subscribe
+on a shared broker.
+
+`_meta/state_model_drift` is a machine-readable snapshot of `state_model` declaration
+drift (ADR-069): a handler whose `state_model=` argument disagrees with its return
+type annotation. It is published even when there is no drift -- a clean app publishes
+`drift_count: 0` rather than omitting the topic:
+
+```json
+{
+  "schema_version": 1,
+  "drift_count": 0,
+  "entries": []
+}
+```
+
+| Field                            | Type    | Description                                                   |
+| ---------------------------------- | ------- | ----------------------------------------------------------------- |
+| `schema_version`                 | integer | Envelope version; bumped only on an incompatible payload change |
+| `drift_count`                    | integer | Number of handlers with a declaration/annotation conflict       |
+| `entries[].handler`              | string  | Registered handler name                                         |
+| `entries[].archetype`            | string  | `"telemetry"` or `"command"`                                    |
+| `entries[].kind`                 | string  | Drift kind -- currently only `"annotation_conflict"`            |
+| `entries[].declared_model`       | string  | The `state_model=` class name declared on the handler           |
+| `entries[].effective_annotation` | string  | The handler's actual return type annotation                     |
+
+One subscription across a whole broker distinguishes a healthy app from one that
+predates this topic: `mosquitto_sub -t '+/_meta/state_model_drift'`. An app publishing
+`drift_count: 0` is healthy; one with no retained message on this topic at all has not
+been upgraded past cosalette 0.9.0.
+
+Both `_meta` topics disclose handler names, channel addresses, and payload schemas. If
+you run a production broker ACL file, protect `_meta/#` the same way you protect
+`_meta/registry` -- see
+[ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/)
+for this repo's transport posture. The `mosquitto.conf` shipped with jeelink2mqtt is
+dev-only (`allow_anonymous true`, no ACL file), so there is nothing to change in-repo
+-- this note only applies if you deploy your own broker ACLs.
+
 ---
 
 ## Command Reference
