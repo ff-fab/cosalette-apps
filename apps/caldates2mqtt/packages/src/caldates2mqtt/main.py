@@ -33,8 +33,8 @@ _DAYS_MAX = 365
 class CalendarEvent:
     """One upcoming event entry within a calendar's event list.
 
-    Mirrors the per-event dict built by :func:`calendar`:
-    ``{"title": ..., "date": ...}``. The ``consumer()`` annotations are
+    :func:`calendar` returns these instances directly; each serialises to
+    ``{"title": ..., "date": ...}`` on the wire. The ``consumer()`` annotations are
     preparatory only: cosalette's HA/OpenHAB generators walk a channel's
     *top-level* properties, never nested list items, so these are inert
     today — no discovery payload results. This is independent of the
@@ -52,7 +52,8 @@ class CalendarEvent:
 class CalendarState:
     """Typed ``state_model`` for the calendar telemetry channel.
 
-    Mirrors the dict returned by :func:`calendar`: ``{"events": [...]}``.
+    :func:`calendar` constructs and returns an instance of this model,
+    which serialises to ``{"events": [...]}`` on the wire.
     ``app.telemetry`` here is registered with a callable ``name=``
     (``_calendar_map``, keyed off user-configured ``settings.calendars``)
     — the same callable-``name=`` pattern documented for velux2mqtt. A
@@ -115,8 +116,15 @@ async def calendar(
     trigger: cosalette.TriggerPayload,
     reader: CalDavPort,
     logger: logging.Logger,
-):
-    """Read upcoming events from a CalDAV calendar."""
+) -> CalendarState:
+    """Read upcoming events from a CalDAV calendar.
+
+    Returns a :class:`CalendarState` instance so the return annotation and
+    ``state_model=`` agree (cosalette 0.9.0 ADR-068) and the wire contract
+    is statically checked. The nested :class:`CalendarEvent` dataclasses
+    serialise to the same ``{"title", "date"}`` dicts the handler used to
+    build by hand.
+    """
     entries = cal.entries
     days = cal.days
 
@@ -139,11 +147,12 @@ async def calendar(
         days=days,
     )
 
-    return {
-        "events": [
-            {"title": e.title, "date": e.date.isoformat()} for e in events[:entries]
+    return CalendarState(
+        events=[
+            CalendarEvent(title=e.title, date=e.date.isoformat())
+            for e in events[:entries]
         ]
-    }
+    )
 
 
 def main() -> None:

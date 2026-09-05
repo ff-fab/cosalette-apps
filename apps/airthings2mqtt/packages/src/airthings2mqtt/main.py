@@ -89,19 +89,19 @@ async def _telemetry(
     settings: Airthings2MqttSettings,
     trigger: cosalette.TriggerPayload,
     logger: logging.Logger,
-):
-    """Read all sensor values and return state dict."""
+) -> AirthingsReading:
+    """Read all sensor values and return the reading.
+
+    The reader already yields an :class:`AirthingsReading`, which is the
+    handler's ``state_model``; returning it directly keeps the return
+    annotation and ``state_model=`` in agreement (cosalette 0.9.0
+    ADR-068) and restores static checking of the wire contract.
+    """
     if trigger.is_triggered:
         logger.info("On-demand Airthings re-read triggered")
 
     async with _get_read_lock():
-        reading = await reader.read(settings.device_mac)
-    return {
-        "temperature": reading.temperature,
-        "humidity": reading.humidity,
-        "radon_24h_avg": reading.radon_24h_avg,
-        "radon_long_term_avg": reading.radon_long_term_avg,
-    }
+        return await reader.read(settings.device_mac)
 
 
 def main() -> None:

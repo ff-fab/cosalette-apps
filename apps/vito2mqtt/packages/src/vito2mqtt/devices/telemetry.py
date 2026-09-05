@@ -19,22 +19,31 @@ Exports handler factories and spec dicts consumed by the composition
 root.  All handlers share the ``"optolink"`` coalescing group so they
 execute together at coinciding tick boundaries, minimizing serial bus
 sessions.  Each handler reads its group's signals from the Optolink
-port and returns serialized values for MQTT publishing.
+port and returns its group's typed ``state_model`` instance for MQTT
+publishing.
 
 Architecture
 ------------
 :func:`make_telemetry_handler` creates a closure per group to avoid the
-classic late-binding pitfall.  :data:`INTERVAL_ATTR` maps each group to
-its settings attribute name for deferred polling interval resolution.
+classic late-binding pitfall.  The closure constructs its group's
+:data:`~vito2mqtt.devices.telemetry_models.GROUP_STATE_MODELS` dataclass
+from the serialized signal values, so the handler's return type and the
+``state_model=`` passed at registration agree (cosalette 0.9.0 ADR-068,
+cap-z02).  :data:`INTERVAL_ATTR` maps each group to its settings
+attribute name for deferred polling interval resolution.
 :data:`GROUP_SUMMARIES` provides human-readable OpenAPI summaries.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from typing import Any
+
+from pydantic import TypeAdapter
 
 from vito2mqtt.devices import SIGNAL_GROUPS
 from vito2mqtt.devices._serialization import serialize_value
+from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
 from vito2mqtt.optolink.commands import COMMANDS
 from vito2mqtt.ports import OptolinkPort
 
@@ -73,12 +82,23 @@ GROUP_SUMMARIES: dict[str, str] = {
 
 def make_telemetry_handler(
     group: str,
-) -> Callable[..., Awaitable[dict[str, object]]]:
+) -> Callable[..., Awaitable[Any]]:
     """Create an async handler closure for a signal group.
 
     The factory pattern avoids the late-binding closure pitfall — each
     handler captures its own *group* value at creation time rather than
     sharing a mutable loop variable.
+
+    The closure returns an instance of the group's
+    :data:`~vito2mqtt.devices.telemetry_models.GROUP_STATE_MODELS`
+    dataclass — the same type registration passes as ``state_model=`` —
+    so the two agree and the wire contract is statically described
+    (cosalette 0.9.0 ADR-068, cap-z02). The serialized signal map is fed
+    through a :class:`~pydantic.TypeAdapter` for the model, which coerces
+    each value to its field type (``ES`` dicts become
+    :class:`~vito2mqtt.devices.telemetry_models.ErrorHistoryEntry`) — the
+    same normalisation cosalette applied to the old plain-dict return, so
+    the wire payload is unchanged.
 
     Args:
         group: Signal group name (key in :data:`SIGNAL_GROUPS`).
@@ -86,12 +106,16 @@ def make_telemetry_handler(
     Returns:
         Async callable suitable for ``app.add_telemetry(func=...)``.
     """
+    model = GROUP_STATE_MODELS[group]
+    adapter: TypeAdapter[Any] = TypeAdapter(model)
 
     async def handler(port: OptolinkPort):
         raw = await port.read_signals(SIGNAL_GROUPS[group])
-        return {
+        payload = {
             name: serialize_value(value, COMMANDS[name].type_code)
             for name, value in raw.items()
         }
+        return adapter.validate_python(payload)
 
+    handler.__annotations__["return"] = model
     return handler
