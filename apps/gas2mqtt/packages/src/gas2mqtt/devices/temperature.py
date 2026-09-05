@@ -66,7 +66,7 @@ async def temperature(
     magnetometer: MagnetometerPort,
     settings: Gas2MqttSettings,
     pt1: Pt1Filter,
-) -> dict[str, object]:
+):
     """Read temperature, calibrate, filter, and return state dict.
 
     Args:

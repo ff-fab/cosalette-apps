@@ -138,12 +138,25 @@ since 0.6.0, validates every `ctx.publish_state()` payload — see below) and
 AsyncAPI receive channel on `{prefix}/{device}/set`, but it does **not** runtime-validate
 inbound payloads).
 
-## `state_model=` Validates Published State (Breaking Change, 0.6.0)
+## `state_model=` Validates Published State (Breaking Change, 0.9.0)
 
-One rule across every publishing archetype: **if you declare `state_model`, published state is
-validated.** `@app.telemetry`/`@app.command` validate the handler return value; `@app.device` and
-`@app.stream` have no return value, so they validate each `ctx.publish_state()` payload against the
-model and raise `ReturnValidationError` on a mismatch.
+One rule across every publishing archetype, unconditional since 0.9.0: **if you declare
+`state_model`, published state is validated.** `@app.telemetry`/`@app.command` validate the handler
+return value; `@app.device` and `@app.stream` have no return value, so they validate each
+`ctx.publish_state()` payload. A mismatch raises `ReturnValidationError`, which is published to
+`{prefix}/{name}/error` with the state publish suppressed.
+
+On `@app.telemetry`/`@app.command`, `state_model=` **outranks the return annotation**. Declaring
+both with different types is a contradiction: `state_model=` wins and registration emits a
+`UserWarning` naming both. Under pytest's `filterwarnings = ["error"]` that warning is an error —
+drop the loose annotation and let `state_model=` be the sole contract.
+
+The same contradiction is also published for fleet scraping: a retained QoS-1 JSON snapshot on
+`{prefix}/_meta/state_model_drift` (always on, no setting), listing `handler`, `archetype`, `kind`,
+`declared_model` and `effective_annotation` per drifting handler. A clean app publishes
+`drift_count: 0`, so `mosquitto_sub -t '+/_meta/state_model_drift'` tells a healthy app apart from
+one that was never upgraded. Protect it with the same `_meta/#` broker ACL as `_meta/registry`
+(ADR-069).
 
 ```python
 @app.device("valve", state_model=ValveState)
@@ -163,8 +176,12 @@ async def readings(
         yield
 ```
 
-- Breaking for `@app.device` handlers that declared `state_model` and published non-conforming
-  payloads — they used to publish silently. Fix the payload, or drop `state_model=`.
+- Breaking for any handler that declared `state_model` and published a non-conforming payload —
+  it used to publish silently (0.6.0 for `@app.device`/`@app.stream`, 0.9.0 for
+  `@app.telemetry`/`@app.command`). Fix the payload, or drop `state_model=`.
+- Validated payloads dump with `exclude_none=True` on every archetype, so an absent optional field
+  is an **omitted key, not an explicit `null`**. Since 0.9.0 this changes the device/stream wire
+  payload for models with optional fields.
 - Validation **normalizes**: aliases, custom serializers and coercion apply, so an `int` `3` for a
   `float` field goes on the wire as `3.0`.
 - Only the static `{prefix}/{name}/state` topic is covered. `ctx.publish()` and `ctx.sub_entity(...)`
@@ -255,6 +272,22 @@ asyncio uses these internally; global patches corrupt loop timing (Python 3.14+ 
 Device coroutines call `ctx.sleep(N)` — the `fake_clock` fixture intercepts this, advancing
 virtual time with no wall-clock delay.
 
+`FakeClock.sleep()` self-completes, so it proves what *did* happen, never what didn't. To
+assert that a scheduled tick did **not** fire, or an exact publish count, use `ManualClock`:
+its `sleep()` blocks until `await clock.advance(seconds)`, and `await clock.settle()` drains
+the loop without moving virtual time. `settle()` alone is a bounded heuristic — a task taking
+a few plain `await` hops can be reported quiescent before its effect lands — so assert state
+after `advance()` or `await clock.settle(until=<predicate>)` rather than absence after a bare
+`settle()`. A forgotten `advance()` hangs the suite rather than failing it: wrap awaits that
+can gate in `asyncio.wait_for(..., 1.0)`.
+
+Inject a `ManualClock` into a full harness with `AppHarness.create(clock=ManualClock())` and
+drive it through the supported helpers: `await harness.advance_time(seconds)` delegates to
+`ManualClock.advance()` (releasing due sleeps, then settling), and
+`await harness.wait_for_publish_count(topic, count)` yields until the awaited publish lands
+and raises on timeout — use it instead of a hand-rolled `for _ in range(10_000): await
+asyncio.sleep(0)` spin.
+
 When domain code holds a bare `time_module` reference, swap the **module object**, not the attribute:
 
 ```python
@@ -297,8 +330,8 @@ Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 > section above says `Default None (no timeout)`; that is wrong. Omitting `timeout=`
 > applies a bounded default of 30 s (`_utils.py::_DEFAULT_COMMAND_TIMEOUT`, applied by
 > `_wiring/_resolution.py::resolve_timeouts_commands` per ADR-060). Only an explicit
-> `timeout=None` is unbounded. Verified against the installed 0.8.0 wheel; upstream doc
-> bug tracked as `cap-l2p`.
+> `timeout=None` is unbounded. Re-verified against the installed 0.9.0 wheel — still
+> wrong upstream; doc bug tracked as `cap-l2p`.
 
 See `cosalette ai help configuration`.
 
@@ -363,7 +396,7 @@ to apply optional binding — that requires the `Optional()` marker — but when
 present and no provider resolves, the explicit default is used as the fallback (implicitly
 `None`). Bare `T | None` without `Optional()` is rejected.
 
-Return normalization: return annotation → `state_model` → dict (as-is); primitive/list → `{"value": ...}`.
+Return normalization: `state_model` → return annotation → dict (as-is); primitive/list → `{"value": ...}`.
 
 Errors: `PayloadValidationError`, `ReturnValidationError` — caught and published to error topic.
 

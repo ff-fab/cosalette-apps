@@ -13,7 +13,7 @@ from typing import Any
 
 import cosalette
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette import App, ClockPort, MockMqttClient
 from cosalette.testing import AppHarness, FakeClock
 from pydantic_settings import PydanticBaseSettingsSource
 
@@ -66,21 +66,6 @@ class _FastPollSettings(CalDates2MqttSettings):
         file_secret_settings: PydanticBaseSettingsSource,  # noqa: ARG003
     ) -> tuple[PydanticBaseSettingsSource, ...]:
         return (init_settings,)
-
-
-class RealSleepClock(FakeClock):
-    """A :class:`FakeClock` whose ``sleep`` actually waits.
-
-    ``FakeClock.sleep`` advances virtual time instantly, which erases every
-    delay the app asks for — including the ADR-066 ``min_interval=`` throttle
-    window.  Tests that assert a *spacing* need the sleep to cost real time;
-    they pay for it by using a throttle measured in fractions of a second.
-    """
-
-    async def sleep(self, seconds: float) -> None:
-        await asyncio.sleep(seconds)
-        if seconds > 0:
-            self._time += seconds
 
 
 def build_integration_app(
@@ -136,7 +121,7 @@ def make_harness(
     *,
     settings: CalDates2MqttSettings | None = None,
     min_interval: float | None = None,
-    clock: FakeClock | None = None,
+    clock: ClockPort | None = None,
 ) -> AppHarness:
     """Construct an AppHarness wrapping the integration app.
 
@@ -147,6 +132,7 @@ def make_harness(
             with the provided calendars.
         min_interval: Optional ADR-066 trigger throttle for the registrations.
         clock: Optional clock override; defaults to a virtual-time FakeClock.
+            Pass a ``ManualClock`` for tests that assert a tick did not fire.
     """
     if settings is None:
         settings = _FastPollSettings(calendars=calendars)  # type: ignore[arg-type]

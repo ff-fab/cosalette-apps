@@ -30,10 +30,13 @@ logger = logging.getLogger(__name__)
 cairosvg: Any = None
 _cairosvg_available = False
 try:
-    import cairosvg  # type: ignore
+    import cairosvg
 
     _cairosvg_available = True
-except ImportError:
+except ImportError, OSError:
+    # ImportError: the 'png' extra isn't installed. OSError: cairosvg (via
+    # cairocffi) is installed but couldn't dlopen the native libcairo — same
+    # "unavailable" outcome for svg_to_png's caller either way.
     pass
 
 

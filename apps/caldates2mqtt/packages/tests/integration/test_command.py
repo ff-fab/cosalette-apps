@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette.testing import AppHarness, ManualClock
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.ports import CalendarEvent
@@ -23,7 +23,6 @@ from caldates2mqtt.ports import CalendarEvent
 from .conftest import (
     _DEFAULT_CALENDAR,
     TOPIC_PREFIX,
-    RealSleepClock,
     _FastPollSettings,
     make_harness,
 )
@@ -175,8 +174,8 @@ class TestReReadCommand:
 _THROTTLE_SECONDS = 0.4
 """Stand-in for ``main._TRIGGER_MIN_INTERVAL_SECONDS`` in throttle tests.
 
-Small enough to keep the tests fast, large enough to dwarf the loop overhead
-the assertions have to see past.
+Virtual seconds under a ``ManualClock``, so the value costs no wall clock
+and needs no margin over loop overhead.
 """
 
 _RARE_SCHEDULE = "0 0 0 1 1 ?"
@@ -189,7 +188,7 @@ Every read the throttle tests observe is therefore a trigger-initiated one.
 class _TimingReader(FakeCalDavReader):
     """Records the clock reading at the start of every ``read_events``."""
 
-    def __init__(self, clock: RealSleepClock) -> None:
+    def __init__(self, clock: ManualClock) -> None:
         super().__init__()
         self._clock = clock
         self.read_times: list[float] = []
@@ -206,26 +205,23 @@ class _TimingReader(FakeCalDavReader):
         return await super().read_events(url, calendar_name, username, password, days)
 
 
-async def _wait_for_publish_count(
-    harness: AppHarness, topic: str, count: int, timeout: float = 5.0
-) -> None:
-    """Poll until *topic* has at least *count* messages, or fail fast."""
-
-    async def _poll() -> None:
-        while len(harness.mqtt.get_messages_for(topic)) < count:
-            await asyncio.sleep(0.01)
-
-    await asyncio.wait_for(_poll(), timeout=timeout)
-
-
-async def _two_triggers(*, min_interval: float | None) -> _TimingReader:
+async def _two_triggers(*, min_interval: float | None) -> tuple[_TimingReader, int]:
     """Drive one startup read plus two separately-delivered /set re-reads.
 
     The second ``/set`` is delivered only after the first re-read has
     published, so the two arms cannot coalesce into a single run — which is
     what makes the spacing between reads 2 and 3 meaningful.
+
+    Time only moves on the single :meth:`AppHarness.advance_time` call below,
+    so whether the third read needs it is the throttle's whole observable
+    effect.
+
+    Returns:
+        The timing reader, and the number of state publishes seen *before*
+        any virtual time was allowed to pass — ``2`` when the second trigger
+        was held, ``3`` when it ran straight through.
     """
-    clock = RealSleepClock()
+    clock = ManualClock()
     reader = _TimingReader(clock)
     settings = _FastPollSettings(
         calendars=[{**_DEFAULT_CALENDAR, "schedule": _RARE_SCHEDULE}],  # type: ignore[arg-type]
@@ -241,11 +237,16 @@ async def _two_triggers(*, min_interval: float | None) -> _TimingReader:
     set_topic = f"{TOPIC_PREFIX}/garbage/set"
     task = asyncio.create_task(harness.run())
     try:
-        await _wait_for_publish_count(harness, state_topic, count=1)
+        await harness.wait_for_publish_count(state_topic, 1)
         await harness.inject_command(None, {}, topic=set_topic)
-        await _wait_for_publish_count(harness, state_topic, count=2)
+        await harness.wait_for_publish_count(state_topic, 2)
         await harness.inject_command(None, {}, topic=set_topic)
-        await _wait_for_publish_count(harness, state_topic, count=3)
+        # Generous stable_rounds: settle() is a bounded heuristic, and this is
+        # the one observation here that reads an *absence*.
+        await clock.settle(stable_rounds=20)
+        before_advance = len(harness.messages_for(state_topic))
+        await harness.advance_time(_THROTTLE_SECONDS)
+        await harness.wait_for_publish_count(state_topic, 3)
         harness.shutdown_event.set()
         await task
     finally:
@@ -253,37 +254,36 @@ async def _two_triggers(*, min_interval: float | None) -> _TimingReader:
         if not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
-    return reader
+    return reader, before_advance
 
 
 class TestTriggerThrottle:
     """Verify the ADR-066 min_interval= storm throttle on the /set trigger."""
 
     @pytest.mark.integration
-    @pytest.mark.slow
     async def test_back_to_back_triggers_are_spaced_by_min_interval(self) -> None:
         """A second /set inside the window waits for the window to reopen.
 
         Technique: Boundary Value Analysis — spacing between consecutive
         trigger-initiated CalDAV fetches. The re-read is *delayed*, never
-        dropped: the third read still happens, which is why the harness can
-        wait for it.
+        dropped: the third read still happens once the window reopens.
         """
-        reader = await _two_triggers(min_interval=_THROTTLE_SECONDS)
+        reader, before_advance = await _two_triggers(min_interval=_THROTTLE_SECONDS)
 
+        assert before_advance == 2, "second trigger ran without the window reopening"
         assert len(reader.read_times) >= 3
         assert reader.read_times[2] - reader.read_times[1] >= _THROTTLE_SECONDS
 
     @pytest.mark.integration
-    @pytest.mark.slow
     async def test_without_a_throttle_the_second_trigger_is_immediate(self) -> None:
         """Negative control: the spacing is the throttle, not the harness.
 
         Technique: Control test — the same sequence with min_interval unset
         must produce back-to-back fetches, proving the assertion above measures
-        the throttle rather than fixed loop overhead.
+        the throttle and not the shape of the harness.
         """
-        reader = await _two_triggers(min_interval=None)
+        reader, before_advance = await _two_triggers(min_interval=None)
 
+        assert before_advance == 3, "third read needed time to pass without a throttle"
         assert len(reader.read_times) >= 3
-        assert reader.read_times[2] - reader.read_times[1] < _THROTTLE_SECONDS
+        assert reader.read_times[2] == reader.read_times[1]

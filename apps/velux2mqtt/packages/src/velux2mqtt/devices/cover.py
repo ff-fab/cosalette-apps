@@ -84,8 +84,9 @@ class CoverState:
     Discovery" section.
 
     Mirrors the dict published by :func:`_publish_position`:
-    ``{"position": <int 0-100>}``. The model is schema-only; cosalette
-    does not validate runtime payloads against it.
+    ``{"position": <int 0-100>}``, and cosalette validates every
+    ``ctx.publish_state()`` payload against it — a mismatch raises
+    ``ReturnValidationError`` and suppresses the publish.
     """
 
     position: Annotated[

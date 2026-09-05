@@ -116,6 +116,29 @@ jobs:
           run-cmd: task check:agents:test
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # Repo-root packages/tests/ suite (cap-890). Framework-contract and
+  # cross-app-convention tests (e.g. the ADR-006 MQTT TLS posture check reads
+  # every app's compose.yml/.env.example) — a change scoped to a single
+  # apps/<name>/** path can break these without touching the `shared` path
+  # filter above, so this runs unconditionally rather than joining that job.
+  # ~3s locally (`task test:unit`), so the always-on cost is negligible.
+  root-tests:
+    needs: detect
+    if: needs.detect.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run repo-root unit test suite inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task test:unit
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues
   security:
     needs: detect
@@ -157,7 +180,7 @@ jobs:
   # Merge gate — the single required status check for branch protection.
   # Always runs; passes when all upstream jobs succeed or are skipped.
   ci-gate:
-    needs: [shared, security, app-ci]
+    needs: [shared, security, app-ci, root-tests]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -173,6 +196,10 @@ jobs:
           fi
           if [[ "${{ needs.app-ci.result }}" == "failure" || "${{ needs.app-ci.result }}" == "cancelled" ]]; then
             echo "app-ci job failed or was cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.root-tests.result }}" == "failure" || "${{ needs.root-tests.result }}" == "cancelled" ]]; then
+            echo "root-tests job failed or was cancelled"
             exit 1
           fi
           echo "All checks passed or were skipped"

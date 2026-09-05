@@ -115,7 +115,7 @@ async def calendar(
     trigger: cosalette.TriggerPayload,
     reader: CalDavPort,
     logger: logging.Logger,
-) -> dict[str, object]:
+):
     """Read upcoming events from a CalDAV calendar."""
     entries = cal.entries
     days = cal.days

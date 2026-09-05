@@ -11,7 +11,7 @@ import asyncio
 
 import pytest
 from cosalette import App, EntityNotifier, MockMqttClient, OnChange
-from cosalette.testing import AppHarness, FakeClock
+from cosalette.testing import AppHarness, FakeClock, ManualClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
@@ -36,25 +36,13 @@ _FAST_TICK_INTERVAL = 0.01
 """Interval for the polling-oriented tests; with FakeClock this spins freely."""
 
 NO_TICK_INTERVAL = 30.0
-"""An interval no test window can reach — see :class:`RealSleepClock`."""
+"""The scheduled interval on :func:`push_harness`.
 
-
-class RealSleepClock(FakeClock):
-    """A :class:`FakeClock` whose ``sleep`` actually waits.
-
-    ``FakeClock.sleep`` advances *virtual* time with no real delay, so
-    every ``interval=`` collapses into a busy loop and the question
-    "did this publish without waiting for a scheduled tick?" has no
-    answer.  Sleeping for real makes :data:`NO_TICK_INTERVAL` genuinely
-    unreachable inside a test, so a publish that does arrive can only
-    have come from a trigger.
-    """
-
-    async def sleep(self, seconds: float) -> None:
-        """Sleep for *seconds* of wall-clock time, keeping ``now()`` in step."""
-        await asyncio.sleep(seconds)
-        if seconds > 0:
-            self._time += seconds
+Paired with a ``ManualClock`` the value is unreachable by construction:
+nothing but an explicit ``advance()`` releases the runner's sleep, and the
+push tests never make one.  A second publish can therefore only have come
+from a trigger.
+"""
 
 
 def _shared_state_factory() -> SharedState:
@@ -156,15 +144,16 @@ def harness(
 def push_harness(
     fake_adapter: FakeWizBulbAdapter, test_settings: Wiz2MqttSettings
 ) -> AppHarness:
-    """Harness whose scheduled tick is far outside any test window.
+    """Harness whose scheduled tick cannot fire without an explicit advance.
 
-    Pair with :class:`RealSleepClock` so the only thing that can produce
-    a second publish is the adapter's push wake.
+    The gating :class:`~cosalette.testing.ManualClock` is what makes that
+    true, so the only thing that can produce a second publish is the
+    adapter's push wake.
     """
     return AppHarness(
         app=build_integration_app(fake_adapter, interval=NO_TICK_INTERVAL),
         mqtt=MockMqttClient(),
-        clock=RealSleepClock(),
+        clock=ManualClock(),
         settings=test_settings,
         shutdown_event=asyncio.Event(),
     )

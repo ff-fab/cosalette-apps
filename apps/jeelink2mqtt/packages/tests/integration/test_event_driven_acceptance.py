@@ -10,10 +10,10 @@ What makes the assertion non-vacuous is the clock.  ``FakeClock.sleep``
 advances virtual time instantly, so under it ``DeviceTrigger.wait``'s
 heartbeat bound fires immediately and "published without waiting for the
 heartbeat" cannot be distinguished from "the heartbeat fired".
-:class:`RealSleepClock` sleeps for real, and the heartbeat bound is
-lifted out of reach for the test window, so a publish inside it can only
-have come from the receiver arming the sensor's trigger — and ``now()``
-is still where the test left it.
+``ManualClock`` gates instead: the heartbeat registers a deadline that
+only an explicit ``advance()`` releases, and these tests make none, so a
+publish can only have come from the receiver arming the sensor's trigger
+— and ``now()`` is provably still where the test left it.
 
 ``AppHarness.run`` always suppresses ``@app.stream`` handlers, and
 ``inject_stream`` reads the list ``run`` has just emptied, so the two
@@ -28,7 +28,7 @@ object and arm a notifier wired to nothing.
 Test Techniques Used:
 - Integration Testing: frame → receiver → trigger → device → retained MQTT
 - Specification-based: the proposal's definition-of-done wording, asserted
-- Negative control: a quiet window proves the heartbeat cannot have published
+- Negative control: a settled loop proves the heartbeat cannot have published
 - State Transition Testing: no cached reading → cached → published
 """
 
@@ -45,7 +45,7 @@ import cosalette
 import pytest
 from cosalette import DeviceStore, EntityNotifier, MockMqttClient
 from cosalette.stores import MemoryStore
-from cosalette.testing import AppHarness, FakeClock
+from cosalette.testing import AppHarness, ManualClock
 
 from jeelink2mqtt import main as _main
 from jeelink2mqtt.errors import error_type_map
@@ -70,35 +70,18 @@ resulting silence would look like the trigger failing.
 """
 
 NO_HEARTBEAT_SECONDS = 3600.0
-"""Heartbeat bound no test window can reach — see :class:`RealSleepClock`."""
+"""Heartbeat bound the gating ``ManualClock`` never releases."""
 
 _TEMPERATURE = 21.5
 _HUMIDITY = 55
 _TEMP_OFFSET = -0.3
 """Calibration offset on the office sensor, so the published value is derived."""
 
-_QUIET_SECONDS = 0.2
-"""Seconds of deliberate inactivity used to prove no heartbeat is due."""
-
 _WAIT_TIMEOUT = 2.0
 """How long :func:`_wait_until` polls before calling a condition failed."""
 
 _WAIT_POLL_SECONDS = 0.01
 """Polling cadence for condition waits in this suite."""
-
-
-class RealSleepClock(FakeClock):
-    """A :class:`FakeClock` whose ``sleep`` actually waits.
-
-    One of several copies app suites currently hand-roll; cap-o9x tracks
-    giving it a single home.
-    """
-
-    async def sleep(self, seconds: float) -> None:
-        """Sleep for *seconds* of wall-clock time, keeping ``now()`` in step."""
-        await asyncio.sleep(seconds)
-        if seconds > 0:
-            self._time += seconds
 
 
 def make_settings() -> Jeelink2MqttSettings:
@@ -202,11 +185,11 @@ def captured() -> dict[str, Any]:
 
 @pytest.fixture
 def harness(captured: dict[str, Any]) -> AppHarness:
-    """A harness whose clock only moves when something really sleeps."""
+    """A harness whose clock only moves when a test advances it."""
     return AppHarness(
         app=build_integration_app(captured),
         mqtt=MockMqttClient(),
-        clock=RealSleepClock(),
+        clock=ManualClock(),
         settings=make_settings(),
         shutdown_event=asyncio.Event(),
     )
@@ -271,7 +254,6 @@ async def _deliver(harness: AppHarness, captured: dict[str, Any]) -> None:
 
 
 @pytest.mark.integration
-@pytest.mark.slow
 class TestFrameToPublishInOneTick:
     """cap-8au acceptance 2 — the frame publishes without a tick elapsing."""
 
@@ -290,10 +272,7 @@ class TestFrameToPublishInOneTick:
             started_at = harness.clock.now()
 
             await _deliver(harness, captured)
-            await _wait_until(
-                lambda: bool(harness.messages_for(state_topic())),
-                f"the frame-driven publish on {state_topic()}",
-            )
+            await harness.wait_for_publish_count(state_topic(), 1)
 
             assert harness.clock.now() == started_at
             payload, retain, _qos = harness.messages_for(state_topic())[0]
@@ -311,9 +290,11 @@ class TestFrameToPublishInOneTick:
         the whole acceptance item would be vacuous.
 
         Technique: Negative control — no frame, no publish, no time passing.
+        Generous ``stable_rounds``: ``settle()`` is a bounded heuristic and
+        this reads an *absence*.
         """
         async with running(harness, captured):
-            await asyncio.sleep(_QUIET_SECONDS)
+            await harness.clock.settle(stable_rounds=20)
 
             assert not harness.messages_for(state_topic())
             assert harness.clock.now() == 0.0
@@ -328,10 +309,7 @@ class TestFrameToPublishInOneTick:
         """
         async with running(harness, captured):
             await _deliver(harness, captured)
-            await _wait_until(
-                lambda: bool(harness.messages_for(state_topic())),
-                f"the frame-driven publish on {state_topic()}",
-            )
-            await asyncio.sleep(_QUIET_SECONDS)
+            await harness.wait_for_publish_count(state_topic(), 1)
+            await harness.clock.settle(stable_rounds=20)
 
             assert not harness.messages_for(state_topic("outdoor"))

@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 web: Any = None
 _aiohttp_available = False
 try:
-    from aiohttp import web  # type: ignore
+    from aiohttp import web
 
     _aiohttp_available = True
 except ImportError:
