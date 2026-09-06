@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: jeelink2mqtt
-  version: 0.1.4
+  version: 0.2.0
   x-cosalette-contract-version: '1'
 channels:
   mappingCommand:
