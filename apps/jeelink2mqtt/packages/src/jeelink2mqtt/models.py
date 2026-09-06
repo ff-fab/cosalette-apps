@@ -10,8 +10,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Annotated
 
 import pydantic
+from cosalette.schema import consumer, ha_discovery, merge
 
 
 class SensorStateModel(pydantic.BaseModel):
@@ -20,11 +22,53 @@ class SensorStateModel(pydantic.BaseModel):
     Declared as ``state_model=`` on the ``sensor_entity`` device
     (:mod:`jeelink2mqtt.main`) so every ``ctx.publish_state()`` call is
     validated and normalised against this shape (ADR-046).
+
+    The ``temperature``/``humidity``/``low_battery`` fields carry
+    ``x-cosalette-consumer`` metadata (via
+    :func:`cosalette.schema.consumer`) so ``app.discovery()`` — and the
+    offline ``cosalette schema ha-discovery`` path — emit one Home
+    Assistant MQTT discovery entity per field, per configured sensor
+    (cap-egy, ADR-059). ``timestamp`` is publish-freshness bookkeeping,
+    not a user-facing entity, so it is left unannotated.
     """
 
-    temperature: float
-    humidity: int
-    low_battery: bool
+    temperature: Annotated[
+        float,
+        pydantic.Field(
+            json_schema_extra=consumer(
+                display_name="Temperature",
+                device_class="temperature",
+                unit="°C",
+                state_class="measurement",
+            )
+        ),
+    ]
+    humidity: Annotated[
+        int,
+        pydantic.Field(
+            json_schema_extra=consumer(
+                display_name="Humidity",
+                device_class="humidity",
+                unit="%",
+                state_class="measurement",
+            )
+        ),
+    ]
+    low_battery: Annotated[
+        bool,
+        pydantic.Field(
+            # A boolean field on a ``device`` archetype channel infers an HA
+            # ``binary_sensor``; ``device_class="battery"`` reads ``on`` as
+            # "battery low". The value_template maps the JSON ``true``/``false``
+            # to HA's default ``ON``/``OFF`` binary-sensor payloads.
+            json_schema_extra=merge(
+                consumer(display_name="Low Battery", device_class="battery"),
+                ha_discovery(
+                    value_template="{{ 'ON' if value_json.low_battery else 'OFF' }}"
+                ),
+            )
+        ),
+    ]
     timestamp: datetime
 
 
