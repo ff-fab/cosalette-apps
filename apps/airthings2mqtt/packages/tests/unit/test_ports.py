@@ -62,3 +62,18 @@ class TestAirthingsReading:
             temperature=22.0, humidity=45.0, radon_24h_avg=80, radon_long_term_avg=65
         )
         assert a != b
+
+    def test_radon_fields_accept_none(self) -> None:
+        """Both radon fields accept None (Wave 2 out-of-range guard).
+
+        Technique: Specification-based — the Wave 2 decoder maps an implausible
+        radon reading to None; the state_model must permit it.
+        """
+        reading = AirthingsReading(
+            temperature=21.5,
+            humidity=45.0,
+            radon_24h_avg=None,
+            radon_long_term_avg=None,
+        )
+        assert reading.radon_24h_avg is None
+        assert reading.radon_long_term_avg is None

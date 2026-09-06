@@ -25,7 +25,9 @@ topics under the `airthings2mqtt/` prefix.
 **Topic:** `airthings2mqtt/airthings/state`
 
 Published after each successful BLE poll. Contains all four sensor readings from the
-Airthings Wave.
+Airthings Wave, decoded from whichever GATT layout the unit uses — the 1st-gen
+four-characteristic set or the Wave 2 / Wave Radon (2nd-gen) single "current values"
+characteristic. The payload shape is identical either way.
 
 ```json
 {
@@ -36,12 +38,19 @@ Airthings Wave.
 }
 ```
 
-| Field                | Type    | Unit   | Description                                  |
-| -------------------- | ------- | ------ | -------------------------------------------- |
-| `temperature`        | float   | C      | Ambient temperature in degrees Celsius       |
-| `humidity`           | float   | %      | Relative humidity as a percentage            |
-| `radon_24h_avg`      | integer | Bq/m3  | 24-hour rolling average radon concentration  |
-| `radon_long_term_avg`| integer | Bq/m3  | Long-term average radon concentration        |
+| Field                | Type            | Unit   | Description                                  |
+| -------------------- | --------------- | ------ | -------------------------------------------- |
+| `temperature`        | float           | C      | Ambient temperature in degrees Celsius       |
+| `humidity`           | float           | %      | Relative humidity as a percentage            |
+| `radon_24h_avg`      | integer \| null | Bq/m3  | 24-hour rolling average radon concentration  |
+| `radon_long_term_avg`| integer \| null | Bq/m3  | Long-term average radon concentration        |
+
+!!! note "Radon can be `null`"
+
+    On a Wave 2 / Wave Radon unit, a radon value that decodes outside the plausible
+    0–16383 Bq/m³ range (a garbled BLE frame) is published as JSON `null` rather than
+    a false reading — the key is always present. The 1st-gen path always yields an
+    integer.
 
 !!! info "Polling frequency"
     Airthings Wave sensors update their internal readings approximately every 5 minutes.

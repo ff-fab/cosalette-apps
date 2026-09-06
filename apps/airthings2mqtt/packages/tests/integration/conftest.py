@@ -18,7 +18,7 @@ from pydantic_settings import PydanticBaseSettingsSource
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import error_type_map
 from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS, _telemetry
-from airthings2mqtt.ports import AirthingsReaderPort
+from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
 TOPIC_PREFIX = "airthings2mqtt"
@@ -83,6 +83,7 @@ def build_integration_app(
         interval=setting_ref("poll_interval"),
         triggerable=True,
         min_interval=min_interval,
+        state_model=AirthingsReading,
     )(_telemetry)
     return test_app
 
