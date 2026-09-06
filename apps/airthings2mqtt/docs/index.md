@@ -14,7 +14,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 ## Features
 
-- **BLE sensor polling** — connects to Airthings Wave (1st-gen) sensors via BlueZ
+- **BLE sensor polling** — connects to Airthings Wave (1st-gen) and Wave 2 / Wave Radon (2nd-gen) sensors via BlueZ, auto-detecting the GATT protocol per connection
 - **On-demand re-read** — publish to MQTT `/set` to refresh readings between scheduled polls
 - **Radon monitoring** — publishes 24-hour and long-term average radon concentrations
 - **Temperature & humidity** — ambient readings alongside air quality data
@@ -28,7 +28,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 | Component          | Details                                           |
 | ------------------ | ------------------------------------------------- |
-| **Sensor**         | Airthings Wave (1st-gen) (BLE)                    |
+| **Sensor**         | Airthings Wave (1st-gen), or Wave 2 / Wave Radon (2nd-gen) (BLE) |
 | **Interface**      | Bluetooth Low Energy (BlueZ)                      |
 | **Platform**       | Raspberry Pi (any model with Bluetooth: 3/4/5, Zero 2 W) |
 

@@ -1,7 +1,7 @@
 """Unit tests for airthings2mqtt main — telemetry handler and poll interval.
 
 Test Techniques Used:
-- Specification-based: Handler returns correct sensor dict from reader; retry and
+- Specification-based: Handler returns the reader's AirthingsReading; retry and
   restart metadata matches declared configuration
 - Error Guessing: BLE errors propagate through handler (not swallowed)
 - Equivalence Partitioning: Duplicate readings are not deduplicated
@@ -24,10 +24,10 @@ from tests.fixtures.config import make_airthings2mqtt_settings
 
 @pytest.mark.unit
 class TestTelemetryHandler:
-    """Verify _telemetry returns correct sensor dict from reader."""
+    """Verify _telemetry returns the reading from the reader."""
 
     async def test_returns_sensor_values_from_reading(self) -> None:
-        """Handler returns dict with temperature, humidity, radon values from reader.
+        """Handler returns the AirthingsReading produced by the reader.
 
         Technique: Specification-based — verify contract between handler and reader.
         """
@@ -55,12 +55,7 @@ class TestTelemetryHandler:
         )
 
         # Assert
-        assert result == {
-            "temperature": 19.3,
-            "humidity": 52.0,
-            "radon_24h_avg": 95,
-            "radon_long_term_avg": 72,
-        }
+        assert result == reading
 
     async def test_passes_device_mac_to_reader(self) -> None:
         """Handler passes the device_mac from settings to the reader.
@@ -120,7 +115,7 @@ class TestTelemetryDuplicateReadings:
     """Verify handler does not perform client-side deduplication."""
 
     async def test_duplicate_readings_still_returned(self) -> None:
-        """Calling handler twice with same reading returns same dict both times.
+        """Calling handler twice with same reading returns it both times.
 
         Technique: Equivalence Partitioning — duplicate readings are valid.
         """
@@ -138,12 +133,7 @@ class TestTelemetryDuplicateReadings:
         settings = make_airthings2mqtt_settings()
         trigger = cosalette.TriggerPayload.scheduled()
         logger = logging.getLogger(__name__)
-        expected = {
-            "temperature": 21.5,
-            "humidity": 45.0,
-            "radon_24h_avg": 80,
-            "radon_long_term_avg": 65,
-        }
+        expected = reading
 
         # Act
         first = await _telemetry(
@@ -194,7 +184,7 @@ class TestTelemetryTrigger:
 
         # Assert
         assert reader.calls == ["11:22:33:44:55:66"]
-        assert result["temperature"] == 21.5
+        assert result.temperature == 21.5
         assert "On-demand Airthings re-read triggered" in caplog.messages
 
     async def test_scheduled_payload_does_not_log_trigger(
@@ -224,7 +214,7 @@ class TestTelemetryTrigger:
 
         # Assert
         assert reader.calls == ["11:22:33:44:55:66"]
-        assert result["temperature"] == 21.5
+        assert result.temperature == 21.5
         assert "On-demand Airthings re-read triggered" not in caplog.messages
 
 
@@ -281,8 +271,8 @@ class TestReadLockSerialization:
         r1, r2 = await asyncio.wait_for(asyncio.gather(t1, t2), timeout=2.0)
 
         assert max_active_reads == 1
-        assert r1["temperature"] == 21.5
-        assert r2["temperature"] == 21.5
+        assert r1.temperature == 21.5
+        assert r2.temperature == 21.5
 
 
 @pytest.mark.unit

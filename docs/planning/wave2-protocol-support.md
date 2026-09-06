@@ -6,6 +6,15 @@
 on edge-01 (jl4 fleet), sibling to the working core-02 instance.
 **Date:** 2026-08-27 · **Tracking:** jl4-8xo
 
+**Status (2026-09-06):** implemented. `cap-awb` landed Option A (auto-detect
+by GATT probe) — see
+[apps/airthings2mqtt/docs/adr/ADR-002](../../apps/airthings2mqtt/docs/adr/ADR-002-auto-detect-wave-generation-by-gatt-probe-nullable-wave-2-radon.md).
+The radon type caveat below was resolved by widening
+`AirthingsReading.radon_24h_avg` / `radon_long_term_avg` to `int | None`
+(published as JSON `null`, key always present). `cap-7x2` scoped the docs
+down to "Wave (1st-gen)" first; the "Related" claims are now broadened to
+name the Wave 2 / Wave Radon variant explicitly.
+
 **Status (2026-09-03):** open, unimplemented. Now tracked in beads as
 `cap-awb` (the adapter work, Option A) and `cap-7x2` (the docs-claim
 correction, which is independently landable). Re-checked against the

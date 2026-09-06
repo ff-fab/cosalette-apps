@@ -57,6 +57,12 @@ def _bulb_map(settings: cosalette.Settings) -> dict[str, BulbConfig]:
     name=_bulb_map,
     summary="Apply a partial state update to a bulb",
     payload_model=BulbSetCommand,
+    # No explicit timeout=: one set_state issues a single pywizlight call
+    # already bounded internally (TIMEOUT=13 s, 6 datagrams), and each bulb
+    # is its own entity over connectionless UDP — no shared lock, no queuing
+    # behind a slow peer. Worst case ~13 s, comfortably inside cosalette's
+    # 30 s backstop; a UDP set is idempotent, so a cancel leaves nothing
+    # half-written (cap-ug0).
 )
 async def bulb_set(
     cmd: Annotated[BulbSetCommand, Payload()],

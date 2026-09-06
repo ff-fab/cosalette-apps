@@ -66,8 +66,8 @@ async def temperature(
     magnetometer: MagnetometerPort,
     settings: Gas2MqttSettings,
     pt1: Pt1Filter,
-):
-    """Read temperature, calibrate, filter, and return state dict.
+) -> TemperatureReading:
+    """Read temperature, calibrate, filter, and return the reading.
 
     Args:
         magnetometer: Sensor adapter (injected by cosalette DI).
@@ -75,9 +75,11 @@ async def temperature(
         pt1: PT1 filter instance (created by :func:`make_pt1`).
 
     Returns:
-        ``{"temperature": <rounded float>}`` — published to MQTT by
+        A :class:`TemperatureReading` — its return annotation and the
+        handler's ``state_model=`` now agree (cosalette 0.9.0 ADR-068),
+        so the wire contract is statically checked. Published to MQTT by
         the framework when the ``OnChange`` strategy fires.
     """
     reading = magnetometer.read()
     raw_celsius = settings.temp_scale * reading.temperature_raw + settings.temp_offset
-    return {"temperature": round(pt1.update(raw_celsius), 1)}
+    return TemperatureReading(temperature=round(pt1.update(raw_celsius), 1))

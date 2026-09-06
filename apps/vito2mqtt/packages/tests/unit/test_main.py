@@ -440,3 +440,34 @@ class TestCommandUnavailableOnConfig:
             assert OptolinkTimeoutError in reg.unavailable_on, (
                 f"Command {reg.name!r} missing OptolinkTimeoutError in unavailable_on"
             )
+
+
+class TestCommandTimeoutConfig:
+    """Verify the explicit per-command backstop (cap-ug0)."""
+
+    def test_all_commands_use_the_audited_timeout(self) -> None:
+        """Every Optolink command sets timeout=COMMAND_TIMEOUT_SECONDS.
+
+        Technique: Specification-based — cosalette's 30 s default is too tight
+        for a full-group schedule write queued behind an optolink telemetry
+        cycle (~34 s worst case at ~0.5 s/telegram), so each command opts into
+        an explicit 90 s backstop.
+        """
+        from vito2mqtt._registration import COMMAND_TIMEOUT_SECONDS
+        from vito2mqtt.main import app
+
+        for reg in app.commands:
+            assert reg.timeout == COMMAND_TIMEOUT_SECONDS, (
+                f"Command {reg.name!r} timeout={reg.timeout!r}, "
+                f"expected {COMMAND_TIMEOUT_SECONDS!r}"
+            )
+
+    def test_audited_timeout_exceeds_the_bounded_default(self) -> None:
+        """The explicit backstop is above cosalette's 30 s default.
+
+        Technique: Boundary Value Analysis — the whole point of the override
+        is that the worst-case batch write must not be cancelled mid-flight.
+        """
+        from vito2mqtt._registration import COMMAND_TIMEOUT_SECONDS
+
+        assert COMMAND_TIMEOUT_SECONDS > 30.0

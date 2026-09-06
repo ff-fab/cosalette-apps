@@ -235,6 +235,13 @@ def _parse_or_error(
         return None, {"error": str(exc)}
 
 
+# cap-ug0: none of the four `mapping` sub-commands sets an explicit timeout=.
+# Each does an in-memory registry mutation plus one local `JsonFileStore`
+# write (`_persist_registry`) — no network, no hardware, no shared lock with a
+# slow path. Worst case is sub-second, so cosalette's bounded 30 s default is
+# ample, and a partial write cannot leave hardware in a bad state (there is no
+# hardware in this path). Same reasoning for `reset`, `reset_all`,
+# `list_unknown` below.
 @app.command(
     "mapping",
     sub="assign",

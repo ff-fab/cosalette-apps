@@ -34,6 +34,7 @@ References:
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from collections.abc import AsyncIterator, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -50,6 +51,24 @@ from vito2mqtt.errors import (
 from vito2mqtt.optolink import codec
 from vito2mqtt.optolink.commands import AccessMode
 from vito2mqtt.optolink.transport import DeviceError, P300Session
+
+logger = logging.getLogger(__name__)
+
+
+def _consume_detached_flush_exception(task: asyncio.Task[Any]) -> None:
+    """Retrieve a detached :meth:`OptolinkAdapter.write_signals` batch's result.
+
+    When an outer cancel unwinds ``write_signals`` mid-batch, its shielded
+    flush runs to completion in the background with nothing awaiting it. Log
+    any failure and swallow it so asyncio does not warn about an unretrieved
+    task exception.
+    """
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc is not None:
+        logger.warning("Detached Optolink batch write failed: %r", exc)
+
 
 # ---------------------------------------------------------------------------
 # StreamReader/StreamWriter → SerialPort adapter
@@ -259,9 +278,30 @@ class OptolinkAdapter:
             )
             encoded_writes.append((cmd.address, encoded))
 
-        async with self._lock, self._open_session() as session:
-            for address, encoded in encoded_writes:
-                await session.write(address, encoded)
+        async def _flush() -> None:
+            async with self._lock, self._open_session() as session:
+                for address, encoded in encoded_writes:
+                    await session.write(address, encoded)
+
+        # cap-ug0: a mid-batch cancel (command-timeout backstop or shutdown)
+        # must not tear a multi-signal batch. A full weekly schedule is seven
+        # independent 8-byte writes, and stopping between two of them leaves
+        # some days written and others not. Shield the flush so an outer
+        # cancel does not stop it mid-batch — but re-raise the CancelledError
+        # immediately rather than awaiting the flush: the serial path has no
+        # lower-level read timeout, so a wedged bus must still unwind the
+        # caller promptly instead of blocking the command backstop and
+        # shutdown. On a healthy bus the shielded flush runs to completion in
+        # the background under the lock, so every signal still lands; the next
+        # command to this entity queues behind it. The TimeoutError reaches
+        # the error topic (vito2mqtt._registration sizes timeout= well above
+        # the batch, so a cancel here means the bus is already degraded).
+        flush = asyncio.create_task(_flush())
+        try:
+            await asyncio.shield(flush)
+        except asyncio.CancelledError:
+            flush.add_done_callback(_consume_detached_flush_exception)
+            raise
 
     # -- private helpers ----------------------------------------------------
 

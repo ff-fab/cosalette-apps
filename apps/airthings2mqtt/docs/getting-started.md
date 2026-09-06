@@ -8,7 +8,7 @@ your Airthings Wave sensor over BLE, and verifying that data flows to your MQTT 
 | Requirement         | Details                                             |
 | ------------------- | --------------------------------------------------- |
 | **Raspberry Pi**    | Any model with Bluetooth (Pi 3/4/5 or Zero 2 W)    |
-| **Airthings Wave**  | Wave (1st-gen, BLE-capable)                         |
+| **Airthings Wave**  | Wave (1st-gen), or Wave 2 / Wave Radon (2nd-gen); BLE-capable. The protocol generation is auto-detected per connection. |
 | **BlueZ**           | Linux Bluetooth stack (pre-installed on Raspbian)   |
 | **MQTT broker**     | Mosquitto, EMQX, or any MQTT 3.1.1+ broker         |
 | **Python**          | 3.14+ (Docker image includes this)                  |

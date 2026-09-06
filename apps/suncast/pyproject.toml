@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.9.0,<0.10",
+    "cosalette>=0.9.1,<0.10",
     "astral>=3.2",
     "pydantic>=2.10.0",
     "pyyaml>=6.0",

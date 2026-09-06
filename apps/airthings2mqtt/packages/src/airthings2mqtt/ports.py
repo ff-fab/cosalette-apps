@@ -49,11 +49,20 @@ def _radon(display_name: str) -> dict[str, Any]:
 class AirthingsReading:
     """A single reading from an Airthings Wave sensor.
 
+    Generation-agnostic: the 1st-gen Wave and the Wave 2 / Wave Radon
+    (2nd-gen) expose the same four values over different GATT layouts and
+    both decode into this type (see :mod:`airthings2mqtt.adapters.bleak`).
+
     Attributes:
         temperature: Temperature in degrees Celsius.
         humidity: Relative humidity as a percentage.
-        radon_24h_avg: 24-hour average radon level in Bq/m³.
-        radon_long_term_avg: Long-term average radon level in Bq/m³.
+        radon_24h_avg: 24-hour average radon level in Bq/m³, or ``None`` when
+            the decoded value falls outside the plausible 0–16383 range (a
+            garbled BLE frame — Wave 2 path only; the 1st-gen path always
+            yields an ``int``). ``None`` is published as an explicit JSON
+            ``null`` on the state topic, not an omitted key.
+        radon_long_term_avg: Long-term average radon level in Bq/m³, or
+            ``None`` under the same out-of-range guard as ``radon_24h_avg``.
     """
 
     temperature: Annotated[
@@ -76,9 +85,11 @@ class AirthingsReading:
             )
         ),
     ]
-    radon_24h_avg: Annotated[int, Field(json_schema_extra=_radon("Radon (24h avg)"))]
+    radon_24h_avg: Annotated[
+        int | None, Field(json_schema_extra=_radon("Radon (24h avg)"))
+    ]
     radon_long_term_avg: Annotated[
-        int, Field(json_schema_extra=_radon("Radon (long-term avg)"))
+        int | None, Field(json_schema_extra=_radon("Radon (long-term avg)"))
     ]
 
 
@@ -86,16 +97,16 @@ class AirthingsReading:
 class AirthingsReaderPort(HealthCheckable, Protocol):
     """Port for reading Airthings Wave BLE sensor data.
 
-    Implementations must connect to the BLE device, read the four
-    GATT characteristics (temperature, humidity, radon 24h, radon
-    long-term), and return an AirthingsReading.
+    Implementations must connect to the BLE device, read whichever GATT
+    characteristics the device's Wave generation exposes, and return an
+    AirthingsReading carrying temperature, humidity and radon.
     """
 
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.
 
-        Connects to the device, reads all four characteristics,
-        disconnects, and returns the parsed reading.
+        Connects to the device, reads the sensor characteristics for its
+        Wave generation, disconnects, and returns the parsed reading.
 
         Args:
             mac: Bluetooth MAC address of the Airthings Wave device.

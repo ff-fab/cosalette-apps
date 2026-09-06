@@ -69,7 +69,7 @@ channels:
                 icon: mdi:timer-outline
             plant_power_output:
               title: Plant Power Output
-              type: integer
+              type: number
               x-cosalette-consumer:
                 display_name: Plant Power Output
                 unit: '%'

@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: airthings2mqtt
-  version: 0.1.4
+  version: 0.1.5
   x-cosalette-contract-version: '1'
 channels:
   airthingsState:
@@ -26,16 +26,20 @@ channels:
                 unit: '%'
                 state_class: measurement
             radon_24h_avg:
+              anyOf:
+              - type: integer
+              - type: 'null'
               title: Radon 24H Avg
-              type: integer
               x-cosalette-consumer:
                 display_name: Radon (24h avg)
                 unit: Bq/m³
                 state_class: measurement
                 icon: mdi:radioactive
             radon_long_term_avg:
+              anyOf:
+              - type: integer
+              - type: 'null'
               title: Radon Long Term Avg
-              type: integer
               x-cosalette-consumer:
                 display_name: Radon (long-term avg)
                 unit: Bq/m³

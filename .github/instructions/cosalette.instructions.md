@@ -59,7 +59,7 @@ async def relay(payload: str) -> dict[str, object]:
 Key params:
 - `timeout=N` (float | None) — per-invocation backstop via `asyncio.wait_for`; `TimeoutError` flows
   to error topic; composes with `unavailable_on=(TimeoutError,)` to mark device offline on timeout.
-  Default `None` (no timeout).
+  Omitted → bounded default `_DEFAULT_COMMAND_TIMEOUT` (30 s); explicit `None` → unbounded (ADR-060).
 - `maxsize=N` (int) — bound the command queue (default `0` = unbounded). When full, `backpressure=`
   applies.
 - `backpressure=` ("drop_newest" | "drop_oldest" | "raise") — what happens when queue is full.
@@ -325,13 +325,6 @@ Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 > than reintroducing a `tls` pin in code — omitting it inherits `tls=True` and the app
 > fails to connect. The durable repo-wide rule lives in `AGENTS.md`; ADR-006 records the
 > decision and rationale in `docs/adr/ADR-006-mqtt-transport-security-posture.md`.
->
-> **A command handler's `timeout=` is NOT unbounded by default.** The "Command Handling"
-> section above says `Default None (no timeout)`; that is wrong. Omitting `timeout=`
-> applies a bounded default of 30 s (`_utils.py::_DEFAULT_COMMAND_TIMEOUT`, applied by
-> `_wiring/_resolution.py::resolve_timeouts_commands` per ADR-060). Only an explicit
-> `timeout=None` is unbounded. Re-verified against the installed 0.9.0 wheel — still
-> wrong upstream; doc bug tracked as `cap-l2p`.
 
 See `cosalette ai help configuration`.
 

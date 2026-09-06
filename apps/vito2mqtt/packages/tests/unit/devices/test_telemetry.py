@@ -37,7 +37,7 @@ from vito2mqtt.devices.telemetry import (
     INTERVAL_ATTR,
     make_telemetry_handler,
 )
-from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
+from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS, ErrorHistoryEntry
 from vito2mqtt.optolink.codec import ReturnStatus
 from vito2mqtt.optolink.commands import COMMANDS
 
@@ -110,26 +110,27 @@ class TestTelemetrySpecs:
 
 
 class TestMakeHandler:
-    """Verify handler closures produced by _make_handler."""
+    """Verify handler closures produced by make_telemetry_handler."""
 
     @pytest.mark.parametrize(
         "group",
         list(SIGNAL_GROUPS.keys()),
         ids=list(SIGNAL_GROUPS.keys()),
     )
-    async def test_handler_returns_dict_with_all_group_signals(
+    async def test_handler_returns_group_state_model_with_all_signals(
         self, group: str
     ) -> None:
-        """Handler must return a dict keyed by every signal in the group.
+        """Handler returns its group's state_model with a field per signal.
 
-        Technique: Specification-based — handler must read all group signals.
+        Technique: Specification-based — handler must read all group signals
+        and hand back the typed model registration declares as state_model.
         """
         fake = FakeOptolinkAdapter()
         handler = make_telemetry_handler(group)
         result = await handler(port=fake)
 
-        assert isinstance(result, dict)
-        assert set(result.keys()) == set(SIGNAL_GROUPS[group])
+        assert isinstance(result, GROUP_STATE_MODELS[group])
+        assert {f.name for f in dataclasses.fields(result)} == set(SIGNAL_GROUPS[group])
 
     @pytest.mark.parametrize(
         "group",
@@ -137,7 +138,7 @@ class TestMakeHandler:
         ids=list(SIGNAL_GROUPS.keys()),
     )
     async def test_handler_values_match_serialized_defaults(self, group: str) -> None:
-        """Each value must be the serialized form of the fake adapter default.
+        """Each field must hold the serialized form of the fake adapter default.
 
         Technique: Cross-reference — handler output matches
         serialize_value(fake_default, type_code) for every signal.
@@ -149,7 +150,7 @@ class TestMakeHandler:
         # Read the raw defaults independently for comparison.
         raw = await fake.read_signals(SIGNAL_GROUPS[group])
 
-        for name, value in result.items():
+        for name, value in dataclasses.asdict(result).items():
             type_code = COMMANDS[name].type_code
             expected = serialize_value(raw[name], type_code)
             assert value == expected, (
@@ -180,7 +181,7 @@ class TestHandlerSerializationIntegration:
         handler = make_telemetry_handler("outdoor")
         result = await handler(port=fake)
 
-        assert result == responses
+        assert dataclasses.asdict(result) == responses
 
     async def test_return_status_serialized_to_lowercase(self) -> None:
         """RT signals serialize ReturnStatus members to lowercase strings.
@@ -192,10 +193,7 @@ class TestHandlerSerializationIntegration:
             for sig in SIGNAL_GROUPS["system"]
             if COMMANDS[sig].type_code == "RT"
         }
-        # Fill remaining signals with passthrough defaults.
-        for sig in SIGNAL_GROUPS["system"]:
-            if sig not in responses:
-                responses[sig] = 20.5
+        # Non-RT signals fall back to the fake's type-correct defaults.
 
         fake = FakeOptolinkAdapter(responses=responses)
         handler = make_telemetry_handler("system")
@@ -205,12 +203,13 @@ class TestHandlerSerializationIntegration:
             s for s in SIGNAL_GROUPS["system"] if COMMANDS[s].type_code == "RT"
         ]
         for sig in rt_signals:
-            assert result[sig] == "on", f"{sig}: expected 'on', got {result[sig]!r}"
+            got = getattr(result, sig)
+            assert got == "on", f"{sig}: expected 'on', got {got!r}"
 
-    async def test_error_history_serialized_to_dict(self) -> None:
-        """ES signals serialize [label, datetime] to structured dict.
+    async def test_error_history_wrapped_in_entry(self) -> None:
+        """ES signals become ErrorHistoryEntry(error=..., timestamp=...).
 
-        Technique: Specification-based — ES → {error, timestamp}.
+        Technique: Specification-based — ES → ErrorHistoryEntry.
         """
         ts = datetime(2025, 6, 15, 10, 30, 0)
         es_value = ["Sensor error", ts]
@@ -228,11 +227,23 @@ class TestHandlerSerializationIntegration:
         handler = make_telemetry_handler("diagnosis")
         result = await handler(port=fake)
 
-        assert result["error_status"] == "error"
-        assert result["error_history_1"] == {
-            "error": "Sensor error",
-            "timestamp": "2025-06-15T10:30:00",
-        }
+        assert result.error_status == "error"
+        assert result.error_history_1 == ErrorHistoryEntry(
+            error="Sensor error",
+            timestamp="2025-06-15T10:30:00",
+        )
+
+    async def test_plant_power_output_accepts_half_percent(self) -> None:
+        """PR3 (byte / 2) yields half-percent values; the float field keeps them.
+
+        Technique: Boundary — an odd raw byte decodes to X.5, which an int
+        field would reject under state_model validation.
+        """
+        fake = FakeOptolinkAdapter(responses={"plant_power_output": 20.5})
+        handler = make_telemetry_handler("burner")
+        result = await handler(port=fake)
+
+        assert result.plant_power_output == 20.5
 
     async def test_handler_with_mixed_types_in_heating_floor(self) -> None:
         """heating_floor group contains IS10, RT, PR2, IUNON, BA signals.
@@ -254,10 +265,10 @@ class TestHandlerSerializationIntegration:
         handler = make_telemetry_handler("heating_floor")
         result = await handler(port=fake)
 
-        assert result["flow_temperature_m2"] == 35.5
-        assert result["pump_status_m2"] == "on"
-        assert result["pump_speed_m2"] == 80
-        assert result["operating_mode_m2"] == "normal"
+        assert result.flow_temperature_m2 == 35.5
+        assert result.pump_status_m2 == "on"
+        assert result.pump_speed_m2 == 80
+        assert result.operating_mode_m2 == "normal"
 
 
 # ---------------------------------------------------------------------------
@@ -280,6 +291,8 @@ class TestHandlerClosureIsolation:
         result_outdoor = await handler_outdoor(port=fake)
         result_hot_water = await handler_hot_water(port=fake)
 
-        assert set(result_outdoor.keys()) == set(SIGNAL_GROUPS["outdoor"])
-        assert set(result_hot_water.keys()) == set(SIGNAL_GROUPS["hot_water"])
-        assert set(result_outdoor.keys()) != set(result_hot_water.keys())
+        outdoor_fields = {f.name for f in dataclasses.fields(result_outdoor)}
+        hot_water_fields = {f.name for f in dataclasses.fields(result_hot_water)}
+        assert outdoor_fields == set(SIGNAL_GROUPS["outdoor"])
+        assert hot_water_fields == set(SIGNAL_GROUPS["hot_water"])
+        assert outdoor_fields != hot_water_fields

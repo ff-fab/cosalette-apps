@@ -55,6 +55,12 @@ router = cosalette.Router(prefix="system")
     summary="System power action: wake (WoL), suspend, or hibernate",
     payload_model=SystemActionCommand,
     state_model=SystemActionState,
+    # No explicit timeout=: wake is a fire-and-forget WoL packet; suspend and
+    # hibernate are one `systemctl` call over SSH, and every SSH op self-bounds
+    # via asyncio.wait_for(ssh_timeout=5.0) in SshWallpanel, returning
+    # accepted=False rather than hanging. Worst case ~10 s (connect + one run),
+    # well inside cosalette's 30 s backstop; systemctl is atomic, so a cancel
+    # leaves nothing half-applied (cap-ug0).
     unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_system_action(
