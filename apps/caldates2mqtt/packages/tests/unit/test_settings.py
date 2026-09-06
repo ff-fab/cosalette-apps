@@ -153,6 +153,15 @@ class TestCalDates2MqttSettingsValidation:
         with pytest.raises(ValidationError):
             make_caldates2mqtt_settings(trigger_min_interval=0)
 
+    def test_trigger_min_interval_rejects_negative(self) -> None:
+        """A negative trigger throttle is rejected (gt=0).
+
+        Technique: Boundary Value Analysis — below the excluded lower bound,
+        matching the symmetric coverage in airthings2mqtt and vito2mqtt.
+        """
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(trigger_min_interval=-1)
+
     def test_trigger_min_interval_accepts_custom(self) -> None:
         """A deployment can raise or lower the throttle.
 

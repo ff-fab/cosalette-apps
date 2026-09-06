@@ -233,6 +233,37 @@ class TestTelemetryTriggerConfig:
             == COMMAND_WAKE_MIN_INTERVAL_SECONDS
         )
 
+    def test_configured_override_reaches_registration(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A non-default override lands on every telemetry registration (cap-9hn).
+
+        Technique: Specification-based — closes the loop the resolver test
+        opens by driving the override through ``configure_app`` to the
+        ``min_interval=`` actually carried by each registration, not just the
+        resolver return value in isolation.
+        """
+        from vito2mqtt._registration import configure_app
+
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/null")
+        monkeypatch.setenv("VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL", "25")
+        configured_app = App(
+            name="vito2mqtt",
+            settings_class=Vito2MqttSettings,
+            adapters={
+                OptolinkPort: (
+                    "vito2mqtt.adapters.serial:OptolinkAdapter",
+                    "vito2mqtt.adapters.fake:FakeOptolinkAdapter",
+                ),
+            },
+        )
+
+        configure_app(configured_app)
+
+        registrations = list(configured_app.telemetry_registrations)
+        assert registrations
+        assert all(reg.min_interval == 25.0 for reg in registrations)
+
 
 class TestCommandRegistration:
     """Verify command handlers are registered."""

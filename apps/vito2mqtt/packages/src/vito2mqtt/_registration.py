@@ -60,7 +60,7 @@ the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so a healthy
 bus still lands every signal after the cancel unwinds (cap-ug0).
 """
 
-COMMAND_WAKE_MIN_INTERVAL_SECONDS = Vito2MqttSettings.model_fields[
+COMMAND_WAKE_MIN_INTERVAL_SECONDS: float = Vito2MqttSettings.model_fields[
     "command_wake_min_interval"
 ].default
 """Default floor on the spacing between two command-triggered telemetry runs.

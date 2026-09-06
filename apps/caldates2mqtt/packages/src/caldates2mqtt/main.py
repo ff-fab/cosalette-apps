@@ -129,6 +129,9 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     name=_calendar_map,
     schedule=lambda cal: cal.schedule,
     triggerable=True,
+    # Resolved at import time. App.__init__ eagerly builds settings, so a
+    # configured deployment gets its override here; under --help/tests/schema-gen
+    # (settings unavailable) it falls back to the field default (cap-9hn).
     min_interval=_resolve_trigger_min_interval(app),
     retry=3,
     retry_on=(CalDavConnectionError, CalDavTimeoutError),

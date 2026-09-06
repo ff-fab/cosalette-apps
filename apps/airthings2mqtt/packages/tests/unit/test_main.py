@@ -382,7 +382,7 @@ class TestTriggerThrottleRegistration:
     def _registration(self) -> object:
         from airthings2mqtt.main import app
 
-        return next(r for r in app._telemetry if r.name == "airthings")
+        return next(r for r in app.telemetry_registrations if r.name == "airthings")
 
     def test_public_set_topic_is_throttled(self) -> None:
         """The /set trigger carries the declared min_interval.
