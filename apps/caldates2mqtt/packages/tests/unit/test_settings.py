@@ -38,6 +38,15 @@ class TestCalDates2MqttSettingsDefaults:
         settings = make_caldates2mqtt_settings()
         assert settings.caldav_timeout == 30.0
 
+    def test_default_trigger_min_interval(self) -> None:
+        """Default trigger throttle is 60.0 seconds (cap-9hn).
+
+        Technique: Specification-based — the field default preserves the
+        previously hard-coded constant.
+        """
+        settings = make_caldates2mqtt_settings()
+        assert settings.trigger_min_interval == 60.0
+
     def test_calendars_required(self) -> None:
         """calendars has no default — omitting it raises ValidationError."""
         with pytest.raises(ValidationError):
@@ -135,6 +144,22 @@ class TestCalDates2MqttSettingsValidation:
         """CalDAV timeout must be > 0."""
         with pytest.raises(ValidationError):
             make_caldates2mqtt_settings(caldav_timeout=0)
+
+    def test_trigger_min_interval_rejects_zero(self) -> None:
+        """Trigger throttle must be > 0 (gt=0) — a throttle of nothing is a footgun.
+
+        Technique: Boundary Value Analysis — the excluded lower bound.
+        """
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(trigger_min_interval=0)
+
+    def test_trigger_min_interval_accepts_custom(self) -> None:
+        """A deployment can raise or lower the throttle.
+
+        Technique: Equivalence Partitioning — representative override.
+        """
+        settings = make_caldates2mqtt_settings(trigger_min_interval=90.0)
+        assert settings.trigger_min_interval == 90.0
 
     def test_calendars_must_have_at_least_one(self) -> None:
         """Empty calendars list is rejected."""

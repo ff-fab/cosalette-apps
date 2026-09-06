@@ -102,3 +102,63 @@ class TestTriggerThrottleRegistration:
         from caldates2mqtt.main import app
 
         assert app.telemetry_registrations[0].schedule_spec is not None
+
+    def test_resolver_reads_the_configured_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A deployment override flows from settings into the throttle (cap-9hn).
+
+        Technique: Specification-based — the whole point of the field is that a
+        non-default value reaches min_interval= at registration time.
+        """
+        import json
+
+        import cosalette
+
+        from caldates2mqtt.main import _resolve_trigger_min_interval
+        from caldates2mqtt.settings import CalDates2MqttSettings
+
+        monkeypatch.setenv(
+            "CALDATES2MQTT_CALENDARS",
+            json.dumps(
+                [
+                    {
+                        "key": "birthdays",
+                        "url": "https://example.test/dav",
+                        "calendar_name": "Birthdays",
+                        "username": "user",
+                        "password": "p",  # pragma: allowlist secret
+                    }
+                ]
+            ),
+        )
+        monkeypatch.setenv("CALDATES2MQTT_TRIGGER_MIN_INTERVAL", "90")
+        configured_app = cosalette.App(
+            name="caldates2mqtt", settings_class=CalDates2MqttSettings
+        )
+
+        assert _resolve_trigger_min_interval(configured_app) == 90.0
+
+    def test_resolver_falls_back_when_settings_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing required fields fall back to the default, keeping import safe.
+
+        Technique: Error Guessing — ``app.settings`` raises when ``calendars``
+        is unset (``--help``, tests, schema generation); the resolver must not
+        propagate that at import time.
+        """
+        import cosalette
+
+        from caldates2mqtt.main import (
+            _TRIGGER_MIN_INTERVAL_SECONDS,
+            _resolve_trigger_min_interval,
+        )
+        from caldates2mqtt.settings import CalDates2MqttSettings
+
+        monkeypatch.delenv("CALDATES2MQTT_CALENDARS", raising=False)
+        bare_app = cosalette.App(
+            name="caldates2mqtt", settings_class=CalDates2MqttSettings
+        )
+
+        assert _resolve_trigger_min_interval(bare_app) == _TRIGGER_MIN_INTERVAL_SECONDS

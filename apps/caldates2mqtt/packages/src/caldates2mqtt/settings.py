@@ -80,3 +80,17 @@ class CalDates2MqttSettings(cosalette.Settings):
         gt=0,
         description="HTTP timeout for CalDAV requests in seconds",
     )
+    trigger_min_interval: float = Field(
+        default=60.0,
+        gt=0,
+        description=(
+            "Minimum spacing in seconds between trigger-initiated fetches "
+            "(cosalette ADR-066). caldates2mqtt/{calendar}/set is a public MQTT "
+            "topic and each wake is a full CalDAV round-trip against someone "
+            "else's server; a stuck automation would otherwise turn into a "
+            "request flood. A wake inside a closed window is held, not dropped. "
+            "Raise it for a stricter or shared CalDAV server that rate-limits; "
+            "lower it for snappier on-demand refreshes at the cost of more "
+            "server load. Independent of each calendar's schedule= cron cadence."
+        ),
+    )

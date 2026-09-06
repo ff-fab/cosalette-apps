@@ -198,6 +198,41 @@ class TestTelemetryTriggerConfig:
         """
         assert 0 < COMMAND_WAKE_MIN_INTERVAL_SECONDS < 300.0
 
+    def test_resolver_reads_the_configured_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A deployment override flows from settings into the throttle (cap-9hn).
+
+        Technique: Specification-based — the whole point of the field is that a
+        non-default value reaches min_interval= at registration time.
+        """
+        from vito2mqtt._registration import _resolve_command_wake_min_interval
+
+        monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/null")
+        monkeypatch.setenv("VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL", "25")
+        configured_app = App(name="vito2mqtt", settings_class=Vito2MqttSettings)
+
+        assert _resolve_command_wake_min_interval(configured_app) == 25.0
+
+    def test_resolver_falls_back_when_settings_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing required fields fall back to the default, keeping import safe.
+
+        Technique: Error Guessing — ``app.settings`` raises when ``serial_port``
+        is unset (``--help``, tests, schema generation); the resolver must not
+        propagate that at registration time.
+        """
+        from vito2mqtt._registration import _resolve_command_wake_min_interval
+
+        monkeypatch.delenv("VITO2MQTT_SERIAL_PORT", raising=False)
+        bare_app = App(name="vito2mqtt", settings_class=Vito2MqttSettings)
+
+        assert (
+            _resolve_command_wake_min_interval(bare_app)
+            == COMMAND_WAKE_MIN_INTERVAL_SECONDS
+        )
+
 
 class TestCommandRegistration:
     """Verify command handlers are registered."""

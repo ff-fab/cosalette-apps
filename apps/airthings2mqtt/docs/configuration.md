@@ -59,6 +59,7 @@ you need.
 | Device name    | `AIRTHINGS2MQTT_DEVICE_NAME`       | `airthings`    | Friendly name for the sensor in MQTT topics         |
 | Device MAC     | `AIRTHINGS2MQTT_DEVICE_MAC`        | _(required)_   | Bluetooth MAC address of the Airthings Wave sensor  |
 | Poll interval  | `AIRTHINGS2MQTT_POLL_INTERVAL`     | `1500`         | Polling interval in seconds (minimum 60)            |
+| Trigger min interval | `AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL` | `30.0`  | Minimum seconds between on-demand `/set` re-reads    |
 
 !!! note "Finding your device MAC address"
     Use `bluetoothctl` to scan for your Airthings Wave sensor:
@@ -75,6 +76,16 @@ you need.
     The default polling interval of 1500 seconds (25 minutes) balances data freshness
     with BLE battery and connection overhead. Values below 60 seconds are rejected at
     startup.
+
+!!! note "Trigger throttle (`TRIGGER_MIN_INTERVAL`)"
+    `airthings2mqtt/airthings/set` is a public MQTT topic that forces an on-demand
+    re-read. This throttle is the minimum spacing (seconds) between two such
+    trigger-initiated reads --- a held dashboard button or a runaway automation cannot
+    queue more than one BLE round-trip per window. A wake that arrives inside a closed
+    window is **held, not dropped**, so the re-read still happens once the window
+    reopens. **Raise it** for a flakier sensor or to conserve battery; **lower it** for
+    snappier on-demand reads at the cost of more frequent BLE connects. Keep it well
+    below `POLL_INTERVAL` so it never throttles the scheduled cadence. Must be `> 0`.
 
 ---
 
@@ -112,6 +123,9 @@ AIRTHINGS2MQTT_DEVICE_MAC=XX:XX:XX:XX:XX:XX
 
 # Polling interval in seconds, minimum 60 (default: 1500 = 25 minutes)
 # AIRTHINGS2MQTT_POLL_INTERVAL=1500
+
+# Minimum seconds between on-demand /set re-reads, must be > 0 (default: 30)
+# AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL=30.0
 ```
 
 Uncomment and modify any line to override the default.

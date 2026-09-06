@@ -161,6 +161,16 @@ class TestDefaults:
         """
         assert settings.polling_diagnosis == 300.0
 
+    def test_config_command_wake_min_interval_default(
+        self, settings: Vito2MqttSettings
+    ) -> None:
+        """Default command-wake throttle is 15 s (cap-9hn).
+
+        Technique: Specification-based — the field default preserves the
+        previously hard-coded constant.
+        """
+        assert settings.command_wake_min_interval == 15.0
+
     # -- Legionella treatment defaults --
 
     def test_config_legionella_temperature_default(
@@ -342,6 +352,30 @@ class TestPollingIntervalValidation:
         Technique: Error Guessing — invalid negative value.
         """
         monkeypatch.setenv(env_var, "-10")
+        with pytest.raises(ValidationError):
+            Vito2MqttSettings()
+
+    @pytest.mark.usefixtures("_base_env")
+    def test_config_command_wake_min_interval_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A deployment can retune the command-wake throttle (cap-9hn).
+
+        Technique: Equivalence Partitioning — representative override.
+        """
+        monkeypatch.setenv("VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL", "25")
+        assert Vito2MqttSettings().command_wake_min_interval == 25.0
+
+    @pytest.mark.usefixtures("_base_env")
+    @pytest.mark.parametrize("value", ["0", "-10"])
+    def test_config_non_positive_command_wake_min_interval_raises(
+        self, monkeypatch: pytest.MonkeyPatch, value: str
+    ) -> None:
+        """A command-wake throttle of 0 or negative is rejected (gt=0).
+
+        Technique: Boundary Value Analysis — the excluded lower bound and below.
+        """
+        monkeypatch.setenv("VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL", value)
         with pytest.raises(ValidationError):
             Vito2MqttSettings()
 

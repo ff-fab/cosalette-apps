@@ -49,3 +49,17 @@ class Airthings2MqttSettings(cosalette.Settings):
             "otherwise clip every read."
         ),
     )
+    trigger_min_interval: float = Field(
+        default=30.0,
+        gt=0,
+        description=(
+            "Minimum spacing in seconds between trigger-initiated reads "
+            "(cosalette ADR-066). airthings2mqtt/airthings/set is a public MQTT "
+            "topic; a held dashboard button or an automation loop would otherwise "
+            "queue one BLE round-trip per message, draining a battery-powered "
+            "sensor. A wake inside a closed window is held, not dropped. Raise it "
+            "for a flakier sensor or to conserve battery; lower it for snappier "
+            "on-demand reads at the cost of more frequent BLE connects. Keep it "
+            "well under poll_interval so it never throttles the scheduled cadence."
+        ),
+    )

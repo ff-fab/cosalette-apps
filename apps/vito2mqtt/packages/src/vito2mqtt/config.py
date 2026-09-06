@@ -81,6 +81,20 @@ class Vito2MqttSettings(Settings):
     polling_diagnosis: float = Field(default=300.0, gt=0)
     """Diagnosis/error polling interval (seconds)."""
 
+    # Command-triggered telemetry throttle — see ADR-005 / cosalette ADR-066
+    command_wake_min_interval: float = Field(default=15.0, gt=0)
+    """Floor on the spacing between two command-triggered telemetry runs (seconds).
+
+    The Optolink is a single 4800-baud serial bus: a burst of writes — a full
+    weekly timer schedule arrives as seven separate ``/set`` payloads — would
+    otherwise queue seven full group reads behind it. This throttle bounds
+    *trigger-initiated* run starts only; the ``interval=`` heartbeat is untouched,
+    and an arm landing inside a closed window is held, not dropped. Raise it for a
+    slower bus or a busier command load; lower it for snappier command-driven
+    refreshes at the cost of more serial contention. Overridden via
+    ``VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL``.
+    """
+
     # Legionella treatment settings
     legionella_temperature: int = Field(default=68, gt=0)
     """Target hot-water temperature during legionella treatment (°C)."""
