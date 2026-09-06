@@ -6,19 +6,46 @@ Test Techniques Used:
 - State Transition: raise_on_next → read → error → cleared
 - Error Guessing: BLE exception translation via ERROR_TYPE_MAP; health_check
   false when BLE adapter absent
+- Decision Table: Wave-generation dispatch (2nd-gen characteristic present /
+  absent) and the Wave 2 radon out-of-range guard
+- Round-trip: Wave 2 decode over a captured real-device byte frame
 """
 
 from __future__ import annotations
 
 import logging
 import struct
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import BleConnectionError, BleReadError, BleTimeoutError
 from airthings2mqtt.ports import AirthingsReading
+from tests.fixtures.ble import (
+    WAVE2_SAMPLE_2950,
+    WAVE2_SAMPLE_2950_DECODED,
+    WAVE2_SAMPLE_2950_STATUS_BYTE_CLEARED,
+)
+
+
+def _make_client(
+    read_side_effect: object, *, wave2_char: object | None = None
+) -> AsyncMock:
+    """Build a mock BleakClient async context manager.
+
+    Args:
+        read_side_effect: ``side_effect`` for ``read_gatt_char``.
+        wave2_char: what ``client.services.get_characteristic`` returns — the
+            default ``None`` routes ``read()`` to the 1st-gen path.
+    """
+    client = AsyncMock()
+    client.read_gatt_char = AsyncMock(side_effect=read_side_effect)
+    client.services = Mock()
+    client.services.get_characteristic = Mock(return_value=wave2_char)
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=False)
+    return client
 
 
 @pytest.mark.unit
@@ -164,7 +191,7 @@ class TestRedactMac:
 
 @pytest.mark.unit
 class TestBleakAirthingsReader:
-    """Verify BleakAirthingsReader parses GATT data and translates errors."""
+    """Verify BleakAirthingsReader parses 1st-gen GATT data and translates errors."""
 
     @staticmethod
     def _encode_reading(
@@ -173,7 +200,7 @@ class TestBleakAirthingsReader:
         radon_24h: int = 80,
         radon_lta: int = 65,
     ) -> dict[str, bytes]:
-        """Encode sensor values as BLE GATT characteristic byte payloads."""
+        """Encode sensor values as 1st-gen BLE GATT characteristic byte payloads."""
         return {
             "00002a6e-0000-1000-8000-00805f9b34fb": struct.pack("<h", int(temp * 100)),
             "00002a6f-0000-1000-8000-00805f9b34fb": struct.pack("<H", int(hum * 100)),
@@ -186,10 +213,7 @@ class TestBleakAirthingsReader:
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         encoded = self._encode_reading(temp=21.5, hum=45.0, radon_24h=80, radon_lta=65)
-        mock_client = AsyncMock()
-        mock_client.read_gatt_char = AsyncMock(side_effect=lambda uuid: encoded[uuid])
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client = _make_client(lambda uuid: encoded[uuid])
 
         with patch(
             "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
@@ -204,6 +228,26 @@ class TestBleakAirthingsReader:
             radon_long_term_avg=65,
         )
 
+    async def test_falls_through_to_1st_gen_when_wave2_char_absent(self) -> None:
+        """A device without the 2nd-gen characteristic reads the four fixed chars.
+
+        Technique: Decision Table — get_characteristic returns None → 1st-gen
+        path; exactly the four 1st-gen UUIDs are read.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        encoded = self._encode_reading()
+        mock_client = _make_client(lambda uuid: encoded[uuid], wave2_char=None)
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+        ):
+            reader = BleakAirthingsReader()
+            await reader.read("AA:BB:CC:DD:EE:FF")
+
+        read_uuids = [c.args[0] for c in mock_client.read_gatt_char.call_args_list]
+        assert read_uuids == list(encoded)
+
     async def test_logs_successful_read(self, caplog: pytest.LogCaptureFixture) -> None:
         """A successful read emits one INFO log with the MAC and parsed values.
 
@@ -214,10 +258,7 @@ class TestBleakAirthingsReader:
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         encoded = self._encode_reading(temp=21.5, hum=45.0, radon_24h=80, radon_lta=65)
-        mock_client = AsyncMock()
-        mock_client.read_gatt_char = AsyncMock(side_effect=lambda uuid: encoded[uuid])
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client = _make_client(lambda uuid: encoded[uuid])
 
         with patch(
             "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
@@ -234,8 +275,9 @@ class TestBleakAirthingsReader:
         # Full redacted token guards both the **:prefix and the last-octet suffix.
         assert "mac=**:EE:FF" in message
         assert "AA:BB:CC:DD:EE:FF" not in message
-        # Key-presence assertions for all five fields; avoids coupling to the
-        # exact %-format precision so log-format tweaks don't break this test.
+        # Key-presence assertions; avoids coupling to the exact %-format precision
+        # so log-format tweaks don't break this test.
+        assert "protocol=wave1" in message
         assert "temperature=" in message
         assert "humidity=" in message
         assert "radon_24h_avg=" in message
@@ -312,10 +354,7 @@ class TestBleakAirthingsReader:
             "b42e01aa-ade7-11e4-89d3-123b93f75cba": struct.pack("<H", 80),
             "b42e0a4c-ade7-11e4-89d3-123b93f75cba": struct.pack("<H", 65),
         }
-        mock_client = AsyncMock()
-        mock_client.read_gatt_char = AsyncMock(side_effect=lambda uuid: payloads[uuid])
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client = _make_client(lambda uuid: payloads[uuid])
 
         with patch(
             "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
@@ -331,10 +370,7 @@ class TestBleakAirthingsReader:
         encoded = self._encode_reading(
             temp=-5.0, hum=80.0, radon_24h=120, radon_lta=100
         )
-        mock_client = AsyncMock()
-        mock_client.read_gatt_char = AsyncMock(side_effect=lambda uuid: encoded[uuid])
-        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client = _make_client(lambda uuid: encoded[uuid])
 
         with patch(
             "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
@@ -343,6 +379,131 @@ class TestBleakAirthingsReader:
             reading = await reader.read("AA:BB:CC:DD:EE:FF")
 
         assert reading.temperature == -5.0
+
+
+@pytest.mark.unit
+class TestBleakAirthingsReaderWave2:
+    """Verify the Wave 2 / Wave Radon (2nd-gen) single-characteristic path."""
+
+    async def test_reads_wave2_char_when_present(self) -> None:
+        """When get_characteristic finds b42e4dcc, only that char is read.
+
+        Technique: Decision Table — 2nd-gen characteristic present → Wave 2
+        path; the four 1st-gen UUIDs are never read.
+        """
+        from airthings2mqtt.adapters.bleak import (
+            _UUID_WAVE2_DATA,
+            BleakAirthingsReader,
+        )
+
+        mock_client = _make_client(lambda _uuid: WAVE2_SAMPLE_2950, wave2_char=object())
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+        ):
+            reader = BleakAirthingsReader()
+            reading = await reader.read("40:79:12:16:A0:52")
+
+        read_uuids = [c.args[0] for c in mock_client.read_gatt_char.call_args_list]
+        assert read_uuids == [_UUID_WAVE2_DATA]
+        assert reading == AirthingsReading(**WAVE2_SAMPLE_2950_DECODED)
+
+    async def test_decodes_captured_real_device_frame(self) -> None:
+        """Decoded values match the ff-fab field capture cross-check.
+
+        Technique: Round-trip — a real 20-byte frame from an Airthings Wave2
+        (model 2950) decodes to the humidity / radon / temperature the capture
+        verified against the official app.
+        """
+        from airthings2mqtt.adapters.bleak import _parse_wave2
+
+        reading = _parse_wave2(WAVE2_SAMPLE_2950)
+
+        assert reading == AirthingsReading(
+            temperature=33.31,
+            humidity=33.5,
+            radon_24h_avg=134,
+            radon_long_term_avg=106,
+        )
+
+    async def test_ignores_status_byte_toggle(self) -> None:
+        """val[2] (status/ambient-light byte) is not surfaced as a measurement.
+
+        Technique: Specification-based — the capture's second read differs only
+        in byte 2; the decoded reading must be identical.
+        """
+        from airthings2mqtt.adapters.bleak import _parse_wave2
+
+        assert _parse_wave2(WAVE2_SAMPLE_2950) == _parse_wave2(
+            WAVE2_SAMPLE_2950_STATUS_BYTE_CLEARED
+        )
+
+    @pytest.mark.parametrize(
+        "radon_raw, expected",
+        [
+            (0, 0),  # lower bound — valid
+            (16383, 16383),  # upper bound — valid
+            (16384, None),  # one past the bound — dropped
+            (0xFFFF, None),  # "not fitted" sentinel — dropped
+        ],
+    )
+    async def test_radon_out_of_range_becomes_none(
+        self, radon_raw: int, expected: int | None
+    ) -> None:
+        """Radon outside 0–16383 decodes to None rather than a false spike.
+
+        Technique: Boundary Value Analysis — the community airthings-ble
+        sanity bound applied at both edges.
+        """
+        from airthings2mqtt.adapters.bleak import _parse_wave2
+
+        frame = struct.pack(
+            "<4B8H", 1, 67, 0, 0, radon_raw, radon_raw, 3331, *([0] * 5)
+        )
+
+        reading = _parse_wave2(frame)
+
+        assert reading.radon_24h_avg == expected
+        assert reading.radon_long_term_avg == expected
+
+    async def test_short_wave2_frame_raises_ble_read_error(self) -> None:
+        """A frame shorter than 20 bytes triggers struct.error → BleReadError.
+
+        Technique: Error Guessing — device returns a truncated read.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        mock_client = _make_client(
+            lambda _uuid: WAVE2_SAMPLE_2950[:12], wave2_char=object()
+        )
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+        ):
+            reader = BleakAirthingsReader()
+            with pytest.raises(BleReadError):
+                await reader.read("40:79:12:16:A0:52")
+
+    async def test_logs_wave2_protocol(self, caplog: pytest.LogCaptureFixture) -> None:
+        """The success log records protocol=wave2 on the 2nd-gen path.
+
+        Technique: Specification-based — the log line must distinguish which
+        GATT layout produced the reading.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        mock_client = _make_client(lambda _uuid: WAVE2_SAMPLE_2950, wave2_char=object())
+
+        with patch(
+            "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+        ):
+            reader = BleakAirthingsReader()
+            with caplog.at_level(logging.INFO, logger="airthings2mqtt.adapters.bleak"):
+                await reader.read("40:79:12:16:A0:52")
+
+        info_records = [r for r in caplog.records if r.levelno == logging.INFO]
+        assert info_records
+        assert "protocol=wave2" in info_records[0].getMessage()
 
 
 @pytest.mark.unit

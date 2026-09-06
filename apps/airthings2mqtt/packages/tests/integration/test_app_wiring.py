@@ -16,17 +16,20 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 
 import pytest
 from cosalette import MockMqttClient
 from cosalette.testing import AppHarness, ManualClock
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
+from airthings2mqtt.ports import AirthingsReading
 
 from .conftest import (
     DEVICE_NAME,
     TOPIC_PREFIX,
     build_integration_app,
+    make_harness,
     make_long_poll_settings,
     run_app_briefly,
 )
@@ -306,6 +309,51 @@ class TestTriggerThrottle:
         assert before_advance == 3, "third read needed time to pass without a throttle"
         assert len(reader.read_times) >= 3
         assert reader.read_times[2] == reader.read_times[1]
+
+
+class TestNullableRadonPayload:
+    """A Wave 2 out-of-range radon reading publishes as JSON null."""
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    async def test_none_radon_publishes_as_json_null(self) -> None:
+        """radon_24h_avg=None → the key is present with value null.
+
+        The Wave 2 decoder maps an implausible radon value to ``None`` rather
+        than publishing a false spike. ``_telemetry`` returns an already-valid
+        ``AirthingsReading``, so cosalette's contract layer dumps it on the
+        EAFP fast path (no ``exclude_none``): the field stays on the wire as an
+        explicit ``null``, which reads unambiguously as "known sensor, no valid
+        value this cycle" — never a silently missing key.
+
+        Technique: Specification-based — asserts the published payload shape
+        end-to-end, resolving the radon-None question from cap-awb.
+        """
+        reader = FakeAirthingsReader()
+        reader.readings = [
+            AirthingsReading(
+                temperature=20.1,
+                humidity=44.0,
+                radon_24h_avg=None,
+                radon_long_term_avg=91,
+            )
+        ]
+        harness = make_harness(adapter=lambda: reader)
+
+        await run_app_briefly(harness)
+
+        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+        payloads = [
+            json.loads(payload)
+            for payload, _retain, _qos in harness.messages_for(state_topic)
+        ]
+        assert payloads, "no state message published"
+        latest = payloads[-1]
+        assert "radon_24h_avg" in latest
+        assert latest["radon_24h_avg"] is None
+        assert latest["radon_long_term_avg"] == 91
+        assert latest["temperature"] == 20.1
+        assert latest["humidity"] == 44.0
 
 
 # ---------------------------------------------------------------------------
