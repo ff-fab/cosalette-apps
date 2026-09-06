@@ -114,3 +114,36 @@ class TestAirthings2MqttSettingsValidation:
         """
         settings = make_airthings2mqtt_settings(poll_timeout=60.0)
         assert settings.poll_timeout == 60.0
+
+    def test_default_trigger_min_interval(self) -> None:
+        """Default trigger throttle is 30.0 seconds (cap-9hn).
+
+        Technique: Specification-based — the field default preserves the
+        previously hard-coded constant.
+        """
+        settings = make_airthings2mqtt_settings()
+        assert settings.trigger_min_interval == 30.0
+
+    def test_custom_trigger_min_interval(self) -> None:
+        """A deployment can raise or lower the throttle.
+
+        Technique: Equivalence Partitioning — representative override.
+        """
+        settings = make_airthings2mqtt_settings(trigger_min_interval=45.0)
+        assert settings.trigger_min_interval == 45.0
+
+    def test_trigger_min_interval_rejects_zero(self) -> None:
+        """Zero is rejected (gt=0) — a throttle of nothing is a footgun.
+
+        Technique: Boundary Value Analysis — the excluded lower bound.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(trigger_min_interval=0.0)
+
+    def test_trigger_min_interval_rejects_negative(self) -> None:
+        """Negative spacing is rejected.
+
+        Technique: Error Guessing — negative durations are invalid.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(trigger_min_interval=-1.0)

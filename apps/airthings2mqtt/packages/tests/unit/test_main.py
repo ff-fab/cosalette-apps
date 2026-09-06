@@ -382,7 +382,7 @@ class TestTriggerThrottleRegistration:
     def _registration(self) -> object:
         from airthings2mqtt.main import app
 
-        return next(r for r in app._telemetry if r.name == "airthings")
+        return next(r for r in app.telemetry_registrations if r.name == "airthings")
 
     def test_public_set_topic_is_throttled(self) -> None:
         """The /set trigger carries the declared min_interval.
@@ -412,3 +412,44 @@ class TestTriggerThrottleRegistration:
 
         min_poll_interval = 60.0  # Airthings2MqttSettings.poll_interval ge=60
         assert min_poll_interval > _TRIGGER_MIN_INTERVAL_SECONDS
+
+    def test_resolver_reads_the_configured_override(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A deployment override flows from settings into the throttle (cap-9hn).
+
+        Technique: Specification-based — the whole point of the field is that a
+        non-default value reaches min_interval= at registration time.
+        """
+        from airthings2mqtt.main import _resolve_trigger_min_interval
+        from airthings2mqtt.settings import Airthings2MqttSettings
+
+        monkeypatch.setenv("AIRTHINGS2MQTT_DEVICE_MAC", "AA:BB:CC:DD:EE:FF")
+        monkeypatch.setenv("AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL", "45")
+        configured_app = cosalette.App(
+            name="airthings2mqtt", settings_class=Airthings2MqttSettings
+        )
+
+        assert _resolve_trigger_min_interval(configured_app) == 45.0
+
+    def test_resolver_falls_back_when_settings_unavailable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Missing required fields fall back to the default, keeping import safe.
+
+        Technique: Error Guessing — ``app.settings`` raises when ``device_mac``
+        is unset (``--help``, tests, schema generation); the resolver must not
+        propagate that at import time.
+        """
+        from airthings2mqtt.main import (
+            _TRIGGER_MIN_INTERVAL_SECONDS,
+            _resolve_trigger_min_interval,
+        )
+        from airthings2mqtt.settings import Airthings2MqttSettings
+
+        monkeypatch.delenv("AIRTHINGS2MQTT_DEVICE_MAC", raising=False)
+        bare_app = cosalette.App(
+            name="airthings2mqtt", settings_class=Airthings2MqttSettings
+        )
+
+        assert _resolve_trigger_min_interval(bare_app) == _TRIGGER_MIN_INTERVAL_SECONDS

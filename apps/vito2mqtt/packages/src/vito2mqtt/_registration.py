@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from cosalette import App, OnChange, setting_ref
 
+from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
 from vito2mqtt.devices.commands import COMMAND_SUMMARIES, make_command_handler
 from vito2mqtt.devices.legionella import legionella_device
@@ -59,19 +60,42 @@ the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so a healthy
 bus still lands every signal after the cancel unwinds (cap-ug0).
 """
 
-COMMAND_WAKE_MIN_INTERVAL_SECONDS = 15.0
-"""Floor on the spacing between two command-triggered telemetry runs (seconds).
+COMMAND_WAKE_MIN_INTERVAL_SECONDS: float = Vito2MqttSettings.model_fields[
+    "command_wake_min_interval"
+].default
+"""Default floor on the spacing between two command-triggered telemetry runs.
 
-Each signal group is registered ``triggerable="local"`` so a successful
-command write can wake its telemetry member immediately (ADR-007 §
+Sourced from the ``command_wake_min_interval`` settings field default so the two
+never drift. Each signal group is registered ``triggerable="local"`` so a
+successful command write can wake its telemetry member immediately (ADR-007 §
 Command-Triggered Refresh, cosalette ADR-066/ADR-067).  The Optolink is a
 single 4800-baud serial bus: a burst of writes — a full weekly timer
 schedule arrives as seven separate ``/set`` payloads — would otherwise
 queue seven full group reads behind it.  The throttle bounds
 *trigger-initiated* run starts only; the ``interval=`` heartbeat is
 untouched, and an arm landing inside a closed window is held, not
-dropped, so the last write in a burst is still reflected.
+dropped, so the last write in a burst is still reflected. Deployments override
+it via ``VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL``.
 """
+
+
+def _resolve_command_wake_min_interval(app: App) -> float:
+    """Read the configured throttle, or the default when settings are absent.
+
+    ``min_interval=`` takes a concrete ``float`` (cosalette 0.9.1 has no
+    ``setting_ref`` support for it, cap-9hn), so the value is read from the
+    eagerly-built ``app.settings`` at registration time. ``app.settings`` raises
+    when required fields (``serial_port``) are unset — as under ``--help``,
+    tests, or schema generation — so fall back to the field default to keep
+    ``configure_app`` usable in those contexts.
+    """
+    try:
+        settings = app.settings
+    except RuntimeError:
+        return COMMAND_WAKE_MIN_INTERVAL_SECONDS
+    if isinstance(settings, Vito2MqttSettings):
+        return settings.command_wake_min_interval
+    return COMMAND_WAKE_MIN_INTERVAL_SECONDS
 
 
 def configure_app(app: App) -> None:
@@ -84,6 +108,7 @@ def configure_app(app: App) -> None:
     Args:
         app: Cosalette :class:`~cosalette.App` instance to configure.
     """
+    command_wake_min_interval = _resolve_command_wake_min_interval(app)
     for group in SIGNAL_GROUPS:
         app.add_telemetry(
             name=group,
@@ -97,7 +122,7 @@ def configure_app(app: App) -> None:
             # subscribes no MQTT topic — the only arming path is the
             # EntityNotifier call in the command handler.
             triggerable="local",
-            min_interval=COMMAND_WAKE_MIN_INTERVAL_SECONDS,
+            min_interval=command_wake_min_interval,
             summary=GROUP_SUMMARIES[group],
             state_model=GROUP_STATE_MODELS[group],
             retry=3,

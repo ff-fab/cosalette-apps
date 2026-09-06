@@ -64,6 +64,7 @@ read from the boiler (see [ADR-005](../adr/ADR-005-configuration-settings.md)).
 | `polling_heating_floor` | `VITO2MQTT_POLLING_HEATING_FLOOR` | `float` | `300.0` | M2 floor heating circuit polling interval |
 | `polling_system` | `VITO2MQTT_POLLING_SYSTEM` | `float` | `3600.0` | System info polling interval |
 | `polling_diagnosis` | `VITO2MQTT_POLLING_DIAGNOSIS` | `float` | `300.0` | Diagnosis/error polling interval |
+| `command_wake_min_interval` | `VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL` | `float` | `15.0` | Floor on the spacing between two command-triggered telemetry runs (seconds) |
 
 !!! tip "Polling tuning"
     All intervals must be greater than zero. Outdoor and diagnosis groups default to
@@ -77,10 +78,13 @@ read from the boiler (see [ADR-005](../adr/ADR-005-configuration-settings.md)).
     2026-09-02. Treat these intervals as the heartbeat and staleness bound, not
     as the latency you will observe after changing a setting.
 
-    Repeated writes are throttled to one extra read per group per 15 seconds
-    (`COMMAND_WAKE_MIN_INTERVAL_SECONDS`) so a burst — a full weekly timer
-    schedule is seven separate payloads — cannot saturate the 4800-baud bus. A
-    write arriving inside that window is held, not dropped.
+    Repeated writes are throttled to one extra read per group per
+    `command_wake_min_interval` seconds (default 15) so a burst — a full weekly
+    timer schedule is seven separate payloads — cannot saturate the 4800-baud
+    bus. A write arriving inside that window is held, not dropped. **Raise it**
+    (`VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL`) for a slower bus or a busier command
+    load; **lower it** for snappier command-driven refreshes at the cost of more
+    serial contention. Must be `> 0`.
 
 ### Legionella Treatment
 
@@ -163,6 +167,9 @@ VITO2MQTT_POLLING_HEATING_RADIATOR=300
 VITO2MQTT_POLLING_HEATING_FLOOR=300
 VITO2MQTT_POLLING_SYSTEM=3600
 VITO2MQTT_POLLING_DIAGNOSIS=300
+
+# Floor on command-triggered telemetry runs, seconds, must be > 0 (default: 15)
+# VITO2MQTT_COMMAND_WAKE_MIN_INTERVAL=15
 
 # ---------------------------------------------------------------------------
 # Legionella Treatment

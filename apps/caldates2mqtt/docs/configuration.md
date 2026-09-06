@@ -58,6 +58,17 @@ you need.
 | --------------- | ---------------------------- | ------- | ------------------------------------ |
 | Calendars       | `CALDATES2MQTT_CALENDARS`    | _(required)_ | JSON list of calendar configurations |
 | CalDAV timeout  | `CALDATES2MQTT_CALDAV_TIMEOUT`| `30.0` | HTTP timeout for CalDAV requests (seconds) |
+| Trigger min interval | `CALDATES2MQTT_TRIGGER_MIN_INTERVAL` | `60.0` | Minimum seconds between on-demand `/set` re-fetches |
+
+!!! note "Trigger throttle (`TRIGGER_MIN_INTERVAL`)"
+    `caldates2mqtt/{calendar}/set` is a public MQTT topic that forces an on-demand
+    re-fetch, and each wake is a full CalDAV round-trip against a third-party server.
+    This throttle is the minimum spacing (seconds) between two such trigger-initiated
+    fetches, so a stuck automation cannot turn into a request flood. A wake that arrives
+    inside a closed window is **held, not dropped**. **Raise it** for a stricter or
+    shared CalDAV server that rate-limits; **lower it** for snappier on-demand refreshes
+    at the cost of more server load. It is enforced per calendar and is independent of
+    each calendar's `schedule` cron cadence. Must be `> 0`.
 
 ### Per-Calendar Settings
 
@@ -112,6 +123,9 @@ CALDATES2MQTT_CALENDARS='[{"key":"garbage","url":"https://cloud.example.com/remo
 
 # HTTP timeout for CalDAV requests in seconds (default: 30)
 # CALDATES2MQTT_CALDAV_TIMEOUT=30
+
+# Minimum seconds between on-demand /set re-fetches, must be > 0 (default: 60)
+# CALDATES2MQTT_TRIGGER_MIN_INTERVAL=60
 ```
 
 Uncomment and modify any line to override the default.

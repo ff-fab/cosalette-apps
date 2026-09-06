@@ -90,23 +90,49 @@ def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
     return {cal.key: cal for cal in s.calendars}
 
 
-_TRIGGER_MIN_INTERVAL_SECONDS: float = 60.0
-"""Minimum spacing between trigger-initiated fetches (cosalette ADR-066).
+_TRIGGER_MIN_INTERVAL_SECONDS: float = CalDates2MqttSettings.model_fields[
+    "trigger_min_interval"
+].default
+"""Default spacing between trigger-initiated fetches (cosalette ADR-066).
 
-``caldates2mqtt/{calendar}/set`` is a public MQTT topic and each wake is a full
-CalDAV round-trip against someone else's server; a stuck automation would
-otherwise turn into a request flood.  A wake inside a closed window is *held*,
-not dropped, so an on-demand refresh still happens — it just waits for the window
-to reopen.  Enforced per calendar entity, and independent of ``schedule=``, which
-continues to fire on its own cron cadence.
+Sourced from the ``trigger_min_interval`` settings field default so the two
+never drift. ``caldates2mqtt/{calendar}/set`` is a public MQTT topic and each
+wake is a full CalDAV round-trip against someone else's server; a stuck
+automation would otherwise turn into a request flood.  A wake inside a closed
+window is *held*, not dropped, so an on-demand refresh still happens — it just
+waits for the window to reopen.  Enforced per calendar entity, and independent
+of ``schedule=``, which continues to fire on its own cron cadence. Deployments
+override it via ``CALDATES2MQTT_TRIGGER_MIN_INTERVAL``.
 """
+
+
+def _resolve_trigger_min_interval(app: cosalette.App) -> float:
+    """Read the configured throttle, or the default when settings are absent.
+
+    ``min_interval=`` takes a concrete ``float`` (cosalette 0.9.1 has no
+    ``setting_ref`` support for it, cap-9hn), so the value is read from the
+    eagerly-built ``app.settings`` at registration time. ``app.settings``
+    raises when required fields (``calendars``) are unset — as under ``--help``,
+    tests, or schema generation — so fall back to the field default to keep the
+    module importable in those contexts.
+    """
+    try:
+        settings = app.settings
+    except RuntimeError:
+        return _TRIGGER_MIN_INTERVAL_SECONDS
+    if isinstance(settings, CalDates2MqttSettings):
+        return settings.trigger_min_interval
+    return _TRIGGER_MIN_INTERVAL_SECONDS
 
 
 @app.telemetry(
     name=_calendar_map,
     schedule=lambda cal: cal.schedule,
     triggerable=True,
-    min_interval=_TRIGGER_MIN_INTERVAL_SECONDS,
+    # Resolved at import time. App.__init__ eagerly builds settings, so a
+    # configured deployment gets its override here; under --help/tests/schema-gen
+    # (settings unavailable) it falls back to the field default (cap-9hn).
+    min_interval=_resolve_trigger_min_interval(app),
     retry=3,
     retry_on=(CalDavConnectionError, CalDavTimeoutError),
     state_model=CalendarState,
