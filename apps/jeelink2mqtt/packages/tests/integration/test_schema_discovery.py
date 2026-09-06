@@ -67,7 +67,32 @@ SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
 BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 TOPIC_PREFIX = "jeelink2mqtt"
 SENSOR_NAMES = ("office", "outdoor")  # matches apps/jeelink2mqtt/.env.schema
+# Runtime tests build settings dynamically, so they can exercise a multi-word
+# sensor name that the checked-in ``.env.schema`` profile does not include.
+# ``SensorConfigSettings.name`` permits underscores, and ``low_battery`` is
+# itself an underscored field — this guards the object_id -> device mapping
+# against any single-token assumption creeping back in.
+RUNTIME_SENSOR_NAMES = ("office", "living_room")
+# The annotated fields on ``SensorStateModel`` and the HA component each maps to.
+# Declared once so the field/component contract is not restated per test.
+FIELD_COMPONENTS = (
+    ("temperature", "sensor"),
+    ("humidity", "sensor"),
+    ("low_battery", "binary_sensor"),
+)
+FIELDS = tuple(field for field, _ in FIELD_COMPONENTS)
 _WAIT_TIMEOUT = 3.0
+
+
+def _expected_config_topics(names: tuple[str, ...]) -> set[str]:
+    """The retained discovery ``config`` topics for *names* plus the bridge."""
+    topics = {
+        f"homeassistant/{component}/{TOPIC_PREFIX}/{sensor}_{field}/config"
+        for sensor in names
+        for field, component in FIELD_COMPONENTS
+    }
+    topics.add(f"homeassistant/binary_sensor/{TOPIC_PREFIX}/bridge/config")
+    return topics
 
 
 # ---------------------------------------------------------------------------
@@ -122,28 +147,30 @@ class TestHaDiscoveryGeneration:
 
         Technique: Specification-based — count matches annotated properties.
         """
-        expected = {
-            f"{sensor}_{field}"
-            for sensor in SENSOR_NAMES
-            for field in ("temperature", "humidity", "low_battery")
-        }
+        expected = {f"{sensor}_{field}" for sensor in SENSOR_NAMES for field in FIELDS}
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
         assert object_ids == expected
-        for payload in entity_payloads:
-            assert "unique_id" in payload["config"]
+        unique_ids = [p["config"]["unique_id"] for p in entity_payloads]
+        assert all(unique_ids), "every entity must carry a non-empty unique_id"
+        assert len(set(unique_ids)) == len(unique_ids), (
+            "unique_ids must be collision-free — HA relies on them to dedupe entities"
+        )
 
     def test_payloads_grouped_under_per_sensor_device(
-        self, entity_payloads: list[dict[str, Any]]
+        self, configs_by_id: dict[str, dict[str, Any]]
     ) -> None:
         """Every entity is grouped under its sensor's HA device (ADR-058).
 
-        Technique: Specification-based — HA device grouping contract.
+        Technique: Specification-based — HA device grouping contract. The
+        expected device identity is iterated forward from the known sensor
+        names rather than reverse-parsed from ``object_id`` (which cannot
+        round-trip a multi-word name past the underscored ``low_battery`` field).
         """
-        for payload in entity_payloads:
-            sensor = payload["config"]["object_id"].rsplit("_", 1)[0].split("_")[0]
-            device = payload["config"]["device"]
-            assert device["identifiers"] == [f"cosalette_{TOPIC_PREFIX}_{sensor}"]
-            assert device["via_device"] == f"cosalette_{TOPIC_PREFIX}"
+        for sensor in SENSOR_NAMES:
+            for field in FIELDS:
+                device = configs_by_id[f"{sensor}_{field}"]["device"]
+                assert device["identifiers"] == [f"cosalette_{TOPIC_PREFIX}_{sensor}"]
+                assert device["via_device"] == f"cosalette_{TOPIC_PREFIX}"
 
     def test_emits_app_bridge_entity(self, ha_payloads: list[dict[str, Any]]) -> None:
         """A single diagnostic bridge entity materialises the app device.
@@ -229,10 +256,10 @@ class TestHaDiscoveryGeneration:
 # ---------------------------------------------------------------------------
 
 
-def _make_settings() -> Jeelink2MqttSettings:
-    """Two-sensor settings matching the ``.env.schema`` profile."""
+def _make_settings(names: tuple[str, ...] = SENSOR_NAMES) -> Jeelink2MqttSettings:
+    """Settings for the given sensor *names* (defaults to the schema profile)."""
     return Jeelink2MqttSettings(
-        sensors=[SensorConfigSettings(name=name) for name in SENSOR_NAMES],
+        sensors=[SensorConfigSettings(name=name) for name in names],
         serial_port="/dev/null",
         _env_file=None,  # type: ignore[call-arg]
     )
@@ -289,26 +316,52 @@ def captured() -> dict[str, Any]:
 
 @pytest.fixture
 def harness(captured: dict[str, Any]) -> AppHarness:
-    """AppHarness over the discovery-enabled two-sensor app."""
+    """AppHarness over the discovery-enabled app, using the schema sensor names.
+
+    Shared by the cross-check test, whose ground-truth publishes must line up
+    with the offline ``ha_payloads`` generated from the ``.env.schema`` profile.
+    """
     return AppHarness(
         app=_build_discovery_app(captured),
         mqtt=MockMqttClient(),
         clock=FakeClock(),
-        settings=_make_settings(),
+        settings=_make_settings(SENSOR_NAMES),
         shutdown_event=asyncio.Event(),
     )
 
 
-async def _run_until_discovery_published(harness: AppHarness) -> None:
-    """Start the harness, wait for discovery config topics, then shut down."""
+@pytest.fixture
+def runtime_harness() -> AppHarness:
+    """AppHarness whose sensor set includes a multi-word name (``living_room``).
+
+    The runtime path builds its registry from settings rather than the
+    checked-in schema, so it can exercise an underscored sensor name and lock
+    in the object_id -> device mapping for realistic configurations.
+    """
+    return AppHarness(
+        app=_build_discovery_app({}),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=_make_settings(RUNTIME_SENSOR_NAMES),
+        shutdown_event=asyncio.Event(),
+    )
+
+
+async def _run_until_discovery_published(
+    harness: AppHarness, expected: set[str]
+) -> None:
+    """Start the harness, wait until *all* expected config topics land, shut down.
+
+    Waiting for the complete set — not merely the first ``homeassistant/`` topic
+    — keeps the shutdown from racing ahead of a partial publish, so callers can
+    assert against the full topic set deterministically.
+    """
     task = asyncio.create_task(harness.run())
     try:
         await wait_for_condition(
-            lambda: any(
-                topic.startswith("homeassistant/") for topic, *_ in harness.published()
-            ),
+            lambda: expected <= {topic for topic, *_ in harness.mqtt.published},
             timeout=_WAIT_TIMEOUT,
-            description="app.discovery() to publish its config topics",
+            description="app.discovery() to publish all config topics",
         )
     finally:
         harness.shutdown_event.set()
@@ -320,45 +373,46 @@ class TestRuntimeDiscoveryPublication:
     """app.discovery() publishes retained HA config topics on first connect."""
 
     async def test_publishes_retained_config_topic_per_entity(
-        self, harness: AppHarness
+        self, runtime_harness: AppHarness
     ) -> None:
-        """Six per-field config topics plus the bridge, all retained.
+        """One retained config topic per per-field entity, plus the bridge.
+
+        Exercises a multi-word sensor name (``living_room``) so the object_id ->
+        topic mapping is verified for underscored names, not just single tokens.
 
         Technique: Specification-based — ADR-059 runtime publication contract,
         against the live registry rather than the checked-in schema.
         """
-        await _run_until_discovery_published(harness)
+        expected = _expected_config_topics(RUNTIME_SENSOR_NAMES)
+        await _run_until_discovery_published(runtime_harness, expected)
 
         published = {
-            topic: retain for topic, _payload, retain, _qos in harness.published()
+            topic: retain
+            for topic, _payload, retain, _qos in runtime_harness.mqtt.published
         }
-        expected = {
-            f"homeassistant/{comp}/{TOPIC_PREFIX}/{sensor}_{field}/config"
-            for sensor in SENSOR_NAMES
-            for field, comp in (
-                ("temperature", "sensor"),
-                ("humidity", "sensor"),
-                ("low_battery", "binary_sensor"),
-            )
-        }
-        expected.add(f"homeassistant/binary_sensor/{TOPIC_PREFIX}/bridge/config")
-        assert expected <= published.keys()
+        discovery = {topic for topic in published if topic.startswith("homeassistant/")}
+        assert discovery == expected, "runtime discovery topics must match exactly"
         assert all(published[topic] for topic in expected), "config topics must retain"
 
     async def test_config_payload_targets_real_state_topic(
-        self, harness: AppHarness
+        self, runtime_harness: AppHarness
     ) -> None:
         """A published config points HA at the sensor's real state topic.
+
+        ``living_room`` confirms the state topic is built from the full,
+        underscored sensor name rather than a truncated token.
 
         Technique: Specification-based — the discovery payload is self-consistent
         with the app's own topic layout.
         """
-        await _run_until_discovery_published(harness)
+        await _run_until_discovery_published(
+            runtime_harness, _expected_config_topics(RUNTIME_SENSOR_NAMES)
+        )
 
-        topic = f"homeassistant/sensor/{TOPIC_PREFIX}/office_temperature/config"
-        payload = next(p for t, p, *_ in harness.published() if t == topic)
+        topic = f"homeassistant/sensor/{TOPIC_PREFIX}/living_room_temperature/config"
+        payload = next(p for t, p, *_ in runtime_harness.mqtt.published if t == topic)
         config = json.loads(payload)
-        assert config["state_topic"] == f"{TOPIC_PREFIX}/office/state"
+        assert config["state_topic"] == f"{TOPIC_PREFIX}/living_room/state"
         assert config["value_template"] == "{{ value_json.temperature }}"
 
 
