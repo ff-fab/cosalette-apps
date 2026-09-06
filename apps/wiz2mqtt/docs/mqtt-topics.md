@@ -82,6 +82,60 @@ values.
 
 ---
 
+## Home Assistant Discovery Topics
+
+When `app.discovery()` runs (first MQTT connect), wiz2mqtt publishes one retained,
+QoS 1 config payload per entity. All of them point back at the `state` and `set`
+topics above.
+
+| Discovery topic | Component | `state_topic` | `command_topic` |
+| --------------- | --------- | ------------- | --------------- |
+| `homeassistant/light/wiz2mqtt/{bulb}_light/config` | `light` (`schema: json`) | `wiz2mqtt/{bulb}/state` | `wiz2mqtt/{bulb}/set` |
+| `homeassistant/number/wiz2mqtt/{bulb}_effect_speed/config` | `number` | `wiz2mqtt/{bulb}/state` | `wiz2mqtt/{bulb}/set` |
+| `homeassistant/sensor/wiz2mqtt/{bulb}_power/config` | `sensor` | `wiz2mqtt/{bulb}/state` | — (read-only) |
+| `homeassistant/binary_sensor/wiz2mqtt/bridge/config` | `binary_sensor` | `wiz2mqtt/status` | — |
+
+The `light` payload carries `brightness: true`,
+`supported_color_modes: ["color_temp", "rgb"]`, `effect: true` with the full
+38-scene `effect_list`, and `min_kelvin`/`max_kelvin` `2200`/`6500`. The `number`
+payload uses `min` 10, `max` 200, `step` 1, `command_template`
+`{"effect_speed": {{ value }}}`. The `sensor` payload is `device_class: power`,
+`unit_of_measurement: W`, `state_class: measurement`.
+
+Preview the exact payloads with `task wiz2mqtt:schema:ha-discovery`.
+
+## openHAB Generic MQTT Thing
+
+`task wiz2mqtt:schema:openhab` renders — offline, from `docs/schema.yaml` — a
+`Thing mqtt:topic:broker:wiz2mqtt_{bulb}` plus a matching Items file. Two channel
+sets are emitted per bulb:
+
+| Channel | Type | Wiring |
+| ------- | ---- | ------ |
+| `state` / `state_cmd` | `switch` | read `JSONPATH:$.state`; write `{"state":"%s"}` |
+| `brightness` / `brightness_cmd` | `dimmer`, `min` 0 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
+| `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%s"}` |
+| `effect` / `effect_cmd` | `string` | read `JSONPATH:$.effect`; write `{"effect":%s}` |
+
+The `*_cmd` channels wrap the outbound scalar back into JSON with
+`formatBeforePublish` (full Java `String.format`) so a single `.../set` payload
+carries just the changed field.
+
+**On/off bypasses `formatBeforePublish`.** The `dimmer`, `color`, and `switch`
+channels also declare explicit `on`/`off` strings
+(`on="{\"state\": \"ON\"}"`, `off="{\"state\": \"OFF\"}"`). openHAB sends those
+verbatim without running `formatBeforePublish`, so an `OFF` command on the
+brightness or colour channel emits a well-formed `{"state": "OFF"}` rather than
+`{"brightness":OFF}`.
+
+**Hue range.** openHAB's `Color`/HSB type uses hue `0..359`; the Home Assistant
+JSON `color` object uses `0..360`. wiz2mqtt does **no** conversion — the one-unit
+difference is a documented consumer-side concern, not a wire-format one. The
+canonical internal colour model is `(hue, saturation, dimming)`; the `hsb` string
+key (`"h,s,b"`) exists purely for openHAB and is ignored by Home Assistant.
+
+---
+
 ## Framework Topics
 
 Alongside the wiz2mqtt-specific topics above, cosalette itself publishes two

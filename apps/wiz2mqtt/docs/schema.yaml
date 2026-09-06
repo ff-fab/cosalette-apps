@@ -1,8 +1,451 @@
 asyncapi: 3.0.0
 info:
   title: wiz2mqtt
-  version: 0.1.0
+  version: 0.2.0
   x-cosalette-contract-version: '1'
+channels:
+  exampleCommand:
+    address: wiz2mqtt/example/set
+    x-cosalette-app: wiz2mqtt
+    messages:
+      message:
+        payload:
+          description: 'Inbound ``.../set`` payload — HA''s JSON light schema, every
+            field optional.
+
+
+            HA sends multi-field payloads (``{"state": "ON", "brightness": 128}``);
+
+            openHAB''s ``formatBeforePublish`` sends single-field payloads. Every
+
+            field defaults to ``None`` so both are valid partial updates.
+
+
+            ``color``, ``color_temp``, ``effect`` and ``hsb`` are mutually
+
+            exclusive.  This cannot be enforced downstream: ``pywizlight`` never
+
+            raises on conflicting kwargs — rgb+scene silently merges both onto one
+
+            pilot (firmware race), and rgb+colortemp silently drops temp by fixed
+
+            source-order priority regardless of kwarg order. Validating here
+
+            rejects the whole payload instead of picking a winner.
+
+
+            The model carries the same composite HA ``light``/``number`` entity
+
+            specs as :class:`BulbStateModel`; the discovery generator merges this
+
+            receive (``/set``) channel with the send (``/state``) channel into one
+
+            entity, contributing the ``command_topic`` half (cosalette ADR-057).
+
+            ``state``/``brightness``/``hsb``/``effect`` also carry ``openhab()``
+
+            metadata so the offline openHAB Thing gets a command channel per field
+
+            on the shared ``/set`` topic.'
+          properties:
+            state:
+              anyOf:
+              - enum:
+                - 'ON'
+                - 'OFF'
+                type: string
+              - type: 'null'
+              default: null
+              title: State
+              x-cosalette-consumer:
+                display_name: State
+              x-cosalette-openhab:
+                channel_params:
+                  'off': '{"state": "OFF"}'
+                  'on': '{"state": "ON"}'
+                channel_type: switch
+                item_type: Switch
+            brightness:
+              anyOf:
+              - maximum: 255
+                minimum: 1
+                type: integer
+              - type: 'null'
+              default: null
+              title: Brightness
+              x-cosalette-consumer:
+                display_name: Brightness
+              x-cosalette-openhab:
+                channel_params:
+                  max: 255
+                  min: 0
+                  'off': '{"state": "OFF"}'
+                  'on': '{"state": "ON"}'
+                  step: 1
+                channel_type: dimmer
+                item_type: Dimmer
+            color:
+              anyOf:
+              - $ref: '#/components/schemas/BulbColor'
+              - type: 'null'
+              default: null
+            color_temp:
+              anyOf:
+              - exclusiveMinimum: 0
+                maximum: 10000
+                type: integer
+              - type: 'null'
+              default: null
+              title: Color Temp
+            effect:
+              anyOf:
+              - maximum: 1000
+                minimum: 1
+                type: integer
+              - type: 'null'
+              default: null
+              title: Effect
+              x-cosalette-consumer:
+                display_name: Effect
+              x-cosalette-openhab:
+                channel_type: string
+                item_type: String
+            hsb:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Hsb
+              x-cosalette-consumer:
+                display_name: Color
+              x-cosalette-openhab:
+                channel_params:
+                  colorMode: HSB
+                  'off': '{"state": "OFF"}'
+                  'on': '{"state": "ON"}'
+                channel_type: color
+                item_type: Color
+            effect_speed:
+              anyOf:
+              - maximum: 200
+                minimum: 10
+                type: integer
+              - type: 'null'
+              default: null
+              title: Effect Speed
+          title: BulbSetCommand
+          type: object
+          x-cosalette-ha-discovery:
+            entities:
+            - component: light
+              extra:
+                brightness: true
+                effect: true
+                effect_list:
+                - Alarm
+                - Bedtime
+                - Candlelight
+                - Christmas
+                - Club
+                - Cool white
+                - Cozy
+                - Daylight
+                - Deep dive
+                - Dim-to-warm
+                - Diwali
+                - Fall
+                - Fireplace
+                - Focus
+                - Forest
+                - Golden white
+                - Halloween
+                - Jungle
+                - Mojito
+                - Night light
+                - Ocean
+                - Party
+                - Pastel colors
+                - Plantgrowth
+                - Pulse
+                - Relax
+                - Rhythm
+                - Romance
+                - Snowy sky
+                - Spring
+                - Steampunk
+                - Summer
+                - Sunset
+                - True colors
+                - TV time
+                - Wake-up
+                - Warm white
+                - White
+                max_kelvin: 6500
+                min_kelvin: 2200
+                schema: json
+                supported_color_modes:
+                - color_temp
+                - rgb
+            - component: number
+              extra:
+                command_template: '{"effect_speed": {{ value }}}'
+                icon: mdi:speedometer
+                max: 200
+                min: 10
+                mode: slider
+                step: 1
+                value_template: '{{ value_json.effect_speed }}'
+              name: Effect speed
+    x-cosalette-archetype: command
+    x-cosalette-summary: Apply a partial state update to a bulb
+  exampleState:
+    address: wiz2mqtt/example/state
+    x-cosalette-app: wiz2mqtt
+    messages:
+      message:
+        payload:
+          additionalProperties: false
+          description: 'Retained ``wiz2mqtt/{bulb}/state`` payload shape (cap-10u.14).
+
+
+            Declared as ``state_model=`` on the ``bulb_entity`` telemetry
+
+            (:mod:`wiz2mqtt.main`) so every published payload is validated and
+
+            normalised against this shape (cosalette 0.9.0).  Every field is
+
+            optional: :func:`wiz2mqtt.payload.build_state_payload` includes a key
+
+            only when it is known/applicable, and ``state_model`` validation dumps
+
+            with ``exclude_none=True``, so that conditional-key wire shape is
+
+            preserved exactly.
+
+
+            The model carries the composite HA ``light``/``sensor``/``number``
+
+            discovery entities (``ha_entities`` on ``model_config``); ``app.discovery()``
+
+            and the offline ``cosalette schema ha-discovery`` path emit them per
+
+            configured bulb (cap-10u.14, cosalette ADR-057/ADR-059).  The
+
+            ``state``/``brightness``/``hsb``/``effect`` fields additionally carry
+
+            ``consumer()`` + ``openhab()`` metadata driving the offline openHAB
+
+            Generic MQTT Thing generation.'
+          properties:
+            state:
+              anyOf:
+              - enum:
+                - 'ON'
+                - 'OFF'
+                type: string
+              - type: 'null'
+              default: null
+              title: State
+              x-cosalette-consumer:
+                display_name: State
+              x-cosalette-openhab:
+                channel_params:
+                  'off': '{"state": "OFF"}'
+                  'on': '{"state": "ON"}'
+                channel_type: switch
+                item_type: Switch
+            brightness:
+              anyOf:
+              - maximum: 255
+                minimum: 0
+                type: integer
+              - type: 'null'
+              default: null
+              title: Brightness
+              x-cosalette-consumer:
+                display_name: Brightness
+              x-cosalette-openhab:
+                channel_params:
+                  max: 255
+                  min: 0
+                  'off': '{"state": "OFF"}'
+                  'on': '{"state": "ON"}'
+                  step: 1
+                channel_type: dimmer
+                item_type: Dimmer
+            color_mode:
+              anyOf:
+              - enum:
+                - color_temp
+                - rgb
+                type: string
+              - type: 'null'
+              default: null
+              title: Color Mode
+            color:
+              anyOf:
+              - $ref: '#/components/schemas/BulbColor'
+              - type: 'null'
+              default: null
+            color_temp:
+              anyOf:
+              - type: integer
+              - type: 'null'
+              default: null
+              title: Color Temp
+            color_temp_kelvin:
+              anyOf:
+              - type: boolean
+              - type: 'null'
+              default: null
+              title: Color Temp Kelvin
+            hsb:
+              anyOf:
+              - type: string
+              - type: 'null'
+              default: null
+              title: Hsb
+              x-cosalette-consumer:
+                display_name: Color
+              x-cosalette-openhab:
+                channel_params:
+                  colorMode: HSB
+                  'off': '{"state": "OFF"}'
+                  'on': '{"state": "ON"}'
+                channel_type: color
+                item_type: Color
+            effect:
+              anyOf:
+              - type: integer
+              - type: 'null'
+              default: null
+              title: Effect
+              x-cosalette-consumer:
+                display_name: Effect
+              x-cosalette-openhab:
+                channel_type: string
+                item_type: String
+            effect_speed:
+              anyOf:
+              - type: integer
+              - type: 'null'
+              default: null
+              title: Effect Speed
+            power_draw_w:
+              anyOf:
+              - type: number
+              - type: 'null'
+              default: null
+              title: Power Draw W
+          title: BulbStateModel
+          type: object
+          x-cosalette-ha-discovery:
+            entities:
+            - component: light
+              extra:
+                brightness: true
+                effect: true
+                effect_list:
+                - Alarm
+                - Bedtime
+                - Candlelight
+                - Christmas
+                - Club
+                - Cool white
+                - Cozy
+                - Daylight
+                - Deep dive
+                - Dim-to-warm
+                - Diwali
+                - Fall
+                - Fireplace
+                - Focus
+                - Forest
+                - Golden white
+                - Halloween
+                - Jungle
+                - Mojito
+                - Night light
+                - Ocean
+                - Party
+                - Pastel colors
+                - Plantgrowth
+                - Pulse
+                - Relax
+                - Rhythm
+                - Romance
+                - Snowy sky
+                - Spring
+                - Steampunk
+                - Summer
+                - Sunset
+                - True colors
+                - TV time
+                - Wake-up
+                - Warm white
+                - White
+                max_kelvin: 6500
+                min_kelvin: 2200
+                schema: json
+                supported_color_modes:
+                - color_temp
+                - rgb
+            - component: sensor
+              extra:
+                device_class: power
+                state_class: measurement
+                unit_of_measurement: W
+                value_template: '{{ value_json.power_draw_w }}'
+              name: Power
+            - component: number
+              extra:
+                command_template: '{"effect_speed": {{ value }}}'
+                icon: mdi:speedometer
+                max: 200
+                min: 10
+                mode: slider
+                step: 1
+                value_template: '{{ value_json.effect_speed }}'
+              name: Effect speed
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: 'Per-bulb state publisher: retained state, availability debounce'
+operations:
+  publishExampleState:
+    action: send
+    channel:
+      $ref: '#/channels/exampleState'
+    summary: 'Per-bulb state publisher: retained state, availability debounce'
+  receiveExampleCommand:
+    action: receive
+    channel:
+      $ref: '#/channels/exampleCommand'
+    summary: Apply a partial state update to a bulb
+components:
+  schemas:
+    BulbColor:
+      description: RGB triple as HA's JSON light schema conveys it (0-255 per channel).
+      properties:
+        r:
+          maximum: 255
+          minimum: 0
+          title: R
+          type: integer
+        g:
+          maximum: 255
+          minimum: 0
+          title: G
+          type: integer
+        b:
+          maximum: 255
+          minimum: 0
+          title: B
+          type: integer
+      required:
+      - r
+      - g
+      - b
+      title: BulbColor
+      type: object
 x-cosalette-enforcement:
   mode: warn
   on_configure: true

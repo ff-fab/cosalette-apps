@@ -100,6 +100,36 @@ def hue_saturation_to_rgb(
     return round(r * 255), round(g * 255), round(b * 255)
 
 
+def parse_hsb(value: str) -> tuple[float, float, int]:
+    """Parse openHAB's Color channel ``"h,s,b"`` string to canonical HSB.
+
+    openHAB publishes its Color state/command as three comma-separated
+    numbers: hue in ``0..359`` degrees, saturation and brightness both as
+    ``0..100`` percentages. The return tuple is
+    ``(hue 0..360, saturation 0..100, brightness 0..255)`` — pywizlight's
+    ``PilotBuilder(hucolor=(hue, saturation))`` accepts hue up to 360, so
+    openHAB's 0-359 range needs no rescaling, only the brightness percent
+    is scaled to the 0-255 range :class:`BulbState.brightness` uses.
+
+    Raises:
+        ValueError: If *value* is not three parseable comma-separated numbers.
+    """
+    parts = value.split(",")
+    if len(parts) != 3:
+        msg = f"Expected an 'h,s,b' triple, got {value!r}"
+        raise ValueError(msg)
+    try:
+        hue, saturation, brightness_pct = (float(p) for p in parts)
+    except ValueError:
+        msg = f"Non-numeric component in HSB triple {value!r}"
+        raise ValueError(msg) from None
+
+    hue = max(0.0, min(hue, 360.0))
+    saturation = max(0.0, min(saturation, 100.0))
+    brightness_pct = max(0.0, min(brightness_pct, 100.0))
+    return hue, saturation, round(brightness_pct / 100 * 255)
+
+
 def is_cct_mode(color_temp_kelvin: int | None) -> bool:
     """True when the bulb is in CCT (colour-temperature) mode.
 

@@ -106,9 +106,10 @@ tasks:
     # against the same checked-in profile schema:generate uses.
     #
     # EXPECTED WARNINGS — these are not drift, and the task still exits 0:
-    #   wiz2mqtt "example — EXTRA": docs/schema.yaml carries no channels at all
-    #     (the bulb inventory is TOML-driven), so the resolved placeholder bulb
-    #     has nothing to match. Tracked under cap-85q.
+    #   (none currently) — wiz2mqtt's former "example — EXTRA" warning is gone
+    #   as of cap-10u.14: docs/schema.yaml now carries the per-bulb /state and
+    #   /set channels (generated against wiz2mqtt.schema.toml's placeholder
+    #   bulb), so the resolved "example" bulb matches. Tracked under cap-85q.
     #
     # jeelink2mqtt's "receiver — EXTRA" false positive (root-level @app.stream
     # entities misreported as EXTRA) was fixed upstream in cosalette 0.9.1 —
@@ -171,6 +172,11 @@ tasks:
     desc: 'Generate Home Assistant MQTT discovery payloads for {{.APP_NAME}}'
     cmds:
       - uv run --package {{.APP_NAME}} cosalette schema ha-discovery docs/schema.yaml
+
+  schema:openhab:
+    desc: 'Generate openHAB .things/.items configuration for {{.APP_NAME}}'
+    cmds:
+      - uv run --package {{.APP_NAME}} cosalette schema openhab docs/schema.yaml
 
   complexity:
     desc: 'Check code complexity for {{.APP_NAME}}'

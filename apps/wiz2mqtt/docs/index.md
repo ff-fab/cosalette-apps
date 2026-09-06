@@ -57,6 +57,9 @@ bulb gets its own retained state topic, command topic, and availability signal.
 - Push-driven state publication via local triggers, with a 60-second heartbeat
     as the liveness floor
 - Retained MQTT state payloads shaped for Home Assistant and openHAB
+- Runtime Home Assistant MQTT discovery (`app.discovery()`) — one device per bulb
+    with `light`, effect-speed `number`, and power `sensor` entities
+- Offline openHAB Generic MQTT Thing + Items generation (`cosalette schema openhab`)
 - Optional bare-hex MAC verification to detect IP/bulb mismatches at startup
 - Config-file bulb inventory (`wiz2mqtt.toml`) with environment overrides
 

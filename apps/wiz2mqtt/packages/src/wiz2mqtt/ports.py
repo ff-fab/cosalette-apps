@@ -58,11 +58,14 @@ class WizBulbPort(HealthCheckable, Protocol):
         saturation: float | None = None,
         color_temp_kelvin: int | None = None,
         scene: int | None = None,
+        speed: int | None = None,
     ) -> None:
         """Apply a partial state update to the bulb.
 
         Colour temperature is clamped to the bulb's real Kelvin range and
         scene ids are validated against the bulb's class before sending.
+        ``speed`` is the colour-cycling effect speed (pywizlight accepts
+        ``10..200``).
         """
         ...
 
