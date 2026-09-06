@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: jeelink2mqtt
-  version: 0.1.3
+  version: 0.1.4
   x-cosalette-contract-version: '1'
 channels:
   mappingCommand:
@@ -36,17 +36,48 @@ channels:
 
             (:mod:`jeelink2mqtt.main`) so every ``ctx.publish_state()`` call is
 
-            validated and normalised against this shape (ADR-046).'
+            validated and normalised against this shape (ADR-046).
+
+
+            The ``temperature``/``humidity``/``low_battery`` fields carry
+
+            ``x-cosalette-consumer`` metadata (via
+
+            :func:`cosalette.schema.consumer`) so ``app.discovery()`` — and the
+
+            offline ``cosalette schema ha-discovery`` path — emit one Home
+
+            Assistant MQTT discovery entity per field, per configured sensor
+
+            (cap-egy, ADR-059). ``timestamp`` is publish-freshness bookkeeping,
+
+            not a user-facing entity, so it is left unannotated.'
           properties: &id001
             temperature:
               title: Temperature
               type: number
+              x-cosalette-consumer:
+                display_name: Temperature
+                device_class: temperature
+                unit: °C
+                state_class: measurement
             humidity:
               title: Humidity
               type: integer
+              x-cosalette-consumer:
+                display_name: Humidity
+                device_class: humidity
+                unit: '%'
+                state_class: measurement
             low_battery:
               title: Low Battery
               type: boolean
+              x-cosalette-consumer:
+                display_name: Low Battery
+                device_class: battery
+              x-cosalette-ha-discovery:
+                value_template: '{{ ''ON'' if value_json.low_battery else ''OFF''
+                  }}'
             timestamp:
               format: date-time
               title: Timestamp
@@ -74,7 +105,22 @@ channels:
 
             (:mod:`jeelink2mqtt.main`) so every ``ctx.publish_state()`` call is
 
-            validated and normalised against this shape (ADR-046).'
+            validated and normalised against this shape (ADR-046).
+
+
+            The ``temperature``/``humidity``/``low_battery`` fields carry
+
+            ``x-cosalette-consumer`` metadata (via
+
+            :func:`cosalette.schema.consumer`) so ``app.discovery()`` — and the
+
+            offline ``cosalette schema ha-discovery`` path — emit one Home
+
+            Assistant MQTT discovery entity per field, per configured sensor
+
+            (cap-egy, ADR-059). ``timestamp`` is publish-freshness bookkeeping,
+
+            not a user-facing entity, so it is left unannotated.'
           properties: *id001
           required: *id002
           title: SensorStateModel

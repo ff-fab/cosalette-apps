@@ -60,6 +60,14 @@ app = cosalette.App(
     max_restarts=3,
 )
 
+# ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery `config`
+# payloads on the first successful MQTT connect, generated from the app's own
+# live, already-expanded registry — so the per-sensor `sensor_entity` names
+# (a callable `NameSpec` keyed off `settings.sensors`) resolve correctly
+# without a representative `.env.schema` profile. Entities come from the
+# `x-cosalette-consumer` metadata on `SensorStateModel` (see models.py).
+app.discovery()
+
 
 @app.state
 def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
