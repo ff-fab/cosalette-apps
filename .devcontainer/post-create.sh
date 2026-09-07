@@ -100,6 +100,22 @@ echo "✅ SSH known_hosts seeded (agent forwarding handles authentication)"
 # GH_PAGER=cat is set via remoteEnv, but gh config persists across shell sessions.
 gh config set pager cat 2>/dev/null || true
 
+# Codex (openai.chatgpt) agent config.
+# Skills are discovered automatically from the committed repo-scoped
+# `.agents/skills/` symlinks (Codex follows symlink targets), and instructions
+# flow through AGENTS.md natively — neither needs wiring here. Codex slash-command
+# *prompts*, however, only load from $CODEX_HOME/prompts (~/.codex/prompts), which
+# lives in the ephemeral home dir and must be re-seeded on every container create.
+# Expose each skill as a `/name` prompt by symlinking its SKILL.md.
+echo "🤖 Wiring cosalette skills into Codex prompts..."
+codex_prompts_dir="${CODEX_HOME:-$HOME/.codex}/prompts"
+mkdir -p "$codex_prompts_dir"
+for skill in /workspaces/cosalette-apps/.github/skills/*/; do
+    name="$(basename "$skill")"
+    ln -sfn "$skill/SKILL.md" "$codex_prompts_dir/$name.md"
+done
+echo "✅ Codex prompts linked ($(find "$codex_prompts_dir" -maxdepth 1 -name '*.md' | wc -l) skills)"
+
 
 
 # GitHub CLI authentication reminder

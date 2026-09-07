@@ -1,13 +1,13 @@
 # Agent Instructions
 
-Canonical instructions for every AI coding agent in this repository. GitHub Copilot and
-Kilo read this file natively; Claude Code reads it through the `@AGENTS.md` import in
-`CLAUDE.md`.
+Canonical instructions for every AI coding agent in this repository. GitHub Copilot,
+Kilo and Codex (`openai.chatgpt`) read this file natively; Claude Code reads it through
+the `@AGENTS.md` import in `CLAUDE.md`.
 
-Topic guidance that only applies to certain files lives in `.github/instructions/`. All
-three tools load those files automatically — Copilot via `applyTo:`, Claude Code via
-`paths:` through the `.claude/rules/` symlinks, Kilo unconditionally. Repeatable
-procedures live in `.github/skills/`.
+Topic guidance that only applies to certain files lives in `.github/instructions/`.
+Copilot, Claude Code and Kilo load those files automatically — Copilot via `applyTo:`,
+Claude Code via `paths:` through the `.claude/rules/` symlinks, Kilo unconditionally
+(Codex does not consume them). Repeatable procedures live in `.github/skills/`.
 
 ## Project Overview
 
@@ -197,12 +197,12 @@ until `git push` succeeds.
 
 Agent configuration lives in `.github/` and is consumed by every tool:
 
-| Surface              | Location                | Shared how                                                                      |
-| -------------------- | ----------------------- | ------------------------------------------------------------------------------- |
-| Always-on context    | `AGENTS.md` (this file) | read natively by all three tools                                                |
-| File-scoped guidance | `.github/instructions/` | Copilot `applyTo:`; Claude via `.claude/rules/` symlinks; Kilo `instructions[]` |
-| Repeatable workflows | `.github/skills/`       | Copilot native; Claude via the plugin manifest; Kilo `skills.paths`             |
-| Specialist agents    | `.github/agents/`       | Copilot native; Claude via the plugin manifest; **not wired into Kilo**         |
+| Surface              | Location                | Shared how                                                                                                |
+| -------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
+| Always-on context    | `AGENTS.md` (this file) | read natively by Copilot, Claude Code, Kilo and Codex                                                     |
+| File-scoped guidance | `.github/instructions/` | Copilot `applyTo:`; Claude via `.claude/rules/` symlinks; Kilo `instructions[]`                           |
+| Repeatable workflows | `.github/skills/`       | Copilot native; Claude via the plugin manifest; Kilo `skills.paths`; Codex via `.agents/skills/` symlinks |
+| Specialist agents    | `.github/agents/`       | Copilot native; Claude via the plugin manifest; **not wired into Kilo**                                   |
 
 Claude Code loads the skills and agents through a plugin manifest at
 `.github/.claude-plugin/plugin.json`, served by the repo-root local marketplace
@@ -222,6 +222,16 @@ no `model:` at all and `task check:agents` fails if one reappears. See
 `.kilo/` now holds runtime state only and is gitignored. There are no mirrored copies to
 keep in sync. Kilo is deliberately allowed to drift: `.github/agents/` is not wired into
 it, and it will get purpose-built agents once it specialises.
+
+**Codex (`openai.chatgpt`) reads AGENTS.md natively** and discovers the workflow skills
+from the committed repo-scoped `.agents/skills/` symlinks — Codex scans
+`$REPO_ROOT/.agents/skills` and follows symlink targets, so each entry points straight
+back at `.github/skills/<name>`. The same skills are also exposed as `/name`
+slash-command prompts by seeding `~/.codex/prompts/` in `.devcontainer/post-create.sh`
+(that directory lives in the ephemeral home, so it is re-linked on every container
+create rather than committed). Adding a skill under `.github/skills/` needs a matching
+symlink in `.agents/skills/`; nothing else. Codex is not wired to `.github/agents/` or
+`.github/instructions/`.
 
 ## Refreshing cosalette guidance
 

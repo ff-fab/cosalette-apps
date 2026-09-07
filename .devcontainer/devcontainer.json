@@ -192,6 +192,7 @@
         "GitHub.copilot",
         "GitHub.copilot-chat",
         "anthropic.claude-code",
+        "openai.chatgpt",
         "kilocode.kilo-code",
         "vivaxy.vscode-conventional-commits",
         "ryanluker.vscode-coverage-gutters",
