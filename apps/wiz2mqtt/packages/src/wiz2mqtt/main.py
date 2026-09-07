@@ -7,12 +7,13 @@ from typing import Annotated
 import cosalette
 from cosalette.mqtt import Payload
 
+from wiz2mqtt import __version__
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.commands import to_set_state_kwargs
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
-from wiz2mqtt.models import BulbSetCommand
+from wiz2mqtt.models import BulbSetCommand, BulbStateModel
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -38,12 +39,22 @@ validated separately (cap-10u.19).
 
 app = cosalette.App(
     name="wiz2mqtt",
-    version="0.1.0",
+    version=__version__,
     description="WiZ smart bulb control over MQTT for openHAB and Home Assistant",
     settings_class=Wiz2MqttSettings,
     adapters={WizBulbPort: (WizBulbAdapter, FakeWizBulbAdapter)},
     error_type_map=error_type_map,
 )
+
+# cosalette ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery
+# `config` payloads on the first successful MQTT connect, built from the app's
+# own live, already-expanded registry — so the per-bulb `bulb_entity` names (a
+# callable `NameSpec` keyed off `settings.bulbs`) resolve correctly without a
+# representative config profile. The entities come from `BulbStateModel` /
+# `BulbSetCommand`'s `ha_entities` + `consumer()` metadata (see models.py).
+# openHAB has no runtime equivalent; `cosalette schema openhab` (docs/schema.yaml)
+# stays the offline path for its Generic MQTT Thing.
+app.discovery()
 
 
 def _bulb_map(settings: cosalette.Settings) -> dict[str, BulbConfig]:
@@ -98,16 +109,19 @@ def shared_state() -> SharedState:
     # latency.  Revisit only if cap-10u.19 finds real push storms.
     publish=cosalette.OnChange(),
     summary="Per-bulb state publisher: retained state, availability debounce",
-    # No state_model: the payload's keys are conditionally present (see
-    # wiz2mqtt.payload.build_state_payload), which a Pydantic state_model
-    # would force to null-fill on every publish rather than omit.
+    # state_model validates every publish (cosalette 0.9.0) and types the
+    # AsyncAPI `/state` channel so `cosalette schema` can derive HA discovery
+    # + openHAB metadata. Every field is Optional and validation dumps with
+    # `exclude_none=True`, so `build_state_payload`'s conditional-key wire
+    # shape is preserved — absent keys stay omitted, not null-filled.
+    state_model=BulbStateModel,
 )
 async def bulb_entity(
     ctx: cosalette.DeviceContext,
     config: BulbConfig,
     port: WizBulbPort,
     state: SharedState,
-) -> dict[str, object] | None:
+) -> BulbStateModel | None:
     """Per-configured-bulb telemetry: publish state, debounce availability.
 
     One instance is registered per ``settings.bulbs`` entry (dict-name
@@ -119,8 +133,15 @@ async def bulb_entity(
     a local trigger armed by the adapter's push callback.  The tick reads
     the adapter's push cache either way, so no branch on the wake reason
     is needed here.
+
+    The tick builds a conditional-key dict (see
+    :func:`wiz2mqtt.payload.build_state_payload`); wrapping it in
+    ``BulbStateModel`` keeps the return annotation and ``state_model=``
+    in agreement (repo idiom — airthings2mqtt / gas2mqtt) so registration
+    emits no ``state_model`` drift warning.
     """
-    return await bulb_entity_tick(ctx, config, port, state)
+    result = await bulb_entity_tick(ctx, config, port, state)
+    return BulbStateModel.model_validate(result) if result is not None else None
 
 
 def main() -> None:

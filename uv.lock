@@ -3283,13 +3283,13 @@ name = "wiz2mqtt"
 version = "0.2.0"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
     { name = "pywizlight" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.9.1,<0.10" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.9.1,<0.10" },
     { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
 ]
 

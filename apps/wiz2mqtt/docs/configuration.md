@@ -84,3 +84,32 @@ The bulb entity is declared `triggerable="local"`, so the wake is in-process
 only — wiz2mqtt subscribes **no** trigger topic. The only inbound topic is each
 bulb's `set` command topic documented in
 [mqtt-topics.md](mqtt-topics.md).
+
+## Consumer Integration
+
+wiz2mqtt has no configuration surface for consumer wiring — it renders from the
+bulb inventory automatically.
+
+### Home Assistant discovery
+
+`main` calls `app.discovery()`, so on the first successful MQTT connect wiz2mqtt
+publishes retained `homeassistant/<component>/wiz2mqtt/.../config` payloads built
+from its live registry. Each `[[bulbs]]` entry becomes one HA device with a
+`light` (`schema: json`), an effect-speed `number`, and a power `sensor`; one
+`binary_sensor` bridge entity is published for the app. Dropping a bulb from
+`wiz2mqtt.toml` clears its retained discovery topics on the next start. Nothing in
+Home Assistant needs configuring. The `light` metadata is a static wire-format
+superset (`supported_color_modes: [color_temp, rgb]`, the full 38-scene
+`effect_list`, `min_kelvin`/`max_kelvin` 2200–6500); runtime auto-detection still
+gates command handling. Per-bulb capability filtering is deferred (`cap-3tr`,
+[ADR-003](adr/ADR-003-toml-inventory-as-the-configuration-boundary.md)).
+
+Inspect the payloads offline with `task wiz2mqtt:schema:ha-discovery`.
+
+### openHAB generation
+
+`task wiz2mqtt:schema:openhab` renders a Generic MQTT Thing and matching Items
+file from `docs/schema.yaml` — offline only, wiz2mqtt never talks to openHAB at
+runtime. Regenerate `docs/schema.yaml` with `task wiz2mqtt:schema:generate --yes`
+after changing the state model; `task wiz2mqtt:schema:check` is the drift gate.
+See [mqtt-topics.md](mqtt-topics.md) for the channel layout.

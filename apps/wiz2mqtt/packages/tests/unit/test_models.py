@@ -1,10 +1,12 @@
-"""Unit tests for models.py — BulbSetCommand payload validation (cap-10u.12).
+"""Unit tests for models.py — payload validation + discovery metadata (cap-10u.12,
+cap-10u.14).
 
 Test Techniques Used:
 - Equivalence Partitioning: valid single-field, multi-field, and empty payloads
-- Boundary Value Analysis: brightness 1-255, color channels 0-255
-- Decision Table: color/color_temp/effect mutual exclusion combinations
+- Boundary Value Analysis: brightness 1-255, color channels 0-255, effect_speed 10-200
+- Decision Table: color/color_temp/effect/hsb mutual exclusion combinations
 - Error Guessing: extra/unknown fields, out-of-range values
+- Specification-based: the HA ``ha_entities`` discovery metadata each model carries
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from wiz2mqtt.models import BulbSetCommand
+from wiz2mqtt.models import WIZ_EFFECT_LIST, BulbSetCommand, BulbStateModel
 
 # ---------------------------------------------------------------------------
 # Partial updates — every field optional
@@ -157,37 +159,56 @@ class TestFieldValidation:
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate({"color_temp": 10001})
 
-    def test_models_effect_accepts_minimum_value(self) -> None:
-        """effect=1 is the minimum valid scene ID.
+    def test_models_effect_accepts_known_scene_name(self) -> None:
+        """A scene name from the advertised ``effect_list`` is accepted.
 
-        Technique: Boundary Value Analysis — lower bound (ge=1).
+        Technique: Equivalence Partitioning — the valid-name class.
         """
-        cmd = BulbSetCommand.model_validate({"effect": 1})
-        assert cmd.effect == 1
+        cmd = BulbSetCommand.model_validate({"effect": "Ocean"})
+        assert cmd.effect == "Ocean"
 
-    def test_models_effect_accepts_maximum_value(self) -> None:
-        """effect=1000 is the pywizlight scene ceiling, must be accepted.
+    def test_models_effect_rejects_unknown_scene_name(self) -> None:
+        """A name absent from ``WIZ_EFFECT_LIST`` is rejected at the boundary.
 
-        Technique: Boundary Value Analysis — upper bound (le=1000).
-        """
-        cmd = BulbSetCommand.model_validate({"effect": 1000})
-        assert cmd.effect == 1000
-
-    def test_models_effect_rejects_zero(self) -> None:
-        """effect=0 is invalid (scene IDs start at 1).
-
-        Technique: Boundary Value Analysis — just below lower bound.
+        Technique: Equivalence Partitioning — the invalid-name class. HA only
+        sends advertised names, but an openHAB String item can send anything.
         """
         with pytest.raises(ValidationError):
-            BulbSetCommand.model_validate({"effect": 0})
+            BulbSetCommand.model_validate({"effect": "Nonexistent Scene"})
 
-    def test_models_effect_rejects_above_maximum(self) -> None:
-        """effect above 1000 is rejected.
+    def test_models_effect_rejects_numeric_scene_id(self) -> None:
+        """A bare numeric scene id is no longer a valid wire value (ADR-001).
 
-        Technique: Boundary Value Analysis — just outside upper bound.
+        Technique: Error Guessing — the pre-name-translation wire shape.
         """
         with pytest.raises(ValidationError):
-            BulbSetCommand.model_validate({"effect": 1001})
+            BulbSetCommand.model_validate({"effect": 7})
+
+    @pytest.mark.parametrize("value", [10, 100, 200])
+    def test_models_effect_speed_accepts_in_range(self, value: int) -> None:
+        """effect_speed within pywizlight's 10-200 range is accepted.
+
+        Technique: Boundary Value Analysis — lower/mid/upper bounds.
+        """
+        cmd = BulbSetCommand.model_validate({"effect_speed": value})
+        assert cmd.effect_speed == value
+
+    @pytest.mark.parametrize("value", [9, 201, 0, -1])
+    def test_models_effect_speed_rejects_out_of_range(self, value: int) -> None:
+        """effect_speed outside 10-200 is rejected (pywizlight raises otherwise).
+
+        Technique: Boundary Value Analysis — just outside both bounds.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"effect_speed": value})
+
+    def test_models_hsb_accepts_string(self) -> None:
+        """hsb is a free-form ``"h,s,b"`` string (openHAB Color channel wire form).
+
+        Technique: Equivalence Partitioning — the string-typed colour input.
+        """
+        cmd = BulbSetCommand.model_validate({"hsb": "120,100,50"})
+        assert cmd.hsb == "120,100,50"
 
 
 # ---------------------------------------------------------------------------
@@ -196,10 +217,10 @@ class TestFieldValidation:
 
 
 class TestMutualExclusion:
-    """color, color_temp and effect must never co-occur in one payload."""
+    """color, color_temp, effect and hsb must never co-occur in one payload."""
 
     def test_models_color_alone_is_valid(self) -> None:
-        """color with no color_temp/effect is a valid payload.
+        """color with no color_temp/effect/hsb is a valid payload.
 
         Technique: Decision Table — single field set, others None.
         """
@@ -207,7 +228,7 @@ class TestMutualExclusion:
         assert cmd.color is not None
 
     def test_models_color_temp_alone_is_valid(self) -> None:
-        """color_temp with no color/effect is a valid payload.
+        """color_temp with no color/effect/hsb is a valid payload.
 
         Technique: Decision Table — single field set, others None.
         """
@@ -215,27 +236,54 @@ class TestMutualExclusion:
         assert cmd.color_temp == 3000
 
     def test_models_effect_alone_is_valid(self) -> None:
-        """effect with no color/color_temp is a valid payload.
+        """effect with no color/color_temp/hsb is a valid payload.
 
         Technique: Decision Table — single field set, others None.
         """
-        cmd = BulbSetCommand.model_validate({"effect": 7})
-        assert cmd.effect == 7
+        cmd = BulbSetCommand.model_validate({"effect": "Forest"})
+        assert cmd.effect == "Forest"
+
+    def test_models_hsb_alone_is_valid(self) -> None:
+        """hsb with no color/color_temp/effect is a valid payload.
+
+        Technique: Decision Table — single field set, others None. openHAB's
+        Color channel sends ``hsb`` on its own via ``formatBeforePublish``.
+        """
+        cmd = BulbSetCommand.model_validate({"hsb": "200,80,60"})
+        assert cmd.hsb == "200,80,60"
 
     @pytest.mark.parametrize(
         "payload",
         [
             {"color": {"r": 1, "g": 2, "b": 3}, "color_temp": 3000},
-            {"color": {"r": 1, "g": 2, "b": 3}, "effect": 7},
-            {"color_temp": 3000, "effect": 7},
-            {"color": {"r": 1, "g": 2, "b": 3}, "color_temp": 3000, "effect": 7},
+            {"color": {"r": 1, "g": 2, "b": 3}, "effect": "Forest"},
+            {"color_temp": 3000, "effect": "Forest"},
+            {"color": {"r": 1, "g": 2, "b": 3}, "hsb": "1,2,3"},
+            {"color_temp": 3000, "hsb": "1,2,3"},
+            {"effect": "Forest", "hsb": "1,2,3"},
+            {"color": {"r": 1, "g": 2, "b": 3}, "color_temp": 3000, "effect": "Forest"},
+            {
+                "color": {"r": 1, "g": 2, "b": 3},
+                "color_temp": 3000,
+                "effect": "Forest",
+                "hsb": "1,2,3",
+            },
         ],
-        ids=["color+color_temp", "color+effect", "color_temp+effect", "all_three"],
+        ids=[
+            "color+color_temp",
+            "color+effect",
+            "color_temp+effect",
+            "color+hsb",
+            "color_temp+hsb",
+            "effect+hsb",
+            "color+color_temp+effect",
+            "all_four",
+        ],
     )
     def test_models_rejects_conflicting_combinations(
         self, payload: dict[str, object]
     ) -> None:
-        """Any two-or-more-way overlap between the three fields is rejected.
+        """Any two-or-more-way overlap between the four colour fields is rejected.
 
         Technique: Decision Table — every conflicting combination whole-payload
         rejected (not merged, not one field silently dropped).
@@ -254,3 +302,134 @@ class TestMutualExclusion:
         assert cmd.state == "ON"
         assert cmd.brightness == 200
         assert cmd.color_temp == 4000
+
+
+# ---------------------------------------------------------------------------
+# Home Assistant discovery metadata (cap-10u.14)
+# ---------------------------------------------------------------------------
+
+
+def _ha_entities(model: type) -> list[dict[str, object]]:
+    """The composite HA entity specs a payload model declares on its config."""
+    schema = model.model_json_schema()
+    return schema["x-cosalette-ha-discovery"]["entities"]
+
+
+class TestHaDiscoveryMetadata:
+    """Both payload models carry ``ha_entities`` metadata the discovery
+    generator (and ``app.discovery()``) turn into per-bulb HA entities.
+    """
+
+    def test_models_state_model_declares_light_sensor_number(self) -> None:
+        """The state payload spans a light plus a power sensor and speed number.
+
+        Technique: Specification-based — the three per-bulb components the
+        state topic feeds (cap-10u.14).
+        """
+        components = [e["component"] for e in _ha_entities(BulbStateModel)]
+        assert components == ["light", "sensor", "number"]
+
+    def test_models_set_command_declares_light_and_number_only(self) -> None:
+        """The command payload has no read-only power sensor — light + number.
+
+        Technique: Specification-based — the ``/set`` half contributes the
+        command topic to the light and speed number, never the sensor.
+        """
+        components = [e["component"] for e in _ha_entities(BulbSetCommand)]
+        assert components == ["light", "number"]
+
+    def test_models_light_entity_is_json_schema_with_full_capability_superset(
+        self,
+    ) -> None:
+        """The light advertises schema:json, brightness, the static colour-mode
+        superset, the full WiZ scene list and the fixed 2200-6500 K range.
+
+        Technique: Specification-based — Option A static wire-format superset
+        (per-bulb capability filtering deferred, see the TOML-inventory ADR).
+        """
+        light = next(
+            e for e in _ha_entities(BulbStateModel) if e["component"] == "light"
+        )
+        extra = light["extra"]
+        assert extra["schema"] == "json"
+        assert extra["brightness"] is True
+        assert extra["supported_color_modes"] == ["color_temp", "rgb"]
+        assert extra["effect"] is True
+        assert tuple(extra["effect_list"]) == WIZ_EFFECT_LIST
+        assert (extra["min_kelvin"], extra["max_kelvin"]) == (2200, 6500)
+
+    def test_models_power_sensor_entity_carries_power_device_class(self) -> None:
+        """The power sensor reads ``value_json.power_draw_w`` in watts.
+
+        Technique: Specification-based — HA ``sensor`` measurement contract.
+        """
+        sensor = next(
+            e for e in _ha_entities(BulbStateModel) if e["component"] == "sensor"
+        )
+        assert sensor["name"] == "Power"
+        assert sensor["extra"]["device_class"] == "power"
+        assert sensor["extra"]["unit_of_measurement"] == "W"
+        assert sensor["extra"]["state_class"] == "measurement"
+        assert sensor["extra"]["value_template"] == "{{ value_json.power_draw_w }}"
+
+    def test_models_effect_speed_number_entity_is_bounded_slider(self) -> None:
+        """The effect-speed number is a 10-200 slider shaping a JSON command.
+
+        Technique: Boundary Value Analysis — the min/max/step the number
+        entity advertises match pywizlight's accepted ``speed`` range.
+        """
+        number = next(
+            e for e in _ha_entities(BulbStateModel) if e["component"] == "number"
+        )
+        assert number["name"] == "Effect speed"
+        extra = number["extra"]
+        assert (extra["min"], extra["max"], extra["step"]) == (10, 200, 1)
+        assert extra["command_template"] == '{"effect_speed": {{ value }}}'
+        assert extra["value_template"] == "{{ value_json.effect_speed }}"
+
+    @pytest.mark.parametrize(
+        "field, expected_channel_type",
+        [
+            ("state", "switch"),
+            ("brightness", "dimmer"),
+            ("hsb", "color"),
+            ("effect", "string"),
+        ],
+    )
+    def test_models_state_fields_carry_openhab_channel_metadata(
+        self, field: str, expected_channel_type: str
+    ) -> None:
+        """state/brightness/hsb/effect carry ``openhab()`` channel metadata for
+        the offline Generic MQTT Thing generation.
+
+        Technique: Decision Table — one openHAB channel type per wire field.
+        """
+        prop = BulbStateModel.model_json_schema()["properties"][field]
+        assert prop["x-cosalette-openhab"]["channel_type"] == expected_channel_type
+
+    def test_models_on_off_commands_are_explicit_json_objects(self) -> None:
+        """openHAB emits a channel's ``on``/``off`` verbatim, bypassing
+        ``formatBeforePublish`` — so they must already be full JSON commands.
+
+        Technique: Error Guessing — a bare ``ON`` string would reach the bulb
+        unparsed; the metadata must carry ``{"state": "ON"}``.
+        """
+        brightness = BulbStateModel.model_json_schema()["properties"]["brightness"]
+        params = brightness["x-cosalette-openhab"]["channel_params"]
+        assert params["on"] == '{"state": "ON"}'
+        assert params["off"] == '{"state": "OFF"}'
+
+    def test_models_dimmer_min_matches_command_brightness_floor(self) -> None:
+        """The openHAB dimmer ``min`` matches ``brightness`` ``ge=1``.
+
+        A generated openHAB config must never be able to emit a brightness the
+        ``/set`` validator would reject.
+
+        Technique: Specification-based — metadata/validation consistency
+        (PR #238 review finding).
+        """
+        for model in (BulbStateModel, BulbSetCommand):
+            params = model.model_json_schema()["properties"]["brightness"][
+                "x-cosalette-openhab"
+            ]["channel_params"]
+            assert params["min"] == 1

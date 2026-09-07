@@ -65,6 +65,36 @@ def validate_scene(scene_id: int, caps: BulbCapabilities) -> None:
         raise WizUnsupportedCommandError(msg)
 
 
+def scene_id_to_effect_name(scene_id: int) -> str | None:
+    """Map a pywizlight scene id to its HA ``effect`` name, or ``None``.
+
+    HA's JSON light schema carries ``effect`` as one of the ``effect_list``
+    *names*, never the numeric id (ADR-001). The state payload therefore
+    projects the internal scene id back to its ``SCENES`` name. Unknown ids
+    (e.g. the firmware ``Custom Mode N`` slots absent from the advertised
+    ``effect_list``) return ``None`` so the key is omitted rather than
+    published as a value HA cannot match.
+    """
+    from pywizlight.scenes import SCENES  # noqa: PLC0415 — lazy import by design
+
+    return SCENES.get(scene_id)
+
+
+def effect_name_to_scene_id(name: str) -> int | None:
+    """Map an HA ``effect`` name back to its pywizlight scene id, or ``None``.
+
+    The inverse of :func:`scene_id_to_effect_name`, used to translate an
+    inbound ``/set`` ``effect`` name into the numeric ``scene`` kwarg
+    pywizlight's ``PilotBuilder(scene=...)`` expects.
+    """
+    from pywizlight.scenes import SCENES  # noqa: PLC0415 — lazy import by design
+
+    for scene_id, scene_name in SCENES.items():
+        if scene_name == name:
+            return scene_id
+    return None
+
+
 def rgb_to_hue_saturation(
     r: float, g: float, b: float, cold_white: float = 0
 ) -> tuple[float, float]:
@@ -98,6 +128,36 @@ def hue_saturation_to_rgb(
     """
     r, g, b = colorsys.hsv_to_rgb(hue / 360, saturation / 100, brightness / 255)
     return round(r * 255), round(g * 255), round(b * 255)
+
+
+def parse_hsb(value: str) -> tuple[float, float, int]:
+    """Parse openHAB's Color channel ``"h,s,b"`` string to canonical HSB.
+
+    openHAB publishes its Color state/command as three comma-separated
+    numbers: hue in ``0..359`` degrees, saturation and brightness both as
+    ``0..100`` percentages. The return tuple is
+    ``(hue 0..360, saturation 0..100, brightness 0..255)`` — pywizlight's
+    ``PilotBuilder(hucolor=(hue, saturation))`` accepts hue up to 360, so
+    openHAB's 0-359 range needs no rescaling, only the brightness percent
+    is scaled to the 0-255 range :class:`BulbState.brightness` uses.
+
+    Raises:
+        ValueError: If *value* is not three parseable comma-separated numbers.
+    """
+    parts = value.split(",")
+    if len(parts) != 3:
+        msg = f"Expected an 'h,s,b' triple, got {value!r}"
+        raise ValueError(msg)
+    try:
+        hue, saturation, brightness_pct = (float(p) for p in parts)
+    except ValueError:
+        msg = f"Non-numeric component in HSB triple {value!r}"
+        raise ValueError(msg) from None
+
+    hue = max(0.0, min(hue, 360.0))
+    saturation = max(0.0, min(saturation, 100.0))
+    brightness_pct = max(0.0, min(brightness_pct, 100.0))
+    return hue, saturation, round(brightness_pct / 100 * 255)
 
 
 def is_cct_mode(color_temp_kelvin: int | None) -> bool:

@@ -96,6 +96,7 @@ class FakeWizBulbAdapter:
         saturation: float | None = None,
         color_temp_kelvin: int | None = None,
         scene: int | None = None,
+        speed: int | None = None,
     ) -> None:
         """Merge the given fields into the bulb's stored state."""
         self._raise_if_primed(ip)
@@ -107,6 +108,7 @@ class FakeWizBulbAdapter:
             saturation=saturation,
             color_temp_kelvin=color_temp_kelvin,
             scene=scene,
+            effect_speed=speed,
         )
 
     async def health_check(self) -> bool:

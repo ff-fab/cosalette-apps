@@ -207,10 +207,12 @@ class WizBulbAdapter:
         saturation: float | None = None,
         color_temp_kelvin: int | None = None,
         scene: int | None = None,
+        speed: int | None = None,
     ) -> None:
         """Apply a partial state update, clamping/validating against capabilities."""
         if state is None and all(
-            v is None for v in (brightness, hue, saturation, color_temp_kelvin, scene)
+            v is None
+            for v in (brightness, hue, saturation, color_temp_kelvin, scene, speed)
         ):
             return
 
@@ -232,6 +234,7 @@ class WizBulbAdapter:
             hucolor=hucolor,
             color_temp_kelvin=color_temp_kelvin,
             scene=scene,
+            speed=speed,
         )
 
         # Optimistic merge pending the next authoritative push/poll.
@@ -243,6 +246,7 @@ class WizBulbAdapter:
             saturation=saturation,
             color_temp_kelvin=color_temp_kelvin,
             scene=scene,
+            effect_speed=speed,
         )
 
     async def _send_pilot(
@@ -255,6 +259,7 @@ class WizBulbAdapter:
         hucolor: tuple[float, float] | None,
         color_temp_kelvin: int | None,
         scene: int | None,
+        speed: int | None,
     ) -> None:
         """Send turn_off/turn_on, wrapping pywizlight's exceptions at the boundary.
 
@@ -277,6 +282,7 @@ class WizBulbAdapter:
                     hucolor=hucolor,
                     colortemp=color_temp_kelvin,
                     scene=scene,
+                    speed=speed,
                 )
                 await bulb.turn_on(pilot)
         except WizLightTimeOutError as exc:

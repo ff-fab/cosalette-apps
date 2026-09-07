@@ -16,6 +16,7 @@ from wiz2mqtt.colour import (
     clamp_kelvin,
     hue_saturation_to_rgb,
     is_cct_mode,
+    parse_hsb,
     rgb_to_hue_saturation,
     validate_scene,
 )
@@ -233,6 +234,76 @@ class TestHueSaturationToRgb:
         Technique: Round-trip Testing — well-known HSV -> RGB fixed points.
         """
         assert hue_saturation_to_rgb(hue, saturation, brightness) == expected_rgb
+
+
+# ---------------------------------------------------------------------------
+# parse_hsb
+# ---------------------------------------------------------------------------
+
+
+class TestParseHsb:
+    """parse_hsb turns openHAB's ``"h,s,b"`` Color wire string into canonical HSB.
+
+    openHAB sends hue 0-359, saturation and brightness as 0-100 percentages;
+    the canonical return is ``(hue 0..360, saturation 0..100, brightness 0..255)``.
+    """
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            ("0,0,0", (0.0, 0.0, 0)),  # BVA — all-zero lower bound
+            ("120,100,100", (120.0, 100.0, 255)),  # brightness% -> 255 scale
+            ("359,50,50", (359.0, 50.0, 128)),  # openHAB hue ceiling, mid values
+            ("200.5,33.3,10", (200.5, 33.3, 26)),  # fractional components parse
+        ],
+    )
+    def test_colour_parse_hsb_valid_triples(
+        self, value: str, expected: tuple[float, float, int]
+    ) -> None:
+        """A well-formed triple parses, scaling only the brightness percent.
+
+        Technique: Equivalence Partitioning + BVA — representative valid inputs
+        including both range endpoints.
+        """
+        hue, saturation, brightness = parse_hsb(value)
+        assert (hue, saturation) == pytest.approx(expected[:2])
+        assert brightness == expected[2]
+
+    @pytest.mark.parametrize(
+        ("value", "clamped"),
+        [
+            ("400,50,50", (360.0, 50.0, 128)),  # hue above 360 clamps to 360
+            ("-30,50,50", (0.0, 50.0, 128)),  # negative hue clamps to 0
+            ("120,150,50", (120.0, 100.0, 128)),  # saturation above 100 clamps
+            ("120,50,250", (120.0, 50.0, 255)),  # brightness% above 100 clamps
+        ],
+    )
+    def test_colour_parse_hsb_clamps_out_of_range_components(
+        self, value: str, clamped: tuple[float, float, int]
+    ) -> None:
+        """Out-of-range components are clamped, never rejected.
+
+        Technique: Boundary Value Analysis — just outside each component bound.
+        """
+        assert parse_hsb(value) == pytest.approx(clamped)
+
+    @pytest.mark.parametrize("value", ["1,2", "1,2,3,4", "1", ""])
+    def test_colour_parse_hsb_rejects_wrong_part_count(self, value: str) -> None:
+        """Anything but exactly three comma-separated parts raises ValueError.
+
+        Technique: Error Guessing — malformed arity.
+        """
+        with pytest.raises(ValueError, match="h,s,b"):
+            parse_hsb(value)
+
+    @pytest.mark.parametrize("value", ["a,b,c", "120,x,50", "120,50,"])
+    def test_colour_parse_hsb_rejects_non_numeric_components(self, value: str) -> None:
+        """A non-numeric component raises ValueError, not a bare float() crash.
+
+        Technique: Error Guessing — non-numeric text in a component slot.
+        """
+        with pytest.raises(ValueError, match="Non-numeric"):
+            parse_hsb(value)
 
 
 # ---------------------------------------------------------------------------
