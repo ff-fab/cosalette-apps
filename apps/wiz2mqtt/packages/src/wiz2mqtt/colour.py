@@ -65,6 +65,36 @@ def validate_scene(scene_id: int, caps: BulbCapabilities) -> None:
         raise WizUnsupportedCommandError(msg)
 
 
+def scene_id_to_effect_name(scene_id: int) -> str | None:
+    """Map a pywizlight scene id to its HA ``effect`` name, or ``None``.
+
+    HA's JSON light schema carries ``effect`` as one of the ``effect_list``
+    *names*, never the numeric id (ADR-001). The state payload therefore
+    projects the internal scene id back to its ``SCENES`` name. Unknown ids
+    (e.g. the firmware ``Custom Mode N`` slots absent from the advertised
+    ``effect_list``) return ``None`` so the key is omitted rather than
+    published as a value HA cannot match.
+    """
+    from pywizlight.scenes import SCENES  # noqa: PLC0415 — lazy import by design
+
+    return SCENES.get(scene_id)
+
+
+def effect_name_to_scene_id(name: str) -> int | None:
+    """Map an HA ``effect`` name back to its pywizlight scene id, or ``None``.
+
+    The inverse of :func:`scene_id_to_effect_name`, used to translate an
+    inbound ``/set`` ``effect`` name into the numeric ``scene`` kwarg
+    pywizlight's ``PilotBuilder(scene=...)`` expects.
+    """
+    from pywizlight.scenes import SCENES  # noqa: PLC0415 — lazy import by design
+
+    for scene_id, scene_name in SCENES.items():
+        if scene_name == name:
+            return scene_id
+    return None
+
+
 def rgb_to_hue_saturation(
     r: float, g: float, b: float, cold_white: float = 0
 ) -> tuple[float, float]:

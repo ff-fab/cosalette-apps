@@ -25,6 +25,8 @@ Internally, colour is held as `(hue, saturation, dimming)` — pywizlight's own 
 
 Use Home Assistant's MQTT light `schema: json` object as the canonical wire format for every `wiz2mqtt/{bulb}/state` and `/set` payload, extended with one non-HA `hsb` string key (`"h,s,b"`, hue 0-359, saturation and brightness 0-100) that Home Assistant silently ignores and openHAB consumes as a native Color item, and keep the internal canonical colour state as `(hue, saturation, dimming)` with RGB reconstructed via HSV→RGB only to populate HA's `color` object.
 
+`effect` follows HA's `schema: json` convention: it is carried on the wire as the scene *name* string (one of the advertised `effect_list` entries, e.g. `"Ocean"`), never the numeric scene id. HA sends and expects exactly the strings it advertised in `effect_list`, so the name is the only value that round-trips; wiz2mqtt translates the name to and from pywizlight's numeric scene id at the adapter boundary (`wiz2mqtt.colour.effect_name_to_scene_id` / `scene_id_to_effect_name`).
+
 ```json
 {
   "state": "ON",

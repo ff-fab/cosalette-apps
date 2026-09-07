@@ -54,7 +54,6 @@ from cosalette import MockMqttClient
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, FakeClock, assert_discovery_topics_published
 
-from tests.fixtures.async_utils import wait_for_condition
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.main import _bulb_map
@@ -331,14 +330,18 @@ def schema_harness() -> AppHarness:
 async def _run_until_discovery_published(
     harness: AppHarness, expected: set[str]
 ) -> None:
-    """Start the harness, wait until *all* expected config topics land, shut down."""
+    """Start the harness, wait until *all* expected config topics land, shut down.
+
+    Uses the harness's deterministic ``wait_for_publish_count`` (which yields to
+    the event loop rather than sleeping on the wall clock) so the wait never
+    races a fixed timeout. The discovery config topics are published in one
+    burst on first connect, so awaiting each ``expected`` topic in turn settles
+    once that burst has landed.
+    """
     task = asyncio.create_task(harness.run())
     try:
-        await wait_for_condition(
-            lambda: expected <= {topic for topic, *_ in harness.mqtt.published},
-            timeout=_WAIT_TIMEOUT,
-            description="app.discovery() to publish all config topics",
-        )
+        for topic in expected:
+            await harness.wait_for_publish_count(topic, 1)
     finally:
         harness.shutdown_event.set()
         await asyncio.wait_for(task, timeout=_WAIT_TIMEOUT)
@@ -416,14 +419,8 @@ class TestStateTopicsAreReal:
         expected_config = _expected_config_topics((SCHEMA_BULB,))
         task = asyncio.create_task(schema_harness.run())
         try:
-            await wait_for_condition(
-                lambda: (
-                    expected_config
-                    <= {topic for topic, *_ in schema_harness.mqtt.published}
-                ),
-                timeout=_WAIT_TIMEOUT,
-                description="app.discovery() to finish publishing config topics",
-            )
+            for topic in expected_config:
+                await schema_harness.wait_for_publish_count(topic, 1)
             port: WizBulbPort = FakeWizBulbAdapter()
             state = SharedState()
             config = schema_harness.settings.bulbs[0]

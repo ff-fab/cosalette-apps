@@ -75,12 +75,12 @@ class TestPassthroughFields:
         assert kwargs["color_temp_kelvin"] == 4000
 
     def test_commands_effect_maps_to_scene(self) -> None:
-        """effect maps onto the scene kwarg (WiZ scene ids are integers).
+        """effect (a scene *name*) maps onto the numeric scene kwarg.
 
-        Technique: Specification-based — direct field mapping.
+        Technique: Specification-based — name-to-id translation at the boundary.
         """
-        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"effect": 7}))
-        assert kwargs["scene"] == 7
+        cmd = BulbSetCommand.model_validate({"effect": "Forest"})
+        assert to_set_state_kwargs(cmd)["scene"] == 7  # pywizlight SCENES["Forest"]
 
     def test_commands_effect_speed_maps_to_speed(self) -> None:
         """effect_speed maps onto the speed kwarg pywizlight's PilotBuilder wants.

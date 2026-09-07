@@ -28,7 +28,7 @@ Supported keys:
 | `brightness` | integer `1..255` | Home Assistant brightness scale |
 | `color` | object `{r,g,b}` | RGB values `0..255` |
 | `color_temp` | integer `1..10000` | Kelvin |
-| `effect` | integer `1..1000` | WiZ scene/effect id |
+| `effect` | string | WiZ scene name (one of the advertised `effect_list`, e.g. `"Ocean"`) |
 
 `color`, `color_temp`, and `effect` are mutually exclusive. Invalid combinations
 are rejected before the adapter is called.
@@ -113,9 +113,9 @@ sets are emitted per bulb:
 | Channel | Type | Wiring |
 | ------- | ---- | ------ |
 | `state` / `state_cmd` | `switch` | read `JSONPATH:$.state`; write `{"state":"%s"}` |
-| `brightness` / `brightness_cmd` | `dimmer`, `min` 0 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
+| `brightness` / `brightness_cmd` | `dimmer`, `min` 1 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
 | `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%s"}` |
-| `effect` / `effect_cmd` | `string` | read `JSONPATH:$.effect`; write `{"effect":%s}` |
+| `effect` / `effect_cmd` | `string` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
 
 The `*_cmd` channels wrap the outbound scalar back into JSON with
 `formatBeforePublish` (full Java `String.format`) so a single `.../set` payload

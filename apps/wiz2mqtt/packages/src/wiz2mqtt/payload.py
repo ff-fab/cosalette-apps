@@ -11,7 +11,7 @@ from __future__ import annotations
 import math
 from typing import TYPE_CHECKING
 
-from wiz2mqtt.colour import hue_saturation_to_rgb, is_cct_mode
+from wiz2mqtt.colour import hue_saturation_to_rgb, is_cct_mode, scene_id_to_effect_name
 
 _MAX_BRIGHTNESS: int = 255
 """HA brightness scale upper bound (0-255)."""
@@ -39,7 +39,9 @@ def _optional_fields(state: BulbState) -> dict[str, object]:
     if state.brightness is not None:
         fields["brightness"] = state.brightness
     if state.scene is not None:
-        fields["effect"] = state.scene
+        effect_name = scene_id_to_effect_name(state.scene)
+        if effect_name is not None:
+            fields["effect"] = effect_name
     if state.effect_speed is not None:
         fields["effect_speed"] = state.effect_speed
     if state.power_draw_w is not None and math.isfinite(state.power_draw_w):

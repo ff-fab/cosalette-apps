@@ -78,7 +78,7 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   max: 255
-                  min: 0
+                  min: 1
                   'off': '{"state": "OFF"}'
                   'on': '{"state": "ON"}'
                   step: 1
@@ -99,9 +99,7 @@ channels:
               title: Color Temp
             effect:
               anyOf:
-              - maximum: 1000
-                minimum: 1
-                type: integer
+              - type: string
               - type: 'null'
               default: null
               title: Effect
@@ -267,7 +265,7 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   max: 255
-                  min: 0
+                  min: 1
                   'off': '{"state": "OFF"}'
                   'on': '{"state": "ON"}'
                   step: 1
@@ -316,7 +314,7 @@ channels:
                 item_type: Color
             effect:
               anyOf:
-              - type: integer
+              - type: string
               - type: 'null'
               default: null
               title: Effect

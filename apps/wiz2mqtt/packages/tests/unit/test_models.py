@@ -159,37 +159,30 @@ class TestFieldValidation:
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate({"color_temp": 10001})
 
-    def test_models_effect_accepts_minimum_value(self) -> None:
-        """effect=1 is the minimum valid scene ID.
+    def test_models_effect_accepts_known_scene_name(self) -> None:
+        """A scene name from the advertised ``effect_list`` is accepted.
 
-        Technique: Boundary Value Analysis — lower bound (ge=1).
+        Technique: Equivalence Partitioning — the valid-name class.
         """
-        cmd = BulbSetCommand.model_validate({"effect": 1})
-        assert cmd.effect == 1
+        cmd = BulbSetCommand.model_validate({"effect": "Ocean"})
+        assert cmd.effect == "Ocean"
 
-    def test_models_effect_accepts_maximum_value(self) -> None:
-        """effect=1000 is the pywizlight scene ceiling, must be accepted.
+    def test_models_effect_rejects_unknown_scene_name(self) -> None:
+        """A name absent from ``WIZ_EFFECT_LIST`` is rejected at the boundary.
 
-        Technique: Boundary Value Analysis — upper bound (le=1000).
-        """
-        cmd = BulbSetCommand.model_validate({"effect": 1000})
-        assert cmd.effect == 1000
-
-    def test_models_effect_rejects_zero(self) -> None:
-        """effect=0 is invalid (scene IDs start at 1).
-
-        Technique: Boundary Value Analysis — just below lower bound.
+        Technique: Equivalence Partitioning — the invalid-name class. HA only
+        sends advertised names, but an openHAB String item can send anything.
         """
         with pytest.raises(ValidationError):
-            BulbSetCommand.model_validate({"effect": 0})
+            BulbSetCommand.model_validate({"effect": "Nonexistent Scene"})
 
-    def test_models_effect_rejects_above_maximum(self) -> None:
-        """effect above 1000 is rejected.
+    def test_models_effect_rejects_numeric_scene_id(self) -> None:
+        """A bare numeric scene id is no longer a valid wire value (ADR-001).
 
-        Technique: Boundary Value Analysis — just outside upper bound.
+        Technique: Error Guessing — the pre-name-translation wire shape.
         """
         with pytest.raises(ValidationError):
-            BulbSetCommand.model_validate({"effect": 1001})
+            BulbSetCommand.model_validate({"effect": 7})
 
     @pytest.mark.parametrize("value", [10, 100, 200])
     def test_models_effect_speed_accepts_in_range(self, value: int) -> None:
@@ -247,8 +240,8 @@ class TestMutualExclusion:
 
         Technique: Decision Table — single field set, others None.
         """
-        cmd = BulbSetCommand.model_validate({"effect": 7})
-        assert cmd.effect == 7
+        cmd = BulbSetCommand.model_validate({"effect": "Forest"})
+        assert cmd.effect == "Forest"
 
     def test_models_hsb_alone_is_valid(self) -> None:
         """hsb with no color/color_temp/effect is a valid payload.
@@ -263,16 +256,16 @@ class TestMutualExclusion:
         "payload",
         [
             {"color": {"r": 1, "g": 2, "b": 3}, "color_temp": 3000},
-            {"color": {"r": 1, "g": 2, "b": 3}, "effect": 7},
-            {"color_temp": 3000, "effect": 7},
+            {"color": {"r": 1, "g": 2, "b": 3}, "effect": "Forest"},
+            {"color_temp": 3000, "effect": "Forest"},
             {"color": {"r": 1, "g": 2, "b": 3}, "hsb": "1,2,3"},
             {"color_temp": 3000, "hsb": "1,2,3"},
-            {"effect": 7, "hsb": "1,2,3"},
-            {"color": {"r": 1, "g": 2, "b": 3}, "color_temp": 3000, "effect": 7},
+            {"effect": "Forest", "hsb": "1,2,3"},
+            {"color": {"r": 1, "g": 2, "b": 3}, "color_temp": 3000, "effect": "Forest"},
             {
                 "color": {"r": 1, "g": 2, "b": 3},
                 "color_temp": 3000,
-                "effect": 7,
+                "effect": "Forest",
                 "hsb": "1,2,3",
             },
         ],
@@ -425,3 +418,18 @@ class TestHaDiscoveryMetadata:
         params = brightness["x-cosalette-openhab"]["channel_params"]
         assert params["on"] == '{"state": "ON"}'
         assert params["off"] == '{"state": "OFF"}'
+
+    def test_models_dimmer_min_matches_command_brightness_floor(self) -> None:
+        """The openHAB dimmer ``min`` matches ``brightness`` ``ge=1``.
+
+        A generated openHAB config must never be able to emit a brightness the
+        ``/set`` validator would reject.
+
+        Technique: Specification-based — metadata/validation consistency
+        (PR #238 review finding).
+        """
+        for model in (BulbStateModel, BulbSetCommand):
+            params = model.model_json_schema()["properties"]["brightness"][
+                "x-cosalette-openhab"
+            ]["channel_params"]
+            assert params["min"] == 1

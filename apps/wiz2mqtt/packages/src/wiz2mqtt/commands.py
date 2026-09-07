@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TypedDict
 
-from wiz2mqtt.colour import parse_hsb, rgb_to_hue_saturation
+from wiz2mqtt.colour import effect_name_to_scene_id, parse_hsb, rgb_to_hue_saturation
 from wiz2mqtt.models import BulbSetCommand
 
 _STATE_ON_OFF: dict[str, bool] = {"ON": True, "OFF": False}
@@ -35,7 +35,8 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
     already enforced by ``BulbSetCommand``'s own validator — this function
     only maps units: HA's ``"ON"``/``"OFF"`` to ``bool``, RGB or openHAB's
     ``"h,s,b"`` string to canonical hue/saturation (and, for ``hsb``, its
-    0-100 brightness percent to the 0-255 scale).
+    0-100 brightness percent to the 0-255 scale), and the HA ``effect``
+    scene *name* to the numeric ``scene`` id pywizlight wants.
     """
     hue = saturation = None
     brightness = cmd.brightness
@@ -46,12 +47,13 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
         if brightness is None:
             brightness = hsb_brightness
 
+    scene = effect_name_to_scene_id(cmd.effect) if cmd.effect is not None else None
     return {
         "state": _STATE_ON_OFF.get(cmd.state),
         "brightness": brightness,
         "hue": hue,
         "saturation": saturation,
         "color_temp_kelvin": cmd.color_temp,
-        "scene": cmd.effect,
+        "scene": scene,
         "speed": cmd.effect_speed,
     }

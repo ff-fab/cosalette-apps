@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from cosalette.schema import consumer, ha_entities, ha_entity, merge, openhab
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 _KELVIN_MIN = 2200
 _KELVIN_MAX = 6500
@@ -237,7 +237,7 @@ class BulbStateModel(BaseModel):
                     item_type="Dimmer",
                     channel_type="dimmer",
                     channel_params={
-                        "min": 0,
+                        "min": 1,
                         "max": 255,
                         "step": 1,
                         "on": _OPENHAB_ON,
@@ -270,7 +270,7 @@ class BulbStateModel(BaseModel):
         ),
     ] = None
     effect: Annotated[
-        int | None,
+        str | None,
         Field(
             default=None,
             json_schema_extra=merge(
@@ -337,7 +337,7 @@ class BulbSetCommand(BaseModel):
                     item_type="Dimmer",
                     channel_type="dimmer",
                     channel_params={
-                        "min": 0,
+                        "min": 1,
                         "max": 255,
                         "step": 1,
                         "on": _OPENHAB_ON,
@@ -350,11 +350,9 @@ class BulbSetCommand(BaseModel):
     color: BulbColor | None = None
     color_temp: int | None = Field(default=None, gt=0, le=10000)
     effect: Annotated[
-        int | None,
+        str | None,
         Field(
             default=None,
-            ge=1,
-            le=1000,
             json_schema_extra=merge(
                 consumer(display_name="Effect"),
                 openhab(item_type="String", channel_type="string"),
@@ -382,6 +380,21 @@ class BulbSetCommand(BaseModel):
     effect_speed: int | None = Field(
         default=None, ge=_EFFECT_SPEED_MIN, le=_EFFECT_SPEED_MAX
     )
+
+    @field_validator("effect")
+    @classmethod
+    def _known_effect_name(cls, value: str | None) -> str | None:
+        """Reject an ``effect`` that is not one of the advertised scene names.
+
+        HA only ever sends a name from the discovery ``effect_list``, but an
+        openHAB String item can carry arbitrary text — rejecting an unknown
+        name here keeps a bad payload from silently translating to no scene
+        at all (see :func:`wiz2mqtt.colour.effect_name_to_scene_id`).
+        """
+        if value is not None and value not in WIZ_EFFECT_LIST:
+            msg = f"Unknown effect {value!r}; must be one of the WiZ scene names"
+            raise ValueError(msg)
+        return value
 
     @model_validator(mode="after")
     def _at_most_one_color_mode(self) -> BulbSetCommand:

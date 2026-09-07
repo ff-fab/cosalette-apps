@@ -65,12 +65,20 @@ class TestOptionalFields:
         assert payload["brightness"] == 200
 
     def test_payload_includes_effect_from_scene(self) -> None:
-        """``effect`` is HA's key for what the domain model calls ``scene``.
+        """``effect`` is HA's key: the scene *name* for the domain model's id.
 
-        Technique: Specification-based — field renaming at the wire boundary.
+        Technique: Specification-based — id-to-name translation at the boundary.
         """
         payload = build_state_payload(_state(state=True, scene=7))
-        assert payload["effect"] == 7
+        assert payload["effect"] == "Forest"  # pywizlight SCENES[7]
+
+    def test_payload_omits_effect_for_unknown_scene_id(self) -> None:
+        """A scene id with no ``SCENES`` name (e.g. a Custom Mode) omits ``effect``.
+
+        Technique: Equivalence Partitioning — unmappable-scene branch.
+        """
+        payload = build_state_payload(_state(state=True, scene=10_000))
+        assert "effect" not in payload
 
     def test_payload_omits_effect_speed_and_power_when_unknown(self) -> None:
         """Technique: Equivalence Partitioning — unknown-value branch."""
