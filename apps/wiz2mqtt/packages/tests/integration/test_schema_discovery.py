@@ -55,9 +55,15 @@ from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, FakeClock, assert_discovery_topics_published
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.discovery import capabilities_to_dict, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.main import _bulb_map
-from wiz2mqtt.models import WIZ_EFFECT_LIST, BulbSetCommand, BulbStateModel
+from wiz2mqtt.models import (
+    WIZ_EFFECT_LIST,
+    BulbCapabilities,
+    BulbSetCommand,
+    BulbStateModel,
+)
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -82,6 +88,18 @@ ENTITY_COMPONENTS = (
 )
 SUFFIXES = tuple(suffix for suffix, _ in ENTITY_COMPONENTS)
 _WAIT_TIMEOUT = 3.0
+
+# A tunable-white bulb: no rgb, a narrower Kelvin floor than the 2200 superset —
+# used to prove the enrich hook narrows a cached bulb's advertised light.
+_TW_CAPABILITIES = BulbCapabilities(
+    bulb_class="TW",
+    color=False,
+    color_tmp=True,
+    effect=True,
+    brightness=True,
+    kelvin_min=2700,
+    kelvin_max=6500,
+)
 
 
 def _expected_config_topics(names: tuple[str, ...]) -> set[str]:
@@ -251,7 +269,9 @@ def _make_settings(names: tuple[str, ...]) -> Wiz2MqttSettings:
     )
 
 
-def _build_discovery_app() -> cosalette.App:
+def _build_discovery_app(
+    store: MemoryStore | None = None, *, enrich: bool = False
+) -> cosalette.App:
     """Mirror ``wiz2mqtt.main``'s per-bulb telemetry wiring with ``app.discovery()``.
 
     Only the pieces discovery reads are registered: the per-bulb ``bulb_set``
@@ -260,15 +280,19 @@ def _build_discovery_app() -> cosalette.App:
     ``/state`` channels the generator merges into one ``light`` — plus the
     ``SharedState`` factory. Backed by a ``MemoryStore`` so the test touches no
     disk. Both handler bodies are no-ops — the runtime publish path is
-    exercised directly in ``TestStateTopicsAreReal``.
+    exercised directly in ``TestStateTopicsAreReal``. Pass ``enrich=True`` to
+    wire the cap-3tr per-bulb narrowing hook against *store*.
     """
     app = cosalette.App(
         name=TOPIC_PREFIX,
         version="0.0.0",
         settings_class=Wiz2MqttSettings,
-        store=MemoryStore(),
+        store=store if store is not None else MemoryStore(),
     )
-    app.discovery()
+    if enrich:
+        app.discovery(enrich=make_discovery_enrich(app))
+    else:
+        app.discovery()
 
     @app.state
     def shared_state() -> SharedState:
@@ -394,6 +418,52 @@ class TestRuntimeDiscoveryPublication:
         assert config["state_topic"] == f"{TOPIC_PREFIX}/living_room/state"
         assert config["command_topic"] == f"{TOPIC_PREFIX}/living_room/set"
         assert config["schema"] == "json"
+
+
+@pytest.mark.integration
+class TestRuntimeDiscoveryEnrichment:
+    """cap-3tr: app.discovery(enrich=...) narrows a bulb from its cached caps."""
+
+    async def _publish_office_light(self, store: MemoryStore | None) -> dict[str, Any]:
+        """Run discovery for one ``office`` bulb and return its light config."""
+        harness = AppHarness(
+            app=_build_discovery_app(store, enrich=True),
+            mqtt=MockMqttClient(),
+            clock=FakeClock(),
+            settings=_make_settings(("office",)),
+            shutdown_event=asyncio.Event(),
+        )
+        expected = _expected_config_topics(("office",))
+        await _run_until_discovery_published(harness, expected)
+        topic = f"homeassistant/light/{TOPIC_PREFIX}/office_light/config"
+        payload = next(p for t, p, *_ in harness.mqtt.published if t == topic)
+        return json.loads(payload)
+
+    async def test_narrows_light_for_a_cached_bulb(self) -> None:
+        """A store-cached tunable-white bulb advertises only what it supports.
+
+        Technique: Specification-based — Mechanism B end to end: the enrich hook
+        reads the persisted capabilities and rewrites the advertised light.
+        """
+        store = MemoryStore(
+            initial={"office": {"capabilities": capabilities_to_dict(_TW_CAPABILITIES)}}
+        )
+
+        config = await self._publish_office_light(store)
+
+        assert config["supported_color_modes"] == ["color_temp"]
+        assert (config["min_kelvin"], config["max_kelvin"]) == (2700, 6500)
+
+    async def test_keeps_superset_for_an_uncached_bulb(self) -> None:
+        """First boot before contact still advertises the static superset.
+
+        Technique: Error Guessing — the empty-cache path must not narrow, or a
+        freshly onboarded bulb would lose controls it actually has.
+        """
+        config = await self._publish_office_light(MemoryStore())
+
+        assert config["supported_color_modes"] == ["color_temp", "rgb"]
+        assert (config["min_kelvin"], config["max_kelvin"]) == (2200, 6500)
 
 
 @pytest.mark.integration

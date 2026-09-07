@@ -5,12 +5,14 @@ from __future__ import annotations
 from typing import Annotated
 
 import cosalette
+from cosalette import DeviceStore, Optional
 from cosalette.mqtt import Payload
 
 from wiz2mqtt import __version__
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.commands import to_set_state_kwargs
+from wiz2mqtt.discovery import cache_capabilities, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.models import BulbSetCommand, BulbStateModel
@@ -54,7 +56,12 @@ app = cosalette.App(
 # `BulbSetCommand`'s `ha_entities` + `consumer()` metadata (see models.py).
 # openHAB has no runtime equivalent; `cosalette schema openhab` (docs/schema.yaml)
 # stays the offline path for its Generic MQTT Thing.
-app.discovery()
+#
+# cap-3tr (Mechanism B): the enrich hook narrows each bulb's advertised `light`
+# metadata from its DeviceStore-cached capabilities. The cache is populated after
+# first contact, so discovery is per-bulb accurate from the *next* connect on;
+# the offline `cosalette schema ha-discovery` path keeps the static superset.
+app.discovery(enrich=make_discovery_enrich(app))
 
 
 def _bulb_map(settings: cosalette.Settings) -> dict[str, BulbConfig]:
@@ -121,6 +128,10 @@ async def bulb_entity(
     config: BulbConfig,
     port: WizBulbPort,
     state: SharedState,
+    # Optional() keeps the handler usable when persistence is opted out
+    # (store=None); under the default store the framework injects a per-bulb
+    # DeviceStore keyed by the bulb name.
+    store: Annotated[DeviceStore | None, Optional()] = None,
 ) -> BulbStateModel | None:
     """Per-configured-bulb telemetry: publish state, debounce availability.
 
@@ -141,6 +152,10 @@ async def bulb_entity(
     emits no ``state_model`` drift warning.
     """
     result = await bulb_entity_tick(ctx, config, port, state)
+    # cap-3tr: cache detected capabilities for the discovery enrich hook. Best
+    # effort — a no-op until the bulb has been reached, persisted on shutdown.
+    if store is not None:
+        await cache_capabilities(store, config, port)
     return BulbStateModel.model_validate(result) if result is not None else None
 
 
