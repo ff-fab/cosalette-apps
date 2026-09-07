@@ -41,6 +41,33 @@ profile. `docs/schema.yaml` and `task wiz2mqtt:schema:check` stay as the openHAB
 remains available for offline inspection of the same payloads. See
 `packages/tests/integration/test_schema_discovery.py`.
 
+## Deployment
+
+**Host networking is mandatory.** wiz2mqtt publishes bulb state the instant a bulb
+_pushes_ a change over UDP, and a WiZ bulb addresses that push datagram to the source
+address of the registration packet. Behind Docker's bridge NAT the bulb sees the
+container's translated address, the return datagram lands on the host and is dropped,
+and pywizlight reports the subscription as healthy anyway — so the app silently degrades
+to poll-latency. The shipped `compose.yml` therefore runs the service with
+`network_mode: host` (monorepo
+[ADR-004](docs/adr/ADR-004-host-networking-requirement-udp-38900-one-process-per-host.md)).
+
+Two operational constraints follow:
+
+- **One wiz2mqtt per host.** pywizlight's push listener binds a single fixed port, UDP
+  `38900`, that is not configurable. A second wiz2mqtt (or any other pywizlight-push
+  consumer) in the same network namespace fails with `Port 38900 is in use` and gets no
+  push.
+- **The broker is reached over host loopback.** Because the container shares the host
+  network namespace, it cannot resolve the Compose service name `mosquitto`. The bundled
+  broker publishes on `127.0.0.1:1883`, so the service connects with
+  `WIZ2MQTT_MQTT__HOST=localhost`. Point this at your own broker's host address for an
+  external broker.
+
+`network_mode: host` is a Linux-host feature; on Docker Desktop / macOS it does not
+share the real host stack, so push cannot be exercised there — use a Linux host for a
+faithful deployment.
+
 ## Contributing
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup instructions, common commands,

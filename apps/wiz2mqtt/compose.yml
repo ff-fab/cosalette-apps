@@ -4,10 +4,18 @@ services:
       context: ../..
       dockerfile: apps/wiz2mqtt/Dockerfile
     restart: unless-stopped
+    # WiZ push notifications require the process to receive UDP datagrams the
+    # bulb addresses to the registration packet's source — NAT breaks that
+    # silently, degrading push to polling (docs/adr/ADR-004). Host networking
+    # is mandatory; only one wiz2mqtt per host may bind the fixed UDP 38900.
+    network_mode: host
     volumes:
       - wiz2mqtt-data:/app/data
     environment:
-      WIZ2MQTT_MQTT__HOST: mosquitto
+      # Host networking shares the host namespace, so the bundled broker is
+      # reached over host loopback (mosquitto publishes 127.0.0.1:1883) rather
+      # than by the Compose service name, which host-net cannot resolve.
+      WIZ2MQTT_MQTT__HOST: localhost
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       WIZ2MQTT_MQTT__TLS: ${WIZ2MQTT_MQTT__TLS:-false}
     depends_on:
