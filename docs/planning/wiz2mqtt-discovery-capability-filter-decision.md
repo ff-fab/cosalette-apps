@@ -1,10 +1,10 @@
 # Decision: per-bulb capability-filtered HA discovery metadata
 
-- **Status:** PROPOSED — awaiting decision owner
+- **Status:** IMPLEMENTED — Mechanism B shipped (PR #241); ADR-003 amended
 - **Bead:** `cap-3tr` (feature; child of epic `cap-10u`, unblocked by closed `cap-10u.14`)
 - **Seeds:** ADR-003 "Deferred: per-bulb capability-filtered discovery metadata"
-- **Recommendation:** Mechanism B (runtime `enrich` + `Store` cache); keep the
-  offline superset as-is
+- **Decision:** Mechanism B (runtime `enrich` + `Store` cache); the offline
+  superset is kept as-is
 
 ## The question
 

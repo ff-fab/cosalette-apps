@@ -140,7 +140,7 @@ def test_narrow_rgb_keeps_both_modes_and_detected_kelvin() -> None:
 
     narrow_light_discovery(config, _RGB)
 
-    assert config["supported_color_modes"] == ["rgb", "color_temp"]
+    assert config["supported_color_modes"] == ["color_temp", "rgb"]
     assert (config["min_kelvin"], config["max_kelvin"]) == (2200, 6500)
     assert config["effect"] is True
     assert config["effect_list"] == list(WIZ_EFFECT_LIST)
@@ -153,6 +153,21 @@ def test_narrow_tunable_white_drops_rgb_keeps_kelvin() -> None:
 
     assert config["supported_color_modes"] == ["color_temp"]
     assert (config["min_kelvin"], config["max_kelvin"]) == (2700, 6500)
+
+
+def test_narrow_tunable_white_filters_effect_list_by_class() -> None:
+    config = _light_config()
+
+    narrow_light_discovery(config, _TW)
+
+    assert config["effect"] is True
+    # A TW bulb rejects RGB-only scenes, so they must not be advertised.
+    assert "Ocean" not in config["effect_list"]
+    # The advertised list stays a subset of the superset, in superset order.
+    assert set(config["effect_list"]) < set(WIZ_EFFECT_LIST)
+    assert config["effect_list"] == [
+        e for e in WIZ_EFFECT_LIST if e in config["effect_list"]
+    ]
 
 
 def test_narrow_dimmable_white_uses_brightness_and_drops_kelvin_and_effects() -> None:
@@ -290,3 +305,15 @@ def test_enrich_extracts_bulb_name_from_a_prefixed_topic() -> None:
     enrich(None, None, config)  # type: ignore[arg-type]
 
     assert config["supported_color_modes"] == ["brightness"]
+
+
+def test_enrich_leaves_superset_for_malformed_state_topic() -> None:
+    backend = _seeded("office", _DW)
+    enrich = make_discovery_enrich(_app(backend))
+    config = _light_config("office")
+    config["state_topic"] = "office/state"  # missing the <prefix> segment
+    original = dict(config)
+
+    enrich(None, None, config)  # type: ignore[arg-type]
+
+    assert config == original

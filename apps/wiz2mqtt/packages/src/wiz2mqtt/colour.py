@@ -65,6 +65,35 @@ def validate_scene(scene_id: int, caps: BulbCapabilities) -> None:
         raise WizUnsupportedCommandError(msg)
 
 
+def effect_list_for_class(caps: BulbCapabilities) -> list[str]:
+    """Return the advertised HA effect names supported by *caps*' bulb class.
+
+    Narrows the static superset :data:`~wiz2mqtt.models.WIZ_EFFECT_LIST` to the
+    scenes ``pywizlight`` permits for this bulb class (``SCENES_BY_CLASS``),
+    preserving the superset's order so the payload stays stable. An unknown
+    class falls back to the full superset — the same conservative default the
+    discovery generator uses for an uncached bulb — rather than advertising an
+    empty list.
+    """
+    from pywizlight.bulblibrary import (
+        BulbClass,  # noqa: PLC0415 — lazy import by design
+    )
+    from pywizlight.scenes import (
+        SCENES_BY_CLASS,  # noqa: PLC0415 — lazy import by design
+    )
+
+    from wiz2mqtt.models import (
+        WIZ_EFFECT_LIST,  # noqa: PLC0415 — avoid a models<->colour import cycle
+    )
+
+    try:
+        bulb_class = BulbClass[caps.bulb_class]
+    except KeyError:
+        return list(WIZ_EFFECT_LIST)
+    allowed = set(SCENES_BY_CLASS.get(bulb_class, []))
+    return [name for name in WIZ_EFFECT_LIST if name in allowed]
+
+
 def scene_id_to_effect_name(scene_id: int) -> str | None:
     """Map a pywizlight scene id to its HA ``effect`` name, or ``None``.
 

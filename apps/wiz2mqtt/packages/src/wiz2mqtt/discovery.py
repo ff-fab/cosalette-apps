@@ -24,6 +24,7 @@ from __future__ import annotations
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
+from wiz2mqtt.colour import effect_list_for_class
 from wiz2mqtt.errors import WizBridgeError
 from wiz2mqtt.models import BulbCapabilities
 
@@ -100,12 +101,15 @@ def narrow_light_discovery(config: dict[str, Any], caps: BulbCapabilities) -> No
     ``rgb``/``color_temp`` are additive, but a bulb with neither falls back to
     the single ``brightness`` (dimmable white) or ``onoff`` mode. ``color_temp``
     is what gives Kelvin meaning, so the range is dropped without it.
+
+    Modes are emitted in the static superset's order (``color_temp`` before
+    ``rgb``) so a narrowed payload never churns discovery purely on ordering.
     """
     modes: list[str] = []
-    if caps.color:
-        modes.append("rgb")
     if caps.color_tmp:
         modes.append("color_temp")
+    if caps.color:
+        modes.append("rgb")
     if not modes:
         modes = ["brightness"] if caps.brightness else ["onoff"]
     config["supported_color_modes"] = modes
@@ -117,7 +121,12 @@ def narrow_light_discovery(config: dict[str, Any], caps: BulbCapabilities) -> No
         config.pop("min_kelvin", None)
         config.pop("max_kelvin", None)
 
-    if not caps.effect:
+    if caps.effect:
+        # Effect support is class-specific: a TW bulb advertises ``effect=True``
+        # yet rejects RGB-only scenes (e.g. "Ocean"), so narrow the list to the
+        # scenes the class actually accepts instead of the full superset.
+        config["effect_list"] = effect_list_for_class(caps)
+    else:
         config["effect"] = False
         config.pop("effect_list", None)
 
@@ -134,7 +143,7 @@ def _bulb_name_from_state_topic(state_topic: str | None) -> str | None:
     if not state_topic:
         return None
     parts = state_topic.rsplit("/", 2)
-    if len(parts) < 2:
+    if len(parts) < 3:
         return None
     return parts[-2]
 
