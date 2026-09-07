@@ -41,6 +41,25 @@ profile. `docs/schema.yaml` and `task wiz2mqtt:schema:check` stay as the openHAB
 remains available for offline inspection of the same payloads. See
 `packages/tests/integration/test_schema_discovery.py`.
 
+## Onboarding
+
+The bulb inventory lives in `wiz2mqtt.toml` (copy `wiz2mqtt.example.toml`). Each
+`[[bulbs]]` entry needs a `name` and an `ip`; `mac` is optional and only verified
+against the bulb's own report on first contact (`ip` is the identity —
+[ADR-002](docs/adr/ADR-002-ip-address-as-bulb-identity.md)).
+
+To find bulbs on the LAN, run the bundled `wiz2mqtt-discover` helper. It UDP-broadcasts
+for WiZ bulbs and prints paste-ready `[[bulbs]]` blocks (placeholder names to rename):
+
+```console
+$ wiz2mqtt-discover --wait 5 > discovered.toml   # progress goes to stderr, TOML to stdout
+```
+
+The helper is an onboarding aid only — it is deliberately **not** wired into the daemon,
+which addresses bulbs by their configured `ip`. Because the daemon never re-discovers,
+pin each bulb's address with a static DHCP reservation. `--broadcast` targets a specific
+subnet; `--timeout` caps total run time (pywizlight discovery can otherwise hang).
+
 ## Deployment
 
 **Host networking is mandatory.** wiz2mqtt publishes bulb state the instant a bulb
