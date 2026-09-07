@@ -12,6 +12,7 @@ after renaming the placeholder names.
 from __future__ import annotations
 
 import asyncio
+import re
 import sys
 from typing import TYPE_CHECKING, Annotated, Protocol
 
@@ -25,6 +26,9 @@ if TYPE_CHECKING:
 _DEFAULT_WAIT_SECONDS = 5.0
 _DEFAULT_TIMEOUT_SECONDS = 30.0
 _BROADCAST_DEFAULT = "255.255.255.255"
+
+# BulbConfig accepts a MAC only as bare 12-hex-digit lowercase (settings.py).
+_MAC_RE = re.compile(r"^[0-9a-f]{12}$")
 
 
 class _DiscoveredBulb(Protocol):
@@ -68,9 +72,24 @@ def _render_toml(bulbs: Sequence[_DiscoveredBulb]) -> str:
         lines.append("[[bulbs]]")
         lines.append(f'name = "bulb-{index}"')
         lines.append(f'ip = "{bulb.ip}"')
-        if bulb.mac:
-            lines.append(f'mac = "{bulb.mac.lower()}"')
+        mac = _normalise_mac(bulb.mac)
+        if mac:
+            lines.append(f'mac = "{mac}"')
     return "\n".join(lines)
+
+
+def _normalise_mac(mac: str | None) -> str | None:
+    """Return the MAC as bare lowercase hex, or ``None`` if unusable.
+
+    Discovery data arrives off the network, so a hostile or buggy responder
+    could return a MAC containing quotes or newlines that would break out of
+    the TOML string. Emit it only when it matches BulbConfig's 12-hex rule so
+    the rendered inventory always parses and validates.
+    """
+    if mac is None:
+        return None
+    candidate = mac.lower()
+    return candidate if _MAC_RE.match(candidate) else None
 
 
 def _ip_sort_key(ip: str) -> tuple[int, ...]:
@@ -105,8 +124,10 @@ def discover(
     the output can be redirected straight into wiz2mqtt.toml.
     """
     if timeout <= wait:
+        # Click quotes the param_hint itself ("Invalid value for '--timeout'"),
+        # so the message only needs to state the constraint, not repeat the flag.
         raise typer.BadParameter(
-            f"--timeout ({timeout}) must exceed --wait ({wait})",
+            f"must exceed --wait ({wait})",
             param_hint="'--timeout'",
         )
 

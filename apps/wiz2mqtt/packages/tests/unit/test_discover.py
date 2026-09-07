@@ -1,4 +1,19 @@
-"""Unit tests for the ``wiz2mqtt-discover`` onboarding CLI."""
+"""Unit tests for the ``wiz2mqtt-discover`` onboarding CLI.
+
+``pywizlight`` is never contacted over the network: discovery is faked and the
+lazy ``discover_lights`` import is monkeypatched, so these tests exercise the
+CLI's own logic (TOML rendering, ordering, MAC hygiene, error/timeout handling)
+without hardware.
+
+Test Techniques Used:
+- Specification-based: rendered TOML round-trips through tomllib and validates
+  against BulbConfig (the paste-ready contract)
+- Boundary Value Analysis: ``--timeout`` must strictly exceed ``--wait`` (equal
+  case rejected)
+- Equivalence Partitioning: TimeoutError vs OSError both map to exit code 1
+- Error Guessing: malformed IP sort key, empty discovery result, and TOML
+  injection via a hostile MAC
+"""
 
 from __future__ import annotations
 
@@ -48,6 +63,16 @@ def test_render_toml_omits_mac_when_absent() -> None:
     rendered = _render_toml([_FakeBulb("192.168.1.10")])
 
     assert "mac =" not in rendered
+
+
+def test_render_toml_drops_hostile_mac_to_prevent_toml_injection() -> None:
+    # A malicious/buggy responder could return a MAC with a quote + newline to
+    # break out of the TOML string and inject arbitrary config. It must not
+    # reach the output; the rest of the block still renders and parses.
+    rendered = _render_toml([_FakeBulb("192.168.1.10", 'a"\nname = "evil')])
+
+    parsed = tomllib.loads(rendered)
+    assert parsed["bulbs"] == [{"name": "bulb-1", "ip": "192.168.1.10"}]
 
 
 def test_render_toml_orders_bulbs_numerically_by_ip() -> None:
