@@ -49,8 +49,9 @@ address of the registration packet. Behind Docker's bridge NAT the bulb sees the
 container's translated address, the return datagram lands on the host and is dropped,
 and pywizlight reports the subscription as healthy anyway — so the app silently degrades
 to poll-latency. The shipped `compose.yml` therefore runs the service with
-`network_mode: host` (monorepo
-[ADR-004](docs/adr/ADR-004-host-networking-requirement-udp-38900-one-process-per-host.md)).
+`network_mode: host` (wiz2mqtt
+[ADR-004](docs/adr/ADR-004-host-networking-requirement-udp-38900-one-process-per-host.md)
+— distinct from the unrelated monorepo `docs/adr/ADR-004`).
 
 Two operational constraints follow:
 
