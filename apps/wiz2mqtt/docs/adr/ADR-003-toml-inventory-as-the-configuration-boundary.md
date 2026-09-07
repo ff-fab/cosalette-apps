@@ -9,7 +9,7 @@ tags: [configuration, architecture, mqtt, devices]
 
 ## Status
 
-Accepted **Date:** 2026-09-06
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07
 
 ## Context
 
@@ -107,4 +107,30 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Offline `cosalette schema ha-discovery` output is a superset, not a per-bulb-accurate document
 - Multi-bulb groups are config-owned and consumer-rendered by decision but not yet implemented — `[[groups]]` + openHAB Group Item emission is deferred to cap-0zt (see `docs/planning/wiz2mqtt-group-entities-decision.md`)
 
-_2026-09-06_
+## Amendment (2026-09-07) — Additive
+
+**Rationale:** cap-3tr is resolved. ADR-003 deferred per-bulb capability-filtered HA discovery metadata to a later choice between Mechanism B (runtime enrich + Store cache) and Mechanism C (discover CLI writing TOML capability hints). Mechanism B is chosen and implemented, because it makes runtime discovery per-bulb accurate while preserving ADR-003's central invariant that capabilities are never declared in config.
+
+### Additional Sub-Decision: Resolved: per-bulb capability-filtered discovery via Mechanism B
+
+Use **Mechanism B** — `app.discovery(enrich=...)` plus a `DeviceStore`-persisted capabilities cache — to make the advertised Home Assistant `light` metadata per-bulb accurate.
+
+The `bulb_entity` telemetry handler receives a per-bulb `DeviceStore` (keyed by the bulb name) and writes the auto-detected `BulbCapabilities` into it, only when they change. The `app.discovery(enrich=...)` hook (see `wiz2mqtt/discovery.py`) reads that cache back at publish time via `app.store.load(<bulb name>)` and narrows the emitted config in place: `supported_color_modes` drops `rgb`/`color_temp` the bulb lacks (falling back to `brightness` or `onoff`), the Kelvin range tracks the detected `KelvinRange`, and `effect`/`effect_list` are removed when the firmware has no effects.
+
+The cache holds *derived* data that every bulb contact refreshes, so ADR-003's no-capabilities-in-config invariant is intact — nothing in `wiz2mqtt.toml` describes what a bulb can do, and there is nothing to drift.
+
+**Mechanism C was rejected:** writing capability hints into `wiz2mqtt.toml` reintroduces exactly the config/firmware drift ADR-003's Option 2 ("Fully declarative") scored lowest on, and needs a precedence rule against runtime detection.
+
+**Convergence timing (accepted).** `app.discovery()` publishes retained config once, on first MQTT connect, before any bulb has been contacted — so the cache is empty on a bulb's very first run and the static superset in `models._HA_LIGHT_ENTITY` is advertised. Capabilities are detected as the bulb is reached, persisted on shutdown, and the *next* start publishes the narrowed metadata. A retyped (physically swapped) bulb converges the same way: the run after the swap detects the new class and the following start advertises it. This one-restart lag is inherent to publish-on-connect and was accepted as the cost of keeping capabilities out of config.
+
+**Offline path unchanged.** `cosalette schema ha-discovery` does not run the enrich hook and keeps emitting the documented static superset — offline generation stays hardware-free and is not per-bulb accurate, as ADR-003 already accepted.
+
+### Additional Positive Consequences
+
+- Home Assistant no longer shows an RGB picker, effect list, or full Kelvin slider on a tunable-white, dimmable-white, or socket bulb once wiz2mqtt has contacted it and been restarted — the advertised light matches the hardware.
+- The capability cache is refreshed from the bulb on every contact, so it cannot drift from firmware; config remains inventory-only (ADR-003 invariant preserved).
+
+### Additional Negative Consequences
+
+- Discovery is per-bulb accurate only from the second run onward: a freshly onboarded or retyped bulb advertises the static superset until wiz2mqtt has reached it once and been restarted (accepted; documented in the Getting Started guide).
+- A hard kill before a graceful shutdown loses that run's freshly detected capabilities, deferring convergence by one more restart, because the DeviceStore is flushed on shutdown.

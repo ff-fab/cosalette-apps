@@ -98,11 +98,21 @@ from its live registry. Each `[[bulbs]]` entry becomes one HA device with a
 `light` (`schema: json`), an effect-speed `number`, and a power `sensor`; one
 `binary_sensor` bridge entity is published for the app. Dropping a bulb from
 `wiz2mqtt.toml` clears its retained discovery topics on the next start. Nothing in
-Home Assistant needs configuring. The `light` metadata is a static wire-format
-superset (`supported_color_modes: [color_temp, rgb]`, the full 38-scene
-`effect_list`, `min_kelvin`/`max_kelvin` 2200–6500); runtime auto-detection still
-gates command handling. Per-bulb capability filtering is deferred (`cap-3tr`,
-[ADR-003](adr/ADR-003-toml-inventory-as-the-configuration-boundary.md)).
+Home Assistant needs configuring.
+
+The `light` metadata is **capability-accurate per bulb**: `supported_color_modes`,
+`effect_list`, and `min_kelvin`/`max_kelvin` reflect what each bulb actually
+supports, so a tunable-white or dimmable-white bulb no longer shows an RGB picker
+or effect list it cannot honour. Because bulb capabilities are auto-detected at
+runtime — never declared in config — the accurate values are only known after
+wiz2mqtt has contacted the bulb once. Discovery is published on connect, before
+any bulb is reached, so a **freshly onboarded or newly swapped bulb advertises a
+safe wire-format superset on its first run and the accurate, narrowed metadata
+from the next restart onward** (see "Adding or replacing a bulb" in
+[Getting Started](getting-started.md)). The offline
+`task wiz2mqtt:schema:ha-discovery` path has no hardware to probe and always emits
+the superset. This is Mechanism B in
+[ADR-003](adr/ADR-003-toml-inventory-as-the-configuration-boundary.md).
 
 Inspect the payloads offline with `task wiz2mqtt:schema:ha-discovery`.
 

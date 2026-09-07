@@ -95,14 +95,19 @@ topics above.
 | `homeassistant/sensor/wiz2mqtt/{bulb}_power/config` | `sensor` | `wiz2mqtt/{bulb}/state` | — (read-only) |
 | `homeassistant/binary_sensor/wiz2mqtt/bridge/config` | `binary_sensor` | `wiz2mqtt/status` | — |
 
-The `light` payload carries `brightness: true`,
+The `light` payload carries `brightness: true` plus the colour metadata for the
+bulb: `supported_color_modes`, `effect`/`effect_list`, and
+`min_kelvin`/`max_kelvin`. These are **narrowed to each bulb's detected
+capabilities** once wiz2mqtt has contacted it and been restarted — until then (a
+first run, or a just-swapped bulb) the payload advertises the safe superset
 `supported_color_modes: ["color_temp", "rgb"]`, `effect: true` with the full
 38-scene `effect_list`, and `min_kelvin`/`max_kelvin` `2200`/`6500`. The `number`
 payload uses `min` 10, `max` 200, `step` 1, `command_template`
 `{"effect_speed": {{ value }}}`. The `sensor` payload is `device_class: power`,
 `unit_of_measurement: W`, `state_class: measurement`.
 
-Preview the exact payloads with `task wiz2mqtt:schema:ha-discovery`.
+Preview the exact payloads with `task wiz2mqtt:schema:ha-discovery` (the offline
+path always emits the superset — it has no bulb to probe).
 
 ## openHAB Generic MQTT Thing
 
