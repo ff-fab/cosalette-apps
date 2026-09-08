@@ -8,7 +8,8 @@
 Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter
 ticks, temperature, and optional raw debug data to MQTT.
 
-Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework.
+Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
+on the 0.9.3 release.
 
 > **📖 [Full Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)**
 
