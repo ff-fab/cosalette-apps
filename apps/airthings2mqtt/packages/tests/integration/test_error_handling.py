@@ -152,8 +152,8 @@ class TestErrorRecovery:
         # Arrange
         harness = make_harness(adapter=_ErrorThenRecoverReader, settings=test_settings)
 
-        # Act — wait long enough for at least 2 poll cycles (interval=1s)
-        await run_app_briefly(harness, wait=1.5)
+        # Act — two poll cycles past startup: first errors, then recovers
+        await run_app_briefly(harness, polls=2)
 
         # Assert — error was published
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
@@ -177,8 +177,8 @@ class TestErrorRecovery:
         # Arrange
         harness = make_harness(adapter=_ErrorThenRecoverReader, settings=test_settings)
 
-        # Act — wait long enough for at least 2 poll cycles (interval=1s)
-        await run_app_briefly(harness, wait=1.5)
+        # Act — two poll cycles past startup: first errors, then recovers
+        await run_app_briefly(harness, polls=2)
 
         # Assert — health status published (app was alive)
         harness.assert_published(f"{TOPIC_PREFIX}/status")
@@ -205,10 +205,15 @@ class TestErrorDeduplication:
         not be flooded with duplicates.
         """
         # Arrange
-        harness = make_harness(adapter=_AlwaysRaisingReader, settings=test_settings)
+        reader = _AlwaysRaisingReader()
+        harness = make_harness(adapter=lambda: reader, settings=test_settings)
 
-        # Act — run long enough for multiple poll cycles (>= 2 intervals)
-        await run_app_briefly(harness, wait=2.5)
+        # Act — multiple identical-error poll cycles, so dedup is observable
+        await run_app_briefly(harness, polls=2)
+
+        # Assert — more than one error was actually raised, so count=1 below
+        # proves deduplication rather than passing vacuously on a single run.
+        assert len(reader.calls) >= 2, "too few polls — dedup would be vacuous"
 
         # Assert — error topic should have exactly 1 message (deduplicated)
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"

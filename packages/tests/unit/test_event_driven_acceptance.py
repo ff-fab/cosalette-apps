@@ -90,10 +90,12 @@ _IN_FLIGHT_SECONDS = 0.05
 """How long the coalescing handler stays busy, so arms land mid-run."""
 
 _SETTLE_SECONDS = 0.25
-"""Real seconds to let every consequence of an arm play out."""
+"""Real seconds to let an arm whose handler really sleeps play out.
 
-_QUIET_SECONDS = 0.2
-"""Deliberate inactivity used to prove no scheduled tick is due."""
+Still a wall-clock wait because :data:`_IN_FLIGHT_SECONDS` is a real
+``asyncio.sleep`` inside the handler; virtualising that is the prerequisite
+for turning the last arm-coalescing window into a gated one.
+"""
 
 _WAIT_TIMEOUT = 2.0
 """How long :func:`_wait_until` polls before calling a condition failed."""
@@ -237,6 +239,19 @@ async def _wait_until(condition: Callable[[], bool], what: str) -> None:
         if loop.time() >= deadline:
             raise AssertionError(f"timed out after {_WAIT_TIMEOUT}s waiting for {what}")
         await asyncio.sleep(_WAIT_POLL_SECONDS)
+
+
+async def _quiesce(harness: AppHarness) -> None:
+    """Drive the loop to quiescence without moving virtual time.
+
+    No tick can fire here because the gating :class:`ManualClock` advances no
+    virtual time (call sites assert ``clock.now() == 0.0`` separately). The
+    ``settle()`` call only flushes any arm-driven loop work; it is a bounded
+    heuristic, so a generous ``stable_rounds`` is used — matching the other
+    absence proofs in this repo — to avoid a silent under-settle.
+    """
+    assert isinstance(harness.clock, ManualClock)
+    await harness.clock.settle(stable_rounds=20)
 
 
 @contextlib.asynccontextmanager
@@ -525,7 +540,7 @@ class TestCoreBehaviour:
         """
         async with running(harness):
             recorder.payloads[WOKEN] = {"reading": 1}
-            await asyncio.sleep(_QUIET_SECONDS)
+            await _quiesce(harness)
 
             assert len(state_messages(harness, WOKEN)) == 1
             assert harness.clock.now() == 0.0
@@ -547,7 +562,7 @@ class TestCoreBehaviour:
                 lambda: len(state_messages(harness, WOKEN)) == 2,
                 f"the woken publish on {state_topic(WOKEN)}",
             )
-            await asyncio.sleep(_QUIET_SECONDS)
+            await _quiesce(harness)
 
             assert recorder.entries[WOKEN] == entries_before[WOKEN] + 1
             for name in ENTITIES[1:]:
@@ -606,7 +621,7 @@ class TestCoreBehaviour:
                 lambda: len(state_messages(harness, WOKEN)) == 2,
                 f"the off-loop publish on {state_topic(WOKEN)}",
             )
-            await asyncio.sleep(_QUIET_SECONDS)
+            await _quiesce(harness)
 
             assert recorder.entries[WOKEN] == entries_before + 1
 
@@ -640,7 +655,7 @@ class TestParity:
         async with running(harness):
             notify(WOKEN)
             notify(WOKEN)
-            await asyncio.sleep(_SETTLE_SECONDS)
+            await _quiesce(harness)
             assert len(state_messages(harness, WOKEN)) == 1, (
                 "OnChange() let an unchanged payload through on a woken run"
             )

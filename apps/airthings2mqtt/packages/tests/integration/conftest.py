@@ -11,7 +11,7 @@ import asyncio
 
 import pytest
 from cosalette import App, MockMqttClient, setting_ref
-from cosalette.testing import AppHarness, FakeClock
+from cosalette.testing import AppHarness, ManualClock
 from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
 
@@ -104,22 +104,38 @@ def make_harness(
     return AppHarness(
         app=build_integration_app(adapter=adapter),
         mqtt=MockMqttClient(),
-        clock=FakeClock(),
+        clock=ManualClock(),
         settings=settings
         or _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=1),  # type: ignore[arg-type]
         shutdown_event=asyncio.Event(),
     )
 
 
-async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
-    """Start the harness as a background task, wait, then shut it down cleanly.
+async def run_app_briefly(harness: AppHarness, *, polls: int = 2) -> None:
+    """Start the harness, fire a fixed number of poll cycles, then shut down.
 
-    Bounds task completion with asyncio.wait_for to prevent indefinite test hangs.
+    Under the gating :class:`ManualClock` the startup poll is settled onto its
+    interval first, then each ``advance_time`` releases exactly one scheduled
+    poll — a deterministic cycle count where the old real-sleep window admitted
+    however many the loop happened to interleave. The advance step is read from
+    ``harness.settings.poll_interval`` so it tracks whatever settings the caller
+    wired, rather than a duplicated constant. ``polls=2`` (three runs total) is
+    enough for an error-then-recover transition and for proving consecutive
+    identical errors deduplicate.
     """
+    assert isinstance(harness.settings, Airthings2MqttSettings)
+    poll_interval = float(harness.settings.poll_interval)
     task = asyncio.create_task(harness.run())
-    await asyncio.sleep(wait)
-    harness.shutdown_event.set()
-    await asyncio.wait_for(task, timeout=wait * 5)
+    try:
+        await harness.advance_time(0)  # settle the startup poll onto its interval
+        for _ in range(polls):
+            await harness.advance_time(poll_interval)
+        harness.shutdown_event.set()
+        await asyncio.wait_for(task, timeout=2.0)
+    finally:
+        if not task.done():
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
 
 
 def make_long_poll_settings() -> Airthings2MqttSettings:
