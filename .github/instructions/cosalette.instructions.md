@@ -298,6 +298,14 @@ mod.time_module = fake_time_module  # ✓ only intercepts calls through this mod
 # NOT: mock.patch("myapp.domain.device.time_module.monotonic", ...)  # ✗ patches globally
 ```
 
+Test `@app.stream` handlers with `inject_stream()` (feeds items, bypasses the port
+lifecycle) for handler logic, or `AppHarness.create(run_streams=True)` to run the real
+lifecycle — the framework opens the registered `StreamablePort` and scans, so a stream can
+arm a concurrently running device. It fails fast when a statically-enabled stream's port is
+missing. `run_streams=True` opens the app's real ports: register a fake `StreamablePort` on
+`harness.app` for the always-safe path — `AppHarness.create(dry_run=True)` binds a dry-run
+variant only if the adapter was registered with `dry_run=`.
+
 See `cosalette ai help testing`.
 
 ## Configuration
@@ -325,6 +333,8 @@ Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 > than reintroducing a `tls` pin in code — omitting it inherits `tls=True` and the app
 > fails to connect. The durable repo-wide rule lives in `AGENTS.md`; ADR-006 records the
 > decision and rationale in `docs/adr/ADR-006-mqtt-transport-security-posture.md`.
+
+**`mqtt.topic_prefix` is transport, `App(name=...)` is identity (ADR-072).** Every topic resolves as `settings.mqtt.topic_prefix or App(name=...)` — the app name is the fallback, never an override. Multi-segment prefixes are supported (`MQTT__TOPIC_PREFIX=house/wiz` → `house/wiz/desk/state`). The name stays the identity regardless: it is the `x-cosalette-app` tag, the HA `node_id`, and what schema enforcement filters an app's slice by. Never use one where the other belongs. Generated AsyncAPI composes addresses from the prefix and records it in `info.x-cosalette-topic-prefix` (only when it differs from the app name; readers fall back to `info.title`), so `schema acl` / `ha-discovery` / `openhab` stay correct when reading a dumped document. Device names and HA `object_id`/`unique_id` are derived *past* the prefix, so changing the prefix never orphans existing entities.
 
 See `cosalette ai help configuration`.
 
@@ -436,10 +446,12 @@ Introspect app registrations as JSON or table:
 ```bash
 cosalette manifest myapp.main:app           # JSON (parseable by tooling)
 cosalette manifest myapp.main:app --table   # human-readable table
+cosalette manifest myapp.main:app --registry [--table]  # registry snapshot
 ```
 
 Decorator metadata (summary, state_model, payload_model, behavior, effects) appears in the manifest.
 Code generators and doc tooling can consume this for canonical AsyncAPI schemas.
+`--registry` renders the registry snapshot instead of AsyncAPI — the only terminal view of periodic tasks and each entity's trigger source / min interval (Trigger / Min interval columns).
 
 Periodic tasks are **not** in the generated AsyncAPI document: they have no MQTT presence
 (ADR-041). Streams now emit an AsyncAPI state channel (`x-cosalette-archetype: stream`, ADR-054);
