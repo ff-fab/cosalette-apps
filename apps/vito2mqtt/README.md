@@ -5,6 +5,9 @@ A smart home app to control a Vitodens gas heating.
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
+Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
+on the 0.9.3 release.
+
 ## Home Assistant
 
 **Automatic.** Home Assistant discovery config payloads publish to
