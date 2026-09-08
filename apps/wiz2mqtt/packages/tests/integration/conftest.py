@@ -11,7 +11,7 @@ import asyncio
 
 import pytest
 from cosalette import App, EntityNotifier, MockMqttClient, OnChange
-from cosalette.testing import AppHarness, FakeClock, ManualClock
+from cosalette.testing import AppHarness, ManualClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
@@ -33,7 +33,12 @@ _STARTUP_TIMEOUT = 2.0
 """Maximum seconds to wait for the harness to subscribe before timing out."""
 
 _FAST_TICK_INTERVAL = 0.01
-"""Interval for the polling-oriented tests; with FakeClock this spins freely."""
+"""Interval for the polling-oriented tests.
+
+Under the gating :class:`ManualClock` the runner parks on this sleep after
+each run, so a test releases one tick per ``advance_time(_FAST_TICK_INTERVAL)``
+— a deterministic run count rather than however many a real-sleep window admits.
+"""
 
 NO_TICK_INTERVAL = 30.0
 """The scheduled interval on :func:`push_harness`.
@@ -130,11 +135,16 @@ def test_settings() -> Wiz2MqttSettings:
 def harness(
     fake_adapter: FakeWizBulbAdapter, test_settings: Wiz2MqttSettings
 ) -> AppHarness:
-    """Fresh AppHarness wired with FakeWizBulbAdapter and one bulb."""
+    """Fresh AppHarness wired with FakeWizBulbAdapter and one bulb.
+
+    Gated by a :class:`ManualClock`, so telemetry ticks fire only on an
+    explicit :meth:`AppHarness.advance_time`; command tests inject directly
+    and never advance it.
+    """
     return AppHarness(
         app=build_integration_app(fake_adapter),
         mqtt=MockMqttClient(),
-        clock=FakeClock(),
+        clock=ManualClock(),
         settings=test_settings,
         shutdown_event=asyncio.Event(),
     )
@@ -169,11 +179,11 @@ def settings_when_off() -> Wiz2MqttSettings:
 def harness_when_off(
     fake_adapter: FakeWizBulbAdapter, settings_when_off: Wiz2MqttSettings
 ) -> AppHarness:
-    """AppHarness wired with when_unreachable='off' settings."""
+    """AppHarness wired with when_unreachable='off' settings, gated by ManualClock."""
     return AppHarness(
         app=build_integration_app(fake_adapter),
         mqtt=MockMqttClient(),
-        clock=FakeClock(),
+        clock=ManualClock(),
         settings=settings_when_off,
         shutdown_event=asyncio.Event(),
     )

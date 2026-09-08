@@ -22,18 +22,32 @@ from cosalette.testing import AppHarness
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.models import BulbState
 
-from .conftest import TOPIC_PREFIX, wait_until_subscribed
+from .conftest import _FAST_TICK_INTERVAL, TOPIC_PREFIX, wait_until_subscribed
 
-_SETTLE_TIME = 0.05
-"""Real seconds to let several fast (FakeClock) telemetry ticks run."""
+_TICKS = 3
+"""Scheduled ticks to fire past the startup run.
+
+Four runs total clears the framework's three-consecutive-failure offline
+debounce (cap-10u.13); the dedup and single-publish assertions only need the
+run count above one. Each advance releases exactly one gated tick, so the
+count is deterministic where the old real-sleep window was not.
+"""
 
 
 async def _run_briefly(harness: AppHarness) -> None:
-    """Start the harness, let some telemetry ticks fire, then shut down."""
+    """Start the harness, fire a fixed number of telemetry ticks, then shut down.
+
+    Under the gating ManualClock the startup run is settled onto its interval
+    first, then each ``advance_time`` releases exactly one scheduled tick — a
+    deterministic run count where the old real-sleep window admitted however
+    many the loop happened to interleave.
+    """
     task = asyncio.create_task(harness.run())
     try:
         await wait_until_subscribed(harness)
-        await asyncio.sleep(_SETTLE_TIME)
+        await harness.advance_time(0)  # settle the startup run onto its interval
+        for _ in range(_TICKS):
+            await harness.advance_time(_FAST_TICK_INTERVAL)
         harness.shutdown_event.set()
         await asyncio.wait_for(task, timeout=2.0)
     finally:
