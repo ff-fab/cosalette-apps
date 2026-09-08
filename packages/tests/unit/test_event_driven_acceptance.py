@@ -594,6 +594,11 @@ class TestCoreBehaviour:
                 lambda: recorder.entries[WOKEN] == entries_before + 2,
                 "the single coalesced re-run to enter the handler",
             )
+            # Release the re-run's own gated window so it completes
+            # deterministically instead of being cancelled at shutdown. No arms
+            # land during it, so a regression that queued a second re-run would
+            # surface as a third run here rather than passing on a blocked sleep.
+            await harness.advance_time(_IN_FLIGHT_SECONDS)
             await _quiesce(harness)
 
             assert recorder.entries[WOKEN] == entries_before + 2
