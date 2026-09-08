@@ -100,6 +100,15 @@ echo "✅ SSH known_hosts seeded (agent forwarding handles authentication)"
 # GH_PAGER=cat is set via remoteEnv, but gh config persists across shell sessions.
 gh config set pager cat 2>/dev/null || true
 
+# Codex (openai.chatgpt) agent config.
+# Skills are discovered automatically from the committed repo-scoped
+# `.agents/skills/` symlinks (Codex follows symlink targets), and instructions
+# flow through AGENTS.md natively — neither needs wiring here. Do not seed
+# repository-controlled SKILL.md files into the global CODEX_HOME prompts
+# directory: repo-scoped discovery preserves skill access without overwriting
+# user prompts or making branch content look like a trusted global command.
+echo "✅ Codex skills available via repo-scoped .agents/skills links (global prompts unchanged)"
+
 
 
 # GitHub CLI authentication reminder
