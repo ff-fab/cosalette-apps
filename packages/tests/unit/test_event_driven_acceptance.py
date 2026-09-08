@@ -87,14 +87,11 @@ stays large so the registration still reads as "no tick is due here".
 """
 
 _IN_FLIGHT_SECONDS = 0.05
-"""How long the coalescing handler stays busy, so arms land mid-run."""
+"""Virtual seconds the coalescing handler stays busy, so arms land mid-run.
 
-_SETTLE_SECONDS = 0.25
-"""Real seconds to let an arm whose handler really sleeps play out.
-
-Still a wall-clock wait because :data:`_IN_FLIGHT_SECONDS` is a real
-``asyncio.sleep`` inside the handler; virtualising that is the prerequisite
-for turning the last arm-coalescing window into a gated one.
+The handler gates on ``ctx.sleep(_IN_FLIGHT_SECONDS)`` against the harness's
+:class:`ManualClock`, so the window only opens when a test calls
+:meth:`AppHarness.advance_time` — there is no wall-clock wait.
 """
 
 _WAIT_TIMEOUT = 2.0
@@ -200,7 +197,9 @@ def build_app(
     async def entity(ctx: DeviceContext, config: str, state: Recorder):
         state.entries[config] += 1
         if state.in_flight_seconds:
-            await asyncio.sleep(state.in_flight_seconds)
+            # ctx.sleep gates on the injected ManualClock, so the in-flight
+            # window only releases on an explicit advance() — no wall-clock wait.
+            await ctx.sleep(state.in_flight_seconds)
         if state.raise_next is not None:
             raise state.raise_next
         if state.unavailable:
@@ -587,7 +586,20 @@ class TestCoreBehaviour:
             )
             for _ in range(5):
                 notify(WOKEN)
-            await asyncio.sleep(_SETTLE_SECONDS)
+            # Release the first run's gated in-flight window: the five arms
+            # delivered while it was busy coalesce into exactly one re-run,
+            # which itself enters the handler and re-gates on ctx.sleep.
+            await harness.advance_time(_IN_FLIGHT_SECONDS)
+            await _wait_until(
+                lambda: recorder.entries[WOKEN] == entries_before + 2,
+                "the single coalesced re-run to enter the handler",
+            )
+            # Release the re-run's own gated window so it completes
+            # deterministically instead of being cancelled at shutdown. No arms
+            # land during it, so a regression that queued a second re-run would
+            # surface as a third run here rather than passing on a blocked sleep.
+            await harness.advance_time(_IN_FLIGHT_SECONDS)
+            await _quiesce(harness)
 
             assert recorder.entries[WOKEN] == entries_before + 2
 
@@ -1054,11 +1066,20 @@ class TestHealthAccounting:
         """
         woken = build_harness(build_app(recorder, notifier_sink=notifier_sink))
         async with running(woken):
+            recorder.in_flight_seconds = _IN_FLIGHT_SECONDS
             recorder.raise_next = RuntimeError("boom")
             entries_before = recorder.entries[WOKEN]
-            for _ in range(_FAILURE_RUNS):
+            for run in range(_FAILURE_RUNS):
                 notifier_sink[0](WOKEN)
-                await asyncio.sleep(_IN_FLIGHT_SECONDS)
+                # Serialise the arms: wait for this run to enter and gate on
+                # its in-flight window, then advance the clock to release it
+                # so it fails before the next arm lands — one advance per arm
+                # keeps the three failures from coalescing into fewer runs.
+                await _wait_until(
+                    lambda run=run: recorder.entries[WOKEN] == entries_before + run + 1,
+                    "the woken run to enter the handler",
+                )
+                await woken.advance_time(_IN_FLIGHT_SECONDS)
             await _wait_until(
                 lambda: recorder.entries[WOKEN] >= entries_before + _FAILURE_RUNS,
                 f"{_FAILURE_RUNS} woken failures",
