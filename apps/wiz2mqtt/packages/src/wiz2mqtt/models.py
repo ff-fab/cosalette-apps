@@ -183,7 +183,9 @@ class BulbColor(BaseModel):
 
 
 class BulbStateModel(BaseModel):
-    """Retained ``wiz2mqtt/{bulb}/state`` payload shape (cap-10u.14).
+    """Retained ``{prefix}/{bulb}/state`` payload shape (cap-10u.14).
+
+    ``prefix`` defaults to ``wiz2mqtt`` when ``mqtt.topic_prefix`` is unset.
 
     Declared as ``state_model=`` on the ``bulb_entity`` telemetry
     (:mod:`wiz2mqtt.main`) so every published payload is validated and

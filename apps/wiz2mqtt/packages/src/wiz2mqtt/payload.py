@@ -1,7 +1,8 @@
 """Retained state payload construction for wiz2mqtt (cap-10u.13).
 
 Pure domain logic: turns a :class:`~wiz2mqtt.models.BulbState` into the
-``wiz2mqtt/{bulb}/state`` payload — HA's ``schema: json`` light shape plus
+``{prefix}/{bulb}/state`` payload (``prefix`` defaults to ``wiz2mqtt`` when
+``mqtt.topic_prefix`` is unset) — HA's ``schema: json`` light shape plus
 the non-HA keys openHAB's Generic MQTT Thing consumes. No cosalette
 imports — testable as plain Python.
 """
