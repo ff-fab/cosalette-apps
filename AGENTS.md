@@ -199,7 +199,7 @@ Agent configuration lives in `.github/` and is consumed by every tool:
 
 | Surface              | Location                | Shared how                                                                                                |
 | -------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| Always-on context    | `AGENTS.md` (this file) | read natively by Copilot, Claude Code, Kilo and Codex                                                     |
+| Always-on context    | `AGENTS.md` (this file) | Copilot, Kilo and Codex read it natively; Claude Code via the `@AGENTS.md` import in `CLAUDE.md`          |
 | File-scoped guidance | `.github/instructions/` | Copilot `applyTo:`; Claude via `.claude/rules/` symlinks; Kilo `instructions[]`                           |
 | Repeatable workflows | `.github/skills/`       | Copilot native; Claude via the plugin manifest; Kilo `skills.paths`; Codex via `.agents/skills/` symlinks |
 | Specialist agents    | `.github/agents/`       | Copilot native; Claude via the plugin manifest; **not wired into Kilo**                                   |
@@ -226,12 +226,11 @@ it, and it will get purpose-built agents once it specialises.
 **Codex (`openai.chatgpt`) reads AGENTS.md natively** and discovers the workflow skills
 from the committed repo-scoped `.agents/skills/` symlinks — Codex scans
 `$REPO_ROOT/.agents/skills` and follows symlink targets, so each entry points straight
-back at `.github/skills/<name>`. The same skills are also exposed as `/name`
-slash-command prompts by seeding `~/.codex/prompts/` in `.devcontainer/post-create.sh`
-(that directory lives in the ephemeral home, so it is re-linked on every container
-create rather than committed). Adding a skill under `.github/skills/` needs a matching
-symlink in `.agents/skills/`; nothing else. Codex is not wired to `.github/agents/` or
-`.github/instructions/`.
+back at `.github/skills/<name>`. The devcontainer deliberately leaves the global
+`CODEX_HOME/prompts/` directory unchanged, so branch-controlled repository content
+cannot overwrite or impersonate a user's familiar slash commands. Adding a skill under
+`.github/skills/` needs a matching symlink in `.agents/skills/`; nothing else. Codex is
+not wired to `.github/agents/` or `.github/instructions/`.
 
 ## Refreshing cosalette guidance
 

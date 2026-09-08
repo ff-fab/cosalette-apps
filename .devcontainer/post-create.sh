@@ -103,18 +103,11 @@ gh config set pager cat 2>/dev/null || true
 # Codex (openai.chatgpt) agent config.
 # Skills are discovered automatically from the committed repo-scoped
 # `.agents/skills/` symlinks (Codex follows symlink targets), and instructions
-# flow through AGENTS.md natively — neither needs wiring here. Codex slash-command
-# *prompts*, however, only load from $CODEX_HOME/prompts (~/.codex/prompts), which
-# lives in the ephemeral home dir and must be re-seeded on every container create.
-# Expose each skill as a `/name` prompt by symlinking its SKILL.md.
-echo "🤖 Wiring cosalette skills into Codex prompts..."
-codex_prompts_dir="${CODEX_HOME:-$HOME/.codex}/prompts"
-mkdir -p "$codex_prompts_dir"
-for skill in /workspaces/cosalette-apps/.github/skills/*/; do
-    name="$(basename "$skill")"
-    ln -sfn "$skill/SKILL.md" "$codex_prompts_dir/$name.md"
-done
-echo "✅ Codex prompts linked ($(find "$codex_prompts_dir" -maxdepth 1 -name '*.md' | wc -l) skills)"
+# flow through AGENTS.md natively — neither needs wiring here. Do not seed
+# repository-controlled SKILL.md files into the global CODEX_HOME prompts
+# directory: repo-scoped discovery preserves skill access without overwriting
+# user prompts or making branch content look like a trusted global command.
+echo "✅ Codex skills available via repo-scoped .agents/skills links (global prompts unchanged)"
 
 
 
