@@ -8,7 +8,8 @@
   "packages": {
     "apps/gas2mqtt": {
       "component": "gas2mqtt",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.2.1"
     },
     "apps/jeelink2mqtt": {
       "component": "jeelink2mqtt",
@@ -16,27 +17,33 @@
     },
     "apps/vito2mqtt": {
       "component": "vito2mqtt",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.2.1"
     },
     "apps/velux2mqtt": {
       "component": "velux2mqtt",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.2.1"
     },
     "apps/airthings2mqtt": {
       "component": "airthings2mqtt",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.2.1"
     },
     "apps/caldates2mqtt": {
       "component": "caldates2mqtt",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.2.1"
     },
     "apps/suncast": {
       "component": "suncast",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.2.1"
     },
     "apps/wallpanel-control": {
       "component": "wallpanel-control",
-      "release-type": "python"
+      "release-type": "python",
+      "release-as": "0.3.1"
     },
     "apps/wiz2mqtt": {
       "component": "wiz2mqtt",
