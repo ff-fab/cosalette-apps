@@ -111,29 +111,25 @@ def make_harness(
     )
 
 
-_POLL_INTERVAL_SECONDS = 1.0
-"""The fast-poll interval every ``make_harness`` caller uses.
-
-Must match ``_FastPollSettings(poll_interval=1)``: the gating ``ManualClock``
-releases exactly one scheduled poll per ``advance_time(_POLL_INTERVAL_SECONDS)``.
-"""
-
-
 async def run_app_briefly(harness: AppHarness, *, polls: int = 2) -> None:
     """Start the harness, fire a fixed number of poll cycles, then shut down.
 
     Under the gating :class:`ManualClock` the startup poll is settled onto its
     interval first, then each ``advance_time`` releases exactly one scheduled
     poll — a deterministic cycle count where the old real-sleep window admitted
-    however many the loop happened to interleave. ``polls=2`` (three runs total)
-    is enough for an error-then-recover transition and for proving consecutive
+    however many the loop happened to interleave. The advance step is read from
+    ``harness.settings.poll_interval`` so it tracks whatever settings the caller
+    wired, rather than a duplicated constant. ``polls=2`` (three runs total) is
+    enough for an error-then-recover transition and for proving consecutive
     identical errors deduplicate.
     """
+    assert isinstance(harness.settings, Airthings2MqttSettings)
+    poll_interval = float(harness.settings.poll_interval)
     task = asyncio.create_task(harness.run())
     try:
         await harness.advance_time(0)  # settle the startup poll onto its interval
         for _ in range(polls):
-            await harness.advance_time(_POLL_INTERVAL_SECONDS)
+            await harness.advance_time(poll_interval)
         harness.shutdown_event.set()
         await asyncio.wait_for(task, timeout=2.0)
     finally:

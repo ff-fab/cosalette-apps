@@ -205,10 +205,15 @@ class TestErrorDeduplication:
         not be flooded with duplicates.
         """
         # Arrange
-        harness = make_harness(adapter=_AlwaysRaisingReader, settings=test_settings)
+        reader = _AlwaysRaisingReader()
+        harness = make_harness(adapter=lambda: reader, settings=test_settings)
 
         # Act — multiple identical-error poll cycles, so dedup is observable
         await run_app_briefly(harness, polls=2)
+
+        # Assert — more than one error was actually raised, so count=1 below
+        # proves deduplication rather than passing vacuously on a single run.
+        assert len(reader.calls) >= 2, "too few polls — dedup would be vacuous"
 
         # Assert — error topic should have exactly 1 message (deduplicated)
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"

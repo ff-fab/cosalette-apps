@@ -244,12 +244,14 @@ async def _wait_until(condition: Callable[[], bool], what: str) -> None:
 async def _quiesce(harness: AppHarness) -> None:
     """Drive the loop to quiescence without moving virtual time.
 
-    The gating :class:`ManualClock` releases no scheduled sleep here, so a
-    settled loop is deterministic proof that no tick fired — where a real
-    ``asyncio.sleep`` window only made it probable.
+    No tick can fire here because the gating :class:`ManualClock` advances no
+    virtual time (call sites assert ``clock.now() == 0.0`` separately). The
+    ``settle()`` call only flushes any arm-driven loop work; it is a bounded
+    heuristic, so a generous ``stable_rounds`` is used — matching the other
+    absence proofs in this repo — to avoid a silent under-settle.
     """
     assert isinstance(harness.clock, ManualClock)
-    await harness.clock.settle()
+    await harness.clock.settle(stable_rounds=20)
 
 
 @contextlib.asynccontextmanager

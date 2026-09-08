@@ -104,8 +104,8 @@ class TestUnreachableBulb:
     ) -> None:
         """Technique: Decision Table — when_unreachable='unavailable' (default).
 
-        ``always_fail`` makes every get_state call raise, guaranteeing
-        at least 3 consecutive failures regardless of tick count.
+        ``always_fail`` makes every run raise; the 4 runs from ``_TICKS=3``
+        clear the 3-consecutive-failure offline debounce with one to spare.
         """
         fake_adapter.always_fail = True
 
