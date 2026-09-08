@@ -27,7 +27,13 @@ def _schema_cli(*args: str) -> str:
 
 
 def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
-    """Attach Color command Items to write-only groups; preserve channel links."""
+    """Attach Color command Items to write-only groups; preserve channel links.
+
+    A no-op when no groups are configured, so the generator leaves the
+    framework's Items output untouched unless groups are explicitly declared.
+    """
+    if not settings.groups:
+        return items
     memberships: dict[str, list[str]] = {}
     definitions = ['Group gWiz2Mqtt "WiZ bulbs"']
     group_ids: set[str] = set()
@@ -41,14 +47,21 @@ def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
             memberships.setdefault(member, []).append(identifier)
 
     seen: set[str] = set()
+    segments: dict[str, str] = {}
     for bulb in settings.bulbs:
         slug = re.sub(r"[^a-z0-9]+", "_", bulb.name.lower()).strip("_")
         segment = slug.title().replace("_", "")
         if not segment or segment in seen:
             raise ValueError(f"Bulb names collide or are empty in openHAB: {bulb.name}")
         seen.add(segment)
+        segments[bulb.name] = segment
+
+    # Validate identifiers fully before mutating: a collision must never leave
+    # a partially-rewritten Items document behind.
+    for bulb in settings.bulbs:
         if bulb.name not in memberships:
             continue
+        segment = segments[bulb.name]
         pattern = rf"(Color\s+Wiz2Mqtt_{segment}_Hsb_Cmd\s+[^\n]*?\()([^)]*)(\))"
         groups = ", ".join(memberships[bulb.name])
         items, count = re.subn(pattern, rf"\g<1>\g<2>, {groups}\g<3>", items)

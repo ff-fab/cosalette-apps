@@ -113,15 +113,17 @@ class Wiz2MqttSettings(cosalette.Settings):
                 raise ValueError(f"Group name collides with another name: {group.name}")
             group_names.add(group.name)
             if unknown := set(group.members) - bulb_names:
-                raise ValueError(f"Unknown members in group {group.name}: {unknown}")
+                raise ValueError(
+                    f"Unknown members in group {group.name}: {sorted(unknown)}"
+                )
             if len(set(group.members)) != len(group.members):
                 raise ValueError(f"Duplicate members in group {group.name}")
         return self
 
     @model_validator(mode="after")
     def _bulbs_unique(self) -> Wiz2MqttSettings:
-        def _dupes(seq: list[str]) -> set[str]:
-            return {v for v, c in Counter(seq).items() if c > 1}
+        def _dupes(seq: list[str]) -> list[str]:
+            return sorted(v for v, c in Counter(seq).items() if c > 1)
 
         if name_dupes := _dupes([b.name for b in self.bulbs]):
             raise ValueError(f"Bulb names must be unique, duplicates: {name_dupes}")

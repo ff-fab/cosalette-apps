@@ -1,4 +1,14 @@
-"""Specification tests for deployment rendering and consumer-only groups."""
+"""Specification tests for deployment rendering and consumer-only groups.
+
+Test Techniques Used:
+- Specification-based: real inventory renders Things/Items with group wiring
+- Decision Table: bulb and group openHAB identifier collisions across
+  normalization boundaries (hyphen/underscore, case, empty segments)
+- Error Guessing: framework output drift (missing Color command Item) and
+  schema CLI failure propagation surface as a failing exit
+- Round-trip Testing: overlapping groups resolve end-to-end via the real
+  schema CLI with a custom broker uid and topic prefix
+"""
 
 from __future__ import annotations
 
@@ -21,11 +31,18 @@ def _settings(names: list[str], groups: list[dict[str, object]]) -> Wiz2MqttSett
     )
 
 
+def test_no_groups_is_noop() -> None:
+    """With no groups configured the framework Items output is left untouched."""
+    items = 'Color Wiz2Mqtt_Desk_Hsb_Cmd "Desk" {channel="x"}'
+    assert add_groups(items, _settings(["desk"], [])) == items
+
+
 @pytest.mark.parametrize("names", [["a-b", "a_b"], ["Desk", "desk"], ["___"]])
 def test_bulb_identifier_collisions(names: list[str]) -> None:
     """Distinct MQTT names must not silently merge into one openHAB Item."""
+    groups = [{"name": "g", "members": [names[0]]}]
     with pytest.raises(ValueError, match="openHAB"):
-        add_groups("", _settings(names, []))
+        add_groups("", _settings(names, groups))
 
 
 def test_group_identifier_collisions() -> None:
