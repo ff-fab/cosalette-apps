@@ -3,7 +3,7 @@
 # Copy this file to wiz2mqtt.toml (gitignored) and fill in real IPs.
 # Note the destination filename is `wiz2mqtt.toml`, not this file's name —
 # cosalette's config-file loader dispatches on the literal `.toml` suffix.
-# This file holds ONLY the bulb inventory — everything else (MQTT broker,
+# This file holds the bulb and group inventory — everything else (MQTT broker,
 # logging, etc.) is configured via .env. See .env.example.
 #
 # when_unreachable controls what state a bulb publishes when it stops
@@ -28,3 +28,8 @@ name = "sauna"
 ip = "192.168.1.104"
 mac = "a8bb5006033e"
 when_unreachable = "off"
+
+# Consumer-side fan-out; members must match bulb names above.
+[[groups]]
+name = "downstairs"
+members = ["desk", "living-room", "hallway"]

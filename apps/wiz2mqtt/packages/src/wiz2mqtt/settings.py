@@ -2,7 +2,7 @@
 
 Extends cosalette's Settings with the WIZ2MQTT_ environment prefix. All
 settings are loaded from environment variables, .env files, or a TOML
-config file (bulb inventory only). Priority: CLI > env > .env >
+config file (bulb and group inventory). Priority: CLI > env > .env >
 wiz2mqtt.toml > defaults.
 """
 
@@ -73,6 +73,13 @@ class BulbConfig(BaseModel):
         return value.lower()
 
 
+class GroupConfig(BaseModel):
+    """Consumer-side group of bulbs from the same inventory."""
+
+    name: Annotated[str, Field(max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
+    members: Annotated[list[str], Field(min_length=1)]
+
+
 class Wiz2MqttSettings(cosalette.Settings):
     """wiz2mqtt application settings."""
 
@@ -87,13 +94,7 @@ class Wiz2MqttSettings(cosalette.Settings):
         config_file="wiz2mqtt.toml",  # type: ignore
         # Safe to tighten from the base Settings' extra="ignore": env_prefix
         # is set, so only WIZ2MQTT_* env vars are ever seen. This also rejects
-        # any TOML top-level key that is not a declared field — the config-file
-        # source merges the whole parsed file the same way env vars merge. The
-        # legal set is exactly this model's fields: "bulbs", plus "mqtt",
-        # "logging" and "schema_" inherited from cosalette.Settings.
-        # Adding a new top-level TOML table therefore means adding a field here
-        # (this is the real blocker behind cap-fux's [[groups]], not any
-        # framework-side validator).
+        # any TOML top-level key that is not a declared settings field.
         extra="forbid",
     )
 
@@ -101,11 +102,28 @@ class Wiz2MqttSettings(cosalette.Settings):
         default_factory=list,
         description="WiZ bulb inventory, normally supplied via wiz2mqtt.toml.",
     )
+    groups: list[GroupConfig] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _groups_valid(self) -> Wiz2MqttSettings:
+        bulb_names = {bulb.name for bulb in self.bulbs}
+        group_names: set[str] = set()
+        for group in self.groups:
+            if group.name in group_names or group.name in bulb_names:
+                raise ValueError(f"Group name collides with another name: {group.name}")
+            group_names.add(group.name)
+            if unknown := set(group.members) - bulb_names:
+                raise ValueError(
+                    f"Unknown members in group {group.name}: {sorted(unknown)}"
+                )
+            if len(set(group.members)) != len(group.members):
+                raise ValueError(f"Duplicate members in group {group.name}")
+        return self
 
     @model_validator(mode="after")
     def _bulbs_unique(self) -> Wiz2MqttSettings:
-        def _dupes(seq: list[str]) -> set[str]:
-            return {v for v, c in Counter(seq).items() if c > 1}
+        def _dupes(seq: list[str]) -> list[str]:
+            return sorted(v for v, c in Counter(seq).items() if c > 1)
 
         if name_dupes := _dupes([b.name for b in self.bulbs]):
             raise ValueError(f"Bulb names must be unique, duplicates: {name_dupes}")
