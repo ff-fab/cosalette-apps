@@ -116,6 +116,12 @@ includes:
       SCHEMA_CONFIG_FILE: wiz2mqtt.schema.toml
 
 tasks:
+  wiz2mqtt:openhab:
+    desc: Generate deployment openHAB Things, Items and groups from WiZ TOML
+    dir: apps/wiz2mqtt
+    cmds:
+      - uv run --package wiz2mqtt -m wiz2mqtt.openhab {{.CLI_ARGS}}
+
   default:
     desc: List available tasks
     cmds:

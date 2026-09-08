@@ -68,6 +68,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
     Controls a wall-panel display and system via SSH and Wake-on-LAN, publishing
     state and accepting commands via MQTT.
 
+-   **[wiz2mqtt](wiz2mqtt/)** <span class="card-license">MIT</span>
+
+    ---
+
+    Controls WiZ smart bulbs over MQTT with push-driven state publication and native
+    Home Assistant and openHAB integration.
+
 </div>
 
 ## Architecture

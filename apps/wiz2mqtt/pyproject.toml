@@ -18,6 +18,7 @@ dependencies = [
 [project.scripts]
 wiz2mqtt = "wiz2mqtt.main:main"
 wiz2mqtt-discover = "wiz2mqtt.discover:main"
+wiz2mqtt-openhab = "wiz2mqtt.openhab:main"
 
 [build-system]
 requires = ["hatchling"]

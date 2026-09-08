@@ -21,7 +21,7 @@ import pytest
 from cosalette import SettingsLoadError
 from pydantic import ValidationError
 
-from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
+from wiz2mqtt.settings import BulbConfig, GroupConfig, Wiz2MqttSettings
 
 _UNCONFIGURED = {"_env_file": None, "_config_file": None}
 """Kwargs isolating a Wiz2MqttSettings() call from any real .env/.toml on disk."""
@@ -309,3 +309,47 @@ class TestConfigFileMissing:
 
         with pytest.raises(SettingsLoadError):
             Wiz2MqttSettings(_env_file=None, _config_file=str(missing))
+
+
+class TestGroups:
+    """Decision-table validation of consumer group membership."""
+
+    @pytest.mark.parametrize("name", ["", "a/b", "a+b", "a#b", "a b", "x" * 65])
+    def test_invalid_names(self, name: str) -> None:
+        """Invalid MQTT segments and overlong names fail before rendering."""
+        with pytest.raises(ValidationError):
+            GroupConfig(name=name, members=["desk"])
+
+    @pytest.mark.parametrize(
+        "groups",
+        [
+            [{"name": "desk", "members": ["desk"]}],
+            [{"name": "all", "members": ["missing"]}],
+            [{"name": "all", "members": []}],
+            [{"name": "all", "members": ["desk", "desk"]}],
+            [
+                {"name": "all", "members": ["desk"]},
+                {"name": "all", "members": ["desk"]},
+            ],
+        ],
+    )
+    def test_invalid_membership(self, groups: list[dict[str, object]]) -> None:
+        """Reject collisions, unknown members, empty and duplicate membership."""
+        with pytest.raises(ValidationError):
+            Wiz2MqttSettings(
+                bulbs=[{"name": "desk", "ip": "10.0.0.1"}],
+                groups=groups,
+                **_UNCONFIGURED,
+            )
+
+    def test_groups_load_from_toml(self, tmp_path: Path) -> None:
+        """Round trip: overlapping groups resolve against the bulb inventory."""
+        config = tmp_path / "wiz2mqtt.toml"
+        config.write_text(
+            '[[bulbs]]\nname="desk"\nip="10.0.0.1"\n'
+            '[[groups]]\nname="All-lights"\nmembers=["desk"]\n'
+            '[[groups]]\nname="floor_1"\nmembers=["desk"]\n'
+        )
+        settings = Wiz2MqttSettings(_env_file=None, _config_file=str(config))
+        assert [g.members for g in settings.groups] == [["desk"], ["desk"]]
+        assert Wiz2MqttSettings(**_UNCONFIGURED).groups == []

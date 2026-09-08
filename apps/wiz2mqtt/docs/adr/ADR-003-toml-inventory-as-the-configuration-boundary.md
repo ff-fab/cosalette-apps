@@ -9,7 +9,7 @@ tags: [configuration, architecture, mqtt, devices]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07 | Amended **Date:** 2026-09-08
 
 ## Context
 
@@ -134,3 +134,14 @@ The cache holds *derived* data that every bulb contact refreshes, so ADR-003's n
 
 - Discovery is per-bulb accurate only from the second run onward: a freshly onboarded or retyped bulb advertises the static superset until wiz2mqtt has reached it once and been restarted (accepted; documented in the Getting Started guide).
 - A hard kill before a graceful shutdown loses that run's freshly detected capabilities, deferring convergence by one more restart, because the DeviceStore is flushed on shutdown.
+
+## Amendment (2026-09-08) — Minor
+
+!!! note "Editorial note (2026-09-08)"
+    cap-0zt implements the previously deferred group inventory: optional [[groups]] entries contain a unique name and a non-empty list of distinct, declared bulb names. Names cannot collide with bulbs or other groups. Runtime registrations and HA discovery continue to use only settings.bulbs.
+
+!!! note "Editorial note (2026-09-08)"
+    The deployment command wiz2mqtt-openhab (task wiz2mqtt:openhab) resolves the real TOML inventory through cosalette's public schema CLI, then adds one plain openHAB Group per configured group to the generated Items. Each member's Color command Item retains its existing channel link and joins the group; openHAB handles command fan-out. Plain groups intentionally do not select a state aggregation policy. Individual telemetry Items retain state display. The existing schema:openhab task remains a sample-schema renderer.
+
+!!! note "Editorial note (2026-09-08)"
+    The generator rejects bulb and group names that collide after openHAB identifier normalization and fails if a member's expected Color command Item is absent. It creates no group MQTT topics. This implementation supersedes the earlier statements that group support is deferred or blocked on cap-10u.14.
