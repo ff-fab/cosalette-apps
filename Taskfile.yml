@@ -441,7 +441,10 @@ tasks:
   sync:
     desc: Sync all dependencies
     cmds:
-      - uv sync --group dev --group docs
+      # Mirror .devcontainer/post-create.sh so `task sync` never prunes the
+      # optional extras the devcontainer installed (e.g. suncast png/http),
+      # which would otherwise break `task pre-pr` (cap-4nn).
+      - uv sync --all-groups --all-extras --all-packages
 
   update:deps:
     desc: Update all dependencies to latest compatible versions
