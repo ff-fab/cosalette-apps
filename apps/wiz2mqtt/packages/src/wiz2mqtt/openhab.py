@@ -96,14 +96,6 @@ def generate(
             args = ("openhab", str(schema), "--broker-uid", broker_uid)
             items = add_groups(_schema_cli(*args, "--output", "items"), settings)
             things = _schema_cli(*args, "--output", "things")
-            # schema dump uses the app name even when runtime overrides the prefix.
-            prefix = settings.mqtt.topic_prefix or "wiz2mqtt"
-            escaped = prefix.replace("\\", "\\\\").replace('"', '\\"')
-            things = re.sub(
-                r'((?:state|command)Topic=")wiz2mqtt/',
-                lambda match: match[1] + escaped + "/",
-                things,
-            )
         if output in ("things", "both"):
             typer.echo(things)
         if output == "both":
