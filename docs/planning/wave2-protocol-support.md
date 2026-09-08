@@ -8,7 +8,7 @@ on edge-01 (jl4 fleet), sibling to the working core-02 instance.
 
 **Status (2026-09-06):** implemented. `cap-awb` landed Option A (auto-detect
 by GATT probe) — see
-[apps/airthings2mqtt/docs/adr/ADR-002](../../apps/airthings2mqtt/docs/adr/ADR-002-auto-detect-wave-generation-by-gatt-probe-nullable-wave-2-radon.md).
+[apps/airthings2mqtt/docs/adr/ADR-002](https://ff-fab.github.io/cosalette-apps/airthings2mqtt/adr/ADR-002-auto-detect-wave-generation-by-gatt-probe-nullable-wave-2-radon/).
 The radon type caveat below was resolved by widening
 `AirthingsReading.radon_24h_avg` / `radon_long_term_avg` to `int | None`
 (published as JSON `null`, key always present). `cap-7x2` scoped the docs
