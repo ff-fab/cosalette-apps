@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.2.1](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.0...wiz2mqtt-v0.2.1) (2026-09-08)
+
+
+### Features
+
+* **wiz2mqtt:** add discover CLI for LAN bulb onboarding (cap-10u.15) ([#240](https://github.com/ff-fab/cosalette-apps/issues/240)) ([a8e0d1b](https://github.com/ff-fab/cosalette-apps/commit/a8e0d1bd8d000801aedcb9db64242728bb6929fd))
+* **wiz2mqtt:** consumer integration — runtime HA discovery and openHAB generation ([#238](https://github.com/ff-fab/cosalette-apps/issues/238)) ([36589bf](https://github.com/ff-fab/cosalette-apps/commit/36589bf3854b89138d730d167f9dfa818ceca8d9))
+* **wiz2mqtt:** generate consumer bulb groups ([#243](https://github.com/ff-fab/cosalette-apps/issues/243)) ([ea4de28](https://github.com/ff-fab/cosalette-apps/commit/ea4de28e028d7e0acf4dfc18e37826741d97f59d))
+* **wiz2mqtt:** per-bulb capability-filtered HA discovery (cap-3tr) ([#241](https://github.com/ff-fab/cosalette-apps/issues/241)) ([3bbb122](https://github.com/ff-fab/cosalette-apps/commit/3bbb1227581e028dc1d07fe869b4ca51853833bc))
+* **wiz2mqtt:** ship host networking for WiZ push (cap-10u.16) ([#239](https://github.com/ff-fab/cosalette-apps/issues/239)) ([5a3c87b](https://github.com/ff-fab/cosalette-apps/commit/5a3c87b37b676d0cea4ff23bb551f0385b6d208d))
+
 ## [0.2.0](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.1.0...wiz2mqtt-v0.2.0) (2026-09-05)
 
 

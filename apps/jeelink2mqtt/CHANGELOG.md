@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/ff-fab/cosalette-apps/compare/jeelink2mqtt-v0.2.0...jeelink2mqtt-v0.2.1) (2026-09-08)
+
+
+### Features
+
+* **jeelink2mqtt:** adopt runtime Home Assistant discovery ([#235](https://github.com/ff-fab/cosalette-apps/issues/235)) ([41d900c](https://github.com/ff-fab/cosalette-apps/commit/41d900c8d0918b6a32c41c184a48ee0db807fbe9))
+
 ## [0.2.0](https://github.com/ff-fab/cosalette-apps/compare/jeelink2mqtt-v0.1.4...jeelink2mqtt-v0.2.0) (2026-09-05)
 
 
