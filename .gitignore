@@ -257,8 +257,9 @@ legacy/
 # Kilo runtime state only — the shared config lives in `kilo.jsonc` and `.github/`.
 .kilo/
 
-# Claude Code runtime state. `.claude/settings.json` and `.claude/rules/` ARE committed
-# — they are shared config. Everything below is per-developer or per-session.
+# Claude Code runtime state. `.claude/settings.json`, `.claude/rules/` and
+# `.claude/output-styles/` ARE committed — they are shared config. Everything below
+# is per-developer or per-session.
 .claude/worktrees/
 .claude/settings.local.json
 .claude/scheduled_tasks.lock

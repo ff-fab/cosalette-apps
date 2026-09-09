@@ -202,12 +202,13 @@ until `git push` succeeds.
 
 Agent configuration lives in `.github/` and is consumed by every tool:
 
-| Surface              | Location                | Shared how                                                                                                |
-| -------------------- | ----------------------- | --------------------------------------------------------------------------------------------------------- |
-| Always-on context    | `AGENTS.md` (this file) | Copilot, Kilo and Codex read it natively; Claude Code via the `@AGENTS.md` import in `CLAUDE.md`          |
-| File-scoped guidance | `.github/instructions/` | Copilot `applyTo:`; Claude via `.claude/rules/` symlinks; Kilo `instructions[]`                           |
-| Repeatable workflows | `.github/skills/`       | Copilot native; Claude via the plugin manifest; Kilo `skills.paths`; Codex via `.agents/skills/` symlinks |
-| Specialist agents    | `.github/agents/`       | Copilot native; Claude via the plugin manifest; **not wired into Kilo**                                   |
+| Surface              | Location                 | Shared how                                                                                                          |
+| -------------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
+| Always-on context    | `AGENTS.md` (this file)  | Copilot, Kilo and Codex read it natively; Claude Code via the `@AGENTS.md` import in `CLAUDE.md`                    |
+| File-scoped guidance | `.github/instructions/`  | Copilot `applyTo:`; Claude via `.claude/rules/` symlinks; Kilo `instructions[]`                                     |
+| Repeatable workflows | `.github/skills/`        | Copilot native; Claude via the plugin manifest; Kilo `skills.paths`; Codex via `.agents/skills/` symlinks           |
+| Specialist agents    | `.github/agents/`        | Copilot native; Claude via the plugin manifest; **not wired into Kilo**                                             |
+| Response style       | `.claude/output-styles/` | Claude Code only, selected by `outputStyle` in `.claude/settings.json`; **no equivalent in Copilot, Kilo or Codex** |
 
 Claude Code loads the skills and agents through a plugin manifest at
 `.github/.claude-plugin/plugin.json`, served by the repo-root local marketplace
