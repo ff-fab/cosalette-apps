@@ -112,6 +112,9 @@ def configure_app(app: App) -> None:
     for group in SIGNAL_GROUPS:
         app.add_telemetry(
             name=group,
+            # diagnosis carries raw Optolink signal values for troubleshooting,
+            # not Home Assistant entities (ADR-073).
+            discoverable=group != "diagnosis",
             func=make_telemetry_handler(group),
             interval=setting_ref(INTERVAL_ATTR[group]),
             publish=OnChange(),
@@ -138,6 +141,7 @@ def configure_app(app: App) -> None:
     for group in COMMAND_GROUPS:
         app.add_command(
             name=group,
+            discoverable=False,
             func=make_command_handler(group),
             summary=COMMAND_SUMMARIES.get(
                 group, f"Control {group} parameters via Optolink serial"
@@ -154,4 +158,4 @@ def configure_app(app: App) -> None:
     # runs a shutdown-safe restore so the boiler is never left at the
     # elevated setpoint; its writes are single-signal and protocol-atomic
     # (cap-ug0).
-    app.add_device("legionella", legionella_device)
+    app.add_device("legionella", legionella_device, discoverable=False)

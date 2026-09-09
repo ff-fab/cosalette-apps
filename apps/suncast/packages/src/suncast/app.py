@@ -114,6 +114,7 @@ app = cosalette.App(
 # set; it relies on cosalette's F-3 implicit backstop (timeout=interval). (cap-65e)
 @app.telemetry(
     name="shadow",
+    discoverable=False,
     interval=_poll_interval,
     init=_build_pipeline,
 )

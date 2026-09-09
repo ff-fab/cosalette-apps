@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: wallpanel-control
-  version: 0.2.2
+  version: 0.3.1
   x-cosalette-contract-version: '1'
 channels:
   displayCommand:
@@ -100,6 +100,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
+    x-cosalette-discoverable: false
   systemActionState:
     address: wallpanel-control/system/action/state
     x-cosalette-app: wallpanel-control
@@ -125,6 +126,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
+    x-cosalette-discoverable: false
 operations:
   publishDisplayState:
     action: send

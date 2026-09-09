@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from typing import Annotated
 
 import cosalette
-from cosalette.schema import consumer
-from pydantic import Field
+from cosalette.schema import consumer, ha_entities, ha_entity
+from pydantic import ConfigDict, Field
 
 from caldates2mqtt import __version__
 from caldates2mqtt.adapters.caldav_reader import CalDavReader
@@ -34,14 +34,11 @@ class CalendarEvent:
     """One upcoming event entry within a calendar's event list.
 
     :func:`calendar` returns these instances directly; each serialises to
-    ``{"title": ..., "date": ...}`` on the wire. The ``consumer()`` annotations are
-    preparatory only: cosalette's HA/OpenHAB generators walk a channel's
-    *top-level* properties, never nested list items, so these are inert
-    today — no discovery payload results. This is independent of the
-    callable-``name=`` qualname collapse (see :class:`CalendarState`),
-    which ``task caldates2mqtt:schema:generate`` now resolves. They're
-    wired now so this model is ready the moment the schema pipeline gains
-    list/array payload support (tracked upstream).
+    ``{"title": ..., "date": ...}`` on the wire. The ``consumer()`` annotations
+    describe the fields for documentation and openHAB. They yield no Home
+    Assistant entity: an array item has no single value, so cosalette skips it
+    (ADR-073). The supported path is the channel-level ``ha_entities()``
+    composite on :class:`CalendarState`.
     """
 
     title: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Title"))]
@@ -55,20 +52,41 @@ class CalendarState:
     :func:`calendar` constructs and returns an instance of this model,
     which serialises to ``{"events": [...]}`` on the wire.
     ``app.telemetry`` here is registered with a callable ``name=``
-    (``_calendar_map``, keyed off user-configured ``settings.calendars``)
-    — the same callable-``name=`` pattern documented for velux2mqtt. A
+    (``_calendar_map``, keyed off user-configured ``settings.calendars``),
+    the same callable-``name=`` pattern documented for velux2mqtt. A
     plain ``cosalette schema init``/``check`` would collapse every real
     per-calendar device into one channel named after this handler's
     qualname (``calendar``), but ``task caldates2mqtt:schema:generate``
     resolves settings first (``cosalette schema dump --resolve-settings``,
     ADR-051, against the checked-in ``.env.schema`` profile), expanding
     the NameSpec into real per-calendar channels (e.g. ``birthdayState``,
-    ``garbageState``) — see ``docs/schema.yaml`` and cap-0cg. HA discovery
-    is still non-functional here, but now solely because of the nested
-    list payload limitation on :class:`CalendarEvent`, not this collapse.
-    See ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery"
+    ``garbageState``). See ``docs/schema.yaml`` and cap-0cg. Home Assistant
+    discovery emits one event-count sensor per calendar from the composite
+    below. See ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery"
     section.
     """
+
+    # ADR-057 channel-level composite: the per-property consumer() annotations on
+    # CalendarEvent sit on array items, which yield no entity. This composite is
+    # the supported alternative and exposes the event count per calendar.
+    #
+    # The event list itself stays off Home Assistant. Carrying it would need
+    # json_attributes_topic, and cosalette 0.9.4 neither emits that key nor offers
+    # a placeholder for a channel's generated address, so a model-level spec
+    # shared by every calendar cannot name a per-calendar topic.
+    __pydantic_config__ = ConfigDict(
+        json_schema_extra=ha_entities(
+            ha_entity(
+                component="sensor",
+                name="Events",
+                extra={
+                    "value_template": "{{ value_json.events | length }}",
+                    "unit_of_measurement": "events",
+                    "icon": "mdi:calendar",
+                },
+            )
+        )
+    )
 
     events: list[CalendarEvent]
 

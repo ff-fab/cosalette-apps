@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: vito2mqtt
-  version: 0.1.3
+  version: 0.2.1
   x-cosalette-contract-version: '1'
 channels:
   burnerState:
@@ -135,6 +135,7 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read diagnostic error codes and system health data via Optolink
+    x-cosalette-discoverable: false
   heating_floorCommand:
     address: vito2mqtt/heating_floor/set
     x-cosalette-app: vito2mqtt
@@ -145,6 +146,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Set floor heating circuit temperatures and schedules
+    x-cosalette-discoverable: false
   heating_floorState:
     address: vito2mqtt/heating_floor/state
     x-cosalette-app: vito2mqtt
@@ -209,6 +211,7 @@ channels:
             - type: 'null'
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Floor heating circuit temperatures and pump status via Optolink
+    x-cosalette-discoverable: false
   heating_radiatorCommand:
     address: vito2mqtt/heating_radiator/set
     x-cosalette-app: vito2mqtt
@@ -219,6 +222,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Set radiator heating circuit temperatures and schedules
+    x-cosalette-discoverable: false
   heating_radiatorState:
     address: vito2mqtt/heating_radiator/state
     x-cosalette-app: vito2mqtt
@@ -271,6 +275,7 @@ channels:
           - anyOf: *id001
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Radiator heating temperatures and pump status via Optolink
+    x-cosalette-discoverable: false
   hot_waterCommand:
     address: vito2mqtt/hot_water/set
     x-cosalette-app: vito2mqtt
@@ -281,6 +286,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Set hot water temperature and timer schedules
+    x-cosalette-discoverable: false
   hot_waterState:
     address: vito2mqtt/hot_water/state
     x-cosalette-app: vito2mqtt
@@ -313,6 +319,7 @@ channels:
           - anyOf: *id001
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read hot water temperature sensors via Optolink serial
+    x-cosalette-discoverable: false
   legionellaState:
     address: vito2mqtt/legionella/state
     x-cosalette-app: vito2mqtt
@@ -321,6 +328,7 @@ channels:
         payload:
           type: object
     x-cosalette-archetype: device
+    x-cosalette-discoverable: false
   outdoorState:
     address: vito2mqtt/outdoor/state
     x-cosalette-app: vito2mqtt
@@ -370,6 +378,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Set Vitotronic system operational parameters
+    x-cosalette-discoverable: false
   systemState:
     address: vito2mqtt/system/state
     x-cosalette-app: vito2mqtt
@@ -428,6 +437,7 @@ channels:
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read Vitotronic system status and operational parameters
       via Optolink
+    x-cosalette-discoverable: false
 operations:
   publishBurnerState:
     action: send

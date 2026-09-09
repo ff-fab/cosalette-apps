@@ -96,6 +96,7 @@ def create_app() -> cosalette.App:
 
     app.command(
         "consumption",
+        discoverable=False,
         # No init= — GasCounterState injected from @app.state
         # (same instance as telemetry)
         summary="Override the accumulated consumption_m3 value for the gas counter",
@@ -119,6 +120,7 @@ def create_app() -> cosalette.App:
 
     app.telemetry(
         "magnetometer",
+        discoverable=False,
         interval=setting_ref("poll_interval"),
         retry=3,
         retry_on=(OSError,),

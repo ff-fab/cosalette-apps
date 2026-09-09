@@ -52,6 +52,7 @@ router = cosalette.Router(prefix="system")
 
 @router.command(
     "action",
+    discoverable=False,
     summary="System power action: wake (WoL), suspend, or hibernate",
     payload_model=SystemActionCommand,
     state_model=SystemActionState,

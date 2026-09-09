@@ -28,9 +28,9 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: the resolved schema must expose real per-calendar
   channel names, not the qualname placeholder
-- Specification-based: HA discovery is still non-functional (an array of
-  objects yields no scalar entity); 0 payloads plus a diagnostic warning and a
-  non-zero exit is the correct, honest current state
+- Specification-based: the channel-level ha_entities() composite yields one
+  event-count sensor per calendar; the array-item annotations stay inert and
+  still warn, but the composite satisfies the per-channel gate (ADR-073)
 """
 
 from __future__ import annotations
@@ -108,40 +108,47 @@ class TestResolvedSchemaChannels:
 
 @pytest.mark.integration
 class TestHaDiscoveryGeneration:
-    """Verify HA MQTT discovery generation is still honestly non-functional."""
+    """Verify the channel-level composite yields one sensor per calendar."""
 
-    def test_generates_no_payloads(
+    def test_emits_one_event_count_sensor_per_calendar(
         self, ha_discovery_run: subprocess.CompletedProcess[str]
     ) -> None:
-        """No discovery payloads are generated despite real channel names.
+        """Each configured calendar yields a sensor counting its events.
 
-        ``CalendarState``'s only property (``events``) is an array of objects,
-        which has no single value an HA sensor could hold, so the per-event
-        ``consumer()`` annotations on ``CalendarEvent`` yield no entity. This
-        is the honest current state (cap-wxg), unrelated to the
-        qualname-collapse fix verified above.
+        ``CalendarState`` carries an ``ha_entities()`` composite (ADR-057) —
+        the supported path for a payload whose only property is an array of
+        objects. cosalette resolves each per-calendar ``state_topic`` from the
+        channel address, so one model-level spec serves every calendar.
 
-        Technique: Specification-based — a channel with no emittable
-        consumer-annotated property must not yield an HA entity.
+        Technique: Specification-based — the composite must produce one entity
+        per real channel, keyed to that channel's own topic.
         """
-        assert json.loads(ha_discovery_run.stdout) == []
+        assert ha_discovery_run.returncode == 0
+        payloads = json.loads(ha_discovery_run.stdout)
+        by_object_id = {p["config"]["object_id"]: p["config"] for p in payloads}
 
-    def test_reports_the_array_item_annotations_it_skipped(
+        assert set(by_object_id) == {"birthday_events", "garbage_events", "bridge"}
+        for calendar in ("birthday", "garbage"):
+            config = by_object_id[f"{calendar}_events"]
+            assert config["state_topic"] == f"caldates2mqtt/{calendar}/state"
+            assert config["value_template"] == "{{ value_json.events | length }}"
+            assert config["unit_of_measurement"] == "events"
+
+    def test_still_reports_the_array_item_annotations_it_skips(
         self, ha_discovery_run: subprocess.CompletedProcess[str]
     ) -> None:
-        """The CLI names the skipped array-item annotations and exits non-zero.
+        """The CLI names the skipped array-item annotations but now exits 0.
 
-        cosalette 0.6.3 turned this from a silent ``[]`` into a diagnostic:
-        the warning names the offending channels, and the non-zero exit stops
-        an empty generation from passing unnoticed in a pipeline. Locking both
-        here means the day cap-wxg is answered upstream — and these
-        annotations start producing entities — this test fails and points at
-        the docstring above.
+        The ``consumer()`` annotations on ``CalendarEvent`` remain, and
+        cosalette still skips them: an array item has no single value. The
+        warning stays because those annotations are genuinely inert for Home
+        Assistant. The exit code is 0 because the channel-level composite
+        satisfies the per-channel discovery gate (ADR-073).
 
-        Technique: Error Guessing — asserts the diagnostic itself, not just
-        the absence of output, so a regression to silence is caught.
+        Technique: Error Guessing — asserts the diagnostic survives the fix,
+        so a regression to silence is caught.
         """
-        assert ha_discovery_run.returncode != 0
+        assert ha_discovery_run.returncode == 0
         stderr = ha_discovery_run.stderr
         assert "array-item properties" in stderr
         assert "birthdayState" in stderr

@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: caldates2mqtt
-  version: 0.1.4
+  version: 0.2.1
   x-cosalette-contract-version: '1'
 channels:
   birthdayState:
@@ -20,6 +20,14 @@ channels:
           - events
           title: CalendarState
           type: object
+          x-cosalette-ha-discovery: &id003
+            entities:
+            - component: sensor
+              extra:
+                icon: mdi:calendar
+                unit_of_measurement: events
+                value_template: '{{ value_json.events | length }}'
+              name: Events
     x-cosalette-archetype: telemetry
   garbageState:
     address: caldates2mqtt/garbage/state
@@ -31,6 +39,7 @@ channels:
           required: *id002
           title: CalendarState
           type: object
+          x-cosalette-ha-discovery: *id003
     x-cosalette-archetype: telemetry
 operations:
   publishBirthdayState:

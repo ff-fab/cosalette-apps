@@ -252,6 +252,7 @@ def _parse_or_error(
 # `list_unknown` below.
 @app.command(
     "mapping",
+    discoverable=False,
     sub="assign",
     summary="Manually assign an ephemeral sensor ID to a logical name",
 )
@@ -280,6 +281,7 @@ async def mapping_assign(
 
 @app.command(
     "mapping",
+    discoverable=False,
     sub="reset",
     summary="Remove the mapping for a named sensor",
 )
@@ -308,6 +310,7 @@ async def mapping_reset(
 
 @app.command(
     "mapping",
+    discoverable=False,
     sub="reset_all",
     summary="Clear all sensor mappings",
 )
@@ -333,6 +336,7 @@ async def mapping_reset_all(
 
 @app.command(
     "mapping",
+    discoverable=False,
     sub="list_unknown",
     summary="Return recently-seen sensor IDs that are not yet mapped",
 )
