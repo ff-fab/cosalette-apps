@@ -72,6 +72,11 @@ task pre-pr                    # Full quality gate
   (`feat(gas2mqtt): add retry logic`). Breaking changes add `!` after the type.
 - **Releases:** fully automated via Release Please. Agents never create tags or releases
   manually.
+- **Framework & dependency bumps:** commit user-facing framework or dependency upgrades
+  as `fix:` (or `feat:`), never `chore:`. Release Please treats `chore:` as hidden, so a
+  `chore:`-typed bump ships no release — that is how the cosalette 0.9.3 upgrade skipped
+  seven apps and needed a one-off `release-as` remediation. A `fix:`/`feat:` bump cuts a
+  release for every affected app automatically.
 - **Never push directly to `main`.**
 
 ## Pull Request & Merge Policy
