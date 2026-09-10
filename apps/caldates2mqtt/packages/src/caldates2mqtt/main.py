@@ -47,18 +47,26 @@ class CalendarEvent:
 
 # cosalette ADR-057 channel-level composite: the per-property consumer() annotations
 # on CalendarEvent sit on array items, which yield no entity. This composite is the
-# supported alternative and exposes the event count per calendar.
+# supported alternative. It exposes the event count as the entity state and the
+# event list as Home Assistant attributes.
 #
-# The event list itself stays off Home Assistant. Carrying it would need
-# json_attributes_topic, and cosalette 0.9.4 neither emits that key nor offers a
-# placeholder for a channel's generated address, so a model-level spec shared by
-# every calendar cannot name a per-calendar topic.
+# json_attributes_template carries the list. cosalette 0.9.5 defaults
+# json_attributes_topic to the channel's own resolved state topic (ADR-075), so this
+# one model-level spec names each calendar's own topic. The template must yield a
+# JSON object: "value_json | tojson" gives {"events": [...]}, which Home Assistant
+# accepts, while "value_json.events | tojson" gives a bare array, which it rejects.
+#
+# Home Assistant's recorder drops attributes above 16384 bytes. Each event costs
+# about 40 bytes plus the length of its title, so the default of 5 entries per
+# calendar (CalendarConfig.entries) is far below the limit: about 400 bytes. A
+# calendar configured with more than about 150 entries can reach the limit.
 _EVENT_COUNT_SENSOR = ha_entities(
     ha_entity(
         component="sensor",
         name="Events",
         extra={
             "value_template": "{{ value_json.events | length }}",
+            "json_attributes_template": "{{ value_json | tojson }}",
             "unit_of_measurement": "events",
             "state_class": "measurement",
             "icon": "mdi:calendar",
@@ -84,7 +92,8 @@ class CalendarState:
     the NameSpec into real per-calendar channels (e.g. ``birthdayState``,
     ``garbageState``). See ``docs/schema.yaml`` and cap-0cg. Home Assistant
     discovery emits one event-count sensor per calendar from the
-    :data:`_EVENT_COUNT_SENSOR` composite above. See
+    :data:`_EVENT_COUNT_SENSOR` composite above; that sensor also carries the
+    calendar's event list as attributes. See
     ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery" section.
     """
 

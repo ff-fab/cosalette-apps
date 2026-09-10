@@ -21,9 +21,12 @@ therefore stay inert and still warn on stderr. The composite is the supported
 answer to that (cosalette ADR-057), and it is what satisfies the per-channel
 discovery gate cosalette 0.9.4 introduced.
 
-The event *list* itself remains off Home Assistant. Carrying it would need
-``json_attributes_topic``, which 0.9.4 neither emits nor can resolve per
-instance from a model-level spec shared by every calendar (cap-wxg).
+The event *list* rides on the same sensor as HA attributes (cap-6hw). The
+composite sets ``json_attributes_template``; cosalette 0.9.5 then defaults
+``json_attributes_topic`` to the channel's own resolved state topic (ADR-075),
+so one model-level spec names each calendar's own topic. The assertions below
+pin both, because a regression to the 0.9.4 behaviour drops the topic key and
+leaves the attributes silently unpopulated in Home Assistant.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
@@ -32,7 +35,8 @@ Test Techniques Used:
 - Specification-based: the resolved schema must expose real per-calendar
   channel names, not the qualname placeholder
 - Specification-based: the channel-level ha_entities() composite yields one
-  event-count sensor per calendar; the array-item annotations stay inert and
+  event-count sensor per calendar, each carrying its own event list as
+  attributes; the array-item annotations stay inert and
   still warn, but the composite satisfies the per-channel *Home Assistant* gate
   (cosalette ADR-073). It does not satisfy the openHAB generator, which ignores
   ha_entities composites — ``task caldates2mqtt:schema:openhab`` still exits 1,
@@ -171,6 +175,30 @@ class TestHaDiscoveryGeneration:
         assert config["value_template"] == "{{ value_json.events | length }}"
         assert config["unit_of_measurement"] == "events"
         assert config["state_class"] == "measurement"
+
+    @pytest.mark.parametrize("calendar", CALENDARS)
+    def test_event_list_rides_as_attributes_on_the_calendars_own_topic(
+        self, configs_by_id: dict[str, dict[str, Any]], calendar: str
+    ) -> None:
+        """Each sensor carries its own calendar's event list as HA attributes.
+
+        The composite declares only ``json_attributes_template``. cosalette
+        0.9.5 defaults ``json_attributes_topic`` to the channel's own resolved
+        state topic (ADR-075), which is what lets one model-level spec serve
+        every callable-named calendar. Under 0.9.4 the key was absent and the
+        attributes never populated, so this asserts the topic as well as the
+        template.
+
+        The template must yield a JSON object. ``value_json | tojson`` gives
+        ``{"events": [...]}``; ``value_json.events | tojson`` would give a bare
+        array, which Home Assistant rejects.
+
+        Technique: Specification-based — the attributes contract, pinned per
+        calendar so a topic that stops resolving per channel fails.
+        """
+        config = configs_by_id[f"{calendar}_events"]
+        assert config["json_attributes_template"] == "{{ value_json | tojson }}"
+        assert config["json_attributes_topic"] == f"caldates2mqtt/{calendar}/state"
 
     @pytest.mark.parametrize("calendar", CALENDARS)
     def test_event_count_sensor_device_grouping(
