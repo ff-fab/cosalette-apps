@@ -52,7 +52,7 @@ def test_validate_new_rejects_malformed_option() -> None:
     try:
         module.validate(payload)
     except ValueError as exc:
-        assert "'description'" in str(exc) and "considered_options[0]" in str(exc)
+        assert "'description'" in str(exc) and "considered_options/0" in str(exc)
     else:
         raise AssertionError("Expected ValueError for missing option description")
 
@@ -79,7 +79,7 @@ def test_validate_new_rejects_invalid_matrix_score_type() -> None:
     try:
         module.validate(payload)
     except ValueError as exc:
-        assert "decision_matrix[0].scores.Option A" in str(exc)
+        assert "decision_matrix/0/scores/Option A" in str(exc)
     else:
         raise AssertionError("Expected ValueError for invalid matrix score type")
 
@@ -95,3 +95,41 @@ def test_find_adr_file_raises_on_ambiguous_match(tmp_path: Path) -> None:
         assert "Multiple files found" in str(exc)
     else:
         raise AssertionError("Expected ValueError for ambiguous ADR match")
+
+
+def _valid_amendment_payload() -> dict:
+    return {
+        "type": "amendment",
+        "target_adr": "ADR-008",
+        "amendment_scope": "minor",
+        "amendment_date": "2026-09-10",
+        "amendment_content": {"notes": ["First note.", "Second note."]},
+    }
+
+
+def test_schema_validate_rejects_string_where_array_expected() -> None:
+    """A string in place of an array of strings is caught by schema validation.
+
+    Regression for cap-ak7: the hand-rolled pass never typed
+    ``amendment_content.notes``, so a plain string validated and the renderer
+    iterated it character by character, splicing ~3000 one-character admonition
+    blocks into the target ADR while exiting 0.
+    """
+    module = _load_render_adr_module()
+    payload = _valid_amendment_payload()
+    payload["amendment_content"]["notes"] = "a plain string, not a list"
+    try:
+        module.validate(payload)
+    except ValueError as exc:
+        message = str(exc)
+        assert "amendment_content/notes" in message
+        assert "array" in message
+    else:
+        raise AssertionError("Expected ValueError for notes given as a string")
+
+
+def test_schema_validate_accepts_valid_payloads() -> None:
+    """Schema validation is additive: previously valid inputs still pass."""
+    module = _load_render_adr_module()
+    module.validate(_valid_new_payload())
+    module.validate(_valid_amendment_payload())

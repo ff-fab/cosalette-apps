@@ -23,11 +23,32 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft7Validator
+from jsonschema.exceptions import best_match
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 SCALE_LEGEND = "_Scale: 1 (poor) to 5 (excellent)_"
+
+# The JSON schema is the contract (see the adr-create skill); render_adr.py is
+# repo-root/scripts/, so the schema sits two levels up.
+_SCHEMA_PATH = (
+    Path(__file__).resolve().parent.parent
+    / ".github"
+    / "agents"
+    / "schemas"
+    / "adr-input.schema.json"
+)
+
+# Maps the input `type` to the schema definition that describes it, so schema
+# validation can target the right branch instead of the top-level oneOf.
+_TYPE_TO_DEFINITION = {
+    "new": "new_adr",
+    "amendment": "amendment_adr",
+    "supersede": "supersede_adr",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +58,43 @@ SCALE_LEGEND = "_Scale: 1 (poor) to 5 (excellent)_"
 # main() catches ValueError to print a friendly message + exit non-zero, and the
 # unit tests assert ValueError. Hence `# noqa: TRY004` on those isinstance guards.
 # ---------------------------------------------------------------------------
+
+
+def _schema_validate(data: Any) -> None:
+    """Validate *data* against the committed ADR input JSON schema.
+
+    Runs before the hand-rolled checks so type mismatches the structural pass
+    misses are caught at the boundary — e.g. a plain string where the schema
+    wants an array of strings, which the renderer would otherwise iterate
+    character by character and splice into the target ADR (cap-ak7).
+    """
+    try:
+        schema = json.loads(_SCHEMA_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        msg = f"Cannot load ADR input schema at {_SCHEMA_PATH}: {exc}"
+        raise ValueError(msg) from exc
+
+    # Validate against the definition selected by `type` rather than the
+    # top-level oneOf, so a failure points at the offending field instead of
+    # reporting "not valid under any of the given schemas" at the root. A
+    # missing or unknown type falls back to the full schema, which reports the
+    # type problem itself.
+    definition = _TYPE_TO_DEFINITION.get(
+        data.get("type") if isinstance(data, dict) else None
+    )
+    target = (
+        schema
+        if definition is None
+        else {**schema["definitions"][definition], "definitions": schema["definitions"]}
+    )
+
+    errors = list(Draft7Validator(target).iter_errors(data))
+    if not errors:
+        return
+    match = best_match(errors)
+    location = "/".join(str(part) for part in match.absolute_path) or "(root)"
+    msg = f"Schema validation failed at {location}: {match.message}"
+    raise ValueError(msg)
 
 
 def _require(data: dict[str, Any], key: str, label: str = "") -> Any:
@@ -283,7 +341,8 @@ def _validate_amendment(data: dict[str, Any]) -> None:
 
 
 def validate(data: dict[str, Any]) -> None:
-    """Run structural validation on the input JSON."""
+    """Run schema then structural validation on the input JSON."""
+    _schema_validate(data)
     adr_type = _require(data, "type")
     if adr_type in ("new", "supersede"):
         _validate_new_or_supersede(data)

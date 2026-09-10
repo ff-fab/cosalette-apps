@@ -213,4 +213,8 @@ dev = [
     "urllib3>=2.7.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
     # AI/MCP tooling support (cosalette ai mcp serve)
     "cosalette[mcp]>=0.9.5,<0.10",
+    # ADR tooling: scripts/render_adr.py validates input against the committed
+    # JSON schema (cap-ak7). Declared explicitly rather than relied on
+    # transitively via cosalette[schema].
+    "jsonschema>=4.26.0",
 ]
