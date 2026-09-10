@@ -1,18 +1,16 @@
 """Integration tests for docs/schema.yaml — Home Assistant MQTT discovery generation.
 
-Guards the consumer-metadata enrichment in the AsyncAPI schema: regenerating
-the schema with ``cosalette schema init`` (or
-``task wallpanel-control:schema:generate``) strips the ``x-cosalette-consumer``
-annotations, which would silently break HA discovery. These tests fail loudly
-if that happens.
+Guards the channel-level composite in the AsyncAPI schema: regenerating the
+schema with ``cosalette schema init`` (or
+``task wallpanel-control:schema:generate``) strips the
+``x-cosalette-ha-discovery`` composite, which would silently break HA discovery.
+These tests fail loudly if that happens.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
 
 Test Techniques Used:
-- Specification-based: schema enrichment must yield the documented HA entities
-- Equivalence Partitioning: numeric (brightness %) vs enum (display state) sensors
-- Parametrize: both enriched display fields declared once, no duplication
+- Specification-based: the composite must yield one HA light for the display
 - Cross-check (cap-5f8): every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
@@ -91,59 +89,66 @@ def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, 
 
 @pytest.mark.integration
 class TestHaDiscoveryGeneration:
-    """Verify the enriched schema produces valid HA MQTT discovery payloads."""
+    """Verify the schema produces one composite HA light for the display."""
 
-    def test_generates_enriched_display_sensors(
+    def test_display_collapses_to_one_light(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """Only the enriched display fields yield discovery payloads.
+        """The display's two channels surface as a single ``light`` entity.
 
-        The display channel contributes four entities: two read-only sensors
-        from ``DisplayState`` on ``/state``, and two ``_cmd`` controls from
-        ``DisplayCommand`` on ``/set``. The ``/set`` annotations are required —
-        cosalette 0.9.4 evaluates the discovery gate per channel, and this
-        registration cannot opt ``displayCommand`` out without also opting out
-        its own ``/state`` channel (cosalette ADR-073, cap-wyy).
+        cosalette 0.9.5's channel-level composite (ADR-057) merges the ``/set``
+        and ``/state`` channels into one entity when the same ``ha_entities()``
+        spec rides on both ``DisplayCommand`` and ``DisplayState``. That replaces
+        the four scalar entities (two sensors + a select + a number) the
+        per-field ``consumer()`` annotations used to emit (cap-c9v).
 
         Technique: Specification-based — system/action is command-ack only and
-        carries no x-cosalette-consumer, so it produces no HA entity.
+        carries no consumer metadata, so it produces no HA entity either.
         """
-        expected = {
-            "display_brightness_percent",
-            "display_state",
-            "display_brightness_percent_cmd",
-            "display_state_cmd",
-        }
-        object_ids = {p["config"]["object_id"] for p in entity_payloads}
-        assert object_ids == expected
-        for payload in entity_payloads:
-            assert "unique_id" in payload["config"]
+        assert [p["config"]["object_id"] for p in entity_payloads] == [
+            "display_display"
+        ]
+        light = entity_payloads[0]
+        assert light["topic"] == (
+            "homeassistant/light/wallpanel_control/display_display/config"
+        )
+        assert light["config"]["unique_id"] == (
+            "cosalette_wallpanel_control_display_display"
+        )
 
-    def test_control_and_sensor_names_do_not_collide(
-        self, entity_payloads: list[dict[str, Any]]
+    def test_display_light_template_config(
+        self, configs_by_id: dict[str, dict[str, Any]]
     ) -> None:
-        """No two display entities share a friendly name.
+        """The light maps HA's vocabulary onto the app's wire payloads.
 
-        All four land on one HA device, so a duplicate ``name`` would leave the
-        user two indistinguishable rows in every entity picker.
+        The composite uses HA's ``template`` light schema so the MQTT contract
+        stays unchanged: brightness is 1-100 on the wire but 0-255 in HA, and
+        state is lower-case ``on``/``off``. The command templates publish to the
+        ``/set`` channel; the state templates read the ``/state`` channel.
 
-        Technique: Error Guessing — the specific failure mode of reusing a
-        DisplayState display_name on the paired DisplayCommand field.
+        Technique: Specification-based — locks the composite's read/write topics
+        and template keys so a regression dropping the mapping fails loudly.
         """
-        names = [p["config"]["name"] for p in entity_payloads]
-        assert len(names) == len(set(names)), f"duplicate entity names: {names}"
+        config = configs_by_id["display_display"]
+        assert config["schema"] == "template"
+        assert config["state_topic"] == "wallpanel-control/display/state"
+        assert config["command_topic"] == "wallpanel-control/display/set"
+        for key in (
+            "command_on_template",
+            "command_off_template",
+            "state_template",
+            "brightness_template",
+        ):
+            assert config.get(key), f"missing {key} on composite light"
 
     def test_payloads_grouped_under_per_device_ha_devices(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """Every entity sits on the per-device ``display`` HA device.
+        """The light sits on the per-device ``display`` HA device.
 
         cosalette 0.6.2 (ADR-058) models each resolved device as its own HA
         device linked to the app bridge via ``via_device``, replacing the
-        single app-wide device earlier releases emitted. The component segment
-        varies — the ``/state`` fields are sensors, the ``/set`` fields a select
-        and a number — so only the app segment is asserted here; component
-        choice is covered by test_writable_components_carry_a_command_topic.
+        single app-wide device earlier releases emitted.
 
         Technique: Specification-based — HA device grouping contract.
         """
@@ -173,55 +178,14 @@ class TestHaDiscoveryGeneration:
         assert config["entity_category"] == "diagnostic"
         assert config["device"]["identifiers"] == ["cosalette_wallpanel_control"]
 
-    @pytest.mark.parametrize(
-        "object_id, expected_fields",
-        [
-            (
-                "display_brightness_percent",
-                {
-                    "unit_of_measurement": "%",
-                    "state_class": "measurement",
-                    "icon": "mdi:brightness-percent",
-                    "value_template": "{{ value_json.brightness_percent }}",
-                },
-            ),
-            (
-                "display_state",
-                {
-                    "icon": "mdi:monitor",
-                    "value_template": "{{ value_json.state }}",
-                },
-            ),
-        ],
-    )
-    def test_sensor_config_fields_match_enrichment_annotations(
-        self,
-        configs_by_id: dict[str, dict[str, Any]],
-        object_id: str,
-        expected_fields: dict[str, Any],
-    ) -> None:
-        """Each sensor carries the expected HA config fields.
-
-        Technique: Equivalence Partitioning — numeric measurement (brightness)
-        vs plain enum text (state, no unit/state_class).
-        """
-        config = configs_by_id.get(object_id)
-        assert config is not None, f"No payload found for object_id={object_id!r}"
-        for key, value in expected_fields.items():
-            assert config.get(key) == value, (
-                f"{object_id}: expected {key}={value!r}, got {config.get(key)!r}"
-            )
-
     def test_writable_components_carry_a_command_topic(
         self, ha_payloads: list[dict[str, Any]]
     ) -> None:
         """No writable HA component is emitted without a command_topic.
 
-        The display entities live on a send-only channel that cosalette still
-        stamps ``x-cosalette-archetype: command``. cosalette 0.6.1 infers the
-        component from the archetype alone, so without ``read_only`` on the
-        DisplayState fields it emits a ``number`` / ``select`` carrying only a
-        ``state_topic`` — a config Home Assistant rejects (cap-bo0).
+        The display light is a writable component; without the composite's
+        ``command_topic`` (sourced from the ``/set`` channel) Home Assistant
+        would reject a light it cannot command.
 
         Technique: Error Guessing — anticipates the specific failure mode of a
         writable component with no way to write.
@@ -234,25 +198,6 @@ class TestHaDiscoveryGeneration:
                     f"{payload['topic']}: {component} is a writable component but "
                     "carries no command_topic"
                 )
-
-    def test_display_state_is_plain_text_sensor(
-        self, configs_by_id: dict[str, dict[str, Any]]
-    ) -> None:
-        """display_state carries no numeric-measurement metadata.
-
-        Technique: Equivalence Partitioning — locks the boundary between the
-        plain enum-text sensor (state) and the numeric-measurement sensor
-        (brightness). Mirrors the airthings radon negative guard: a regression
-        adding spurious device_class/unit/state_class to the text sensor must
-        fail loudly.
-        """
-        config = configs_by_id.get("display_state")
-        assert config is not None, "No payload found for object_id='display_state'"
-        for key in ("device_class", "unit_of_measurement", "state_class"):
-            assert key not in config, (
-                f"display_state: unexpected {key}={config.get(key)!r} "
-                "on a plain-text sensor"
-            )
 
 
 @pytest.mark.integration

@@ -22,9 +22,6 @@ channels:
               - type: 'null'
               default: null
               title: State
-              x-cosalette-consumer:
-                display_name: Display Power
-                icon: mdi:monitor-shimmer
             brightness_percent:
               anyOf:
               - maximum: 100
@@ -33,12 +30,22 @@ channels:
               - type: 'null'
               default: null
               title: Brightness Percent
-              x-cosalette-consumer:
-                display_name: Display Brightness Setpoint
-                unit: '%'
-                icon: mdi:brightness-percent
           title: DisplayCommand
           type: object
+          x-cosalette-ha-discovery:
+            entities:
+            - component: light
+              extra:
+                brightness_template: '{% if value_json.brightness_percent is not none
+                  %}{{ (value_json.brightness_percent / 100 * 255) | round | int }}{%
+                  else %}0{% endif %}'
+                command_off_template: '{"state": "off"}'
+                command_on_template: '{"state": "on"{% if brightness is defined %},
+                  "brightness_percent": {{ [1, (brightness / 255 * 100) | round |
+                  int] | max }}{% endif %}}'
+                schema: template
+                state_template: '{{ value_json.state | default("off", true) }}'
+              name: Display
     x-cosalette-archetype: command
     x-cosalette-summary: Control display state and brightness
   displayState:
@@ -60,10 +67,6 @@ channels:
                 type: string
               - type: 'null'
               title: State
-              x-cosalette-consumer:
-                display_name: Display State
-                icon: mdi:monitor
-                read_only: true
             brightness_percent:
               anyOf:
               - maximum: 100
@@ -71,18 +74,26 @@ channels:
                 type: integer
               - type: 'null'
               title: Brightness Percent
-              x-cosalette-consumer:
-                display_name: Display Brightness
-                unit: '%'
-                state_class: measurement
-                icon: mdi:brightness-percent
-                read_only: true
           required:
           - available
           - state
           - brightness_percent
           title: DisplayState
           type: object
+          x-cosalette-ha-discovery:
+            entities:
+            - component: light
+              extra:
+                brightness_template: '{% if value_json.brightness_percent is not none
+                  %}{{ (value_json.brightness_percent / 100 * 255) | round | int }}{%
+                  else %}0{% endif %}'
+                command_off_template: '{"state": "off"}'
+                command_on_template: '{"state": "on"{% if brightness is defined %},
+                  "brightness_percent": {{ [1, (brightness / 255 * 100) | round |
+                  int] | max }}{% endif %}}'
+                schema: template
+                state_template: '{{ value_json.state | default("off", true) }}'
+              name: Display
     x-cosalette-archetype: command
     x-cosalette-summary: Control display state and brightness
   systemActionCommand:
