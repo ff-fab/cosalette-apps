@@ -9,7 +9,16 @@
 #      `claude` binary is on PATH. It is not installed in the devcontainer image
 #      (and we are not adding it), so this check skips gracefully rather than
 #      failing CI on a missing binary.
-#   3. union `tools:` + no `model:` — the two frontmatter invariants for
+#   3. .claude/output-styles/ tripwire — an output style is injected verbatim into
+#      every Claude Code session that opens the repo, from a branch-controlled file,
+#      and no schema validates it. This check is deliberately narrow: it verifies the
+#      frontmatter is present and well-formed, and it refuses a style that tries to
+#      direct tools, permissions, network access or filesystem paths. A style file
+#      describes how to WRITE; anything that tells the agent what to DO belongs in
+#      .github/instructions/ where it is reviewed as such. Same instinct as AGENTS.md
+#      records for CODEX_HOME/prompts/: branch content must not impersonate or
+#      redirect the agent's own controls.
+#   4. union `tools:` + no `model:` — the two frontmatter invariants for
 #      .github/agents/ files: each agent names at least one tool from the Copilot
 #      vocabulary AND one from Claude Code's vocabulary, and none of them carry a
 #      model: key (the one key that cannot be shared, cap-wf3). Still relevant:
@@ -133,6 +142,53 @@ check_claude_rules_symlinks() {
   fi
 }
 
+# ── Check: .claude/output-styles/ frontmatter + denylist ──────
+# Narrow by design — see the header note. A false positive here is a style rewritten
+# to say the same thing without the trigger word; a false negative is a branch that
+# silently re-points every agent in the repo.
+check_output_style() {
+  local file="$1"
+  local name
+  name=$(basename "$file")
+
+  local first_line
+  first_line=$(head -n 1 "$file")
+  if [[ "$first_line" != "---" ]]; then
+    printf "${RED}✗ NO FRONTMATTER:${NC} %s does not open with ---\n" "$file"
+    ((errors++))
+    return
+  fi
+
+  local description
+  description=$(extract_yaml_field "$file" "description")
+  if [[ -z "$description" ]]; then
+    printf "${RED}✗ NO DESCRIPTION:${NC} %s frontmatter has no description:\n" "$file"
+    ((errors++))
+    return
+  fi
+
+  # Directive-shaped content. An output style governs prose, not behaviour.
+  local pattern hit
+  local -a patterns=(
+    'allowed-tools:'
+    'disallowed-tools:'
+    'permissions:'
+    'hooks:'
+    'mcpServers:'
+    'settings\.local\.json'
+  )
+  for pattern in "${patterns[@]}"; do
+    if hit=$(grep -nE "$pattern" "$file" | head -n 1) && [[ -n "$hit" ]]; then
+      printf "${RED}✗ DIRECTIVE IN STYLE:${NC} %s: %s\n" "$file" "$hit"
+      printf "  An output style controls wording only. Move behaviour to .github/instructions/.\n"
+      ((errors++))
+      return
+    fi
+  done
+
+  printf "${GREEN}✓${NC} %s (%s)\n" "$name" "${description:0:48}"
+}
+
 # ── Check: claude plugin validate (only if the binary is on PATH) ─
 # The `claude` binary is not installed in the devcontainer image and we are not adding
 # it just for this check, so skip gracefully instead of failing CI in that environment.
@@ -220,6 +276,18 @@ echo ""
 echo "=== Checking claude plugin validate .github ==="
 echo ""
 check_claude_plugin_validate
+echo ""
+
+# ── Check .claude/output-styles/ ──────────────────────────────
+echo "=== Checking output styles (.claude/output-styles/) ==="
+echo ""
+
+if require_dir ".claude/output-styles"; then
+  while IFS= read -r -d '' style; do
+    check_output_style "$style"
+  done < <(find .claude/output-styles -maxdepth 1 -name '*.md' -print0)
+fi
+
 echo ""
 
 # ── Check union tools: frontmatter + model: absence (.github/agents/) ─

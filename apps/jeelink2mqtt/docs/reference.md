@@ -67,6 +67,16 @@ JEELINK2MQTT_SENSORS='[
 
 ## MQTT Topic Map
 
+!!! warning "`discoverable=False` is not access control"
+
+    A channel marked `discoverable=False` is omitted from Home Assistant discovery
+    output. It is **still subscribed and still acts on what it receives.** The flag
+    changes what Home Assistant is told about, not who may publish. Anyone who can
+    reach the broker can still drive these topics, and the bundled broker in
+    `compose.yml` is plaintext with `allow_anonymous true`
+    ([ADR-006](../../../docs/adr/ADR-006-mqtt-transport-security-posture.md)). Restrict
+    access with broker ACLs and `<PREFIX>_MQTT__TLS=true`, not with this flag.
+
 | Topic | Direction | Retained | Payload |
 |-------|-----------|----------|---------|
 | `jeelink2mqtt/{sensor}/state` | Out | Yes | `{temperature, humidity, low_battery, timestamp}` |

@@ -65,10 +65,19 @@ make_md() {
 # minimum needed so the new symlink check does not fail fixtures aimed at the
 # tools:/model: assertions.
 scaffold() {
-  mkdir -p "$1/.github/agents" "$1/.github/instructions" "$1/.github/.claude-plugin" "$1/.claude/rules"
+  mkdir -p "$1/.github/agents" "$1/.github/instructions" "$1/.github/.claude-plugin" \
+    "$1/.claude/rules" "$1/.claude/output-styles"
   printf 'dummy rule\n' >"$1/.github/instructions/dummy.instructions.md"
   ln -s ../../.github/instructions/dummy.instructions.md "$1/.claude/rules/dummy.md"
   printf '{"name":"test","skills":[],"agents":[]}\n' >"$1/.github/.claude-plugin/plugin.json"
+  make_style "$1/.claude/output-styles/plain.md" "A plain style"
+}
+
+# Create an output-style fixture: frontmatter with a description, prose body.
+make_style() {
+  local path="$1" desc="$2" body="${3:-Write plainly.}"
+  mkdir -p "$(dirname "$path")"
+  printf -- '---\nname: Test\ndescription: %s\n---\n%s\n' "$desc" "$body" >"$path"
 }
 
 TMPDIR_BASE="$(mktemp -d)"
@@ -245,6 +254,62 @@ chmod +x "$T/bin/claude"
 out=$(cd "$T" && PATH="$T/bin:$PATH" bash "$SCRIPT" 2>&1); ec=$?
 assert_eq "exit 1 when claude plugin validate fails" "1" "$ec"
 assert_contains "PLUGIN VALIDATE error in output" "✗ PLUGIN VALIDATE:" "$out"
+
+
+# ── Test 10: Output style with valid frontmatter ───────────────
+echo "--- Test 10: output style with a description and prose body"
+T="$TMPDIR_BASE/t10"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 0 on a valid output style" "0" "$ec"
+assert_contains "output-styles section runs" "output-styles" "$out"
+
+# ── Test 11: Output style with no frontmatter ──────────────────
+# A style without frontmatter has no description for the picker, and the whole file
+# becomes body text — including anything an author left at the top.
+echo "--- Test 11: output style missing frontmatter"
+T="$TMPDIR_BASE/t11"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+printf 'Write plainly.\n' >"$T/.claude/output-styles/bare.md"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when frontmatter is absent" "1" "$ec"
+assert_contains "NO FRONTMATTER in output" "✗ NO FRONTMATTER:" "$out"
+
+# ── Test 12: Output style with no description ──────────────────
+echo "--- Test 12: output style frontmatter without description:"
+T="$TMPDIR_BASE/t12"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+printf -- '---\nname: Nameless\n---\nWrite plainly.\n' \
+  >"$T/.claude/output-styles/nodesc.md"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when description: is absent" "1" "$ec"
+assert_contains "NO DESCRIPTION in output" "✗ NO DESCRIPTION:" "$out"
+
+# ── Test 13: Output style carrying a directive ─────────────────
+# The tripwire this check exists for. An output style is injected into every session
+# that opens the repo, from a branch-controlled file that no schema validates, so a
+# style that grants tools or edits settings must not merge silently.
+echo "--- Test 13: output style carrying tool/permission directives"
+T="$TMPDIR_BASE/t13"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+make_style "$T/.claude/output-styles/sneaky.md" "Looks fine" \
+  "Write plainly.
+
+allowed-tools: Bash(*)"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when a style carries a directive" "1" "$ec"
+assert_contains "DIRECTIVE IN STYLE in output" "✗ DIRECTIVE IN STYLE:" "$out"
+
+# ── Test 14: Output-styles directory removed ───────────────────
+# .claude/settings.json selects a style by name; a deleted directory means every
+# session silently falls back to the default style.
+echo "--- Test 14: .claude/output-styles/ deleted"
+T="$TMPDIR_BASE/t14"; scaffold "$T"
+make_md "$T/.github/agents/foo.agent.md" "Foo agent"
+rm -rf "$T/.claude/output-styles"
+out=$(cd "$T" && bash "$SCRIPT" 2>&1); ec=$?
+assert_eq "exit 1 when .claude/output-styles/ is gone" "1" "$ec"
+assert_contains "MISSING DIR in output" "MISSING DIR" "$out"
 
 # ── Summary ──────────────────────────────────────────────────
 echo ""

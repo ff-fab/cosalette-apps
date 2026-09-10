@@ -9,7 +9,7 @@ tags: [mqtt, architecture, dependencies, lifecycle, testing]
 
 ## Status
 
-Accepted **Date:** 2026-08-24
+Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-10
 
 ## Context
 
@@ -113,4 +113,25 @@ _Scale: 1 (poor) to 5 (excellent)_
 - wallpanel-control currently passes store=None (ADR-049 convention), so its adoption yields publication without orphan reconciliation unless it also adopts a store
 - openHAB keeps its capability asymmetry: no runtime protocol exists, so docs/schema.yaml, schema:generate and the schema:check CI gate stay mandatory for every app regardless of HA adoption
 
-_2026-08-24_
+## Amendment (2026-09-10) — Minor
+
+**Rationale:** The Context section describes a state of the world that cosalette 0.9.4 has changed. Three of its per-app statements are now wrong, and one of them is the reason a reader could conclude that caldates2mqtt is expected to fail. The decision itself is unaffected, so this is a note rather than a revision.
+
+!!! note "Editorial note (2026-09-10)"
+    **Superseded by ADR-008 for the per-channel question.** The Context above was written against cosalette 0.6.3, whose discovery gate was registry-wide. cosalette 0.9.4 made it per-channel, and three of the per-app statements in that section no longer hold.
+
+!!! note "Editorial note (2026-09-10)"
+    "caldates2mqtt exits non-zero by design because 0.6.3 still skips array-item consumer annotations" — array-item annotations are still skipped, but the supported answer arrived in upstream ADR-057: a channel-level `ha_entities()` composite derives one entity from the whole payload rather than from a single property. caldates2mqtt now emits one event-count sensor per calendar and exits 0.
+
+!!! note "Editorial note (2026-09-10)"
+    "jeelink2mqtt emits nothing until it gains `consumer()` annotations (cap-egy)" — it gained them; jeelink2mqtt emits seven payloads.
+
+!!! note "Editorial note (2026-09-10)"
+    "suncast has no HA surface at all (SVG image payload)" — still true, but now *declared* rather than incidental: the channel carries `discoverable=False`, without which the 0.9.4 per-channel gate would treat it as an error.
+
+!!! note "Editorial note (2026-09-10)"
+    The rule governing all three, and the trap that a *returning* command registered `discoverable=False` also hides the telemetry sensors published under its name, is recorded in ADR-008.
+
+### Additional Negative Consequences
+
+- The per-app inventory in this ADR's Context is a snapshot, not a contract, and it drifted within three cosalette releases. Read ADR-008 for the current per-channel rule rather than this list.

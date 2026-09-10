@@ -217,6 +217,17 @@ appear as `cosalette:<name>` (e.g. `cosalette:orchestrator`, `/cosalette:pr-revi
 Adding a skill needs no manifest change — the whole `./skills/` directory is registered.
 Adding an **agent** does: the manifest lists agent files individually.
 
+**Why the response style sits outside `.github/`.** It is the one surface in the table
+that does not live there, which looks like an oversight and is not. Claude Code resolves
+`outputStyle` in `.claude/settings.json` against `.claude/output-styles/` by path, and
+no other tool consumes the surface at all, so routing it through the plugin manifest
+would add indirection for a single reader and no sharing. The plugin schema does expose
+an `outputStyles` key; use it only if a second tool ever grows an equivalent. Because
+the file is branch-controlled and injected into every session that opens the repo,
+`task check:agents` validates its frontmatter and rejects a style that tries to direct
+tools, permissions or paths — the same instinct that keeps the devcontainer from writing
+to `CODEX_HOME/prompts/`.
+
 Some files carry frontmatter keys for more than one tool at once; each tool ignores the
 keys it does not recognise. Do not remove a key because your tool has no use for it. The
 one exception is `model:`, which all three tools recognise with incompatible
@@ -250,8 +261,10 @@ template-owned frontmatter keys are updated and every other top-level key — in
 the downstream `paths:` this repo adds — is preserved
 (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
 **comments inside the frontmatter**, and **the entire body**, which is replaced by the
-shipped template. Any repo-specific body note (currently just the MQTT TLS posture note)
-must be re-added afterwards. Run `cosalette ai init --check` first to see the diff.
+shipped template. Every repo-specific body note must be re-added afterwards; grep the
+file for `Downstream note` to find them. There are currently two: the MQTT TLS posture
+note under Configuration, and the `discoverable=`/channel-merge note under "Opting a
+channel out of discovery". Run `cosalette ai init --check` first to see the diff.
 
 A refresh also rewrites `.vscode/mcp.json`, pointing the cosalette server at
 `uv run --package cosalette`. That fails here — `cosalette` is a dependency, not a

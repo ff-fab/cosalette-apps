@@ -257,12 +257,14 @@ legacy/
 # Kilo runtime state only — the shared config lives in `kilo.jsonc` and `.github/`.
 .kilo/
 
-# Claude Code runtime state. `.claude/settings.json`, `.claude/rules/` and
-# `.claude/output-styles/` ARE committed — they are shared config. Everything below
-# is per-developer or per-session.
-.claude/worktrees/
-.claude/settings.local.json
-.claude/scheduled_tasks.lock
+# Claude Code. Deliberately an ALLOWLIST, not a denylist: Claude Code writes
+# per-session artifacts into `.claude/` and a new one would otherwise be tracked by
+# default. Only the three shared-config paths below are committed; add a new `!` line
+# when a new shared surface appears.
+.claude/*
+!.claude/settings.json
+!.claude/rules/
+!.claude/output-styles/
 
 # QA task logs
 .qa-logs/

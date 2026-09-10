@@ -7,8 +7,9 @@ description: 'cosalette framework development guidance for AI agents'
 # REFRESH BEHAVIOUR: `cosalette ai init --force` merges frontmatter and replaces the body
 # (`_package_cli/_ai_init.py::_merge_instruction_content`). Template-owned keys are
 # updated; every other top-level key, `paths:` included, survives verbatim. Two things do
-# not: these comments, and the entire body below. Re-add any downstream body note (see
-# "Downstream note" under Configuration) after a refresh, and run
+# not: these comments, and the entire body below. Re-add every downstream body note
+# after a refresh — grep for "Downstream note"; there are two, one under Configuration
+# (MQTT TLS posture) and one under "Opting a channel out of discovery". Run
 # `cosalette ai init --check` first to preview the diff.
 applyTo: '**/*.py'
 paths:
@@ -555,6 +556,45 @@ class BulbState(pydantic.BaseModel):
 own `<x>_state_topic`/`<x>_command_topic` via `extra`; `cover` keeps them). A
 `device` archetype's paired `/state` + `/set` channels share one model and merge
 into one entity automatically. See `cosalette ai help consumer-overrides`, ADR-057.
+
+### Opting a channel out of discovery
+
+A telemetry/command/device channel that is deliberately NOT a Home Assistant /
+openHAB entity (a diagnostic counter, an internal event feed) declares it at
+registration with `discoverable=False`:
+
+```python
+@app.telemetry("diagnostics", interval=60, discoverable=False)
+async def diagnostics() -> dict:
+    return {"loop_lag_ms": measure()}
+```
+
+It is then excluded from `schema ha-discovery`/`openhab` and does not trip the
+per-channel discovery gate; `x-cosalette-discoverable: false` is emitted on the
+generated channel only when set, so default documents stay byte-identical. The
+gate is evaluated per channel: every consumer-visible channel that emits nothing
+is reported by name. A top-level array-of-objects property (`events: list[Event]`)
+emits no entity — it has no single value, so route it through a channel-level
+`ha_entities()` composite instead. See `cosalette ai help discovery`, ADR-073.
+
+> **Downstream note — not from the shipped template; re-add after `ai init`.**
+>
+> **`discoverable=` is reconciled per channel, and a command's `/state` channel merges
+> into a same-named telemetry channel with the opt-out winning.** So registering a
+> *returning* command `discoverable=False` also hides the telemetry sensors published
+> under that name. Before opting a command out, make the handler void (annotate it
+> `-> None` and set no `state_model=`): a void command emits no `/state` channel, so
+> nothing merges and the opt-out stays confined to `/set`. vito2mqtt lost 10 Home
+> Assistant sensors and 4 devices to this during the 0.9.4 upgrade; its
+> `TestDiscoveryOptOut` suite now locks the pairing.
+>
+> When the command genuinely must publish state, the opt-out is not available at all.
+> Annotate its payload model with `consumer()` so the `/set` channel emits real
+> controls instead — that is what wallpanel-control's `DisplayCommand` does.
+>
+> Always assert the outcome. `cosalette schema check` compares registered device names
+> and never reads `x-cosalette-discoverable`, so neither a lost sensor nor a lost
+> opt-out fails CI on its own.
 
 ### Runtime discovery publication
 
