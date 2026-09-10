@@ -45,12 +45,21 @@ def ha_payloads() -> list[dict[str, Any]]:
         [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
         capture_output=True,
         text=True,
-        check=True,
+        # check=False so a non-zero exit surfaces as one named assertion failure
+        # with the CLI's stderr attached. Under check=True the raised
+        # CalledProcessError renders only "returned non-zero exit status 1" and
+        # the sentence naming the offending channels is lost in the unread
+        # .stderr — and because this fixture is module-scoped, every test in the
+        # module ERRORs instead of one FAILing with the reason.
+        check=False,
         env={
             k: os.environ[k]
             for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
             if k in os.environ
         },
+    )
+    assert result.returncode == 0, (
+        f"ha-discovery exited {result.returncode}:\n{result.stderr}"
     )
     payloads = json.loads(result.stdout)
     assert payloads, "ha-discovery CLI returned no payloads"

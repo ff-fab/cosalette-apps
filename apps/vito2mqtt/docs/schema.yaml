@@ -153,65 +153,59 @@ channels:
     messages:
       message:
         payload:
-          oneOf:
-          - properties:
-              flow_temperature_m2:
-                title: Flow Temperature M2
-                type: number
-                x-cosalette-consumer:
-                  display_name: Flow Temperature M2 (Floor)
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-              flow_temperature_setpoint_m2:
-                title: Flow Temperature Setpoint M2
-                type: number
-                x-cosalette-consumer:
-                  display_name: Flow Temperature Setpoint M2 (Floor)
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-              pump_status_m2:
-                title: Pump Status M2
-                type: string
-              pump_speed_m2:
-                title: Pump Speed M2
-                type: integer
-                x-cosalette-consumer:
-                  display_name: Pump Speed M2 (Floor)
-                  unit: '%'
-                  state_class: measurement
-                  icon: mdi:pump
-              frost_warning_m2:
-                title: Frost Warning M2
-                type: integer
-              frost_limit_m2:
-                title: Frost Limit M2
-                type: integer
-              operating_mode_m2:
-                title: Operating Mode M2
-                type: string
-              operating_mode_economy_m2:
-                title: Operating Mode Economy M2
-                type: string
-            required:
-            - flow_temperature_m2
-            - flow_temperature_setpoint_m2
-            - pump_status_m2
-            - pump_speed_m2
-            - frost_warning_m2
-            - frost_limit_m2
-            - operating_mode_m2
-            - operating_mode_economy_m2
-            title: HeatingFloorState
-            type: object
-          - anyOf: &id001
-            - additionalProperties: true
-              type: object
-            - type: 'null'
+          properties:
+            flow_temperature_m2:
+              title: Flow Temperature M2
+              type: number
+              x-cosalette-consumer:
+                display_name: Flow Temperature M2 (Floor)
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+            flow_temperature_setpoint_m2:
+              title: Flow Temperature Setpoint M2
+              type: number
+              x-cosalette-consumer:
+                display_name: Flow Temperature Setpoint M2 (Floor)
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+            pump_status_m2:
+              title: Pump Status M2
+              type: string
+            pump_speed_m2:
+              title: Pump Speed M2
+              type: integer
+              x-cosalette-consumer:
+                display_name: Pump Speed M2 (Floor)
+                unit: '%'
+                state_class: measurement
+                icon: mdi:pump
+            frost_warning_m2:
+              title: Frost Warning M2
+              type: integer
+            frost_limit_m2:
+              title: Frost Limit M2
+              type: integer
+            operating_mode_m2:
+              title: Operating Mode M2
+              type: string
+            operating_mode_economy_m2:
+              title: Operating Mode Economy M2
+              type: string
+          required:
+          - flow_temperature_m2
+          - flow_temperature_setpoint_m2
+          - pump_status_m2
+          - pump_speed_m2
+          - frost_warning_m2
+          - frost_limit_m2
+          - operating_mode_m2
+          - operating_mode_economy_m2
+          title: HeatingFloorState
+          type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Floor heating circuit temperatures and pump status via Optolink
-    x-cosalette-discoverable: false
   heating_radiatorCommand:
     address: vito2mqtt/heating_radiator/set
     x-cosalette-app: vito2mqtt
@@ -229,53 +223,50 @@ channels:
     messages:
       message:
         payload:
-          oneOf:
-          - properties:
-              flow_temperature_m1:
-                title: Flow Temperature M1
-                type: number
-                x-cosalette-consumer:
-                  display_name: Flow Temperature M1 (Radiator)
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-              flow_temperature_setpoint_m1:
-                title: Flow Temperature Setpoint M1
-                type: number
-                x-cosalette-consumer:
-                  display_name: Flow Temperature Setpoint M1 (Radiator)
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-              pump_status_m1:
-                title: Pump Status M1
-                type: integer
-              frost_warning_m1:
-                title: Frost Warning M1
-                type: integer
-              frost_limit_m1:
-                title: Frost Limit M1
-                type: integer
-              operating_mode_m1:
-                title: Operating Mode M1
-                type: string
-              operating_mode_economy_m1:
-                title: Operating Mode Economy M1
-                type: string
-            required:
-            - flow_temperature_m1
-            - flow_temperature_setpoint_m1
-            - pump_status_m1
-            - frost_warning_m1
-            - frost_limit_m1
-            - operating_mode_m1
-            - operating_mode_economy_m1
-            title: HeatingRadiatorState
-            type: object
-          - anyOf: *id001
+          properties:
+            flow_temperature_m1:
+              title: Flow Temperature M1
+              type: number
+              x-cosalette-consumer:
+                display_name: Flow Temperature M1 (Radiator)
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+            flow_temperature_setpoint_m1:
+              title: Flow Temperature Setpoint M1
+              type: number
+              x-cosalette-consumer:
+                display_name: Flow Temperature Setpoint M1 (Radiator)
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+            pump_status_m1:
+              title: Pump Status M1
+              type: integer
+            frost_warning_m1:
+              title: Frost Warning M1
+              type: integer
+            frost_limit_m1:
+              title: Frost Limit M1
+              type: integer
+            operating_mode_m1:
+              title: Operating Mode M1
+              type: string
+            operating_mode_economy_m1:
+              title: Operating Mode Economy M1
+              type: string
+          required:
+          - flow_temperature_m1
+          - flow_temperature_setpoint_m1
+          - pump_status_m1
+          - frost_warning_m1
+          - frost_limit_m1
+          - operating_mode_m1
+          - operating_mode_economy_m1
+          title: HeatingRadiatorState
+          type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Radiator heating temperatures and pump status via Optolink
-    x-cosalette-discoverable: false
   hot_waterCommand:
     address: vito2mqtt/hot_water/set
     x-cosalette-app: vito2mqtt
@@ -293,33 +284,30 @@ channels:
     messages:
       message:
         payload:
-          oneOf:
-          - properties:
-              hot_water_temperature:
-                title: Hot Water Temperature
-                type: number
-                x-cosalette-consumer:
-                  display_name: Hot Water Temperature
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-              hot_water_outlet_temperature:
-                title: Hot Water Outlet Temperature
-                type: number
-                x-cosalette-consumer:
-                  display_name: Hot Water Outlet Temperature
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-            required:
-            - hot_water_temperature
-            - hot_water_outlet_temperature
-            title: HotWaterState
-            type: object
-          - anyOf: *id001
+          properties:
+            hot_water_temperature:
+              title: Hot Water Temperature
+              type: number
+              x-cosalette-consumer:
+                display_name: Hot Water Temperature
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+            hot_water_outlet_temperature:
+              title: Hot Water Outlet Temperature
+              type: number
+              x-cosalette-consumer:
+                display_name: Hot Water Outlet Temperature
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+          required:
+          - hot_water_temperature
+          - hot_water_outlet_temperature
+          title: HotWaterState
+          type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read hot water temperature sensors via Optolink serial
-    x-cosalette-discoverable: false
   legionellaState:
     address: vito2mqtt/legionella/state
     x-cosalette-app: vito2mqtt
@@ -385,59 +373,56 @@ channels:
     messages:
       message:
         payload:
-          oneOf:
-          - properties:
-              storage_temperature_lowpass:
-                title: Storage Temperature Lowpass
-                type: number
-                x-cosalette-consumer:
-                  display_name: Storage Temperature (Low-pass)
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-              internal_pump_status:
-                title: Internal Pump Status
-                type: string
-              internal_pump_speed:
-                title: Internal Pump Speed
-                type: integer
-                x-cosalette-consumer:
-                  display_name: Internal Pump Speed
-                  unit: '%'
-                  state_class: measurement
-                  icon: mdi:pump
-              storage_charge_pump_status:
-                title: Storage Charge Pump Status
-                type: string
-              circulation_pump_status:
-                title: Circulation Pump Status
-                type: string
-              switch_valve_status:
-                title: Switch Valve Status
-                type: string
-              flow_temperature_setpoint_m3:
-                title: Flow Temperature Setpoint M3
-                type: number
-                x-cosalette-consumer:
-                  display_name: Flow Temperature Setpoint M3
-                  device_class: temperature
-                  unit: °C
-                  state_class: measurement
-            required:
-            - storage_temperature_lowpass
-            - internal_pump_status
-            - internal_pump_speed
-            - storage_charge_pump_status
-            - circulation_pump_status
-            - switch_valve_status
-            - flow_temperature_setpoint_m3
-            title: SystemState
-            type: object
-          - anyOf: *id001
+          properties:
+            storage_temperature_lowpass:
+              title: Storage Temperature Lowpass
+              type: number
+              x-cosalette-consumer:
+                display_name: Storage Temperature (Low-pass)
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+            internal_pump_status:
+              title: Internal Pump Status
+              type: string
+            internal_pump_speed:
+              title: Internal Pump Speed
+              type: integer
+              x-cosalette-consumer:
+                display_name: Internal Pump Speed
+                unit: '%'
+                state_class: measurement
+                icon: mdi:pump
+            storage_charge_pump_status:
+              title: Storage Charge Pump Status
+              type: string
+            circulation_pump_status:
+              title: Circulation Pump Status
+              type: string
+            switch_valve_status:
+              title: Switch Valve Status
+              type: string
+            flow_temperature_setpoint_m3:
+              title: Flow Temperature Setpoint M3
+              type: number
+              x-cosalette-consumer:
+                display_name: Flow Temperature Setpoint M3
+                device_class: temperature
+                unit: °C
+                state_class: measurement
+          required:
+          - storage_temperature_lowpass
+          - internal_pump_status
+          - internal_pump_speed
+          - storage_charge_pump_status
+          - circulation_pump_status
+          - switch_valve_status
+          - flow_temperature_setpoint_m3
+          title: SystemState
+          type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read Vitotronic system status and operational parameters
       via Optolink
-    x-cosalette-discoverable: false
 operations:
   publishBurnerState:
     action: send

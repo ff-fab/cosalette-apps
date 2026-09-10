@@ -5,6 +5,9 @@ A smart home app to read in values of Jeelink temperature and humidity sensors.
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
+Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
+on the 0.9.4 release.
+
 ## Home Assistant Discovery
 
 **Wired up.** `jeelink2mqtt.main` calls `app.discovery()` (ADR-004, ADR-059), so on the

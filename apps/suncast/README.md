@@ -8,7 +8,7 @@ shadows based on your location and building geometry.
 [![cosalette](https://img.shields.io/badge/framework-cosalette-orange?logo=data:image/svg%2bxml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIj4KICA8dGl0bGU+Y29zYWxldHRlIGJhZGdlIGljb24g4oCUIHdoaXRlIHZhcmlhbnQ8L3RpdGxlPgogIDxnIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIxLjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCI+CiAgICA8cG9seWxpbmUgcG9pbnRzPSIxNSw3LjUgMTMsNCA3LDQgNSw3LjUiLz4KICAgIDxwb2x5bGluZSBwb2ludHM9IjUsMTIuNSA3LDE2IDEzLDE2IDE1LDEyLjUiLz4KICAgIDxwb2x5bGluZSBwb2ludHM9IjMsMTAgNywxMCAxMCw1IDEzLDE1IDE2LDEwIDE3LDEwIi8+CiAgPC9nPgo8L3N2Zz4K&color=FFC105&labelColor=0D0D0F)](https://ff-fab.github.io/cosalette/)
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.9.3 release. Inspired by the sun position visualization concept shared by
+on the 0.9.4 release. Inspired by the sun position visualization concept shared by
 [pmpkk (Patrick)](https://community.openhab.org/t/show-current-sun-position-and-shadow-of-house-generate-svg/34764)
 on the openHAB community forum.
 
@@ -145,6 +145,11 @@ buildings and highlighted regions.
 **Not applicable.** This app does not emit Home Assistant MQTT discovery payloads, and
 its `docs/schema.yaml` carries no `x-cosalette-consumer` annotations (running
 `task suncast:schema:ha-discovery` yields an empty payload list `[]`).
+
+Since cosalette 0.9.4 the exclusion is also declared explicitly: the `shadow` telemetry
+handler is registered `discoverable=False`, so `shadowState` carries
+`x-cosalette-discoverable: false`. Without that declaration the per-channel discovery
+gate would treat a consumer-visible channel that emits no entity as an error.
 
 The `shadow` telemetry handler computes solar position and building shadows, renders
 them to an **SVG image**, and delivers that image via the output manager. The payload is

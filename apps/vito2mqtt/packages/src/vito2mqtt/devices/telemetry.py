@@ -47,12 +47,21 @@ from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
 from vito2mqtt.optolink.commands import COMMANDS
 from vito2mqtt.ports import OptolinkPort
 
-__all__ = ["make_telemetry_handler", "INTERVAL_ATTR", "GROUP_SUMMARIES"]
+__all__ = [
+    "make_telemetry_handler",
+    "INTERVAL_ATTR",
+    "GROUP_SUMMARIES",
+    "NON_DISCOVERABLE_GROUPS",
+]
 
 
 # ---------------------------------------------------------------------------
 # Group → settings attribute mapping
 # ---------------------------------------------------------------------------
+
+# Groups excluded from Home Assistant discovery. diagnosis carries raw Optolink
+# signal values for troubleshooting, not consumer entities (cosalette ADR-073).
+NON_DISCOVERABLE_GROUPS: frozenset[str] = frozenset({"diagnosis"})
 
 INTERVAL_ATTR: dict[str, str] = {
     "outdoor": "polling_outdoor",

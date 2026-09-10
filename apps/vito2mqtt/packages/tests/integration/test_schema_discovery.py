@@ -30,12 +30,17 @@ Shared-channel groups
 ---------------------
 Both the *telemetry-only* signal groups (``outdoor``, ``burner``) and the
 shared telemetry+command groups (``hot_water``, ``heating_radiator``,
-``heating_floor``, ``system``) surface HA entities. The shared groups share
-their MQTT topic with a command (ADR-002), so their generated payload is a
-``oneOf[<StateModel>, {anyOf: [object, null]}]``. As of cosalette 0.5.6,
-ha-discovery descends into ``oneOf``/``anyOf`` payload variants, so the
-annotated properties inside the state-model variant now emit entities
-alongside the top-level telemetry-only groups.
+``heating_floor``, ``system``) surface HA entities. A shared group's command
+half writes the same MQTT namespace (ADR-002) but is a *void* handler, so it
+emits no ``/state`` channel of its own and the group's payload is the plain
+state model rather than a ``oneOf`` with the command's return type.
+
+That is load-bearing, not incidental. The command half is registered
+``discoverable=False`` because a ``/set`` channel is not an HA entity. Had the
+handler returned a value, its ``/state`` channel would merge into the
+same-named telemetry channel and the opt-out would win on merge (cosalette
+ADR-073), deleting every sensor below. ``test_shared_groups_stay_discoverable``
+locks that pairing.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from
 the filesystem — not hermetic enough for the unit suite.
@@ -86,8 +91,8 @@ EXPECTED_OBJECT_IDS = {
     "burner_burner_starts",
     "burner_burner_hours_stage1",
     "burner_plant_power_output",
-    # Shared telemetry+command groups — surfaced via 0.5.6 oneOf/anyOf
-    # traversal of the shared-topic payload variants (ADR-002).
+    # Shared telemetry+command groups. The command half is void and opted out
+    # of discovery, so these come from the telemetry half alone (ADR-002).
     "hot_water_hot_water_temperature",
     "hot_water_hot_water_outlet_temperature",
     "heating_radiator_flow_temperature_m1",
@@ -108,12 +113,21 @@ def ha_payloads() -> list[dict[str, Any]]:
         [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
         capture_output=True,
         text=True,
-        check=True,
+        # check=False so a non-zero exit surfaces as one named assertion failure
+        # with the CLI's stderr attached. Under check=True the raised
+        # CalledProcessError renders only "returned non-zero exit status 1" and
+        # the sentence naming the offending channels is lost in the unread
+        # .stderr — and because this fixture is module-scoped, every test in the
+        # module ERRORs instead of one FAILing with the reason.
+        check=False,
         env={
             k: os.environ[k]
             for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
             if k in os.environ
         },
+    )
+    assert result.returncode == 0, (
+        f"ha-discovery exited {result.returncode}:\n{result.stderr}"
     )
     payloads = json.loads(result.stdout)
     assert payloads, "ha-discovery CLI returned no payloads"
@@ -336,3 +350,91 @@ class TestStateTopicsAreReal:
 
         payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(harness, payloads)
+
+
+@pytest.mark.integration
+class TestDiscoveryOptOut:
+    """Lock which channels are opted out of consumer discovery (ADR-073).
+
+    ``cosalette schema check`` compares registered device names only; it never
+    reads ``x-cosalette-discoverable``. Without these assertions a flag flip is
+    invisible to CI in either direction — a lost sensor shows up only as a
+    golden-set mismatch, and a lost opt-out not at all.
+
+    Test Techniques Used:
+    - Specification-based: assert the committed schema against the documented
+      per-channel intent rather than against regenerated output.
+    - Golden set: the exact opted-out channel set, so both a stripped and a
+      leaked flag fail.
+    """
+
+    @pytest.fixture(scope="class")
+    def schema_channels(self) -> dict[str, Any]:
+        """Parse the committed schema and return its channels mapping."""
+        import yaml
+
+        document = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
+        channels: dict[str, Any] = document["channels"]
+        return channels
+
+    def test_opted_out_channels_are_exactly_the_documented_set(
+        self, schema_channels: dict[str, Any]
+    ) -> None:
+        """Only /set channels and the two diagnostic feeds opt out."""
+        opted_out = {
+            name
+            for name, channel in schema_channels.items()
+            if channel.get("x-cosalette-discoverable") is False
+        }
+        assert opted_out == {
+            # /set channels are not HA entities; the sensors come from the
+            # telemetry half of the same group.
+            "hot_waterCommand",
+            "heating_radiatorCommand",
+            "heating_floorCommand",
+            "systemCommand",
+            # Raw Optolink signal values for troubleshooting, not entities.
+            "diagnosisState",
+            # Long-running disinfection device, driven by its own schedule.
+            "legionellaState",
+        }
+
+    @pytest.mark.parametrize(
+        "group", ["hot_water", "heating_radiator", "heating_floor", "system"]
+    )
+    def test_shared_groups_stay_discoverable(
+        self, schema_channels: dict[str, Any], group: str
+    ) -> None:
+        """A group's telemetry half survives its command half's opt-out.
+
+        Regression guard. ``discoverable=`` is reconciled per *channel*, and a
+        command that emits a ``/state`` channel merges into the same-named
+        telemetry channel with the opt-out winning (cosalette ADR-073). When
+        ``make_command_handler`` returned ``dict[str, object] | None`` instead of
+        ``None``, registering the command ``discoverable=False`` silently
+        stamped ``{group}State`` too and deleted ten sensors and four HA
+        devices. Keeping the handler void confines the opt-out to ``/set``.
+        """
+        state_channel = schema_channels[f"{group}State"]
+        assert state_channel.get("x-cosalette-discoverable") is not False, (
+            f"{group}State was opted out of discovery; its command half's "
+            f"discoverable=False leaked across the channel merge."
+        )
+
+    @pytest.mark.parametrize(
+        "group", ["hot_water", "heating_radiator", "heating_floor", "system"]
+    )
+    def test_command_halves_emit_no_state_channel(
+        self, schema_channels: dict[str, Any], group: str
+    ) -> None:
+        """The command handlers stay void, which is what makes the opt-out safe.
+
+        Asserts the mechanism directly: a merged command ``/state`` channel
+        shows up as a ``oneOf`` payload on the telemetry channel.
+        """
+        payload = schema_channels[f"{group}State"]["messages"]["message"]["payload"]
+        assert "oneOf" not in payload, (
+            f"{group}Command emitted a /state channel and merged into "
+            f"{group}State. A returning command handler drags its "
+            f"discoverable=False across the merge."
+        )

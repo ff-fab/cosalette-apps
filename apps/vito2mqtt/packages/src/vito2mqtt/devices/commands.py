@@ -165,7 +165,7 @@ def _validate_payload(raw: str, group: str) -> dict[str, Any]:
 
 def make_command_handler(
     group: str,
-) -> Callable[..., Awaitable[dict[str, object] | None]]:
+) -> Callable[..., Awaitable[None]]:
     """Create an async command handler closure for a signal group.
 
     The factory pattern avoids the late-binding closure pitfall — each
@@ -174,13 +174,23 @@ def make_command_handler(
     Args:
         group: Command group name (key in :data:`COMMAND_GROUPS`).
 
+    The handler is a *void* command: it writes signals and arms the group's
+    telemetry member, but publishes no state of its own. The ``-> None``
+    annotation is load-bearing for the schema, not only documentation.
+    cosalette emits a command's outbound ``/state`` channel from
+    ``state_model=`` or the return annotation; a void command emits none.
+    That matters because a command's ``/state`` channel merges into the
+    same-named telemetry channel and the discovery opt-out wins on merge
+    (cosalette ADR-073), so a returning command registered
+    ``discoverable=False`` would drag its telemetry sensors out of Home
+    Assistant with it. Keeping it void confines the opt-out to the
+    ``/set`` channel. See ``_registration.py`` and cap-wyy.
+
     Returns:
         Async callable suitable for ``app.add_command(func=...)``.
     """
 
-    async def handler(
-        payload: str, port: OptolinkPort, notify: EntityNotifier
-    ) -> dict[str, object] | None:
+    async def handler(payload: str, port: OptolinkPort, notify: EntityNotifier) -> None:
         data, force = _parse_payload(payload, group)
         if not data:
             return None

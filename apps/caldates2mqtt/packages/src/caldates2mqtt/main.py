@@ -37,12 +37,34 @@ class CalendarEvent:
     ``{"title": ..., "date": ...}`` on the wire. The ``consumer()`` annotations
     describe the fields for documentation and openHAB. They yield no Home
     Assistant entity: an array item has no single value, so cosalette skips it
-    (ADR-073). The supported path is the channel-level ``ha_entities()``
-    composite on :class:`CalendarState`.
+    (cosalette ADR-073). The supported path is the channel-level
+    ``ha_entities()`` composite on :class:`CalendarState`.
     """
 
     title: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Title"))]
     date: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Date"))]
+
+
+# cosalette ADR-057 channel-level composite: the per-property consumer() annotations
+# on CalendarEvent sit on array items, which yield no entity. This composite is the
+# supported alternative and exposes the event count per calendar.
+#
+# The event list itself stays off Home Assistant. Carrying it would need
+# json_attributes_topic, and cosalette 0.9.4 neither emits that key nor offers a
+# placeholder for a channel's generated address, so a model-level spec shared by
+# every calendar cannot name a per-calendar topic.
+_EVENT_COUNT_SENSOR = ha_entities(
+    ha_entity(
+        component="sensor",
+        name="Events",
+        extra={
+            "value_template": "{{ value_json.events | length }}",
+            "unit_of_measurement": "events",
+            "state_class": "measurement",
+            "icon": "mdi:calendar",
+        },
+    )
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,32 +83,12 @@ class CalendarState:
     ADR-051, against the checked-in ``.env.schema`` profile), expanding
     the NameSpec into real per-calendar channels (e.g. ``birthdayState``,
     ``garbageState``). See ``docs/schema.yaml`` and cap-0cg. Home Assistant
-    discovery emits one event-count sensor per calendar from the composite
-    below. See ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery"
-    section.
+    discovery emits one event-count sensor per calendar from the
+    :data:`_EVENT_COUNT_SENSOR` composite above. See
+    ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery" section.
     """
 
-    # ADR-057 channel-level composite: the per-property consumer() annotations on
-    # CalendarEvent sit on array items, which yield no entity. This composite is
-    # the supported alternative and exposes the event count per calendar.
-    #
-    # The event list itself stays off Home Assistant. Carrying it would need
-    # json_attributes_topic, and cosalette 0.9.4 neither emits that key nor offers
-    # a placeholder for a channel's generated address, so a model-level spec
-    # shared by every calendar cannot name a per-calendar topic.
-    __pydantic_config__ = ConfigDict(
-        json_schema_extra=ha_entities(
-            ha_entity(
-                component="sensor",
-                name="Events",
-                extra={
-                    "value_template": "{{ value_json.events | length }}",
-                    "unit_of_measurement": "events",
-                    "icon": "mdi:calendar",
-                },
-            )
-        )
-    )
+    __pydantic_config__ = ConfigDict(json_schema_extra=_EVENT_COUNT_SENSOR)
 
     events: list[CalendarEvent]
 

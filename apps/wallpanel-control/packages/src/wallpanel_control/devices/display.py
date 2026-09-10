@@ -50,13 +50,48 @@ from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError
 logger = logging.getLogger(__name__)
 
 
+# The consumer() annotations below make the /set channel a pair of real Home
+# Assistant controls (a select and a number, both carrying command_topic and a
+# command_template). They are load-bearing, not decoration: since cosalette
+# 0.9.4 the discovery gate is evaluated PER CHANNEL, so displayCommand must
+# either emit an entity or be opted out — and opting out is not available here.
+# discoverable= is reconciled per registration, and this one owns both the /set
+# channel and the DisplayState /state channel, so discoverable=False would take
+# the two read-only sensors below with it (cosalette ADR-073, cap-wyy).
+#
+# Emitting controls is the better half of that trade anyway: before this the app
+# published display state to Home Assistant but offered no way to change it from
+# there. The names deliberately differ from the DisplayState sensor names — HA
+# shows all four on one device, and two entities named "Display Brightness"
+# would be indistinguishable in a picker.
 class DisplayCommand(BaseModel):
     """Typed payload for wallpanel-control/display/set commands."""
 
     model_config = ConfigDict(extra="forbid")
 
-    state: Literal["on", "off"] | None = None
-    brightness_percent: int | None = Field(default=None, ge=1, le=100)
+    state: Annotated[
+        Literal["on", "off"] | None,
+        Field(
+            default=None,
+            json_schema_extra=consumer(
+                display_name="Display Power",
+                icon="mdi:monitor-shimmer",
+            ),
+        ),
+    ] = None
+    brightness_percent: Annotated[
+        int | None,
+        Field(
+            default=None,
+            ge=1,
+            le=100,
+            json_schema_extra=consumer(
+                display_name="Display Brightness Setpoint",
+                unit="%",
+                icon="mdi:brightness-percent",
+            ),
+        ),
+    ] = None
 
     @model_validator(mode="after")
     def _validate_command_constraints(self) -> DisplayCommand:

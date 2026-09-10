@@ -9,7 +9,7 @@ Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes 
 ticks, temperature, and optional raw debug data to MQTT.
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.9.3 release.
+on the 0.9.4 release.
 
 > **📖 [Full Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)**
 
@@ -100,9 +100,14 @@ for the complete topic table with payload schemas.
 ## Home Assistant
 
 **Automatic.** Home Assistant discovery config payloads publish to
-`homeassistant/.../config` (retained) on the first successful MQTT connect — gas
-counter, temperature, and (when enabled) magnetometer sensors appear without any manual
-setup step. Entities removed since the last run are cleared automatically.
+`homeassistant/.../config` (retained) on the first successful MQTT connect — the gas
+counter and temperature sensors appear without any manual setup step. Entities removed
+since the last run are cleared automatically.
+
+The magnetometer is deliberately excluded. It publishes to MQTT as usual, but its
+telemetry is registered `discoverable=False` (cosalette ADR-073) because raw three-axis
+field readings are a debug aid for pulse-detection tuning, not a household datapoint.
+Its channel carries `x-cosalette-discoverable: false` in `docs/schema.yaml`.
 
 See the composition root (`packages/src/gas2mqtt/main.py`, monorepo
 [ADR-004](../../docs/adr/ADR-004-runtime-home-assistant-discovery-adoption.md)) and

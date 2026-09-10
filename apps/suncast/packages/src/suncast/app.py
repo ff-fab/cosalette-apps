@@ -114,6 +114,11 @@ app = cosalette.App(
 # set; it relies on cosalette's F-3 implicit backstop (timeout=interval). (cap-65e)
 @app.telemetry(
     name="shadow",
+    # shadow publishes a rendered SVG image reference, not a scalar datapoint,
+    # so it carries no consumer() annotations and yields no Home Assistant
+    # entity. Declaring the exclusion satisfies cosalette 0.9.4's per-channel
+    # discovery gate, which otherwise errors on a consumer-visible channel that
+    # emits nothing (cosalette ADR-073). Documented in README.md.
     discoverable=False,
     interval=_poll_interval,
     init=_build_pipeline,

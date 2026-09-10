@@ -52,6 +52,13 @@ router = cosalette.Router(prefix="system")
 
 @router.command(
     "action",
+    # Power actions are fire-and-forget verbs (wake / suspend / hibernate) and
+    # SystemActionState is a command acknowledgement, not a datapoint — neither
+    # model carries consumer() annotations, so this entity produced no HA
+    # entities before 0.9.4 either. Declaring it satisfies the per-channel
+    # discovery gate (cosalette ADR-073). Nothing is lost here, unlike the
+    # display registration next door, which owns real sensors and therefore
+    # annotates its /set channel instead of opting out (cap-wyy).
     discoverable=False,
     summary="System power action: wake (WoL), suspend, or hibernate",
     payload_model=SystemActionCommand,

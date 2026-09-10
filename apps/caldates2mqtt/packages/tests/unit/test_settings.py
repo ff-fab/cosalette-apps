@@ -283,3 +283,57 @@ class TestCalDates2MqttSettingsMultiCalendar:
         repr_str = repr(settings.calendars[0].password)
         assert "testpass" not in repr_str
         assert "**" in repr_str
+
+
+class TestCalendarKeyPattern:
+    """``CalendarConfig.key`` is constrained because it addresses topics.
+
+    The key is interpolated into the MQTT topic segment, and since the
+    ``ha_entities()`` composite landed it is also part of every generated
+    ``object_id``, ``unique_id`` and retained ``homeassistant/.../config``
+    topic. A malformed key does not fail loudly at startup; it produces
+    unroutable topics.
+
+    Test Techniques Used:
+    - Equivalence Partitioning: accepted keys vs each rejected character class
+    - Boundary Value Analysis: the first character, which is constrained more
+      tightly than the rest
+    """
+
+    @pytest.mark.parametrize(
+        "key", ["birthday", "garbage", "bin-2", "a_b", "cal1", "7"]
+    )
+    def test_accepts_valid_keys(self, key: str) -> None:
+        """Lowercase alphanumerics plus '_' and '-' are accepted."""
+        settings = make_caldates2mqtt_settings(calendars=[_calendar(key)])
+        assert settings.calendars[0].key == key
+
+    @pytest.mark.parametrize(
+        "key",
+        [
+            "with/slash",  # topic level separator
+            "with+plus",  # single-level wildcard
+            "with#hash",  # multi-level wildcard
+            "with space",
+            "$reserved",  # broker-reserved namespace
+            "-leading-dash",
+            "_leading_underscore",
+            "UPPER",
+            "",
+        ],
+    )
+    def test_rejects_keys_that_break_topics(self, key: str) -> None:
+        """Anything that would malform a topic or collide with a wildcard."""
+        with pytest.raises(ValidationError):
+            make_caldates2mqtt_settings(calendars=[_calendar(key)])
+
+
+def _calendar(key: str) -> dict[str, object]:
+    """Minimal valid calendar entry with a caller-supplied key."""
+    return {
+        "key": key,
+        "url": "https://example.invalid/dav",
+        "calendar_name": "cal",
+        "username": "u",
+        "password": "p",
+    }

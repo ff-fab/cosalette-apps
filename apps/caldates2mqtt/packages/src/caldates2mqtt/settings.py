@@ -18,8 +18,19 @@ class CalendarConfig(BaseModel):
     Each calendar becomes its own MQTT device, identified by ``key``.
     """
 
+    # Constrained because this value is interpolated into addresses, not just
+    # displayed: it is an MQTT topic segment, and since the ha_entities()
+    # composite landed it is also part of every generated object_id, unique_id
+    # and retained homeassistant/.../config topic. A key containing "/", "+",
+    # "#", whitespace or a leading "$" yields a malformed topic or collides
+    # with a broker-reserved namespace. Operator-supplied rather than attacker
+    # input, so this is a typo guard, not a security boundary.
     key: str = Field(
-        description="Unique identifier, used as MQTT device name and topic segment"
+        pattern=r"^[a-z0-9][a-z0-9_-]*$",
+        description=(
+            "Unique identifier, used as MQTT device name and topic segment. "
+            "Lowercase alphanumeric, '_' and '-'; must start with a letter or digit."
+        ),
     )
     url: str = Field(description="CalDAV server URL")
     calendar_name: str = Field(description="Calendar name on the server")
