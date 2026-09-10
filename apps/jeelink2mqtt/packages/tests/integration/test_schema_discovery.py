@@ -107,12 +107,21 @@ def ha_payloads() -> list[dict[str, Any]]:
         [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
         capture_output=True,
         text=True,
-        check=True,
+        # check=False so a non-zero exit surfaces as one named assertion failure
+        # with the CLI's stderr attached. Under check=True the raised
+        # CalledProcessError renders only "returned non-zero exit status 1" and
+        # the sentence naming the offending channels is lost in the unread
+        # .stderr — and because this fixture is module-scoped, every test in the
+        # module ERRORs instead of one FAILing with the reason.
+        check=False,
         env={
             k: os.environ[k]
             for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
             if k in os.environ
         },
+    )
+    assert result.returncode == 0, (
+        f"ha-discovery exited {result.returncode}:\n{result.stderr}"
     )
     payloads = json.loads(result.stdout)
     assert payloads, "ha-discovery CLI returned no payloads"
@@ -479,3 +488,67 @@ class TestStateTopicsAreReal:
 
         payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(harness, payloads)
+
+
+@pytest.mark.integration
+class TestDiscoveryOptOut:
+    """Lock which channels are opted out of consumer discovery (ADR-073).
+
+    ``cosalette schema check`` compares registered device names only; it never
+    reads ``x-cosalette-discoverable``. Without these assertions a flag flip is
+    invisible to CI in either direction — a lost sensor surfaces only as a
+    golden-set mismatch, and a lost opt-out not at all.
+
+    Test Techniques Used:
+    - Specification-based: assert the committed schema against the documented
+      per-channel intent rather than against regenerated output.
+    - Golden set: the exact opted-out channel set, so both a stripped flag and
+      a leaked one fail.
+    """
+
+    @pytest.fixture(scope="class")
+    def schema_channels(self) -> dict[str, Any]:
+        """Parse the committed schema and return its channels mapping."""
+        import yaml
+
+        document = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
+        channels: dict[str, Any] = document["channels"]
+        return channels
+
+    def test_opted_out_channels_are_exactly_the_documented_set(
+        self, schema_channels: dict[str, Any]
+    ) -> None:
+        """Every opt-out is deliberate and documented.
+
+        Reasons, one per channel:
+        - ``mappingCommand``: operator control surface for administering the
+          sensor-id map.
+        - ``mappingState``: command acknowledgement, not a sensor reading.
+        """
+        opted_out = {
+            name
+            for name, channel in schema_channels.items()
+            if channel.get("x-cosalette-discoverable") is False
+        }
+        assert opted_out == {
+            "mappingCommand",
+            "mappingState",
+        }
+
+    def test_remaining_channels_stay_discoverable(
+        self, schema_channels: dict[str, Any]
+    ) -> None:
+        """No channel outside that set carries the flag.
+
+        Technique: Error Guessing — the specific failure mode is an opt-out
+        leaking across a channel merge onto a channel that owns real entities.
+        """
+        for name, channel in schema_channels.items():
+            if name in {
+                "mappingCommand",
+                "mappingState",
+            }:
+                continue
+            assert channel.get("x-cosalette-discoverable") is not False, (
+                f"{name} was opted out of discovery without a recorded reason"
+            )

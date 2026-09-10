@@ -96,6 +96,16 @@ def create_app() -> cosalette.App:
 
     app.command(
         "consumption",
+        # An operator control surface for resetting the meter reading, not a
+        # Home Assistant entity; the household datapoints come from the
+        # gas_counter and temperature telemetry handlers (cosalette ADR-073).
+        # This opts out both consumptionCommand and the handler's own
+        # consumptionState, which is the intent: the acknowledgement payload
+        # carries no consumer() annotations and produced no HA entity before
+        # 0.9.4 either. No telemetry handler is registered under this name, so
+        # nothing else shares the channel — unlike vito2mqtt, where the two
+        # halves collide and the opt-out has to stay off the command.
+        discoverable=False,
         # No init= — GasCounterState injected from @app.state
         # (same instance as telemetry)
         summary="Override the accumulated consumption_m3 value for the gas counter",
@@ -119,6 +129,11 @@ def create_app() -> cosalette.App:
 
     app.telemetry(
         "magnetometer",
+        # Raw three-axis field readings are a debug aid for tuning pulse
+        # detection, not a household datapoint. Published to MQTT, excluded
+        # from Home Assistant discovery (cosalette ADR-073). Documented in
+        # README.md > Home Assistant.
+        discoverable=False,
         interval=setting_ref("poll_interval"),
         retry=3,
         retry_on=(OSError,),

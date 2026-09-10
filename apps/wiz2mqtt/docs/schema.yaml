@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: wiz2mqtt
-  version: 0.2.0
+  version: 0.2.1
   x-cosalette-contract-version: '1'
 channels:
   exampleCommand:
@@ -203,7 +203,10 @@ channels:
       message:
         payload:
           additionalProperties: false
-          description: 'Retained ``wiz2mqtt/{bulb}/state`` payload shape (cap-10u.14).
+          description: 'Retained ``{prefix}/{bulb}/state`` payload shape (cap-10u.14).
+
+
+            ``prefix`` defaults to ``wiz2mqtt`` when ``mqtt.topic_prefix`` is unset.
 
 
             Declared as ``state_model=`` on the ``bulb_entity`` telemetry

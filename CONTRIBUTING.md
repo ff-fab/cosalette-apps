@@ -88,15 +88,18 @@ cosalette-apps/
 ## AI Agent Setup
 
 Agent configuration lives in `.github/` and is shared by GitHub Copilot, Claude Code and
-Kilo. `AGENTS.md` is the always-on instruction file for all three.
+Kilo. `AGENTS.md` is the always-on instruction file for all three. The one exception is
+the response style, which only Claude Code consumes and which it reads from `.claude/`
+by path — see the last row below.
 
-| Surface              | Location                           | Notes                                                               |
-| -------------------- | ---------------------------------- | ------------------------------------------------------------------- |
-| Always-on context    | `AGENTS.md`                        | Claude Code reads it via `CLAUDE.md`                                |
-| File-scoped guidance | `.github/instructions/`            | Claude reads it via `.claude/rules/`                                |
-| Repeatable workflows | `.github/skills/`                  | Claude via the plugin manifest                                      |
-| Specialist agents    | `.github/agents/`                  | Claude via the plugin manifest; no Kilo use                         |
-| MCP servers          | three native formats, one per tool | `.vscode/mcp.json`, `.github/.claude-plugin/mcp.json`, `kilo.jsonc` |
+| Surface              | Location                           | Notes                                                                  |
+| -------------------- | ---------------------------------- | ---------------------------------------------------------------------- |
+| Always-on context    | `AGENTS.md`                        | Claude Code reads it via `CLAUDE.md`                                   |
+| File-scoped guidance | `.github/instructions/`            | Claude reads it via `.claude/rules/`                                   |
+| Repeatable workflows | `.github/skills/`                  | Claude via the plugin manifest                                         |
+| Specialist agents    | `.github/agents/`                  | Claude via the plugin manifest; no Kilo use                            |
+| MCP servers          | three native formats, one per tool | `.vscode/mcp.json`, `.github/.claude-plugin/mcp.json`, `kilo.jsonc`    |
+| Response style       | `.claude/output-styles/`           | Claude Code only; selected by `outputStyle` in `.claude/settings.json` |
 
 Kilo's entire configuration is the root `kilo.jsonc` — see
 [How Kilo reaches `.github/`](#how-kilo-reaches-github) below.

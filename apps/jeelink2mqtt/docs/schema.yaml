@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: jeelink2mqtt
-  version: 0.2.0
+  version: 0.2.1
   x-cosalette-contract-version: '1'
 channels:
   mappingCommand:
@@ -13,6 +13,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Return recently-seen sensor IDs that are not yet mapped
+    x-cosalette-discoverable: false
   mappingState:
     address: jeelink2mqtt/mapping/state
     x-cosalette-app: jeelink2mqtt
@@ -23,6 +24,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Manually assign an ephemeral sensor ID to a logical name
+    x-cosalette-discoverable: false
   officeState:
     address: jeelink2mqtt/office/state
     x-cosalette-app: jeelink2mqtt

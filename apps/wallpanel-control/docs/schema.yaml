@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: wallpanel-control
-  version: 0.2.2
+  version: 0.3.1
   x-cosalette-contract-version: '1'
 channels:
   displayCommand:
@@ -22,6 +22,9 @@ channels:
               - type: 'null'
               default: null
               title: State
+              x-cosalette-consumer:
+                display_name: Display Power
+                icon: mdi:monitor-shimmer
             brightness_percent:
               anyOf:
               - maximum: 100
@@ -30,6 +33,10 @@ channels:
               - type: 'null'
               default: null
               title: Brightness Percent
+              x-cosalette-consumer:
+                display_name: Display Brightness Setpoint
+                unit: '%'
+                icon: mdi:brightness-percent
           title: DisplayCommand
           type: object
     x-cosalette-archetype: command
@@ -100,6 +107,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
+    x-cosalette-discoverable: false
   systemActionState:
     address: wallpanel-control/system/action/state
     x-cosalette-app: wallpanel-control
@@ -125,6 +133,7 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
+    x-cosalette-discoverable: false
 operations:
   publishDisplayState:
     action: send

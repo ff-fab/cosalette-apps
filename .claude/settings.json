@@ -112,5 +112,6 @@
         "path": "."
       }
     }
-  }
+  },
+  "outputStyle": "ASD-STE100"
 }

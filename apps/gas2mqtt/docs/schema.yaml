@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: gas2mqtt
-  version: 0.1.3
+  version: 0.2.1
   x-cosalette-contract-version: '1'
 channels:
   consumptionCommand:
@@ -19,6 +19,7 @@ channels:
     - Updates consumption_m3 in the shared GasCounterState
     - Persists new consumption_m3 to JsonFileStore immediately
     - Publishes updated gas counter state to MQTT
+    x-cosalette-discoverable: false
   consumptionState:
     address: gas2mqtt/consumption/state
     x-cosalette-app: gas2mqtt
@@ -33,6 +34,7 @@ channels:
     x-cosalette-summary: Override the accumulated consumption_m3 value for the gas
       counter
     x-cosalette-effects: *id001
+    x-cosalette-discoverable: false
   gas_counterState:
     address: gas2mqtt/gas_counter/state
     x-cosalette-app: gas2mqtt
@@ -87,6 +89,7 @@ channels:
           additionalProperties: true
           type: object
     x-cosalette-archetype: telemetry
+    x-cosalette-discoverable: false
   temperatureState:
     address: gas2mqtt/temperature/state
     x-cosalette-app: gas2mqtt

@@ -129,6 +129,19 @@ tasks:
 
   # ── Cross-app orchestration ────────────────────────────────
 
+  # ── Aggregate gates ────────────────────────────────────────
+  #
+  # These three deliberately do NOT use `for: { var: APPS }` over a `task:`
+  # reference. Task aborts such a loop at the first non-zero exit, so only the
+  # first failing app is ever reported and any later failure stays invisible
+  # until that one is fixed. During the cosalette 0.9.4 upgrade a vito2mqtt
+  # regression hid behind a wallpanel-control failure for exactly this reason —
+  # wallpanel-control is second in APPS, vito2mqtt is last — and the PR was
+  # written up as having one known failure when it had two.
+  #
+  # Each runs every app, collects the failures, and reports them together. The
+  # loop body is one shell command so a failure is recorded rather than fatal.
+
   test:all:
     desc: Run the repo-root suite plus tests for all apps (unit + integration)
     cmds:
@@ -136,22 +149,42 @@ tasks:
       # assertions (event-driven publication acceptance, MQTT TLS defaults).
       # It is not owned by any app, so nothing else would run it.
       - task: test:unit
-      - for: { var: APPS }
-        task: '{{.ITEM}}:test'
-      - for: { var: APPS }
-        task: '{{.ITEM}}:test:integration'
+      - task: _for-each-app
+        vars: { TARGETS: 'test test:integration', LABEL: tests }
 
   lint:all:
     desc: Lint all apps
     cmds:
-      - for: { var: APPS }
-        task: '{{.ITEM}}:lint'
+      - task: _for-each-app
+        vars: { TARGETS: lint, LABEL: lint }
 
   typecheck:all:
     desc: Type check all apps
     cmds:
-      - for: { var: APPS }
-        task: '{{.ITEM}}:typecheck'
+      - task: _for-each-app
+        vars: { TARGETS: typecheck, LABEL: typecheck }
+
+  _for-each-app:
+    internal: true
+    desc: Run TARGETS for every app, collecting failures instead of aborting
+    cmds:
+      - cmd: |
+          set -u
+          failures=""
+          for app in {{range .APPS}}{{.}} {{end}}; do
+            for target in {{.TARGETS}}; do
+              if ! task "$app:$target"; then
+                failures="$failures $app:$target"
+              fi
+            done
+          done
+          if [ -n "$failures" ]; then
+            echo ""
+            echo "FAILED {{.LABEL}} for:$failures" >&2
+            exit 1
+          fi
+          echo ""
+          echo "All apps passed {{.LABEL}}."
 
   check:all:
     desc: Run all checks for all apps

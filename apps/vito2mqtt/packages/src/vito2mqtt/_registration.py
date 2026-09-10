@@ -31,6 +31,7 @@ from vito2mqtt.devices.legionella import legionella_device
 from vito2mqtt.devices.telemetry import (
     GROUP_SUMMARIES,
     INTERVAL_ATTR,
+    NON_DISCOVERABLE_GROUPS,
     make_telemetry_handler,
 )
 from vito2mqtt.devices.telemetry_models import GROUP_STATE_MODELS
@@ -112,6 +113,9 @@ def configure_app(app: App) -> None:
     for group in SIGNAL_GROUPS:
         app.add_telemetry(
             name=group,
+            # diagnosis carries raw Optolink signal values for troubleshooting,
+            # not Home Assistant entities (cosalette ADR-073).
+            discoverable=group not in NON_DISCOVERABLE_GROUPS,
             func=make_telemetry_handler(group),
             interval=setting_ref(INTERVAL_ATTR[group]),
             publish=OnChange(),
@@ -138,6 +142,14 @@ def configure_app(app: App) -> None:
     for group in COMMAND_GROUPS:
         app.add_command(
             name=group,
+            # A /set channel is not a Home Assistant entity: the group's
+            # sensors come from its telemetry half (cosalette ADR-073).
+            # This opt-out is safe ONLY because make_command_handler is void.
+            # A command that returned a value would emit its own /state
+            # channel, that channel would merge into the same-named telemetry
+            # channel, and the opt-out wins on merge — silently deleting the
+            # group's sensors. See make_command_handler's docstring (cap-wyy).
+            discoverable=False,
             func=make_command_handler(group),
             summary=COMMAND_SUMMARIES.get(
                 group, f"Control {group} parameters via Optolink serial"
@@ -154,4 +166,4 @@ def configure_app(app: App) -> None:
     # runs a shutdown-safe restore so the boiler is never left at the
     # elevated setpoint; its writes are single-signal and protocol-atomic
     # (cap-ug0).
-    app.add_device("legionella", legionella_device)
+    app.add_device("legionella", legionella_device, discoverable=False)

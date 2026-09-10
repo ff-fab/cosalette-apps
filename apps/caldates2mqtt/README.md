@@ -6,18 +6,18 @@ CalDAV calendar dates to MQTT bridge
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.9.3 release.
+on the 0.9.4 release.
 
 ## Home Assistant Discovery
 
-**Still not functional — one of two original blockers is now resolved.** Running
-`task caldates2mqtt:schema:ha-discovery` still yields an empty payload list `[]`.
+**Working — one event-count sensor per calendar.** Running
+`task caldates2mqtt:schema:ha-discovery` yields one `sensor` per configured calendar
+(`birthday_events`, `garbage_events`) plus the ADR-058 app bridge, and exits 0.
 
 `docs/schema.yaml` carries a typed `state_model` (`CalendarState` in `main.py`, wired
-via `state_model=` on `@app.telemetry`) so the channel is no longer a bare
-`additionalProperties: true` object, and its nested `CalendarEvent` fields (`title`,
-`date`) carry `cosalette.schema.consumer(...)` annotations ready for when discovery
-becomes possible. Two independent things originally blocked a working entity:
+via `state_model=` on `@app.telemetry`) so the channel is not a bare
+`additionalProperties: true` object. Two independent things originally blocked a working
+entity:
 
 1. **Callable `name=` collapse — RESOLVED.** `app.telemetry` is registered with a
    callable `name=` (`_calendar_map`, keyed off user-configured `settings.calendars`),
@@ -31,15 +31,23 @@ becomes possible. Two independent things originally blocked a working entity:
    `cosalette schema check` (the CI gate) now validates this app too: cosalette 0.6.0
    extended `--resolve-settings`/`--env-file` to `schema check` (previously dump-only,
    cap-wv9 part b), so the task runs it against the same `.env.schema` profile.
-2. **Nested list payload — still blocked.** The `calendar` handler publishes
-   `{"events": [{"title": ..., "date": ...}, ...]}`. cosalette's HA/OpenHAB generators
-   only walk a channel's top-level properties, never items inside a nested list — so the
-   per-event `consumer()` annotations remain inert regardless of (1), and Home Assistant
-   has no standard `device_class` for a calendar event list even if they weren't. This
-   is a separate, still-open upstream limitation.
+2. **Nested list payload — RESOLVED for the count, still open for the list.** The
+   `calendar` handler publishes `{"events": [{"title": ..., "date": ...}, ...]}`.
+   cosalette's generators only walk a channel's top-level properties, never items inside
+   a nested list, so the per-event `consumer()` annotations on `CalendarEvent` remain
+   inert and still warn on stderr. The supported answer is a _channel-level_
+   `ha_entities()` composite (cosalette ADR-057), which `CalendarState` now carries: it
+   derives one entity from the whole payload rather than from a single property, so
+   `{{ value_json.events | length }}` becomes an event-count sensor with
+   `state_class: measurement` for long-term statistics.
 
-This model is prepared so caldates2mqtt is ready the moment list/array payload support
-lands upstream — no further modeling work needed here.
+   The event **list** itself is still not carried to Home Assistant. Doing so needs
+   `json_attributes_topic`, which cosalette 0.9.4 neither emits nor can resolve per
+   instance from a model-level spec shared by every calendar. That is the remaining
+   upstream limitation (cap-wxg).
+
+Note that openHAB is unaffected by the composite: its generator ignores `ha_entities`,
+so `task caldates2mqtt:schema:openhab` still exits 1, exactly as it did before.
 
 ## Contributing
 

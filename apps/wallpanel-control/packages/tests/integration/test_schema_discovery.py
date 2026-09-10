@@ -46,12 +46,21 @@ def ha_payloads() -> list[dict[str, Any]]:
         [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
         capture_output=True,
         text=True,
-        check=True,
+        # check=False so a non-zero exit surfaces as one named assertion failure
+        # with the CLI's stderr attached. Under check=True the raised
+        # CalledProcessError renders only "returned non-zero exit status 1" and
+        # the sentence naming the offending channels is lost in the unread
+        # .stderr — and because this fixture is module-scoped, every test in the
+        # module ERRORs instead of one FAILing with the reason.
+        check=False,
         env={
             k: os.environ[k]
             for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
             if k in os.environ
         },
+    )
+    assert result.returncode == 0, (
+        f"ha-discovery exited {result.returncode}:\n{result.stderr}"
     )
     payloads = json.loads(result.stdout)
     assert payloads, "ha-discovery CLI returned no payloads"
@@ -89,30 +98,58 @@ class TestHaDiscoveryGeneration:
     ) -> None:
         """Only the enriched display fields yield discovery payloads.
 
+        The display channel contributes four entities: two read-only sensors
+        from ``DisplayState`` on ``/state``, and two ``_cmd`` controls from
+        ``DisplayCommand`` on ``/set``. The ``/set`` annotations are required —
+        cosalette 0.9.4 evaluates the discovery gate per channel, and this
+        registration cannot opt ``displayCommand`` out without also opting out
+        its own ``/state`` channel (cosalette ADR-073, cap-wyy).
+
         Technique: Specification-based — system/action is command-ack only and
         carries no x-cosalette-consumer, so it produces no HA entity.
         """
-        expected = {"display_brightness_percent", "display_state"}
+        expected = {
+            "display_brightness_percent",
+            "display_state",
+            "display_brightness_percent_cmd",
+            "display_state_cmd",
+        }
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
         assert object_ids == expected
         for payload in entity_payloads:
             assert "unique_id" in payload["config"]
 
+    def test_control_and_sensor_names_do_not_collide(
+        self, entity_payloads: list[dict[str, Any]]
+    ) -> None:
+        """No two display entities share a friendly name.
+
+        All four land on one HA device, so a duplicate ``name`` would leave the
+        user two indistinguishable rows in every entity picker.
+
+        Technique: Error Guessing — the specific failure mode of reusing a
+        DisplayState display_name on the paired DisplayCommand field.
+        """
+        names = [p["config"]["name"] for p in entity_payloads]
+        assert len(names) == len(set(names)), f"duplicate entity names: {names}"
+
     def test_payloads_grouped_under_per_device_ha_devices(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """Every entity is a sensor on the per-device ``display`` HA device.
+        """Every entity sits on the per-device ``display`` HA device.
 
         cosalette 0.6.2 (ADR-058) models each resolved device as its own HA
         device linked to the app bridge via ``via_device``, replacing the
-        single app-wide device earlier releases emitted.
+        single app-wide device earlier releases emitted. The component segment
+        varies — the ``/state`` fields are sensors, the ``/set`` fields a select
+        and a number — so only the app segment is asserted here; component
+        choice is covered by test_writable_components_carry_a_command_topic.
 
         Technique: Specification-based — HA device grouping contract.
         """
         for payload in entity_payloads:
-            assert payload["topic"].startswith(
-                "homeassistant/sensor/wallpanel_control/"
-            )
+            assert payload["topic"].startswith("homeassistant/")
+            assert "/wallpanel_control/" in payload["topic"]
             device = payload["config"]["device"]
             assert device["identifiers"] == ["cosalette_wallpanel_control_display"]
             assert device["via_device"] == "cosalette_wallpanel_control"
@@ -249,3 +286,67 @@ class TestStateTopicsAreReal:
 
         payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(harness, payloads)
+
+
+@pytest.mark.integration
+class TestDiscoveryOptOut:
+    """Lock which channels are opted out of consumer discovery (ADR-073).
+
+    ``cosalette schema check`` compares registered device names only; it never
+    reads ``x-cosalette-discoverable``. Without these assertions a flag flip is
+    invisible to CI in either direction — a lost sensor surfaces only as a
+    golden-set mismatch, and a lost opt-out not at all.
+
+    Test Techniques Used:
+    - Specification-based: assert the committed schema against the documented
+      per-channel intent rather than against regenerated output.
+    - Golden set: the exact opted-out channel set, so both a stripped flag and
+      a leaked one fail.
+    """
+
+    @pytest.fixture(scope="class")
+    def schema_channels(self) -> dict[str, Any]:
+        """Parse the committed schema and return its channels mapping."""
+        import yaml
+
+        document = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
+        channels: dict[str, Any] = document["channels"]
+        return channels
+
+    def test_opted_out_channels_are_exactly_the_documented_set(
+        self, schema_channels: dict[str, Any]
+    ) -> None:
+        """Every opt-out is deliberate and documented.
+
+        Reasons, one per channel:
+        - ``systemActionCommand``: fire-and-forget power verbs
+          (wake / suspend / hibernate).
+        - ``systemActionState``: command acknowledgement, not a datapoint.
+        """
+        opted_out = {
+            name
+            for name, channel in schema_channels.items()
+            if channel.get("x-cosalette-discoverable") is False
+        }
+        assert opted_out == {
+            "systemActionCommand",
+            "systemActionState",
+        }
+
+    def test_remaining_channels_stay_discoverable(
+        self, schema_channels: dict[str, Any]
+    ) -> None:
+        """No channel outside that set carries the flag.
+
+        Technique: Error Guessing — the specific failure mode is an opt-out
+        leaking across a channel merge onto a channel that owns real entities.
+        """
+        for name, channel in schema_channels.items():
+            if name in {
+                "systemActionCommand",
+                "systemActionState",
+            }:
+                continue
+            assert channel.get("x-cosalette-discoverable") is not False, (
+                f"{name} was opted out of discovery without a recorded reason"
+            )

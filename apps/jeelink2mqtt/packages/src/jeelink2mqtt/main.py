@@ -252,6 +252,15 @@ def _parse_or_error(
 # `list_unknown` below.
 @app.command(
     "mapping",
+    # The mapping /set channel administers the sensor-id map; it is an
+    # operator control surface, not a Home Assistant entity. The sensor
+    # entities come from the per-sensor telemetry handlers (cosalette ADR-073).
+    # This opts out both mappingCommand and the shared mappingState these four
+    # handlers publish to, which is the intent: the acknowledgement payload
+    # carries no consumer() annotations and produced no HA entity before 0.9.4
+    # either. No telemetry handler is registered under this name, so nothing
+    # else shares the channel.
+    discoverable=False,
     sub="assign",
     summary="Manually assign an ephemeral sensor ID to a logical name",
 )
@@ -280,6 +289,15 @@ async def mapping_assign(
 
 @app.command(
     "mapping",
+    # The mapping /set channel administers the sensor-id map; it is an
+    # operator control surface, not a Home Assistant entity. The sensor
+    # entities come from the per-sensor telemetry handlers (cosalette ADR-073).
+    # This opts out both mappingCommand and the shared mappingState these four
+    # handlers publish to, which is the intent: the acknowledgement payload
+    # carries no consumer() annotations and produced no HA entity before 0.9.4
+    # either. No telemetry handler is registered under this name, so nothing
+    # else shares the channel.
+    discoverable=False,
     sub="reset",
     summary="Remove the mapping for a named sensor",
 )
@@ -308,6 +326,15 @@ async def mapping_reset(
 
 @app.command(
     "mapping",
+    # The mapping /set channel administers the sensor-id map; it is an
+    # operator control surface, not a Home Assistant entity. The sensor
+    # entities come from the per-sensor telemetry handlers (cosalette ADR-073).
+    # This opts out both mappingCommand and the shared mappingState these four
+    # handlers publish to, which is the intent: the acknowledgement payload
+    # carries no consumer() annotations and produced no HA entity before 0.9.4
+    # either. No telemetry handler is registered under this name, so nothing
+    # else shares the channel.
+    discoverable=False,
     sub="reset_all",
     summary="Clear all sensor mappings",
 )
@@ -333,6 +360,15 @@ async def mapping_reset_all(
 
 @app.command(
     "mapping",
+    # The mapping /set channel administers the sensor-id map; it is an
+    # operator control surface, not a Home Assistant entity. The sensor
+    # entities come from the per-sensor telemetry handlers (cosalette ADR-073).
+    # This opts out both mappingCommand and the shared mappingState these four
+    # handlers publish to, which is the intent: the acknowledgement payload
+    # carries no consumer() annotations and produced no HA entity before 0.9.4
+    # either. No telemetry handler is registered under this name, so nothing
+    # else shares the channel.
+    discoverable=False,
     sub="list_unknown",
     summary="Return recently-seen sensor IDs that are not yet mapped",
 )
