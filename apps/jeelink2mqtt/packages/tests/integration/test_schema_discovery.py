@@ -40,10 +40,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import os
-import subprocess
-import sys
-from collections import Counter
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -56,6 +52,12 @@ from cosalette import MockMqttClient
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, FakeClock, assert_discovery_topics_published
 
+from ha_discovery import (
+    BRIDGE_OBJECT_ID,
+    configs_by_object_id,
+    entities_without_bridge,
+    load_ha_discovery_payloads,
+)
 from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.models import SensorReading, SensorStateModel
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
@@ -64,7 +66,6 @@ from tests.fixtures.async_utils import wait_for_condition
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
-BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 TOPIC_PREFIX = "jeelink2mqtt"
 SENSOR_NAMES = ("office", "outdoor")  # matches apps/jeelink2mqtt/.env.schema
 # Runtime tests build settings dynamically, so they can exercise a multi-word
@@ -103,44 +104,19 @@ def _expected_config_topics(names: tuple[str, ...]) -> set[str]:
 @pytest.fixture(scope="module")
 def ha_payloads() -> list[dict[str, Any]]:
     """Run the schema ha-discovery CLI once and return the parsed payloads."""
-    result = subprocess.run(
-        [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
-        capture_output=True,
-        text=True,
-        # check=False so a non-zero exit surfaces as one named assertion failure
-        # with the CLI's stderr attached. Under check=True the raised
-        # CalledProcessError renders only "returned non-zero exit status 1" and
-        # the sentence naming the offending channels is lost in the unread
-        # .stderr — and because this fixture is module-scoped, every test in the
-        # module ERRORs instead of one FAILing with the reason.
-        check=False,
-        env={
-            k: os.environ[k]
-            for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
-            if k in os.environ
-        },
-    )
-    assert result.returncode == 0, (
-        f"ha-discovery exited {result.returncode}:\n{result.stderr}"
-    )
-    payloads = json.loads(result.stdout)
-    assert payloads, "ha-discovery CLI returned no payloads"
-    return payloads
+    return load_ha_discovery_payloads(SCHEMA_PATH)
 
 
 @pytest.fixture(scope="module")
 def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Discovery payloads for jeelink2mqtt's own entities, without the bridge."""
-    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
+    """Discovery payloads for the app's own entities, without the bridge."""
+    return entities_without_bridge(ha_payloads)
 
 
 @pytest.fixture(scope="module")
 def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Index discovery payload configs by their object_id."""
-    object_ids = [p["config"]["object_id"] for p in entity_payloads]
-    dupes = [x for x, c in Counter(object_ids).items() if c > 1]
-    assert not dupes, f"Duplicate object_ids emitted: {dupes}"
-    return {p["config"]["object_id"]: p["config"] for p in entity_payloads}
+    return configs_by_object_id(entity_payloads)
 
 
 @pytest.mark.integration

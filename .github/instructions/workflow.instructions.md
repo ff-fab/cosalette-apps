@@ -32,4 +32,9 @@ Branch from `main` with a conventional prefix matching the commit type:
 
 - Shared fixtures (in `packages/tests/fixtures/` within each app) should be used to
   avoid duplication
+- Fixtures shared **across apps** live in the repo-root `packages/tests/fixtures/`.
+  Apps reach them through `pythonpath = ["../../packages/tests/fixtures"]` in their
+  `[tool.pytest.ini_options]`, so the import is a plain top-level module name
+  (`from ha_discovery import ...`). Add the module name to the app's
+  `[tool.ruff.lint.isort] known-first-party` so it sorts with the app's own imports.
 - Always ensure tests, fixtures, documentation, and features stay in sync
