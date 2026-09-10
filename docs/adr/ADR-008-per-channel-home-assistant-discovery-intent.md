@@ -9,7 +9,7 @@ tags: [architecture, mqtt, telemetry, devices, documentation]
 
 ## Status
 
-Accepted **Date:** 2026-09-10
+Accepted **Date:** 2026-09-10 | Amended **Date:** 2026-09-10
 
 ## Context
 
@@ -135,4 +135,15 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Rule 3 produces four Home Assistant entities for wallpanel-control's display (two sensors, two controls) where a single `light`-style composite would produce one. The names are disambiguated, but it is more entities than an ideal modelling would need.
 - The rule is longer than 'annotate or opt out', and an author who skips it will still reach for the blanket flag.
 
-_2026-09-10_
+## Amendment (2026-09-10) — Minor
+
+**Rationale:** cosalette 0.9.5 (upstream ADR-074) lifts the one-flag-per-registration constraint that forced Rules 2 and 3. `discoverable` is now `bool | Literal["command", "state"]` on `@app.command` / `@app.device`, so a command that publishes state can hide only its `/set` channel directly with `discoverable="state"`. The apps are unchanged today — migration is tracked separately — so this is an editorial note, not a revision of the decision.
+
+!!! note "Editorial note (2026-09-10)"
+    **The constraint behind Rules 2 and 3 is lifted from cosalette 0.9.5 (upstream ADR-074).** `discoverable` was one boolean per registration, which is why a command publishing state had to either void its handler (Rule 2) or annotate its payload model (Rule 3) to avoid taking the telemetry sensors with it. 0.9.5 widens the flag to `bool | Literal["command", "state"]` on `@app.command` / `@app.device` and their Router forms. `discoverable="state"` keeps the `/state` channel discoverable and opts only the `/set` command channel out, stating the intent directly instead of relying on handler voidness. The literal resolves to a plain per-channel boolean at document-generation time, so the emitted `x-cosalette-discoverable` extension and the ADR-073 loader are unchanged.
+
+!!! note "Editorial note (2026-09-10)"
+    **No app in this repo has migrated yet; the rules above still describe the shipped code.** vito2mqtt still uses the Rule 2 void-handler workaround, whose migration to `discoverable="state"` is tracked as cap-33eq. wallpanel-control still uses the Rule 3 `consumer()` annotation and is tracked as cap-c9v (a three-way trade — `discoverable="state"` would drop the HA control that PR #250 added, so it is not a free win). gas2mqtt (`consumption`) and jeelink2mqtt (`mapping`) are not migration candidates: their command handlers return acknowledgement dicts, but neither the `/set` command nor its paired `/state` channel is a consumer entity, so `discoverable=False` deliberately opts BOTH halves out and stays correct. Only vito2mqtt relies on the void-handler mechanism.
+
+!!! note "Editorial note (2026-09-10)"
+    **The enforcement gap is unchanged and remains the reason this ADR exists.** `cosalette schema check` still never reads `x-cosalette-discoverable`, so neither a lost sensor nor a lost opt-out fails CI on its own — whether the intent is stated with `discoverable=False`, a void handler, or the new `discoverable="state"`. Rule 5 still holds: every declaration stays locked by a `TestDiscoveryOptOut` golden set.
