@@ -147,3 +147,17 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 !!! note "Editorial note (2026-09-10)"
     **The enforcement gap is unchanged and remains the reason this ADR exists.** `cosalette schema check` still never reads `x-cosalette-discoverable`, so neither a lost sensor nor a lost opt-out fails CI on its own — whether the intent is stated with `discoverable=False`, a void handler, or the new `discoverable="state"`. Rule 5 still holds: every declaration stays locked by a `TestDiscoveryOptOut` golden set.
+
+## Amendment (2026-09-10) — Minor
+
+**Rationale:** cap-c9v is resolved. cosalette 0.9.5's channel-level composite (ADR-057) spans a @app.command's paired /set and /state channels, so wallpanel-control's display now surfaces as one Home Assistant light instead of four scalar entities — the ideal modelling ADR-008 named as out of reach. This records the resolution; the five rules are unchanged.
+
+!!! note "Editorial note (2026-09-10)"
+    The premise that a composite could not span a command registration's distinct payload_model and state_model (recorded against cap-c9v) is disproven — no framework change was needed. Declaring the same ha_entities() spec on BOTH DisplayCommand and DisplayState makes cosalette merge the two channels: the /state model supplies state_topic and the /set model supplies command_topic, exactly as ADR-057 already does for a device archetype's single-model channel pair.
+
+!!! note "Editorial note (2026-09-10)"
+    wallpanel-control now emits one `light` (Home Assistant template schema) carrying power and brightness. Unlike discoverable="state", the composite keeps the control PR #250 added AND collapses the entity count, so it is not the three-way trade the prior amendment described. The MQTT wire contract is unchanged: the light's templates map HA's 0-255 brightness and upper-case ON/OFF onto this app's 1-100 percent and lower-case on/off. This makes wallpanel-control the reference for a composite spanning a command's paired channels, superseding its Rule 3 consumer() annotations; vito2mqtt (Rule 2 void handler, cap-33eq) is unaffected.
+
+### Additional Positive Consequences
+
+- wallpanel-control's display collapses from four Home Assistant entities (two sensors, a select, a number) to one composite `light`, resolving the negative consequence above that Rule 3 produced more entities than an ideal modelling needs (cap-c9v).

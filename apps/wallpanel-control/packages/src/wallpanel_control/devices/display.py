@@ -18,19 +18,16 @@ When the wallpanel is unreachable the payload uses available=false and null
 values.  Rejects ``{}`` or unknown-only payloads.  Combining state="off" with
 brightness_percent is rejected as ambiguous.
 
-Consumer-metadata maintenance (model-driven)
---------------------------------------------
-The ``x-cosalette-consumer`` metadata that drives Home Assistant MQTT discovery
-(display_name, unit, state_class, icon, …) rides on the surfaced ``DisplayState``
-fields via :func:`pydantic.Field`'s ``json_schema_extra`` (built through the
-framework :func:`cosalette.schema.consumer` helper). Because cosalette generates
-the schema with ``TypeAdapter(model).json_schema()``, which preserves
-``json_schema_extra``, this enrichment *survives*
-``task wallpanel-control:schema:generate`` — no post-generation hand-application.
-Discovery is driven by the presence of this metadata, so the command-handler
-state channel still yields HA sensors regardless of its ``command`` archetype.
-This mirrors velux2mqtt's ``CoverState``; the migration is tracked as bead
-``cap-3mb``.
+Home Assistant discovery (one composite light)
+----------------------------------------------
+The display's ``/set`` and ``/state`` channels surface as a single Home Assistant
+``light`` — power plus brightness — rather than four scalar entities. A
+channel-level composite (cosalette ADR-057, :func:`cosalette.schema.ha_entities`)
+declared on *both* ``DisplayCommand`` and ``DisplayState`` merges the pair: the
+``/state`` model supplies ``state_topic`` and the ``/set`` model supplies
+``command_topic``. See ``_DISPLAY_LIGHT`` for the HA-to-wire template mapping.
+Tracked as bead ``cap-c9v``; the former four-entity Rule 3 shape and the reasons
+it is superseded are recorded in monorepo ADR-008.
 """
 
 from __future__ import annotations
@@ -42,7 +39,7 @@ from typing import Annotated, Literal
 
 import cosalette
 from cosalette.mqtt import Payload
-from cosalette.schema import consumer
+from cosalette.schema import ha_entities, ha_entity
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError
@@ -50,48 +47,53 @@ from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError
 logger = logging.getLogger(__name__)
 
 
-# The consumer() annotations below make the /set channel a pair of real Home
-# Assistant controls (a select and a number, both carrying command_topic and a
-# command_template). They are load-bearing, not decoration: since cosalette
-# 0.9.4 the discovery gate is evaluated PER CHANNEL, so displayCommand must
-# either emit an entity or be opted out — and opting out is not available here.
-# discoverable= is reconciled per registration, and this one owns both the /set
-# channel and the DisplayState /state channel, so discoverable=False would take
-# the two read-only sensors below with it (cosalette ADR-073, cap-wyy).
+# One Home Assistant light replaces the four scalar display entities (cap-c9v).
+# cosalette 0.9.5's channel-level composite (ADR-057) merges a send /state
+# channel and a receive /set channel into a single entity when the same
+# ha_entities() spec rides on both models: DisplayState supplies state_topic,
+# DisplayCommand supplies command_topic. Declaring it on both also excludes the
+# per-field scalar generation, so no sensor/select/number is emitted alongside.
 #
-# Emitting controls is the better half of that trade anyway: before this the app
-# published display state to Home Assistant but offered no way to change it from
-# there. The names deliberately differ from the DisplayState sensor names — HA
-# shows all four on one device, and two entities named "Display Brightness"
-# would be indistinguishable in a picker.
+# schema=template maps HA's light vocabulary onto this app's wire payloads
+# without touching the MQTT contract: brightness is 1-100 on the wire but 0-255
+# in HA, and state is lower-case on/off. Availability and per-device grouping are
+# added by cosalette, so they are not repeated here.
+_DISPLAY_LIGHT = ha_entities(
+    ha_entity(
+        component="light",
+        name="Display",
+        extra={
+            "schema": "template",
+            "command_on_template": (
+                '{"state": "on"'
+                "{% if brightness is defined %}"
+                ', "brightness_percent": '
+                "{{ [1, (brightness / 255 * 100) | round | int] | max }}"
+                "{% endif %}}"
+            ),
+            "command_off_template": '{"state": "off"}',
+            "state_template": '{{ value_json.state | default("off", true) }}',
+            "brightness_template": (
+                "{% if value_json.brightness_percent is not none %}"
+                "{{ (value_json.brightness_percent / 100 * 255) | round | int }}"
+                "{% else %}0{% endif %}"
+            ),
+        },
+    )
+)
+
+
+# The composite HA light (``_DISPLAY_LIGHT``) rides on both this command payload
+# and its paired ``DisplayState``. cosalette 0.9.4 evaluates the discovery gate
+# per channel; the composite is what satisfies it for ``displayCommand`` while
+# keeping the /set and /state halves as one entity (ADR-057, cap-c9v).
 class DisplayCommand(BaseModel):
     """Typed payload for wallpanel-control/display/set commands."""
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", json_schema_extra=_DISPLAY_LIGHT)
 
-    state: Annotated[
-        Literal["on", "off"] | None,
-        Field(
-            default=None,
-            json_schema_extra=consumer(
-                display_name="Display Power",
-                icon="mdi:monitor-shimmer",
-            ),
-        ),
-    ] = None
-    brightness_percent: Annotated[
-        int | None,
-        Field(
-            default=None,
-            ge=1,
-            le=100,
-            json_schema_extra=consumer(
-                display_name="Display Brightness Setpoint",
-                unit="%",
-                icon="mdi:brightness-percent",
-            ),
-        ),
-    ] = None
+    state: Literal["on", "off"] | None = None
+    brightness_percent: Annotated[int | None, Field(ge=1, le=100)] = None
 
     @model_validator(mode="after")
     def _validate_command_constraints(self) -> DisplayCommand:
@@ -104,43 +106,22 @@ class DisplayCommand(BaseModel):
         return self
 
 
-# Both annotated DisplayState fields carry read_only=True. This is the send-only
-# state channel of a @app.command entity, and cosalette stamps
-# x-cosalette-archetype: command on it just as it does on the /set channel. Without
-# the marker the HA generator infers a writable component from the archetype alone
-# and emits a number/select carrying no command_topic — a config Home Assistant
-# rejects. read_only pins them to sensors, which is what they are; commands arrive
-# on DisplayCommand over /set. See cap-bo0.
-# NB: the model docstring becomes the schema's payload description, so this stays a
-# comment rather than prose in the docstring.
+# ``DisplayState`` is the send-only /state half of the display light. It carries
+# the same ``_DISPLAY_LIGHT`` composite as ``DisplayCommand`` so cosalette merges
+# the two channels into one entity and skips scalar per-field generation — which
+# is why these fields need no consumer() annotation or read_only marker (cap-c9v
+# supersedes the cap-bo0 read_only workaround). ``brightness_template`` /
+# ``state_template`` on the composite read these fields on the HA side.
+# NB: the model docstring becomes the schema's payload description, so this stays
+# a comment rather than prose in the docstring.
 class DisplayState(BaseModel):
     """Typed state for wallpanel-control/display/state."""
 
+    model_config = ConfigDict(json_schema_extra=_DISPLAY_LIGHT)
+
     available: bool
-    state: Annotated[
-        Literal["on", "off"] | None,
-        Field(
-            json_schema_extra=consumer(
-                display_name="Display State",
-                icon="mdi:monitor",
-                read_only=True,
-            )
-        ),
-    ]
-    brightness_percent: Annotated[
-        int | None,
-        Field(
-            ge=0,
-            le=100,
-            json_schema_extra=consumer(
-                display_name="Display Brightness",
-                unit="%",
-                state_class="measurement",
-                icon="mdi:brightness-percent",
-                read_only=True,
-            ),
-        ),
-    ]
+    state: Literal["on", "off"] | None
+    brightness_percent: Annotated[int | None, Field(ge=0, le=100)]
 
 
 _UNAVAILABLE = DisplayState(available=False, state=None, brightness_percent=None)
