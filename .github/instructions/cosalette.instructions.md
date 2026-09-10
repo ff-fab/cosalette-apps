@@ -605,17 +605,18 @@ async def display(payload: DisplayCommand) -> DisplayState: ...
 > monorepo uses it yet.** Every existing opt-out here predates it and takes one of the
 > two 0.9.4-era workarounds recorded in `docs/adr/ADR-008`:
 >
-> - vito2mqtt, gas2mqtt and jeelink2mqtt make the command handler void (`-> None`, no
->   `state_model=`) so it emits no `/state` channel and `discoverable=False` stays
->   confined to `/set`.
+> - vito2mqtt makes the command handler void (`-> None`, no `state_model=`) so it emits
+>   no `/state` channel and `discoverable=False` stays confined to `/set`.
+> - gas2mqtt and jeelink2mqtt return acknowledgement dicts, but neither the `/set`
+>   command nor its paired `/state` channel is a Home Assistant entity, so
+>   `discoverable=False` opts both halves out deliberately.
 > - wallpanel-control annotates `DisplayCommand` with `consumer()` so the `/set`
 >   channel emits real controls instead of opting out.
 >
 > Write new code with `discoverable="state"`. Do not migrate existing apps ad hoc: each
 > change alters the Home Assistant entity set of a running deployment. vito2mqtt is
 > tracked as `cap-33eq`, wallpanel-control as `cap-c9v`, and the ADR-008 amendment as
-> `cap-ppr5`. gas2mqtt and jeelink2mqtt opt both halves out deliberately and stay on
-> `discoverable=False`.
+> `cap-ppr5`.
 >
 > Always assert the outcome. `cosalette schema check` compares registered device names
 > and never reads `x-cosalette-discoverable`, so neither a lost sensor nor a lost
