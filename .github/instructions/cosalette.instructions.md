@@ -555,7 +555,11 @@ class BulbState(pydantic.BaseModel):
 `climate` drops the generic state/command topics since every capability needs its
 own `<x>_state_topic`/`<x>_command_topic` via `extra`; `cover` keeps them). A
 `device` archetype's paired `/state` + `/set` channels share one model and merge
-into one entity automatically. See `cosalette ai help consumer-overrides`, ADR-057.
+into one entity automatically. To surface a list/object payload as HA attributes,
+set `json_attributes_template` in `extra`: cosalette defaults
+`json_attributes_topic` to the channel's own state topic (ADR-075), resolved
+per channel so a model-level spec shared by callable-named channels is correct.
+See `cosalette ai help consumer-overrides`, ADR-057.
 
 ### Opting a channel out of discovery
 
@@ -577,20 +581,42 @@ is reported by name. A top-level array-of-objects property (`events: list[Event]
 emits no entity — it has no single value, so route it through a channel-level
 `ha_entities()` composite instead. See `cosalette ai help discovery`, ADR-073.
 
+A command with both `payload_model` and `state_model` — or a device with
+`payload_model` — emits a paired `/set` command channel and a `/state` channel.
+`discoverable=False` opts out both; use `discoverable="state"` to keep only the
+`/state` channel discoverable (the `/set` command channel opts out) or
+`discoverable="command"` for the reverse. This is the correct shape for a command
+whose paired read-only state is an entity while the command itself is not
+(ADR-074):
+
+```python
+@app.command(
+    "display",
+    payload_model=DisplayCommand,
+    state_model=DisplayState,
+    discoverable="state",
+)
+async def display(payload: DisplayCommand) -> DisplayState: ...
+```
+
 > **Downstream note — not from the shipped template; re-add after `ai init`.**
 >
-> **`discoverable=` is reconciled per channel, and a command's `/state` channel merges
-> into a same-named telemetry channel with the opt-out winning.** So registering a
-> *returning* command `discoverable=False` also hides the telemetry sensors published
-> under that name. Before opting a command out, make the handler void (annotate it
-> `-> None` and set no `state_model=`): a void command emits no `/state` channel, so
-> nothing merges and the opt-out stays confined to `/set`. vito2mqtt lost 10 Home
-> Assistant sensors and 4 devices to this during the 0.9.4 upgrade; its
-> `TestDiscoveryOptOut` suite now locks the pairing.
+> **`discoverable="state"` is new in cosalette 0.9.5 (ADR-074) and no app in this
+> monorepo uses it yet.** Every existing opt-out here predates it and takes one of the
+> two 0.9.4-era workarounds recorded in `docs/adr/ADR-008`:
 >
-> When the command genuinely must publish state, the opt-out is not available at all.
-> Annotate its payload model with `consumer()` so the `/set` channel emits real
-> controls instead — that is what wallpanel-control's `DisplayCommand` does.
+> - vito2mqtt makes the command handler void (`-> None`, no `state_model=`) so it emits
+>   no `/state` channel and `discoverable=False` stays confined to `/set`.
+> - gas2mqtt and jeelink2mqtt return acknowledgement dicts, but neither the `/set`
+>   command nor its paired `/state` channel is a Home Assistant entity, so
+>   `discoverable=False` opts both halves out deliberately.
+> - wallpanel-control annotates `DisplayCommand` with `consumer()` so the `/set`
+>   channel emits real controls instead of opting out.
+>
+> Write new code with `discoverable="state"`. Do not migrate existing apps ad hoc: each
+> change alters the Home Assistant entity set of a running deployment. vito2mqtt is
+> tracked as `cap-33eq`, wallpanel-control as `cap-c9v`, and the ADR-008 amendment as
+> `cap-ppr5`.
 >
 > Always assert the outcome. `cosalette schema check` compares registered device names
 > and never reads `x-cosalette-discoverable`, so neither a lost sensor nor a lost
