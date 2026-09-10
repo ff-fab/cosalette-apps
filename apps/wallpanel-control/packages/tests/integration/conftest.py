@@ -14,7 +14,7 @@ import pytest
 from cosalette import MockMqttClient
 from cosalette.testing import AppHarness, FakeClock
 
-from tests.fixtures.async_utils import wait_for_condition
+from async_utils import wait_for_condition
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.devices import display, system

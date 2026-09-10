@@ -89,6 +89,6 @@ output = "coverage.xml"
 extend = "../../pyproject.toml"
 
 [tool.ruff.lint.isort]
-# ``ha_discovery`` is the repo-root shared test helper reached via
-# ``pythonpath`` above, not a PyPI package.
-known-first-party = ["jeelink2mqtt", "ha_discovery"]
+# ``async_utils`` and ``ha_discovery`` are the repo-root shared test helpers
+# reached via ``pythonpath`` above, not PyPI packages.
+known-first-party = ["jeelink2mqtt", "async_utils", "ha_discovery"]

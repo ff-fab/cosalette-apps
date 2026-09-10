@@ -52,6 +52,7 @@ from cosalette import MockMqttClient
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, FakeClock, assert_discovery_topics_published
 
+from async_utils import wait_for_condition
 from ha_discovery import (
     BRIDGE_OBJECT_ID,
     configs_by_object_id,
@@ -62,7 +63,6 @@ from jeelink2mqtt import receiver as _receiver
 from jeelink2mqtt.models import SensorReading, SensorStateModel
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
-from tests.fixtures.async_utils import wait_for_condition
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"

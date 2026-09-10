@@ -47,12 +47,12 @@ from cosalette import DeviceStore, EntityNotifier, MockMqttClient
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, ManualClock
 
+from async_utils import wait_for_condition
 from jeelink2mqtt import main as _main
 from jeelink2mqtt.errors import error_type_map
 from jeelink2mqtt.models import SensorReading, SensorStateModel
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
-from tests.fixtures.async_utils import wait_for_condition
 
 TOPIC_PREFIX = "jeelink2mqtt"
 """Default MQTT topic prefix used by these tests."""
