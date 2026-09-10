@@ -50,7 +50,7 @@ import pytest
 from jeelink2mqtt.path.to.module import ClassUnderTest
 
 # Import shared fixtures (test data, async utilities)
-from tests.fixtures.async_utils import wait_for_condition
+from async_utils import wait_for_condition
 from tests.fixtures.signals import create_signal, TEMPERATURE_SIGNALS
 
 
@@ -333,7 +333,7 @@ async def test_subscriber_receives_updates(self) -> None:
 When waiting for async state changes (not coordinating startup), use polling:
 
 ```python
-from tests.fixtures.async_utils import wait_for_condition
+from async_utils import wait_for_condition
 
 async def test_subscriber_cleanup_after_cancel(self) -> None:
     store = SignalStore()
@@ -354,10 +354,10 @@ async def test_subscriber_cleanup_after_cancel(self) -> None:
 
 ## Shared Fixtures Reference
 
-### `tests/fixtures/async_utils.py`
+### `packages/tests/fixtures/async_utils.py` (repo root, shared)
 
 ```python
-from tests.fixtures.async_utils import wait_for_condition
+from async_utils import wait_for_condition
 
 # Poll until condition is true, or timeout
 await wait_for_condition(

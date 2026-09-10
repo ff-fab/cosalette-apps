@@ -30,6 +30,9 @@ packages = ["packages/src/velux2mqtt"]
 testpaths = ["packages/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# Shared cross-app test helpers (packages/tests/fixtures/ at the repo root);
+# resolved relative to this app's rootdir. See cap-51s.
+pythonpath = ["../../packages/tests/fixtures"]
 addopts = [
     "-v",
     "--tb=short",
@@ -85,4 +88,6 @@ output = "coverage.xml"
 extend = "../../pyproject.toml"
 
 [tool.ruff.lint.isort]
-known-first-party = ["velux2mqtt"]
+# ``ha_discovery`` is the repo-root shared test helper reached via
+# ``pythonpath`` above, not a PyPI package.
+known-first-party = ["velux2mqtt", "ha_discovery"]

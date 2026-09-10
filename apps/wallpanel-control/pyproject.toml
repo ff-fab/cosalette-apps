@@ -28,6 +28,9 @@ packages = ["packages/src/wallpanel_control"]
 testpaths = ["packages/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# Shared cross-app test helpers (packages/tests/fixtures/ at the repo root);
+# resolved relative to this app's rootdir. See cap-51s.
+pythonpath = ["../../packages/tests/fixtures"]
 addopts = [
     "-v",
     "--tb=short",
@@ -83,4 +86,6 @@ output = "coverage.xml"
 extend = "../../pyproject.toml"
 
 [tool.ruff.lint.isort]
-known-first-party = ["wallpanel_control"]
+# ``async_utils`` and ``ha_discovery`` are the repo-root shared test helpers
+# reached via ``pythonpath`` above, not PyPI packages.
+known-first-party = ["wallpanel_control", "async_utils", "ha_discovery"]

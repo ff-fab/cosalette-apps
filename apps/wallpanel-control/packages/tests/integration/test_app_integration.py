@@ -25,7 +25,7 @@ import asyncio
 import pytest
 from cosalette.testing import AppHarness
 
-from tests.fixtures.async_utils import wait_for_condition
+from async_utils import wait_for_condition
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 
 from .conftest import (

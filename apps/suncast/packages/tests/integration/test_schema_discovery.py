@@ -41,14 +41,14 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
-import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
+
+from ha_discovery import run_ha_discovery
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -58,21 +58,10 @@ SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
 def ha_discovery_run() -> subprocess.CompletedProcess[str]:
     """Run the schema ha-discovery CLI once and return the completed process.
 
-    ``check=False`` so a non-zero exit surfaces as one named assertion failure
-    with the CLI's stderr attached, rather than an opaque ``CalledProcessError``
-    erroring every test in this module.
+    suncast expects an empty payload list, so this keeps the raw process
+    rather than the parsed payloads the sibling apps assert on.
     """
-    return subprocess.run(
-        [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={
-            k: os.environ[k]
-            for k in ("PATH", "PYTHONPATH", "HOME", "VIRTUAL_ENV")
-            if k in os.environ
-        },
-    )
+    return run_ha_discovery(SCHEMA_PATH)
 
 
 @pytest.fixture(scope="module")

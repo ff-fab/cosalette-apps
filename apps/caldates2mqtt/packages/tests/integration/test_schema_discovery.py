@@ -44,20 +44,24 @@ Test Techniques Used:
 
 from __future__ import annotations
 
-import json
-import os
 import subprocess
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 import yaml
 
+from ha_discovery import (
+    BRIDGE_OBJECT_ID,
+    configs_by_object_id,
+    entities_without_bridge,
+    parse_ha_discovery,
+    run_ha_discovery,
+)
+
 # packages/tests/integration/<file> → app root is parents[3]
 APP_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = APP_ROOT / "docs" / "schema.yaml"
-BRIDGE_OBJECT_ID = "bridge"  # ADR-058 synthetic bridge sentinel
 CALENDARS = ("birthday", "garbage")  # keys configured in .env.schema
 
 
@@ -72,28 +76,10 @@ def schema_channels() -> dict[str, Any]:
 def ha_discovery_run() -> subprocess.CompletedProcess[str]:
     """Run the schema ha-discovery CLI once and return the completed process.
 
-    ``check=False`` so a non-zero exit surfaces as one named assertion failure
-    with the CLI's stderr attached. Under ``check=True`` the raised
-    ``CalledProcessError`` renders only "returned non-zero exit status 1" and
-    the sentence naming the offending channels is lost in the unread
-    ``.stderr`` — and because this fixture is module-scoped, every test in the
-    module would ERROR instead of one FAILing with the reason.
+    Kept separate from :func:`ha_payloads` because the warning assertions
+    below read ``.stderr`` off the same run.
     """
-    result = subprocess.run(
-        [sys.executable, "-m", "cosalette", "schema", "ha-discovery", str(SCHEMA_PATH)],
-        capture_output=True,
-        text=True,
-        check=False,
-        env={
-            k: v
-            for k, v in os.environ.items()
-            if k not in {"PYTHONSTARTUP", "PYTHONHOME"}
-        },
-    )
-    assert result.returncode == 0, (
-        f"ha-discovery exited {result.returncode}:\n{result.stderr}"
-    )
-    return result
+    return run_ha_discovery(SCHEMA_PATH)
 
 
 @pytest.fixture(scope="module")
@@ -101,27 +87,19 @@ def ha_payloads(
     ha_discovery_run: subprocess.CompletedProcess[str],
 ) -> list[dict[str, Any]]:
     """All discovery payloads the CLI emitted, bridge included."""
-    payloads: list[dict[str, Any]] = json.loads(ha_discovery_run.stdout)
-    return payloads
+    return parse_ha_discovery(ha_discovery_run)
 
 
 @pytest.fixture(scope="module")
 def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Discovery payloads for the app's own entities, without the bridge.
-
-    cosalette 0.6.2 (ADR-058) emits one synthetic per-app ``bridge``
-    binary_sensor so Home Assistant materialises the device every real entity
-    links to via ``via_device``. It is framework plumbing rather than a
-    caldates2mqtt datapoint, so it is asserted in its own test and kept out of
-    the golden entity set here — the convention every sibling app follows.
-    """
-    return [p for p in ha_payloads if p["config"]["object_id"] != BRIDGE_OBJECT_ID]
+    """Discovery payloads for the app's own entities, without the bridge."""
+    return entities_without_bridge(ha_payloads)
 
 
 @pytest.fixture(scope="module")
 def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Index discovery payload configs by their object_id."""
-    return {p["config"]["object_id"]: p["config"] for p in entity_payloads}
+    return configs_by_object_id(entity_payloads)
 
 
 @pytest.mark.integration

@@ -30,6 +30,7 @@ import pytest
 from cosalette import AppContext, DeviceStore
 from cosalette.stores import MemoryStore
 
+from async_utils import wait_for_condition
 from jeelink2mqtt.app import _lifespan
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.main import app
@@ -41,7 +42,6 @@ from jeelink2mqtt.state import (
     _build_sensor_configs,
     build_shared_state,
 )
-from tests.fixtures.async_utils import wait_for_condition
 
 if TYPE_CHECKING:
     from cosalette import MockMqttClient
