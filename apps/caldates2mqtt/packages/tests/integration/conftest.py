@@ -14,6 +14,7 @@ from typing import Any
 import cosalette
 import pytest
 from cosalette import App, ClockPort, MockMqttClient
+from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, FakeClock
 from pydantic_settings import PydanticBaseSettingsSource
 
@@ -49,6 +50,11 @@ _SECOND_CALENDAR: dict[str, Any] = {
 }
 
 
+def calendar_config(key: str) -> CalendarConfig:
+    """A fast-polling calendar configured under *key*."""
+    return CalendarConfig(**{**_DEFAULT_CALENDAR, "key": key})
+
+
 class _FastPollSettings(CalDates2MqttSettings):
     """Settings subclass that ignores env vars for deterministic tests.
 
@@ -76,9 +82,11 @@ def build_integration_app(
 ) -> App:
     """Construct a fully-wired App with FakeCalDavReader.
 
-    Mirrors the telemetry wiring in ``caldates2mqtt.main`` while
-    substituting the adapter and passing settings explicitly so tests
-    stay isolated from the host environment.
+    Mirrors the telemetry wiring and ``app.discovery()`` in
+    ``caldates2mqtt.main`` while substituting the adapter and passing
+    settings explicitly so tests stay isolated from the host environment.
+    Backed by a ``MemoryStore``: the discovery snapshot would otherwise
+    persist on disk between tests and clear one test's calendars in the next.
 
     Args:
         fake_reader: FakeCalDavReader instance to inject.
@@ -92,7 +100,9 @@ def build_integration_app(
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
         error_type_map=error_type_map,
+        store=MemoryStore(),
     )
+    app.discovery()
 
     def _make_handler(cal: CalendarConfig):
         async def _handler(

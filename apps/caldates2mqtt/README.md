@@ -10,15 +10,19 @@ on the 0.9.6 release.
 
 ## Home Assistant Discovery
 
-**Working — one event sensor per calendar, count as state, events as attributes.**
-Running `task caldates2mqtt:schema:ha-discovery` yields one `sensor` per configured
-calendar (`birthday_events`, `garbage_events`) plus the ADR-058 app bridge, and exits 0.
-The sensor state is the event count. The sensor attributes carry the full event list, so
-a template or a dashboard card can read
-`state_attr('sensor.birthday_events', 'events')`.
+**Wired up — one event sensor per calendar, count as state, events as attributes.**
+`caldates2mqtt.main` calls `app.discovery()` (ADR-004), so on the first MQTT connect the
+app publishes retained `homeassistant/sensor/caldates2mqtt/<calendar>_events/config`
+payloads, plus the ADR-058 app bridge. They are generated from the live registry, so
+every configured calendar appears in Home Assistant without further setup. Removing a
+calendar clears its discovery topic on the next start (ADR-048). The sensor state is the
+event count. The sensor attributes carry the full event list, so a template or a
+dashboard card can read `state_attr('sensor.birthday_events', 'events')`.
 
-`docs/schema.yaml` carries a typed `state_model` (`CalendarState` in `main.py`, wired
-via `state_model=` on `@app.telemetry`) so the channel is not a bare
+`task caldates2mqtt:schema:ha-discovery` previews the same payloads offline from
+`docs/schema.yaml` for the `.env.schema` calendars (`birthday_events`, `garbage_events`)
+and exits 0. `docs/schema.yaml` carries a typed `state_model` (`CalendarState` in
+`main.py`, wired via `state_model=` on `@app.telemetry`) so the channel is not a bare
 `additionalProperties: true` object. Two independent things originally blocked a working
 entity:
 

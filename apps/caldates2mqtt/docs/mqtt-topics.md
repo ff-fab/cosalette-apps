@@ -51,8 +51,10 @@ maximum: 50), and only events within the `days` lookahead window are included (d
 14 days, maximum: 365). Titles longer than 100 characters are cut to 100 characters.
 
 !!! info "Home Assistant"
-    Home Assistant discovery creates one sensor per calendar, for example
-    `sensor.garbage_events`. The sensor state is the number of events. The `events`
+    On connect, the app publishes retained Home Assistant discovery configs to
+    `homeassistant/sensor/caldates2mqtt/{calendar}_events/config`, creating one sensor
+    per calendar, for example `sensor.garbage_events`. The sensor state is the number
+    of events. The `events`
     attribute carries the list above, so a template can read
     `state_attr('sensor.garbage_events', 'events')`. The Home Assistant recorder keeps
     these titles in its history.
