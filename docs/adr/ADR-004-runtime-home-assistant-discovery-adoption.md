@@ -11,6 +11,12 @@ tags: [mqtt, architecture, dependencies, lifecycle, testing]
 
 Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-10
 
+- All seven per-app adoption tasks are closed.
+- `schema:ha-discovery` is deprecated for adopted apps (cap-8sw, 2026-09-11).
+  The shared Taskfile task now prints a deprecation warning before running.
+- `schema:generate` and `schema:check` remain mandatory for openHAB generation
+  and drift detection.
+
 ## Context
 
 cosalette 0.6.2 shipped opt-in runtime HA discovery publication (upstream ADR-059, #385): when an app calls `App.discovery()`, the framework builds payloads from its own live, post-expand registry via `load_schema(app.asyncapi())` — the identical loader/generator pipeline the `cosalette schema ha-discovery` CLI uses — and publishes them as retained QoS 1 messages on the first successful MQTT connect, clearing orphaned `config` topics for entities removed since the last run. Verified hands-on against the installed cosalette 0.6.3 source (`_wiring/_discovery.py`, `_wiring/_infra.py`, `testing/_discovery.py`).
