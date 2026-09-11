@@ -601,22 +601,19 @@ async def display(payload: DisplayCommand) -> DisplayState: ...
 
 > **Downstream note — not from the shipped template; re-add after `ai init`.**
 >
-> **`discoverable="state"` is new in cosalette 0.9.5 (ADR-074) and no app in this
-> monorepo uses it yet.** Every existing opt-out here predates it and takes one of the
-> two 0.9.4-era workarounds recorded in `docs/adr/ADR-008`:
+> **vito2mqtt is the reference adoption of `discoverable="state"` (cosalette 0.9.5,
+> ADR-074).** Its command registrations keep their telemetry `/state` channels
+> discoverable while opting their `/set` channels out:
 >
-> - vito2mqtt makes the command handler void (`-> None`, no `state_model=`) so it emits
->   no `/state` channel and `discoverable=False` stays confined to `/set`.
 > - gas2mqtt and jeelink2mqtt return acknowledgement dicts, but neither the `/set`
 >   command nor its paired `/state` channel is a Home Assistant entity, so
 >   `discoverable=False` opts both halves out deliberately.
-> - wallpanel-control annotates `DisplayCommand` with `consumer()` so the `/set`
->   channel emits real controls instead of opting out.
+> - wallpanel-control uses a channel-level composite so its `/set` channel remains a
+>   Home Assistant control; `discoverable="state"` would remove that control.
 >
-> Write new code with `discoverable="state"`. Do not migrate existing apps ad hoc: each
-> change alters the Home Assistant entity set of a running deployment. vito2mqtt is
-> tracked as `cap-33eq`, wallpanel-control as `cap-c9v`, and the ADR-008 amendment as
-> `cap-ppr5`.
+> Write new code with `discoverable="state"` when only paired state is an entity. Do
+> not migrate existing apps ad hoc: each change alters the Home Assistant entity set of
+> a running deployment.
 >
 > Always assert the outcome. `cosalette schema check` compares registered device names
 > and never reads `x-cosalette-discoverable`, so neither a lost sensor nor a lost

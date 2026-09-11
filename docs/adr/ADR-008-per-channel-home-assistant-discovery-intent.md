@@ -9,7 +9,7 @@ tags: [architecture, mqtt, telemetry, devices, documentation]
 
 ## Status
 
-Accepted **Date:** 2026-09-10 | Amended **Date:** 2026-09-10
+Accepted **Date:** 2026-09-10 | Amended **Date:** 2026-09-10 | Amended **Date:** 2026-09-11
 
 ## Context
 
@@ -161,3 +161,18 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Additional Positive Consequences
 
 - wallpanel-control's display collapses from four Home Assistant entities (two sensors, a select, a number) to one composite `light`, resolving the negative consequence above that Rule 3 produced more entities than an ideal modelling needs (cap-c9v).
+
+## Amendment (2026-09-11) — Minor
+
+!!! note "Editorial note (2026-09-11)"
+    vito2mqtt now uses `discoverable="state"` for all four shared command groups. Each command `/set` channel resolves to `x-cosalette-discoverable: false`; the paired telemetry `/state` channel remains discoverable. Its void command handlers remain an independent wire-contract guard against a competing command state payload, not the mechanism that controls discovery.
+
+!!! note "Editorial note (2026-09-11)"
+    gas2mqtt and jeelink2mqtt continue to use `discoverable=False` where both command and paired state channels are intentionally outside Home Assistant discovery. wallpanel-control continues to expose its command channel through its composite control; `discoverable="state"` would remove that control.
+
+!!! note "Editorial note (2026-09-11)"
+    vito2mqtt's `TestDiscoveryOptOut` now asserts the rendered per-channel outcome, because `cosalette schema check` still does not read `x-cosalette-discoverable`.
+
+### Additional Positive Consequences
+
+- vito2mqtt records the first repository adoption of the declarative per-channel discovery intent and protects its resolved schema contract directly.
