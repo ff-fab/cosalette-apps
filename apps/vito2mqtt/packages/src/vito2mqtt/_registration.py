@@ -142,14 +142,9 @@ def configure_app(app: App) -> None:
     for group in COMMAND_GROUPS:
         app.add_command(
             name=group,
-            # A /set channel is not a Home Assistant entity: the group's
-            # sensors come from its telemetry half (cosalette ADR-073).
-            # This opt-out is safe ONLY because make_command_handler is void.
-            # A command that returned a value would emit its own /state
-            # channel, that channel would merge into the same-named telemetry
-            # channel, and the opt-out wins on merge — silently deleting the
-            # group's sensors. See make_command_handler's docstring (cap-wyy).
-            discoverable=False,
+            # Opt /set out; telemetry channel stays discoverable
+            # (cosalette 0.9.5, ADR-074).
+            discoverable="state",
             func=make_command_handler(group),
             summary=COMMAND_SUMMARIES.get(
                 group, f"Control {group} parameters via Optolink serial"
