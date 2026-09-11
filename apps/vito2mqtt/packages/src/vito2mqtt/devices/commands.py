@@ -174,17 +174,8 @@ def make_command_handler(
     Args:
         group: Command group name (key in :data:`COMMAND_GROUPS`).
 
-    The handler is a *void* command: it writes signals and arms the group's
-    telemetry member, but publishes no state of its own. The ``-> None``
-    annotation is load-bearing for the schema, not only documentation.
-    cosalette emits a command's outbound ``/state`` channel from
-    ``state_model=`` or the return annotation; a void command emits none.
-    That matters because a command's ``/state`` channel merges into the
-    same-named telemetry channel and the discovery opt-out wins on merge
-    (cosalette ADR-073), so a returning command registered
-    ``discoverable=False`` would drag its telemetry sensors out of Home
-    Assistant with it. Keeping it void confines the opt-out to the
-    ``/set`` channel. See ``_registration.py`` and cap-wyy.
+    Intentionally void (no return, no /state channel).
+    ``discoverable="state"`` opts /set out of discovery.
 
     Returns:
         Async callable suitable for ``app.add_command(func=...)``.

@@ -303,6 +303,25 @@ class TestCommandRegistration:
         assert command_names <= telemetry_names
 
 
+class TestCommandDiscoveryOptOut:
+    """Verify discoverable="state" on command registrations (cap-33eq, ADR-074).
+
+    Technique: Specification-based — the /set channel is not an HA entity;
+    discoverable="state" opts it out while staying forward-compatible with
+    a non-void handler.
+    """
+
+    def test_all_commands_use_discoverable_state(self) -> None:
+        """Every command declares discoverable="state" (cosalette 0.9.5)."""
+        from vito2mqtt.main import app
+
+        for reg in app.commands:
+            assert reg.discoverable == "state", (
+                f"Command {reg.name!r} discoverable={reg.discoverable!r}, "
+                f"expected 'state'"
+            )
+
+
 class TestDeviceRegistration:
     """Verify device handlers are registered."""
 
