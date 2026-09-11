@@ -54,6 +54,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -67,6 +68,7 @@ from cosalette.testing import AppHarness, assert_discovery_topics_published
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from ha_discovery import (
+    _INHERITED_ENV_VARS,
     BRIDGE_OBJECT_ID,
     configs_by_object_id,
     entities_without_bridge,
@@ -162,6 +164,7 @@ def openhab_run() -> subprocess.CompletedProcess[str]:
         capture_output=True,
         text=True,
         check=False,
+        env={k: os.environ[k] for k in _INHERITED_ENV_VARS if k in os.environ},
     )
 
 
@@ -488,6 +491,8 @@ class TestOpenHabGeneration:
         Technique: Golden set — every item line is collected, so a leaked
         item or a non-Number type fails as well as a missing one.
         """
+        # Assumes: item lines start with a type token (e.g. "Number");
+        # skip comments (//), Thing blocks, indented lines, and braces.
         items = [
             line.split()
             for line in openhab_run.stdout.splitlines()
@@ -507,9 +512,11 @@ class TestOpenHabGeneration:
         Technique: Specification-based — ADR-076 renders ``count`` as the
         Jayway ``length()`` reducer, pinned per calendar.
         """
-        thing = openhab_run.stdout.split(
-            f"Thing mqtt:topic:broker:{TOPIC_PREFIX}_{calendar} "
-        )[1].split("}")[0]
+        thing_header = f"Thing mqtt:topic:broker:{TOPIC_PREFIX}_{calendar} "
+        assert thing_header in openhab_run.stdout, (
+            f"Thing block for {calendar!r} not found in openhab output"
+        )
+        thing = openhab_run.stdout.split(thing_header)[1].split("}")[0]
         assert 'Type number : events "Upcoming Events"' in thing
         assert f'stateTopic="{TOPIC_PREFIX}/{calendar}/state"' in thing
         assert 'transformationPattern="JSONPATH:$.events.length()"' in thing
