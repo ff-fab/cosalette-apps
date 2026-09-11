@@ -25,7 +25,8 @@ channels:
             - component: sensor
               extra:
                 icon: mdi:calendar
-                json_attributes_template: '{{ value_json | tojson }}'
+                json_attributes_template: '{{ {''events'': value_json.events} | tojson
+                  }}'
                 state_class: measurement
                 unit_of_measurement: events
                 value_template: '{{ value_json.events | length }}'

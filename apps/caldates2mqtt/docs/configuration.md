@@ -81,8 +81,8 @@ Each entry in the `CALDATES2MQTT_CALENDARS` JSON list supports these fields:
 | `calendar_name` | string   | yes      | ---     | Calendar name (path segment) on the server       |
 | `username`      | string   | yes      | ---     | CalDAV auth username                             |
 | `password`      | string   | yes      | ---     | CalDAV auth password                             |
-| `entries`       | integer  | no       | `5`     | Number of upcoming events to fetch               |
-| `days`          | integer  | no       | `14`    | Lookahead window in days                         |
+| `entries`       | integer  | no       | `5`     | Number of upcoming events to fetch (1 to 50)     |
+| `days`          | integer  | no       | `14`    | Lookahead window in days (1 to 365)              |
 | `schedule`      | string   | no       | `"0 0 0/2 * * ?"` | Quartz cron expression for polling schedule (default: every 2 hours) |
 
 !!! note "Calendar key uniqueness"

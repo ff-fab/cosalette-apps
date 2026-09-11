@@ -44,17 +44,18 @@ entity:
    becomes an event-count sensor with `state_class: measurement` for long-term
    statistics.
 
-   The event **list** rides on that same sensor as HA attributes. The composite sets
-   `json_attributes_template` to `{{ value_json | tojson }}`, and cosalette 0.9.5
-   defaults `json_attributes_topic` to the channel's own resolved state topic (upstream
-   ADR-075) — resolved per channel, so one model-level spec names each calendar's own
-   topic (cap-6hw). The template yields the object `{"events": [...]}` rather than a
-   bare array, because Home Assistant rejects a bare array here.
+   The event **list** rides on that same sensor as HA attributes (cap-6hw). The
+   composite sets `json_attributes_template`, and cosalette defaults
+   `json_attributes_topic` to each calendar's own state topic (upstream ADR-075). The
+   comment above `_EVENT_COUNT_SENSOR` in `main.py` explains the template.
 
-   **Watch the attribute size for a large calendar.** Home Assistant's recorder drops
-   state attributes above 16384 bytes. Each event costs about 40 bytes plus the length
-   of its title, so the default of 5 entries per calendar produces about 400 bytes. A
-   calendar configured with more than about 150 entries can reach the limit.
+   **Attribute size.** Home Assistant's recorder drops state attributes above 16384
+   bytes. To stay below that limit, `entries` is capped at 50 and each title is cut to
+   100 characters. For ASCII titles, the worst case is about 7 kB.
+
+   **Privacy.** Event titles, for example the names on a birthday calendar, go into the
+   Home Assistant recorder history. To keep them out, exclude the sensors in the
+   recorder configuration, for example with `entity_globs: sensor.*_events`.
 
 Note that openHAB is unaffected by the composite: its generator ignores `ha_entities`,
 so `task caldates2mqtt:schema:openhab` still exits 1, exactly as it did before.

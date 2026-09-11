@@ -21,12 +21,8 @@ therefore stay inert and still warn on stderr. The composite is the supported
 answer to that (cosalette ADR-057), and it is what satisfies the per-channel
 discovery gate cosalette 0.9.4 introduced.
 
-The event *list* rides on the same sensor as HA attributes (cap-6hw). The
-composite sets ``json_attributes_template``; cosalette 0.9.5 then defaults
-``json_attributes_topic`` to the channel's own resolved state topic (ADR-075),
-so one model-level spec names each calendar's own topic. The assertions below
-pin both, because a regression to the 0.9.4 behaviour drops the topic key and
-leaves the attributes silently unpopulated in Home Assistant.
+The same sensor carries the event list as HA attributes (cap-6hw). The comment
+above ``_EVENT_COUNT_SENSOR`` in :mod:`caldates2mqtt.main` explains why.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
@@ -182,22 +178,18 @@ class TestHaDiscoveryGeneration:
     ) -> None:
         """Each sensor carries its own calendar's event list as HA attributes.
 
-        The composite declares only ``json_attributes_template``. cosalette
-        0.9.5 defaults ``json_attributes_topic`` to the channel's own resolved
-        state topic (ADR-075), which is what lets one model-level spec serve
-        every callable-named calendar. Under 0.9.4 the key was absent and the
-        attributes never populated, so this asserts the topic as well as the
-        template.
-
-        The template must yield a JSON object. ``value_json | tojson`` gives
-        ``{"events": [...]}``; ``value_json.events | tojson`` would give a bare
-        array, which Home Assistant rejects.
+        The composite declares only the template. The topic comes from the
+        cosalette default (ADR-075); under 0.9.4 it was absent and the
+        attributes never populated, so the topic is asserted too.
 
         Technique: Specification-based — the attributes contract, pinned per
         calendar so a topic that stops resolving per channel fails.
         """
         config = configs_by_id[f"{calendar}_events"]
-        assert config["json_attributes_template"] == "{{ value_json | tojson }}"
+        assert (
+            config["json_attributes_template"]
+            == "{{ {'events': value_json.events} | tojson }}"
+        )
         assert config["json_attributes_topic"] == f"caldates2mqtt/{calendar}/state"
 
     @pytest.mark.parametrize("calendar", CALENDARS)

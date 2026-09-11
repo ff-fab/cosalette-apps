@@ -19,11 +19,12 @@ import pytest
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import CalDavConnectionError
 from caldates2mqtt.main import (
-    CalendarEvent as SchemaCalendarEvent,
-)
-from caldates2mqtt.main import (
+    TITLE_MAX,
     CalendarState,
     calendar,
+)
+from caldates2mqtt.main import (
+    CalendarEvent as SchemaCalendarEvent,
 )
 from caldates2mqtt.ports import CalendarEvent
 from caldates2mqtt.settings import CalendarConfig
@@ -126,6 +127,30 @@ class TestCalendarHandlerHappyPath:
         )
 
         assert len(result.events) == 3
+
+    async def test_titles_cut_to_title_max(self, fake_reader: FakeCalDavReader) -> None:
+        """A title at TITLE_MAX passes unchanged; a longer one is cut to it.
+
+        Technique: Boundary Value Analysis — at and one past TITLE_MAX. Titles
+        come from a third-party CalDAV server and feed the HA attributes, which
+        the recorder drops above 16384 bytes (cap-6hw).
+        """
+        at_limit = "a" * TITLE_MAX
+        fake_reader.readings = [
+            [
+                CalendarEvent(title=at_limit, date=datetime.date(2026, 4, 1)),
+                CalendarEvent(title=at_limit + "b", date=datetime.date(2026, 4, 2)),
+            ]
+        ]
+
+        result = await calendar(
+            cal=_make_cal_config(),
+            trigger=cosalette.TriggerPayload.scheduled(),
+            reader=fake_reader,
+            logger=_logger,
+        )
+
+        assert [e.title for e in result.events] == [at_limit, at_limit]
 
     async def test_empty_calendar(self, fake_reader: FakeCalDavReader) -> None:
         """Empty calendar returns {"events": []}."""
