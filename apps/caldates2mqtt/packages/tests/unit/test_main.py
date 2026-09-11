@@ -77,14 +77,15 @@ class TestEventAttributesTemplate:
         """
         import json
 
-        import jinja2
+        from jinja2.sandbox import ImmutableSandboxedEnvironment
         from pydantic import TypeAdapter
 
         from caldates2mqtt.main import CalendarEvent, CalendarState
 
         adapter = TypeAdapter(CalendarState)
         (entity,) = adapter.json_schema()["x-cosalette-ha-discovery"]["entities"]
-        template = jinja2.Environment().from_string(
+        # Home Assistant renders templates in a sandboxed environment too.
+        template = ImmutableSandboxedEnvironment(autoescape=True).from_string(
             entity["extra"]["json_attributes_template"]
         )
         state = CalendarState(
