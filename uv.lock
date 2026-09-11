@@ -356,13 +356,13 @@ version = "0.2.1"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
-    { name = "cosalette" },
+    { name = "cosalette", extra = ["schema"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "caldav", specifier = ">=1.4" },
-    { name = "cosalette", specifier = ">=0.9.6,<0.10" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.9.6,<0.10" },
 ]
 
 [[package]]

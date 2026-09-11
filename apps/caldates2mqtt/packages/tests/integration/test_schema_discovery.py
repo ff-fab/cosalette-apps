@@ -51,6 +51,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import json
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -58,6 +59,7 @@ from typing import Any
 
 import pytest
 import yaml
+from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, assert_discovery_topics_published
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
@@ -75,6 +77,37 @@ from .conftest import TOPIC_PREFIX, calendar_config, make_harness, run_app_brief
 APP_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = APP_ROOT / "docs" / "schema.yaml"
 CALENDARS = ("birthday", "garbage")  # keys configured in .env.schema
+_DISCOVERY_WAIT_TIMEOUT = 3.0
+
+
+def _expected_config_topics(calendars: tuple[str, ...]) -> set[str]:
+    """Return retained discovery config topics for calendars plus the bridge."""
+    topics = {
+        f"homeassistant/sensor/{TOPIC_PREFIX}/{calendar}_events/config"
+        for calendar in calendars
+    }
+    topics.add(f"homeassistant/binary_sensor/{TOPIC_PREFIX}/bridge/config")
+    return topics
+
+
+def _expected_publishes(
+    calendars: tuple[str, ...], *, include_states: bool = False
+) -> dict[str, int]:
+    """Return publication counts needed to observe a complete harness startup."""
+    topics = _expected_config_topics(calendars)
+    if include_states:
+        topics.update(f"{TOPIC_PREFIX}/{calendar}/state" for calendar in calendars)
+    return dict.fromkeys(topics, 1)
+
+
+def _config_payload(harness: AppHarness, topic: str) -> dict[str, Any]:
+    """Parse the discovery config payload published to *topic*."""
+    payload = next(
+        payload
+        for published_topic, payload, *_ in harness.mqtt.published
+        if published_topic == topic
+    )
+    return json.loads(payload)
 
 
 @pytest.fixture(scope="module")
@@ -282,14 +315,86 @@ class TestRuntimeDiscoveryPublication:
         Technique: Golden set — ADR-059 runtime publication against the live
         registry; a dropped or leaked entity fails, as does a non-retained one.
         """
-        await run_app_briefly(schema_harness)
+        expected = _expected_config_topics(CALENDARS)
+        await run_app_briefly(
+            schema_harness,
+            wait=_DISCOVERY_WAIT_TIMEOUT,
+            expected_publishes=_expected_publishes(CALENDARS),
+        )
 
         retained = {t: r for t, _p, r, _q in schema_harness.mqtt.published}
         discovery = {t for t in retained if t.startswith("homeassistant/")}
-        assert discovery == {
-            f"homeassistant/sensor/{TOPIC_PREFIX}/{c}_events/config" for c in CALENDARS
-        } | {f"homeassistant/binary_sensor/{TOPIC_PREFIX}/bridge/config"}
+        assert discovery == expected
         assert all(retained[t] for t in discovery)
+
+    async def test_runtime_config_payloads_match_cli_topic_and_attribute_contracts(
+        self,
+        configs_by_id: dict[str, dict[str, Any]],
+        schema_harness: AppHarness,
+    ) -> None:
+        """Runtime configs preserve each CLI config's state and attribute contract.
+
+        Technique: Cross-check -- independently generated CLI configs and live
+        registry configs must agree on the state topic, attributes topic, and
+        attributes template for every calendar.
+        """
+        expected = _expected_config_topics(CALENDARS)
+        await run_app_briefly(
+            schema_harness,
+            wait=_DISCOVERY_WAIT_TIMEOUT,
+            expected_publishes=_expected_publishes(CALENDARS),
+        )
+
+        for calendar in CALENDARS:
+            topic = f"homeassistant/sensor/{TOPIC_PREFIX}/{calendar}_events/config"
+            runtime_config = _config_payload(schema_harness, topic)
+            cli_config = configs_by_id[f"{calendar}_events"]
+            assert runtime_config["state_topic"] == cli_config["state_topic"]
+            assert (
+                runtime_config["json_attributes_topic"]
+                == cli_config["json_attributes_topic"]
+            )
+            assert (
+                runtime_config["json_attributes_template"]
+                == cli_config["json_attributes_template"]
+            )
+
+    async def test_removes_retained_config_for_calendar_removed_after_restart(
+        self, fake_reader: FakeCalDavReader
+    ) -> None:
+        """A restart clears the stale retained config after a calendar is removed.
+
+        Technique: State Transition Testing -- two calendars on the first run,
+        then one calendar on the same store, must emit one retained clear for
+        the removed calendar's old config topic.
+        """
+        store = MemoryStore()
+        first_harness = make_harness(
+            fake_reader,
+            [calendar_config(calendar) for calendar in CALENDARS],
+            store=store,
+        )
+        await run_app_briefly(
+            first_harness,
+            wait=_DISCOVERY_WAIT_TIMEOUT,
+            expected_publishes=_expected_publishes(CALENDARS),
+        )
+
+        remaining = ("birthday",)
+        restarted_harness = make_harness(
+            fake_reader,
+            [calendar_config(calendar) for calendar in remaining],
+            store=store,
+        )
+        await run_app_briefly(
+            restarted_harness,
+            wait=_DISCOVERY_WAIT_TIMEOUT,
+            expected_publishes=_expected_publishes(remaining),
+        )
+
+        removed_topic = f"homeassistant/sensor/{TOPIC_PREFIX}/garbage_events/config"
+        removed_messages = restarted_harness.mqtt.get_messages_for(removed_topic)
+        assert removed_messages == [("", True, 1)]
 
 
 @pytest.mark.integration
@@ -308,7 +413,11 @@ class TestStateTopicsAreReal:
         Technique: Cross-check — the schema-derived expectation is validated
         against runtime ground truth, not a string derived from the same schema.
         """
-        await run_app_briefly(schema_harness)
+        await run_app_briefly(
+            schema_harness,
+            wait=_DISCOVERY_WAIT_TIMEOUT,
+            expected_publishes=_expected_publishes(CALENDARS, include_states=True),
+        )
 
         payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(schema_harness, payloads)
@@ -324,7 +433,11 @@ class TestStateTopicsAreReal:
 
         Technique: Cross-check — as above, for the second generated topic.
         """
-        await run_app_briefly(schema_harness)
+        await run_app_briefly(
+            schema_harness,
+            wait=_DISCOVERY_WAIT_TIMEOUT,
+            expected_publishes=_expected_publishes(CALENDARS, include_states=True),
+        )
 
         attribute_topics = [
             p["config"]["json_attributes_topic"] for p in entity_payloads

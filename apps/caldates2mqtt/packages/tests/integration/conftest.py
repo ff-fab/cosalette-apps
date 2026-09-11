@@ -79,6 +79,7 @@ def build_integration_app(
     calendars: list[CalendarConfig],
     *,
     min_interval: float | None = None,
+    store: MemoryStore | None = None,
 ) -> App:
     """Construct a fully-wired App with FakeCalDavReader.
 
@@ -94,13 +95,15 @@ def build_integration_app(
         min_interval: Optional ADR-066 trigger throttle.  Production uses
             ``main._TRIGGER_MIN_INTERVAL_SECONDS``; tests that assert throttle
             *behaviour* pass a fraction of a second so they stay fast.
+        store: Optional discovery store. A shared store exercises cleanup of
+            retained discovery configs after a configuration change.
     """
     app = App(
         name="caldates2mqtt",
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
         error_type_map=error_type_map,
-        store=MemoryStore(),
+        store=store or MemoryStore(),
     )
     app.discovery()
 
@@ -133,6 +136,7 @@ def make_harness(
     settings: CalDates2MqttSettings | None = None,
     min_interval: float | None = None,
     clock: ClockPort | None = None,
+    store: MemoryStore | None = None,
 ) -> AppHarness:
     """Construct an AppHarness wrapping the integration app.
 
@@ -144,11 +148,14 @@ def make_harness(
         min_interval: Optional ADR-066 trigger throttle for the registrations.
         clock: Optional clock override; defaults to a virtual-time FakeClock.
             Pass a ``ManualClock`` for tests that assert a tick did not fire.
+        store: Optional discovery store shared across harness instances.
     """
     if settings is None:
         settings = _FastPollSettings(calendars=calendars)  # type: ignore[arg-type]
     return AppHarness(
-        app=build_integration_app(fake_reader, calendars, min_interval=min_interval),
+        app=build_integration_app(
+            fake_reader, calendars, min_interval=min_interval, store=store
+        ),
         mqtt=MockMqttClient(),
         clock=clock or FakeClock(),
         settings=settings,
@@ -156,15 +163,39 @@ def make_harness(
     )
 
 
-async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
-    """Start the harness as a background task, wait, then shut it down cleanly.
+async def run_app_briefly(
+    harness: AppHarness,
+    *,
+    wait: float = 0.3,
+    expected_publishes: dict[str, int] | None = None,
+) -> None:
+    """Start the harness, optionally await publications, then shut it down.
 
-    Bounds task completion with asyncio.wait_for to prevent indefinite test hangs.
+    Bounds both publication waits and task completion with ``asyncio.wait_for``
+    to prevent indefinite test hangs.
     """
     task = asyncio.create_task(harness.run())
-    await asyncio.sleep(wait)
-    harness.shutdown_event.set()
-    await asyncio.wait_for(task, timeout=wait * 5)
+    try:
+        if expected_publishes is None:
+            await asyncio.sleep(wait)
+        else:
+            await asyncio.wait_for(
+                asyncio.gather(
+                    *(
+                        harness.wait_for_publish_count(topic, count)
+                        for topic, count in expected_publishes.items()
+                    )
+                ),
+                timeout=wait,
+            )
+    finally:
+        harness.shutdown_event.set()
+        try:
+            await asyncio.wait_for(task, timeout=wait * 5)
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------
