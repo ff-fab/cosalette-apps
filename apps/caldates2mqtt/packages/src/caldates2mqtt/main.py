@@ -40,10 +40,11 @@ class CalendarEvent:
 
     :func:`calendar` returns these instances directly; each serialises to
     ``{"title": ..., "date": ...}`` on the wire. The ``consumer()`` annotations
-    describe the fields for documentation and openHAB. They yield no Home
-    Assistant entity: an array item has no single value, so cosalette skips it
-    (cosalette ADR-073). The supported path is the channel-level
-    ``ha_entities()`` composite on :class:`CalendarState`.
+    describe the fields for documentation only. They yield no discovery entity
+    on either target: an array item has no single value, so cosalette skips it
+    (cosalette ADR-073). :class:`CalendarState` covers both targets instead:
+    Home Assistant through its ``ha_entities()`` composite, openHAB through the
+    ``count`` aggregate on ``events``.
     """
 
     title: Annotated[str, Field(json_schema_extra=consumer(display_name="Event Title"))]
@@ -107,7 +108,17 @@ class CalendarState:
 
     __pydantic_config__ = ConfigDict(json_schema_extra=_EVENT_COUNT_SENSOR)
 
-    events: list[CalendarEvent]
+    # cosalette ADR-076 typed aggregate: gives the array one value, for openHAB.
+    # Home Assistant never reads it: the composite above replaces per-property
+    # generation, so HA keeps exactly one sensor per calendar.
+    events: Annotated[
+        list[CalendarEvent],
+        Field(
+            json_schema_extra=consumer(
+                display_name="Upcoming Events", unit="events", aggregate="count"
+            )
+        ),
+    ]
 
 
 app = cosalette.App(

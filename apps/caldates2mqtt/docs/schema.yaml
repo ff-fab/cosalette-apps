@@ -16,6 +16,10 @@ channels:
                 $ref: '#/components/schemas/CalendarEvent'
               title: Events
               type: array
+              x-cosalette-consumer:
+                display_name: Upcoming Events
+                unit: events
+                aggregate: count
           required: &id002
           - events
           title: CalendarState
