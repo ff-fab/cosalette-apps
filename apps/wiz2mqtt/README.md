@@ -6,7 +6,7 @@ WiZ smart bulb control over MQTT for openHAB and Home Assistant
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.9.5 release.
+on the 0.9.6 release.
 
 ## Home Assistant Discovery
 
