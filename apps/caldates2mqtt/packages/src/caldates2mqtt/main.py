@@ -120,6 +120,9 @@ app = cosalette.App(
     error_type_map=error_type_map,
 )
 
+# ADR-004: runtime HA discovery, generated from the live per-calendar registry.
+app.discovery()
+
 
 def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
     if not isinstance(s, CalDates2MqttSettings):

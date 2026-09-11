@@ -14,6 +14,7 @@ from typing import Any
 import cosalette
 import pytest
 from cosalette import App, ClockPort, MockMqttClient
+from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, FakeClock
 from pydantic_settings import PydanticBaseSettingsSource
 
@@ -49,6 +50,11 @@ _SECOND_CALENDAR: dict[str, Any] = {
 }
 
 
+def calendar_config(key: str) -> CalendarConfig:
+    """A fast-polling calendar configured under *key*."""
+    return CalendarConfig(**{**_DEFAULT_CALENDAR, "key": key})
+
+
 class _FastPollSettings(CalDates2MqttSettings):
     """Settings subclass that ignores env vars for deterministic tests.
 
@@ -73,12 +79,15 @@ def build_integration_app(
     calendars: list[CalendarConfig],
     *,
     min_interval: float | None = None,
+    store: MemoryStore | None = None,
 ) -> App:
     """Construct a fully-wired App with FakeCalDavReader.
 
-    Mirrors the telemetry wiring in ``caldates2mqtt.main`` while
-    substituting the adapter and passing settings explicitly so tests
-    stay isolated from the host environment.
+    Mirrors the telemetry wiring and ``app.discovery()`` in
+    ``caldates2mqtt.main`` while substituting the adapter and passing
+    settings explicitly so tests stay isolated from the host environment.
+    Backed by a ``MemoryStore``: the discovery snapshot would otherwise
+    persist on disk between tests and clear one test's calendars in the next.
 
     Args:
         fake_reader: FakeCalDavReader instance to inject.
@@ -86,13 +95,17 @@ def build_integration_app(
         min_interval: Optional ADR-066 trigger throttle.  Production uses
             ``main._TRIGGER_MIN_INTERVAL_SECONDS``; tests that assert throttle
             *behaviour* pass a fraction of a second so they stay fast.
+        store: Optional discovery store. A shared store exercises cleanup of
+            retained discovery configs after a configuration change.
     """
     app = App(
         name="caldates2mqtt",
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
         error_type_map=error_type_map,
+        store=store or MemoryStore(),
     )
+    app.discovery()
 
     def _make_handler(cal: CalendarConfig):
         async def _handler(
@@ -123,6 +136,7 @@ def make_harness(
     settings: CalDates2MqttSettings | None = None,
     min_interval: float | None = None,
     clock: ClockPort | None = None,
+    store: MemoryStore | None = None,
 ) -> AppHarness:
     """Construct an AppHarness wrapping the integration app.
 
@@ -134,11 +148,14 @@ def make_harness(
         min_interval: Optional ADR-066 trigger throttle for the registrations.
         clock: Optional clock override; defaults to a virtual-time FakeClock.
             Pass a ``ManualClock`` for tests that assert a tick did not fire.
+        store: Optional discovery store shared across harness instances.
     """
     if settings is None:
         settings = _FastPollSettings(calendars=calendars)  # type: ignore[arg-type]
     return AppHarness(
-        app=build_integration_app(fake_reader, calendars, min_interval=min_interval),
+        app=build_integration_app(
+            fake_reader, calendars, min_interval=min_interval, store=store
+        ),
         mqtt=MockMqttClient(),
         clock=clock or FakeClock(),
         settings=settings,
@@ -146,15 +163,39 @@ def make_harness(
     )
 
 
-async def run_app_briefly(harness: AppHarness, *, wait: float = 0.3) -> None:
-    """Start the harness as a background task, wait, then shut it down cleanly.
+async def run_app_briefly(
+    harness: AppHarness,
+    *,
+    wait: float = 0.3,
+    expected_publishes: dict[str, int] | None = None,
+) -> None:
+    """Start the harness, optionally await publications, then shut it down.
 
-    Bounds task completion with asyncio.wait_for to prevent indefinite test hangs.
+    Bounds both publication waits and task completion with ``asyncio.wait_for``
+    to prevent indefinite test hangs.
     """
     task = asyncio.create_task(harness.run())
-    await asyncio.sleep(wait)
-    harness.shutdown_event.set()
-    await asyncio.wait_for(task, timeout=wait * 5)
+    try:
+        if expected_publishes is None:
+            await asyncio.sleep(wait)
+        else:
+            await asyncio.wait_for(
+                asyncio.gather(
+                    *(
+                        harness.wait_for_publish_count(topic, count)
+                        for topic, count in expected_publishes.items()
+                    )
+                ),
+                timeout=wait,
+            )
+    finally:
+        harness.shutdown_event.set()
+        try:
+            await asyncio.wait_for(task, timeout=wait * 5)
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
 
 
 # ---------------------------------------------------------------------------
