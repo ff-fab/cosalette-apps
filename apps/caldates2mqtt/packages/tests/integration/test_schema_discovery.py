@@ -39,9 +39,11 @@ Test Techniques Used:
   event-count sensor per calendar, each carrying its own event list as
   attributes; the array-item annotations stay inert and
   still warn, but the composite satisfies the per-channel *Home Assistant* gate
-  (cosalette ADR-073). It does not satisfy the openHAB generator, which ignores
-  ha_entities composites — ``task caldates2mqtt:schema:openhab`` still exits 1,
-  as it did before the composite existed.
+  (cosalette ADR-073)
+- Specification-based: openHAB ignores the HA-only composite and renders the
+  typed ``count`` aggregate on ``events`` (cosalette ADR-076) as one Number item
+  per calendar (cap-p09); Home Assistant never reads the aggregate, which the
+  golden sets confirm
 - Golden set: the exact object_id set, so both a dropped entity and a leaked
   one fail
 - Parametrize: per-calendar assertions name the failing calendar
@@ -53,6 +55,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -145,6 +148,21 @@ def entity_payloads(ha_payloads: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Index discovery payload configs by their object_id."""
     return configs_by_object_id(entity_payloads)
+
+
+@pytest.fixture(scope="module")
+def openhab_run() -> subprocess.CompletedProcess[str]:
+    """Run the schema openhab CLI once, ``.things`` and ``.items`` together.
+
+    ``check=False`` for the same reason as ``run_ha_discovery``: a non-zero
+    exit fails one named assertion with stderr attached.
+    """
+    return subprocess.run(
+        [sys.executable, "-m", "cosalette", "schema", "openhab", str(SCHEMA_PATH)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
 
 
 @pytest.fixture
@@ -446,3 +464,52 @@ class TestStateTopicsAreReal:
             SimpleNamespace(config={"state_topic": t}) for t in attribute_topics
         ]
         assert_discovery_topics_published(schema_harness, payloads)
+
+
+@pytest.mark.integration
+class TestOpenHabGeneration:
+    """Verify the count aggregate yields one openHAB Number per calendar (cap-p09)."""
+
+    def test_exits_zero(self, openhab_run: subprocess.CompletedProcess[str]) -> None:
+        """Every calendar channel now produces openHAB output.
+
+        Before cap-p09 the CLI exited 1: openHAB ignores the HA-only composite,
+        so both channels tripped the per-channel discovery gate (ADR-073).
+
+        Technique: Specification-based — the gate must pass for this target too.
+        """
+        assert openhab_run.returncode == 0, openhab_run.stderr
+
+    def test_emits_exactly_one_number_item_per_calendar(
+        self, openhab_run: subprocess.CompletedProcess[str]
+    ) -> None:
+        """Each calendar gets one Number item, bound to its own channel.
+
+        Technique: Golden set — every item line is collected, so a leaked
+        item or a non-Number type fails as well as a missing one.
+        """
+        items = [
+            line.split()
+            for line in openhab_run.stdout.splitlines()
+            if line and not line.startswith(("//", "Thing", " ", "}"))
+        ]
+        assert [item[0] for item in items] == ["Number"] * len(CALENDARS)
+        assert {item[-2] for item in items} == {
+            f'channel="mqtt:topic:broker:{TOPIC_PREFIX}_{c}:events"' for c in CALENDARS
+        }
+
+    @pytest.mark.parametrize("calendar", CALENDARS)
+    def test_channel_counts_the_calendars_own_events(
+        self, openhab_run: subprocess.CompletedProcess[str], calendar: str
+    ) -> None:
+        """Each Thing reads its calendar's state topic through the aggregate.
+
+        Technique: Specification-based — ADR-076 renders ``count`` as the
+        Jayway ``length()`` reducer, pinned per calendar.
+        """
+        thing = openhab_run.stdout.split(
+            f"Thing mqtt:topic:broker:{TOPIC_PREFIX}_{calendar} "
+        )[1].split("}")[0]
+        assert 'Type number : events "Upcoming Events"' in thing
+        assert f'stateTopic="{TOPIC_PREFIX}/{calendar}/state"' in thing
+        assert 'transformationPattern="JSONPATH:$.events.length()"' in thing

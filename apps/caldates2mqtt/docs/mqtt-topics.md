@@ -59,6 +59,11 @@ maximum: 50), and only events within the `days` lookahead window are included (d
     `state_attr('sensor.garbage_events', 'events')`. The Home Assistant recorder keeps
     these titles in its history.
 
+!!! info "openHAB"
+    `task caldates2mqtt:schema:openhab` generates one `Number` item per calendar. The
+    item holds the event count and reads it with
+    `JSONPATH:$.events.length()`. openHAB gets the count only, not the event list.
+
 !!! info "Polling schedule"
     By default, calendars are polled every 2 hours (Quartz cron `"0 0 0/2 * * ?"`).
     The first reading arrives shortly after startup; subsequent reads follow the

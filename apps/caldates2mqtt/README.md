@@ -61,8 +61,12 @@ entity:
    Home Assistant recorder history. To keep them out, exclude the sensors in the
    recorder configuration, for example with `entity_globs: sensor.*_events`.
 
-Note that openHAB is unaffected by the composite: its generator ignores `ha_entities`,
-so `task caldates2mqtt:schema:openhab` still exits 1, exactly as it did before.
+   **openHAB.** The composite is Home Assistant-only, so openHAB reads a different
+   annotation: `events` declares the typed `count` aggregate (upstream ADR-076,
+   cap-p09). `task caldates2mqtt:schema:openhab` emits one `Number` item per calendar
+   that reads `JSONPATH:$.events.length()`. Home Assistant ignores the aggregate,
+   because the composite replaces per-property generation, so it still gets one sensor
+   per calendar.
 
 ## Contributing
 
