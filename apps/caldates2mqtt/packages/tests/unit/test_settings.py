@@ -1,7 +1,7 @@
 """Unit tests for caldates2mqtt settings — CalDates2MqttSettings validation.
 
 Test Techniques Used:
-- Boundary Value Analysis: Numeric field constraints (gt)
+- Boundary Value Analysis: Numeric field constraints (gt, le)
 - Equivalence Partitioning: Valid/invalid setting values
 - Specification-based: Default values match documentation
 """
@@ -11,6 +11,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
+from caldates2mqtt.settings import DAYS_MAX, ENTRIES_MAX, CalDates2MqttSettings
 from tests.fixtures.config import make_caldates2mqtt_settings
 
 
@@ -107,6 +108,37 @@ class TestCalDates2MqttSettingsValidation:
                     }
                 ]
             )
+
+    @pytest.mark.parametrize(
+        ("field", "limit"), [("entries", ENTRIES_MAX), ("days", DAYS_MAX)]
+    )
+    def test_upper_bound_accepted_and_one_past_rejected(
+        self, field: str, limit: int
+    ) -> None:
+        """entries and days accept their maximum and reject one past it.
+
+        The configured values share the caps that the MQTT trigger overrides
+        clamp to. The entries cap also keeps the HA attributes under the
+        recorder's 16384-byte limit (cap-6hw).
+        """
+
+        def make(value: int) -> CalDates2MqttSettings:
+            return make_caldates2mqtt_settings(
+                calendars=[
+                    {
+                        "key": "test",
+                        "url": "https://example.com/",
+                        "calendar_name": "cal",
+                        "username": "u",
+                        "password": "p",
+                        field: value,
+                    }
+                ]
+            )
+
+        assert getattr(make(limit).calendars[0], field) == limit
+        with pytest.raises(ValidationError):
+            make(limit + 1)
 
     def test_days_rejects_zero(self) -> None:
         """Days must be > 0."""

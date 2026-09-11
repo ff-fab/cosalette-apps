@@ -2,6 +2,7 @@
 
 Test Techniques Used:
 - Specification-based: Verify declared retry configuration on the telemetry registration
+- Round-trip Testing: Render the live HA attributes template against a real payload
 """
 
 from __future__ import annotations
@@ -49,6 +50,53 @@ class TestTelemetryRetryConfig:
 
         reg = app.telemetry_registrations[0]
         assert CalDavTimeoutError in reg.retry_on
+
+
+@pytest.mark.unit
+class TestEventAttributesTemplate:
+    """Render the HA attributes template that main.py declares (cap-6hw).
+
+    The integration suite reads the committed docs/schema.yaml. This class reads
+    the live model, so a template removed from main.py fails even when the schema
+    is not regenerated.
+    """
+
+    @pytest.mark.parametrize(
+        "titles", [(), ("Gelber Sack", "Müll <Bio> & 'Rest'")], ids=["empty", "events"]
+    )
+    def test_attributes_are_an_object_holding_the_event_list(
+        self, titles: tuple[str, ...]
+    ) -> None:
+        """The template yields ``{"events": [...]}`` and nothing else.
+
+        Home Assistant rejects a bare array as attributes, and only the event
+        list is meant to reach them.
+
+        Technique: Round-trip Testing — serialise a real CalendarState, render
+        the template as Home Assistant does, and parse the result back.
+        """
+        import json
+
+        from jinja2.sandbox import ImmutableSandboxedEnvironment
+        from pydantic import TypeAdapter
+
+        from caldates2mqtt.main import CalendarEvent, CalendarState
+
+        adapter = TypeAdapter(CalendarState)
+        (entity,) = adapter.json_schema()["x-cosalette-ha-discovery"]["entities"]
+        # Home Assistant renders templates in a sandboxed environment too.
+        template = ImmutableSandboxedEnvironment(autoescape=True).from_string(
+            entity["extra"]["json_attributes_template"]
+        )
+        state = CalendarState(
+            events=[CalendarEvent(title=t, date="2026-04-01") for t in titles]
+        )
+
+        rendered = template.render(value_json=json.loads(adapter.dump_json(state)))
+
+        assert json.loads(rendered) == {
+            "events": [{"title": t, "date": "2026-04-01"} for t in titles]
+        }
 
 
 @pytest.mark.unit

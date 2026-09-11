@@ -46,8 +46,16 @@ sorted by date.
 | `events[].title` | string | Event summary from the calendar   |
 | `events[].date`  | string | ISO 8601 date (`YYYY-MM-DD`)      |
 
-The number of events is limited by the per-calendar `entries` setting (default: 5), and
-only events within the `days` lookahead window are included (default: 14 days).
+The number of events is limited by the per-calendar `entries` setting (default: 5,
+maximum: 50), and only events within the `days` lookahead window are included (default:
+14 days, maximum: 365). Titles longer than 100 characters are cut to 100 characters.
+
+!!! info "Home Assistant"
+    Home Assistant discovery creates one sensor per calendar, for example
+    `sensor.garbage_events`. The sensor state is the number of events. The `events`
+    attribute carries the list above, so a template can read
+    `state_attr('sensor.garbage_events', 'events')`. The Home Assistant recorder keeps
+    these titles in its history.
 
 !!! info "Polling schedule"
     By default, calendars are polled every 2 hours (Quartz cron `"0 0 0/2 * * ?"`).

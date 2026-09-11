@@ -23,10 +23,15 @@ from caldates2mqtt.errors import (
     error_type_map,
 )
 from caldates2mqtt.ports import CalDavPort
-from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
+from caldates2mqtt.settings import (
+    DAYS_MAX,
+    ENTRIES_MAX,
+    CalDates2MqttSettings,
+    CalendarConfig,
+)
 
-_ENTRIES_MAX = 50
-_DAYS_MAX = 365
+# Titles come from someone else's CalDAV server and have no length limit.
+TITLE_MAX = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,18 +52,29 @@ class CalendarEvent:
 
 # cosalette ADR-057 channel-level composite: the per-property consumer() annotations
 # on CalendarEvent sit on array items, which yield no entity. This composite is the
-# supported alternative and exposes the event count per calendar.
+# supported alternative. It exposes the event count as the entity state and the
+# event list as Home Assistant attributes.
 #
-# The event list itself stays off Home Assistant. Carrying it would need
-# json_attributes_topic, and cosalette 0.9.4 neither emits that key nor offers a
-# placeholder for a channel's generated address, so a model-level spec shared by
-# every calendar cannot name a per-calendar topic.
+# json_attributes_template carries the list. cosalette 0.9.5 defaults
+# json_attributes_topic to the channel's own resolved state topic (ADR-075), so this
+# one model-level spec names each calendar's own topic. Home Assistant requires the
+# template to yield a JSON object, not a bare array, so it wraps the list as
+# {"events": [...]}. It names the key instead of passing value_json through, so a
+# field added to CalendarState later does not become an attribute by accident.
+#
+# Home Assistant's recorder drops attributes above 16384 bytes. Each event costs
+# about 33 bytes plus the UTF-8 length of its title. With entries <= ENTRIES_MAX and
+# titles <= TITLE_MAX characters, the worst case is about 6.7 kB for ASCII titles and
+# 11.7 kB for two-byte characters such as umlauts. Only full-length titles made of
+# three- or four-byte characters (CJK, emoji) can pass the cap. The default of 5
+# entries produces about 400 bytes.
 _EVENT_COUNT_SENSOR = ha_entities(
     ha_entity(
         component="sensor",
         name="Events",
         extra={
             "value_template": "{{ value_json.events | length }}",
+            "json_attributes_template": "{{ {'events': value_json.events} | tojson }}",
             "unit_of_measurement": "events",
             "state_class": "measurement",
             "icon": "mdi:calendar",
@@ -84,7 +100,8 @@ class CalendarState:
     the NameSpec into real per-calendar channels (e.g. ``birthdayState``,
     ``garbageState``). See ``docs/schema.yaml`` and cap-0cg. Home Assistant
     discovery emits one event-count sensor per calendar from the
-    :data:`_EVENT_COUNT_SENSOR` composite above. See
+    :data:`_EVENT_COUNT_SENSOR` composite above; that sensor also carries the
+    calendar's event list as attributes. See
     ``apps/caldates2mqtt/README.md`` "Home Assistant Discovery" section.
     """
 
@@ -177,10 +194,10 @@ async def calendar(
     if trigger.is_triggered:
         raw_entries = trigger.get("entries", None)
         if isinstance(raw_entries, int) and raw_entries > 0:
-            entries = min(raw_entries, _ENTRIES_MAX)
+            entries = min(raw_entries, ENTRIES_MAX)
         raw_days = trigger.get("days", None)
         if isinstance(raw_days, int) and raw_days > 0:
-            days = min(raw_days, _DAYS_MAX)
+            days = min(raw_days, DAYS_MAX)
         logger.info("Re-read triggered for calendar %s", cal.key)
     else:
         logger.debug("Reading calendar %s", cal.key)
@@ -195,7 +212,7 @@ async def calendar(
 
     return CalendarState(
         events=[
-            CalendarEvent(title=e.title, date=e.date.isoformat())
+            CalendarEvent(title=e.title[:TITLE_MAX], date=e.date.isoformat())
             for e in events[:entries]
         ]
     )

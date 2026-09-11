@@ -11,6 +11,12 @@ import cosalette
 from pydantic import BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import SettingsConfigDict
 
+# Shared by the configured values and the MQTT trigger overrides in main.py. The
+# entries bound also keeps the Home Assistant attributes under the recorder's
+# 16384-byte cap; see the size note above _EVENT_COUNT_SENSOR in main.py.
+ENTRIES_MAX = 50
+DAYS_MAX = 365
+
 
 class CalendarConfig(BaseModel):
     """Configuration for a single CalDAV calendar.
@@ -37,9 +43,14 @@ class CalendarConfig(BaseModel):
     username: str = Field(description="CalDAV auth username")
     password: SecretStr = Field(description="CalDAV auth password")
     entries: int = Field(
-        default=5, gt=0, description="Number of upcoming events to fetch"
+        default=5,
+        gt=0,
+        le=ENTRIES_MAX,
+        description="Number of upcoming events to fetch",
     )
-    days: int = Field(default=14, gt=0, description="Lookahead window in days")
+    days: int = Field(
+        default=14, gt=0, le=DAYS_MAX, description="Lookahead window in days"
+    )
     schedule: str = Field(
         default="0 0 0/2 * * ?",
         description=(
