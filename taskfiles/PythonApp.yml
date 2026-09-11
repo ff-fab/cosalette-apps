@@ -7,6 +7,7 @@ vars:
   APP_NAME: '{{.APP_NAME}}'
   MODULE_NAME: '{{.MODULE_NAME | default .APP_NAME}}'
   PKG: packages
+  HA_DISCOVERY_DEPRECATED: '{{.HA_DISCOVERY_DEPRECATED | default "false"}}'
 
 tasks:
   test:
@@ -175,7 +176,10 @@ tasks:
   schema:ha-discovery:
     desc: '[DEPRECATED] Generate Home Assistant MQTT discovery payloads for {{.APP_NAME}}'
     cmds:
-      - echo "DEPRECATED -- schema:ha-discovery is deprecated for apps that adopted runtime HA discovery (ADR-004). Use schema:generate + schema:check for openHAB drift detection instead."
+      - >-
+        {{if eq .HA_DISCOVERY_DEPRECATED "true"}}
+        echo "DEPRECATED -- schema:ha-discovery is deprecated for apps that adopted runtime HA discovery (ADR-004). Use schema:generate + schema:check for openHAB drift detection instead." >&2
+        {{end}}
       - uv run --package {{.APP_NAME}} cosalette schema ha-discovery docs/schema.yaml
 
   schema:openhab:

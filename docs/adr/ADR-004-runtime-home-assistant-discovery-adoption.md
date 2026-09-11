@@ -9,7 +9,7 @@ tags: [mqtt, architecture, dependencies, lifecycle, testing]
 
 ## Status
 
-Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-10
+Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11
 
 - All seven per-app adoption tasks are closed.
 - `schema:ha-discovery` is deprecated for adopted apps (cap-8sw, 2026-09-11).
@@ -35,8 +35,8 @@ Per-app verdicts:
 | --- | --- | --- |
 | velux2mqtt | Adopt | none — first pilot; replaces the `--resolve-settings` two-step for discovery |
 | airthings2mqtt, gas2mqtt, vito2mqtt, wallpanel-control | Adopt | none — lower urgency, offline flow already works |
-| jeelink2mqtt | Adopt | blocked by cap-egy (needs `consumer()` annotations first) |
-| caldates2mqtt | Adopt | blocked by cap-30z (array-item exposure undecided; generator still skips array items in 0.6.3, so adoption would emit zero payloads) |
+| jeelink2mqtt | Adopt | ~~blocked by cap-egy~~ resolved |
+| caldates2mqtt | Adopt | ~~blocked by cap-30z~~ resolved |
 | suncast | Excluded | no HA discovery surface (SVG payload, no HA protocol) |
 | wiz2mqtt | Out of scope here | governed by cap-10u.14 within the wiz2mqtt epic |
 
