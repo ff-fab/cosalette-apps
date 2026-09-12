@@ -97,7 +97,7 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
 
 
 @app.telemetry(
-    "airthings",
+    lambda settings: [settings.device_name],
     interval=setting_ref("poll_interval"),
     timeout=setting_ref("poll_timeout"),
     triggerable=True,

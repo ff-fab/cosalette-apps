@@ -35,14 +35,17 @@ Test Techniques Used
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from collections.abc import Sequence
 from typing import Any
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette.testing import AppHarness, ManualClock
 
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
+from vito2mqtt.config import Vito2MqttSettings
 from vito2mqtt.devices import SIGNAL_GROUPS
+from vito2mqtt.errors import OptolinkConnectionError
 
 from .conftest import TOPIC_PREFIX, make_harness, run_app_briefly
 
@@ -81,6 +84,22 @@ class _PartiallyRaisingAdapter(FakeOptolinkAdapter):
         if any(n in self._OUTDOOR_NAMES for n in names):
             msg = "Outdoor batch read failure"
             raise RuntimeError(msg)
+        return await super().read_signals(names)
+
+
+class _TransientOutdoorAdapter(FakeOptolinkAdapter):
+    """Exhaust one outdoor retry budget, then resume normal reads."""
+
+    _OUTDOOR_NAMES = frozenset(SIGNAL_GROUPS["outdoor"])
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.remaining_failures = 4
+
+    async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
+        if self.remaining_failures and any(n in self._OUTDOOR_NAMES for n in names):
+            self.remaining_failures -= 1
+            raise OptolinkConnectionError("Optolink disconnected")
         return await super().read_signals(names)
 
 
@@ -148,6 +167,42 @@ def _has_non_outdoor_state(harness: AppHarness) -> bool:
 
 class TestTelemetryErrorPublishing:
     """Error messages are published on MQTT when the adapter raises."""
+
+    @pytest.mark.integration
+    async def test_optolink_group_availability_recovers_after_retry_exhaustion(
+        self,
+    ) -> None:
+        adapter = _TransientOutdoorAdapter()
+        clock = ManualClock()
+        settings = Vito2MqttSettings(
+            serial_port="/dev/ttyUSB0",
+            polling_outdoor=60,
+            polling_hot_water=3600,
+            polling_burner=3600,
+            polling_heating_radiator=3600,
+            polling_heating_floor=3600,
+            polling_system=3600,
+            polling_diagnosis=3600,
+        )
+        harness = make_harness(adapter, clock=clock, settings=settings)
+        topic = f"{TOPIC_PREFIX}/outdoor/availability"
+        task = asyncio.create_task(harness.run())
+        try:
+            await clock.settle()
+            while adapter.remaining_failures:
+                await harness.advance_time(10)
+            await harness.wait_for_publish_count(topic, 2)
+            assert harness.messages_for(topic)[-1] == ("offline", True, 1)
+
+            await harness.advance_time(60)
+            await harness.wait_for_publish_count(topic, 3)
+            assert harness.messages_for(topic)[-1] == ("online", True, 1)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
     @pytest.mark.integration
     @pytest.mark.slow

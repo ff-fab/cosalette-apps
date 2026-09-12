@@ -110,6 +110,13 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         capabilities for BlueZ access. `network_mode: host` avoids additional network
         configuration.
 
+        The app health check uses this read-only D-Bus access to query BlueZ's
+        `Adapter1.Powered` property with a bounded timeout. It reports unhealthy when
+        D-Bus is unavailable, no Bluetooth adapter is present, or the adapter is
+        powered off. The check does not scan for or connect to the configured Airthings
+        sensor; terminal BLE read retry failures are reported separately on the device
+        availability topic.
+
 === "Manual (pip/uv)"
 
     Install airthings2mqtt directly on your Pi:
@@ -133,7 +140,8 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
 ## First Run Verification
 
 Once airthings2mqtt is running, verify data is flowing by subscribing to the MQTT
-topics.
+topics. The examples use the default topic prefix (`airthings2mqtt`) and device name
+(`airthings`); substitute your configured values if you changed either setting.
 
 ### Check Status
 
@@ -146,7 +154,7 @@ You should see messages on these topics within the first polling cycle:
 | Topic                                | What it means                         |
 | ------------------------------------ | ------------------------------------- |
 | `airthings2mqtt/status`              | Heartbeat --- the app is alive        |
-| `airthings2mqtt/airthings/availability` | `"online"` --- sensor is ready     |
+| `airthings2mqtt/airthings/availability` | Reachability after retryable reads  |
 | `airthings2mqtt/airthings/state`     | First sensor reading (see below)      |
 
 ### Verify Sensor Data
@@ -168,8 +176,12 @@ sensor readings:
     shortly after startup; subsequent readings follow the configured interval. See
     [Configuration](configuration.md) to adjust.
 
-  To request a fresh reading on demand, publish an empty payload to the trigger topic:
-  `mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n`.
+To request a fresh reading on demand, publish an empty payload to the trigger topic
+(substituting your configured prefix and device name when needed):
+
+```bash
+mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
+```
 
 !!! warning "No messages?"
     - Confirm the broker is reachable:

@@ -16,7 +16,7 @@ from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import error_type_map
+from airthings2mqtt.errors import BleConnectionError, BleTimeoutError, error_type_map
 from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS, _telemetry
 from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
@@ -37,7 +37,7 @@ class _FastPollSettings(Airthings2MqttSettings):
     """
 
     poll_interval: int = Field(  # type: ignore[assignment]
-        default=1,
+        default=60,
         ge=1,
         description="Poll interval in seconds (relaxed for tests)",
     )
@@ -79,10 +79,13 @@ def build_integration_app(
         error_type_map=error_type_map,
     )
     test_app.telemetry(
-        "airthings",
+        lambda settings: [settings.device_name],
         interval=setting_ref("poll_interval"),
+        timeout=setting_ref("poll_timeout"),
         triggerable=True,
         min_interval=min_interval,
+        retry=3,
+        retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
         state_model=AirthingsReading,
     )(_telemetry)
     return test_app
@@ -106,7 +109,7 @@ def make_harness(
         mqtt=MockMqttClient(),
         clock=ManualClock(),
         settings=settings
-        or _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=1),  # type: ignore[arg-type]
+        or _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=60),
         shutdown_event=asyncio.Event(),
     )
 
@@ -125,9 +128,16 @@ async def run_app_briefly(harness: AppHarness, *, polls: int = 2) -> None:
     """
     assert isinstance(harness.settings, Airthings2MqttSettings)
     poll_interval = float(harness.settings.poll_interval)
+    device_name = harness.settings.device_name
     task = asyncio.create_task(harness.run())
     try:
-        await harness.advance_time(0)  # settle the startup poll onto its interval
+        await harness.wait_for_publish_count(
+            f"{TOPIC_PREFIX}/{device_name}/availability", 1
+        )
+        # Availability is published before the telemetry runner necessarily
+        # reaches its first ManualClock sleep.  Settle at the current virtual
+        # time so the interval waiter is registered before advancing it.
+        await harness.advance_time(0)
         for _ in range(polls):
             await harness.advance_time(poll_interval)
         harness.shutdown_event.set()
@@ -158,7 +168,7 @@ def make_long_poll_settings() -> Airthings2MqttSettings:
 @pytest.fixture
 def test_settings() -> Airthings2MqttSettings:
     """Isolated settings with very short poll interval for fast tests."""
-    return _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=1)  # type: ignore[return-value]
+    return _FastPollSettings(device_mac="AA:BB:CC:DD:EE:FF", poll_interval=60)  # type: ignore[return-value]
 
 
 @pytest.fixture

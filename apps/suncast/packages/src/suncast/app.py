@@ -114,6 +114,9 @@ app = cosalette.App(
 # set; it relies on cosalette's F-3 implicit backstop (timeout=interval).
 @app.telemetry(
     name="shadow",
+    # Pure computation/output delivery has no remote device whose reachability
+    # should be inferred from handler failures.
+    unavailable_on=None,
     # shadow publishes a rendered SVG image reference, not a scalar datapoint,
     # so it carries no consumer() annotations and yields no Home Assistant
     # entity. Declaring the exclusion satisfies cosalette 0.9.4's per-channel

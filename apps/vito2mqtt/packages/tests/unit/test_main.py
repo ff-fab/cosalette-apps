@@ -527,6 +527,27 @@ class TestCommandUnavailableOnConfig:
             )
 
 
+@pytest.mark.unit
+class TestTelemetryUnavailableOnConfig:
+    """Pin automatic availability to the retried Optolink failures."""
+
+    def test_all_telemetry_uses_exact_transport_error_tuple(self) -> None:
+        from vito2mqtt.errors import OptolinkConnectionError, OptolinkTimeoutError
+        from vito2mqtt.main import app
+
+        for reg in app.telemetry_registrations:
+            assert reg.unavailable_on == (
+                OptolinkConnectionError,
+                OptolinkTimeoutError,
+            ), reg.name
+
+    def test_legionella_opts_out_of_automatic_availability(self) -> None:
+        from vito2mqtt.main import app
+
+        reg = next(r for r in app._devices if r.name == "legionella")
+        assert reg.unavailable_on is None
+
+
 class TestCommandTimeoutConfig:
     """Verify the explicit per-command backstop ."""
 

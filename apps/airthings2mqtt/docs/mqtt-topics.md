@@ -1,7 +1,8 @@
 # MQTT Topics
 
-airthings2mqtt publishes sensor state, health information, and errors to a set of MQTT
-topics under the `airthings2mqtt/` prefix.
+airthings2mqtt publishes sensor state, entity availability, and errors under the
+configured MQTT topic prefix. The examples below use the defaults: prefix
+`airthings2mqtt` and device name `airthings`.
 
 ---
 
@@ -83,13 +84,21 @@ as scheduled polls.
 
 **Topic:** `airthings2mqtt/airthings/availability`
 
-Managed automatically by the cosalette framework. Published when the device comes online
-or goes offline.
+Managed automatically by the cosalette framework and retained by the broker. Retryable
+BLE failures are retried first; `"offline"` is published only when those failures exhaust
+the configured retry budget. A later successful read publishes `"online"` again. A
+non-retryable `BleReadError` publishes an error without retrying and leaves availability
+`"online"`, because malformed or unreadable data does not necessarily mean the device is
+unreachable.
 
 ```text
-"online"     # device is running and reachable
-"offline"    # device has stopped or is unreachable
+"online"     # no retryable reachability failure has exhausted its retry budget
+"offline"    # retryable failures exhausted the configured retry budget
 ```
+
+This is the telemetry entity's availability, not a continuous Bluetooth adapter health
+check. For example, it does not promise that the adapter or sensor remains reachable
+between polls.
 
 ### Status (Heartbeat)
 
@@ -222,8 +231,8 @@ airthings2mqtt follows the cosalette topic convention:
 | Segment   | Value                                                          |
 | --------- | -------------------------------------------------------------- |
 | `prefix`  | App name --- `airthings2mqtt` by default (configurable)        |
-| `device`  | Device name: `airthings` (configurable via `device_name`)      |
-| `channel` | `state`, `availability`, or `error`                            |
+| `device`  | `AIRTHINGS2MQTT_DEVICE_NAME` --- `airthings` by default        |
+| `channel` | `state`, `set`, `error`, or `availability`                     |
 
 Global topics (`status`, `error`) omit the device segment:
 
@@ -232,5 +241,8 @@ airthings2mqtt/status
 airthings2mqtt/error
 ```
 
-The topic prefix and device name are configurable. See [Configuration](configuration.md)
-for details on `AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX` and `AIRTHINGS2MQTT_DEVICE_NAME`.
+The four entity topics are therefore
+`{prefix}/{device_name}/{state,set,error,availability}`. Changing
+`AIRTHINGS2MQTT_DEVICE_NAME` changes all four; changing
+`AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX` changes their root prefix as well as the global and
+framework-owned topics. See [Configuration](configuration.md) for both settings.

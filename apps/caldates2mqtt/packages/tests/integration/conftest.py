@@ -15,11 +15,15 @@ import cosalette
 import pytest
 from cosalette import App, ClockPort, MockMqttClient
 from cosalette.stores import MemoryStore
-from cosalette.testing import AppHarness, FakeClock
+from cosalette.testing import AppHarness, ManualClock
 from pydantic_settings import PydanticBaseSettingsSource
 
 from caldates2mqtt.adapters.fake import FakeCalDavReader
-from caldates2mqtt.errors import error_type_map
+from caldates2mqtt.errors import (
+    CalDavConnectionError,
+    CalDavTimeoutError,
+    error_type_map,
+)
 from caldates2mqtt.main import CalendarState, calendar
 from caldates2mqtt.ports import CalDavPort
 from caldates2mqtt.settings import CalDates2MqttSettings, CalendarConfig
@@ -124,7 +128,10 @@ def build_integration_app(
             schedule=cal.schedule,
             triggerable=True,
             min_interval=min_interval,
+            retry=3,
+            retry_on=(CalDavConnectionError, CalDavTimeoutError),
             state_model=CalendarState,
+            unavailable_on=(CalDavConnectionError, CalDavTimeoutError),
         )
     return app
 
@@ -146,8 +153,7 @@ def make_harness(
         settings: Optional settings override; defaults to _FastPollSettings
             with the provided calendars.
         min_interval: Optional ADR-066 trigger throttle for the registrations.
-        clock: Optional clock override; defaults to a virtual-time FakeClock.
-            Pass a ``ManualClock`` for tests that assert a tick did not fire.
+        clock: Optional clock override; defaults to a gating ``ManualClock``.
         store: Optional discovery store shared across harness instances.
     """
     if settings is None:
@@ -157,7 +163,7 @@ def make_harness(
             fake_reader, calendars, min_interval=min_interval, store=store
         ),
         mqtt=MockMqttClient(),
-        clock=clock or FakeClock(),
+        clock=clock or ManualClock(),
         settings=settings,
         shutdown_event=asyncio.Event(),
     )
@@ -169,15 +175,31 @@ async def run_app_briefly(
     wait: float = 0.3,
     expected_publishes: dict[str, int] | None = None,
 ) -> None:
-    """Start the harness, optionally await publications, then shut it down.
+    """Start the harness, settle startup work, then shut it down.
 
-    Bounds both publication waits and task completion with ``asyncio.wait_for``
-    to prevent indefinite test hangs.
+    The gating :class:`ManualClock` lets startup telemetry settle without
+    continuously releasing cron and retry sleeps while shutdown is in
+    progress. Bounds publication waits and task completion to prevent hangs.
     """
     task = asyncio.create_task(harness.run())
     try:
+        assert isinstance(harness.settings, CalDates2MqttSettings)
+        first_calendar = harness.settings.calendars[0].key
+        await harness.wait_for_publish_count(
+            f"{TOPIC_PREFIX}/{first_calendar}/availability", 1
+        )
+        # Calendar runners are registered after discovery publication. Give
+        # that bounded startup work time to reach its gated cron sleep before
+        # moving virtual time.
+        await asyncio.sleep(wait)
+        await harness.advance_time(0)
         if expected_publishes is None:
-            await asyncio.sleep(wait)
+            # Release one bounded cron/retry window. This preserves the error
+            # publication exercised by the integration tests without letting
+            # virtual sleeps free-run during teardown.
+            for _ in range(4):
+                await harness.advance_time(10)
+                await asyncio.sleep(wait)
         else:
             await asyncio.wait_for(
                 asyncio.gather(

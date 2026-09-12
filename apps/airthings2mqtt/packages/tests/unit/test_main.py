@@ -22,6 +22,13 @@ from airthings2mqtt.ports import AirthingsReading
 from tests.fixtures.config import make_airthings2mqtt_settings
 
 
+def _telemetry_registration() -> object:
+    """Return the unexpanded settings-derived telemetry registration."""
+    from airthings2mqtt.main import _telemetry, app
+
+    return next(r for r in app.telemetry_registrations if r.func is _telemetry)
+
+
 @pytest.mark.unit
 class TestTelemetryHandler:
     """Verify _telemetry returns the reading from the reader."""
@@ -284,9 +291,7 @@ class TestTelemetryRetryConfig:
 
         Technique: Specification-based — verify declared retry configuration.
         """
-        from airthings2mqtt.main import app
-
-        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
+        reg = _telemetry_registration()
         assert reg.retry == 3
 
     def test_retry_on_includes_ble_connection_error(self) -> None:
@@ -295,9 +300,8 @@ class TestTelemetryRetryConfig:
         Technique: Specification-based — connection failures should be retried.
         """
         from airthings2mqtt.errors import BleConnectionError
-        from airthings2mqtt.main import app
 
-        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
+        reg = _telemetry_registration()
         assert BleConnectionError in reg.retry_on
 
     def test_retry_on_includes_ble_timeout_error(self) -> None:
@@ -306,9 +310,8 @@ class TestTelemetryRetryConfig:
         Technique: Specification-based — timeout failures should be retried.
         """
         from airthings2mqtt.errors import BleTimeoutError
-        from airthings2mqtt.main import app
 
-        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
+        reg = _telemetry_registration()
         assert BleTimeoutError in reg.retry_on
 
     def test_retry_on_includes_framework_timeout_error(self) -> None:
@@ -317,9 +320,7 @@ class TestTelemetryRetryConfig:
         Technique: Specification-based — framework-injected TimeoutError from
         asyncio.wait_for must self-heal via the retry mechanism.
         """
-        from airthings2mqtt.main import app
-
-        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
+        reg = _telemetry_registration()
         assert TimeoutError in reg.retry_on
 
     def test_timeout_configured_from_poll_timeout_setting(self) -> None:
@@ -328,9 +329,7 @@ class TestTelemetryRetryConfig:
         Technique: Specification-based — timeout must be a SettingRef bound
         to poll_timeout so the framework applies the per-poll budget.
         """
-        from airthings2mqtt.main import app
-
-        reg = next(r for r in app.telemetry_registrations if r.name == "airthings")
+        reg = _telemetry_registration()
         assert reg.timeout is not None
         assert reg.timeout.field_name == "poll_timeout"
 
@@ -380,9 +379,7 @@ class TestTriggerThrottleRegistration:
     """Guard the ADR-066 throttle declared on the production registration."""
 
     def _registration(self) -> object:
-        from airthings2mqtt.main import app
-
-        return next(r for r in app.telemetry_registrations if r.name == "airthings")
+        return _telemetry_registration()
 
     def test_public_set_topic_is_throttled(self) -> None:
         """The /set trigger carries the declared min_interval.

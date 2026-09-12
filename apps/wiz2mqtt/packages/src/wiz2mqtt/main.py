@@ -105,6 +105,8 @@ def shared_state() -> SharedState:
 
 @app.telemetry(
     name=_bulb_map,
+    # bulb_entity_tick deliberately debounces reachability over three failures.
+    unavailable_on=None,
     interval=_TICK_INTERVAL_SECONDS,
     # cosalette ADR-064: "local" subscribes no MQTT trigger topic — the only
     # arming path is WizBulbAdapter's push callback calling EntityNotifier.

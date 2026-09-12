@@ -18,11 +18,15 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
+import inspect
 import typing
 
 import cosalette
 import pytest
 from cosalette import App, FixedBackoff, MemoryStore, MockMqttClient, setting_ref
+from cosalette.testing import AppHarness, ManualClock
 
 from gas2mqtt.adapters.fake import FakeMagnetometer
 from gas2mqtt.devices.gas_counter import GasCounterState
@@ -33,7 +37,7 @@ from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 from tests.fixtures.config import make_gas2mqtt_settings
 
-from .conftest import run_app_briefly
+from .conftest import build_full_integration_app, run_app_briefly
 
 # ---------------------------------------------------------------------------
 # Test helpers
@@ -412,3 +416,56 @@ class TestTelemetryRetryPath:
                 f"exceeding retry budget; published topics: "
                 f"{sorted({t for t, *_ in mock_mqtt.published})}"
             )
+
+
+@pytest.mark.integration
+class TestTelemetryAvailabilityLifecycle:
+    """Exercise availability through the production-equivalent registration."""
+
+    async def test_exhausted_oserror_marks_magnetometer_offline_then_recovers(
+        self,
+    ) -> None:
+        class _DebugPollFailingMagnetometer(FakeMagnetometer):
+            debug_failures = 4
+
+            def read(self):
+                frame = inspect.currentframe()
+                while frame is not None:
+                    if frame.f_code.co_name == "magnetometer":
+                        if self.debug_failures:
+                            self.debug_failures -= 1
+                            raise OSError("simulated debug poll failure")
+                        break
+                    frame = frame.f_back
+                return super().read()
+
+        magnetometer = _DebugPollFailingMagnetometer()
+        test_app = build_full_integration_app(lambda: magnetometer)
+        clock = ManualClock()
+        harness = AppHarness(
+            app=test_app,
+            mqtt=MockMqttClient(),
+            clock=clock,
+            settings=make_gas2mqtt_settings(
+                poll_interval=1, temperature_interval=3600, enable_debug_device=True
+            ),
+            shutdown_event=asyncio.Event(),
+        )
+        topic = "gas2mqtt/magnetometer/availability"
+        task = asyncio.create_task(harness.run())
+        try:
+            await clock.settle()
+            while magnetometer.debug_failures:
+                await harness.advance_time(0.1)
+            await harness.wait_for_publish_count(topic, 2)
+            assert harness.messages_for(topic)[-1] == ("offline", True, 1)
+
+            await harness.advance_time(1)
+            await harness.wait_for_publish_count(topic, 3)
+            assert harness.messages_for(topic)[-1] == ("online", True, 1)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task

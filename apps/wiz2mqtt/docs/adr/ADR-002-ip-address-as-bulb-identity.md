@@ -15,9 +15,7 @@ Accepted **Date:** 2026-09-06
 
 Every command wiz2mqtt sends and every state read it performs is addressed to a bulb by literal IPv4 address: `port.set_state(config.ip, ...)`, `_last_push_at[ip]`, the push callback keyed by `ip`. pywizlight's `wizlight(ip)` constructor takes an address, and its push subscription (`start_push`) registers a callback per address. WiZ bulbs also expose a MAC and can be found by UDP broadcast discovery.
 
-The legacy `wizcontrol.py` hard-coded a Python dict of names to lists of `wizlight("192.168.12.x")` — addresses inline in the source, no MAC anywhere. In practice these bulbs sit on static DHCP reservations, so their addresses do not move.
-
-The open question for the rewrite was what a `[[bulbs]]` entry is keyed by: the IP as the identity, the MAC as the identity with a discovery step to resolve it to an address, or a full discovery-and-track model where wiz2mqtt keeps a live MAC→IP map and follows a bulb across address changes.
+The open question is what a `[[bulbs]]` entry is keyed by: the IP as the identity, the MAC as the identity with a discovery step to resolve it to an address, or a full discovery-and-track model where wiz2mqtt keeps a live MAC→IP map and follows a bulb across address changes.
 
 ## Decision
 

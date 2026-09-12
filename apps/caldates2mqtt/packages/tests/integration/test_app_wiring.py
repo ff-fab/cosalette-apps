@@ -12,12 +12,17 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette.testing import AppHarness, ManualClock
 
-from .conftest import TOPIC_PREFIX, run_app_briefly
+from caldates2mqtt.adapters.fake import FakeCalDavReader
+from caldates2mqtt.errors import CalDavConnectionError
+
+from .conftest import TOPIC_PREFIX, calendar_config, make_harness, run_app_briefly
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
@@ -177,6 +182,46 @@ class TestAvailability:
         harness.assert_published(
             f"{TOPIC_PREFIX}/garbage/availability", contains="offline"
         )
+
+    @pytest.mark.integration
+    async def test_retry_exhaustion_marks_calendar_offline_then_recovers(self) -> None:
+        """Terminal CalDAV transport failure drives offline -> online lifecycle."""
+        reader = FakeCalDavReader()
+        original_read = reader.read_events
+        remaining_failures = 4
+
+        async def fail_retry_budget(*args, **kwargs):
+            nonlocal remaining_failures
+            if remaining_failures:
+                remaining_failures -= 1
+                raise CalDavConnectionError("CalDAV unavailable")
+            return await original_read(*args, **kwargs)
+
+        reader.read_events = fail_retry_budget  # type: ignore[method-assign]
+        clock = ManualClock()
+        config = calendar_config("garbage")
+        config.schedule = "0 0 * * * ?"
+        harness = make_harness(reader, [config], clock=clock)
+        availability_topic = f"{TOPIC_PREFIX}/garbage/availability"
+        task = asyncio.create_task(harness.run())
+        try:
+            await clock.settle()
+            while remaining_failures:
+                await harness.advance_time(10)
+            await harness.wait_for_publish_count(availability_topic, 2)
+            assert harness.messages_for(availability_topic)[-1] == ("offline", True, 1)
+
+            await harness.inject_command(
+                "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
+            )
+            await harness.wait_for_publish_count(availability_topic, 3)
+            assert harness.messages_for(availability_topic)[-1] == ("online", True, 1)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
 
 # ---------------------------------------------------------------------------

@@ -34,7 +34,9 @@ from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
 
-def build_full_integration_app() -> App:
+def build_full_integration_app(
+    magnetometer_adapter: type | object = FakeMagnetometer,
+) -> App:
     """Construct a fully-wired App mirroring gas2mqtt.main.create_app().
 
     Substitutes ``FakeMagnetometer`` for the real QMC5883L adapter and
@@ -47,7 +49,7 @@ def build_full_integration_app() -> App:
         version="0.0.0",
         settings_class=Gas2MqttSettings,
         store=MemoryStore(),
-        adapters={MagnetometerPort: FakeMagnetometer},
+        adapters={MagnetometerPort: magnetometer_adapter},
     )
 
     @app.state
@@ -62,6 +64,7 @@ def build_full_integration_app() -> App:
         publish=OnChange(),
         retry=3,
         retry_on=(OSError,),
+        unavailable_on=(OSError,),
         backoff=FixedBackoff(delay=0.05),
         state_model=GasCounterReading,
     )(gas_counter)
@@ -77,6 +80,7 @@ def build_full_integration_app() -> App:
         publish=OnChange(threshold={"temperature": 0.05}),
         retry=3,
         retry_on=(OSError,),
+        unavailable_on=(OSError,),
         init=make_pt1,
         state_model=TemperatureReading,
     )(temperature)
@@ -86,6 +90,7 @@ def build_full_integration_app() -> App:
         interval=setting_ref("poll_interval"),
         retry=3,
         retry_on=(OSError,),
+        unavailable_on=(OSError,),
         backoff=FixedBackoff(delay=0.05),
         enabled=lambda s: s.enable_debug_device,
     )(magnetometer)
