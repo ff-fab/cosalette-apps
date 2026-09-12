@@ -11,7 +11,7 @@ filesystem — not hermetic enough for the unit suite.
 
 Test Techniques Used:
 - Specification-based: the composite must yield one HA light for the display
-- Cross-check (cap-5f8): every state_topic is verified against topics the
+- Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
 """
@@ -69,7 +69,7 @@ class TestHaDiscoveryGeneration:
         and ``/state`` channels into one entity when the same ``ha_entities()``
         spec rides on both ``DisplayCommand`` and ``DisplayState``. That replaces
         the four scalar entities (two sensors + a select + a number) the
-        per-field ``consumer()`` annotations used to emit (cap-c9v).
+        per-field ``consumer()`` annotations used to emit .
 
         Technique: Specification-based — system/action is command-ack only and
         carries no consumer metadata, so it produces no HA entity either.
@@ -184,10 +184,10 @@ class TestStateTopicsAreReal:
         (``FakeWallpanel``/``FakeWol`` substituted for SSH/WoL I/O) and
         cross-checks each HA-discovery payload's ``state_topic`` against the
         topics actually published at runtime. A state_topic with no matching
-        runtime publish would ship a phantom HA entity (cap-5f8).
+        runtime publish would ship a phantom HA entity.
 
         The check itself is the framework helper ``assert_discovery_topics_published``
-        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        (adopted per monorepo ADR-004 fed the CLI-generated payloads
         wrapped as ``SimpleNamespace`` objects (duck-typed;
         ``assert_discovery_topics_published`` only accesses
         ``.config.get('state_topic')``).

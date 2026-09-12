@@ -1,4 +1,4 @@
-"""Downstream acceptance for event-driven publication in jeelink2mqtt (cap-8au).
+"""Downstream acceptance for event-driven publication in jeelink2mqtt .
 
 Discharges the one acceptance item the framework-contract suite cannot:
 *jeelink2mqtt publishes a sensor's state within the same virtual tick as
@@ -17,7 +17,7 @@ publish can only have come from the receiver arming the sensor's trigger
 
 ``AppHarness.run`` always suppresses ``@app.stream`` handlers, and
 ``inject_stream`` reads the list ``run`` has just emptied, so the two
-cannot drive one app at once (cap-doo).  The real ``receiver`` generator is
+cannot drive one app at once .  The real ``receiver`` generator is
 therefore driven directly instead, over a :class:`~cosalette.DeviceContext`
 built from the harness's own MQTT double, clock, settings and shutdown
 event — so both halves publish into the same recorder and share the same
@@ -255,7 +255,7 @@ async def _deliver(harness: AppHarness, captured: dict[str, Any]) -> None:
 
 @pytest.mark.integration
 class TestFrameToPublishInOneTick:
-    """cap-8au acceptance 2 — the frame publishes without a tick elapsing."""
+    """Acceptance criterion 2 — the frame publishes without a tick elapsing."""
 
     async def test_a_frame_publishes_within_the_same_virtual_tick(
         self, harness: AppHarness, captured: dict[str, Any]

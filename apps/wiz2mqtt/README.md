@@ -75,6 +75,10 @@ to poll-latency. The shipped `compose.yml` therefore runs the service with
 [ADR-004](docs/adr/ADR-004-host-networking-requirement-udp-38900-one-process-per-host.md)
 — distinct from the unrelated monorepo `docs/adr/ADR-004`).
 
+The host must also join the same Wi-Fi network as the bulbs for the observed Wi-Fi
+heartbeat traffic. An Ethernet-only host may lose those heartbeats; polling remains the
+fallback.
+
 Two operational constraints follow:
 
 - **One wiz2mqtt per host.** pywizlight's push listener binds a single fixed port, UDP

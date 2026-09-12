@@ -32,7 +32,7 @@ Design notes
   drift from :data:`~vito2mqtt.devices.SIGNAL_GROUPS` publishes
   ``ReturnValidationError`` to the error topic instead of state. Each
   handler returns an instance of its group's model and its return
-  annotation is set to that same model (cap-z02), so the two agree.
+  annotation is set to that same model, so the two agree.
 - Field types match the *serialized* form (post
   :func:`~vito2mqtt.devices._serialization.serialize_value`), not the raw
   codec types.  Notably ``ReturnStatus`` signals serialize to ``str``;
@@ -53,7 +53,7 @@ generates the schema with
 this enrichment *survives* ``task vito2mqtt:schema:generate`` — no
 post-generation hand-application step. This mirrors velux2mqtt's
 ``CoverState``. The migration away from hand-authored ``docs/schema.yaml``
-enrichment is tracked as bead ``cap-g90``.
+enrichment is generated from the typed model.
 """
 
 from __future__ import annotations

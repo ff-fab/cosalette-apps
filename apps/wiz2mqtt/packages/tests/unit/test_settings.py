@@ -1,5 +1,5 @@
 """Unit tests for wiz2mqtt settings — Wiz2MqttSettings environment wiring
-and the TOML bulb inventory (cap-10u.9).
+and the TOML bulb inventory .
 
 Test Techniques Used:
 - Specification-based: Default values match cosalette's base Settings

@@ -9,7 +9,7 @@ device into a single channel named after the Python handler's qualname
 ``.env.schema`` profile before writing ``docs/schema.yaml`` — expanding the
 NameSpec into real per-calendar channels (``birthdayState``, ``garbageState``,
 per ``.env.schema``). This resolves the same qualname-collapse issue fixed for
-velux2mqtt (cap-hze), verified below by asserting the real channel names appear.
+velux2mqtt , verified below by asserting the real channel names appear.
 
 HA discovery (``task caldates2mqtt:schema:ha-discovery``) emits one event-count
 sensor per calendar, plus the ADR-058 app bridge. It reaches that from the
@@ -21,12 +21,12 @@ therefore stay inert and still warn on stderr. The composite is the supported
 answer to that (cosalette ADR-057), and it is what satisfies the per-channel
 discovery gate cosalette 0.9.4 introduced.
 
-The same sensor carries the event list as HA attributes (cap-6hw). The comment
+The same sensor carries the event list as HA attributes . The comment
 above ``_EVENT_COUNT_SENSOR`` in :mod:`caldates2mqtt.main` explains why.
 
 At runtime ``app.discovery()`` publishes those entities from the live registry
-(ADR-004, cap-2qg). The CLI payloads here are cross-checked against topics the
-running app actually publishes (cap-gsd), not against f-strings rebuilt from the
+(ADR-004, . The CLI payloads here are cross-checked against topics the
+running app actually publishes , not against f-strings rebuilt from the
 same schema.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
@@ -42,7 +42,7 @@ Test Techniques Used:
   (cosalette ADR-073)
 - Specification-based: openHAB ignores the HA-only composite and renders the
   typed ``count`` aggregate on ``events`` (cosalette ADR-076) as one Number item
-  per calendar (cap-p09); Home Assistant never reads the aggregate, which the
+  per calendar ; Home Assistant never reads the aggregate, which the
   golden sets confirm
 - Golden set: the exact object_id set, so both a dropped entity and a leaked
   one fail
@@ -310,7 +310,7 @@ class TestHaDiscoveryGeneration:
         Assistant. The exit code is 0 because the channel-level composite
         satisfies the per-channel discovery gate (ADR-073).
 
-        Revisited for runtime discovery (cap-2qg): cosalette 0.9.6 still skips
+        Revisited for runtime discovery : cosalette 0.9.6 still skips
         array-item annotations, so this guard is unchanged. Should upstream
         start deriving entities from them, the golden sets here and in
         :class:`TestRuntimeDiscoveryPublication` fail first.
@@ -326,7 +326,7 @@ class TestHaDiscoveryGeneration:
 
 @pytest.mark.integration
 class TestRuntimeDiscoveryPublication:
-    """app.discovery() publishes retained HA config topics on connect (cap-2qg)."""
+    """app.discovery() publishes retained HA config topics on connect ."""
 
     async def test_publishes_one_retained_config_per_calendar_plus_bridge(
         self, schema_harness: AppHarness
@@ -420,7 +420,7 @@ class TestRuntimeDiscoveryPublication:
 
 @pytest.mark.integration
 class TestStateTopicsAreReal:
-    """Verify discovery topics match runtime-published topics (cap-gsd)."""
+    """Verify discovery topics match runtime-published topics ."""
 
     async def test_state_topics_match_actual_runtime_publishes(
         self, ha_payloads: list[dict[str, Any]], schema_harness: AppHarness
@@ -428,7 +428,7 @@ class TestStateTopicsAreReal:
         """Every discovery state_topic is a topic the running app publishes.
 
         The check is the framework helper ``assert_discovery_topics_published``
-        (ADR-004 / cap-6y0), fed the CLI payloads as ``SimpleNamespace``
+        (ADR-004 fed the CLI payloads as ``SimpleNamespace``
         objects (it only reads ``.config.get('state_topic')``).
 
         Technique: Cross-check — the schema-derived expectation is validated
@@ -471,12 +471,12 @@ class TestStateTopicsAreReal:
 
 @pytest.mark.integration
 class TestOpenHabGeneration:
-    """Verify the count aggregate yields one openHAB Number per calendar (cap-p09)."""
+    """Verify the count aggregate yields one openHAB Number per calendar ."""
 
     def test_exits_zero(self, openhab_run: subprocess.CompletedProcess[str]) -> None:
         """Every calendar channel now produces openHAB output.
 
-        Before cap-p09 the CLI exited 1: openHAB ignores the HA-only composite,
+        The CLI previously exited 1: openHAB ignores the HA-only composite,
         so both channels tripped the per-channel discovery gate (ADR-073).
 
         Technique: Specification-based — the gate must pass for this target too.

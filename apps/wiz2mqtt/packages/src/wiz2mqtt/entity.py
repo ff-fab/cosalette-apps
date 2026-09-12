@@ -1,4 +1,4 @@
-"""Per-bulb state-publication telemetry tick for wiz2mqtt (cap-10u.13).
+"""Per-bulb state-publication telemetry tick for wiz2mqtt.
 
 Each configured bulb runs its own ``@app.telemetry`` instance (see
 ``main.py``), ticking :func:`bulb_entity_tick` on a fixed interval. The

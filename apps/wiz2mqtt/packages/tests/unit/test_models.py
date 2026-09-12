@@ -1,5 +1,5 @@
-"""Unit tests for models.py — payload validation + discovery metadata (cap-10u.12,
-cap-10u.14).
+"""Unit tests for models.py — payload validation + discovery metadata ,
+.
 
 Test Techniques Used:
 - Equivalence Partitioning: valid single-field, multi-field, and empty payloads
@@ -305,7 +305,7 @@ class TestMutualExclusion:
 
 
 # ---------------------------------------------------------------------------
-# Home Assistant discovery metadata (cap-10u.14)
+# Home Assistant discovery metadata
 # ---------------------------------------------------------------------------
 
 
@@ -324,7 +324,7 @@ class TestHaDiscoveryMetadata:
         """The state payload spans a light plus a power sensor and speed number.
 
         Technique: Specification-based — the three per-bulb components the
-        state topic feeds (cap-10u.14).
+        state topic feeds .
         """
         components = [e["component"] for e in _ha_entities(BulbStateModel)]
         assert components == ["light", "sensor", "number"]

@@ -5,7 +5,7 @@ and ``pywizlight.PilotBuilder`` are monkeypatched with local fakes/spies so this
 module tests the adapter's own logic (capability caching, error wrapping,
 push-staleness fallback, Kelvin clamping, scene validation, optimistic state
 merge, lifecycle) without hardware. Real-bulb push/heartbeat behaviour is
-verified separately (cap-10u.19).
+verified separately .
 
 Test Techniques Used:
 - Sociable Unit Tests: real BulbType/Features/KelvinRange, faked transport only

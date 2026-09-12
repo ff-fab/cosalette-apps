@@ -26,8 +26,7 @@ channel-level composite (cosalette ADR-057, :func:`cosalette.schema.ha_entities`
 declared on *both* ``DisplayCommand`` and ``DisplayState`` merges the pair: the
 ``/state`` model supplies ``state_topic`` and the ``/set`` model supplies
 ``command_topic``. See ``_DISPLAY_LIGHT`` for the HA-to-wire template mapping.
-Tracked as bead ``cap-c9v``; the former four-entity Rule 3 shape and the reasons
-it is superseded are recorded in monorepo ADR-008.
+The design rationale is recorded in monorepo ADR-008.
 """
 
 from __future__ import annotations
@@ -47,7 +46,7 @@ from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError
 logger = logging.getLogger(__name__)
 
 
-# One Home Assistant light replaces the four scalar display entities (cap-c9v).
+# One Home Assistant light replaces the four scalar display entities.
 # cosalette 0.9.5's channel-level composite (ADR-057) merges a send /state
 # channel and a receive /set channel into a single entity when the same
 # ha_entities() spec rides on both models: DisplayState supplies state_topic,
@@ -86,7 +85,7 @@ _DISPLAY_LIGHT = ha_entities(
 # The composite HA light (``_DISPLAY_LIGHT``) rides on both this command payload
 # and its paired ``DisplayState``. cosalette 0.9.4 evaluates the discovery gate
 # per channel; the composite is what satisfies it for ``displayCommand`` while
-# keeping the /set and /state halves as one entity (ADR-057, cap-c9v).
+# keeping the /set and /state halves as one entity (ADR-057).
 class DisplayCommand(BaseModel):
     """Typed payload for wallpanel-control/display/set commands."""
 
@@ -109,8 +108,8 @@ class DisplayCommand(BaseModel):
 # ``DisplayState`` is the send-only /state half of the display light. It carries
 # the same ``_DISPLAY_LIGHT`` composite as ``DisplayCommand`` so cosalette merges
 # the two channels into one entity and skips scalar per-field generation — which
-# is why these fields need no consumer() annotation or read_only marker (cap-c9v
-# supersedes the cap-bo0 read_only workaround). ``brightness_template`` /
+# is why these fields need no consumer() annotation or read_only marker.
+# ``brightness_template`` /
 # ``state_template`` on the composite read these fields on the HA side.
 # NB: the model docstring becomes the schema's payload description, so this stays
 # a comment rather than prose in the docstring.
@@ -282,7 +281,7 @@ async def _execute_display_command(
     # self-bounded by asyncio.wait_for(ssh_timeout=5.0) and degrading to
     # _UNAVAILABLE, so worst case ~25 s stays inside cosalette's 30 s backstop.
     # Every mutation is a single idempotent sysfs/busctl write — a cancel
-    # cannot leave the panel half-configured (cap-ug0).
+    # cannot leave the panel half-configured.
     unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_display(

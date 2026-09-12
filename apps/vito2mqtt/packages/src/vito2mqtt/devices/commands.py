@@ -208,7 +208,7 @@ def make_command_handler(
             writes[name] = deserialized
 
         if writes:
-            # Batch all writes into a single serial session (cap-7xk) — avoids
+            # Batch all writes into a single serial session — avoids
             # N+1 connect-per-write round-trips on slow serial links.
             await port.write_signals(writes)
             # Every command group is also a signal group (ADR-002), so the

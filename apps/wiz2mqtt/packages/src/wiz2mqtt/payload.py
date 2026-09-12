@@ -1,4 +1,4 @@
-"""Retained state payload construction for wiz2mqtt (cap-10u.13).
+"""Retained state payload construction for wiz2mqtt.
 
 Pure domain logic: turns a :class:`~wiz2mqtt.models.BulbState` into the
 ``{prefix}/{bulb}/state`` payload (``prefix`` defaults to ``wiz2mqtt`` when

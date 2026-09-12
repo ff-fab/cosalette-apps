@@ -77,10 +77,10 @@ class CoverState:
     settings first (``cosalette schema dump --resolve-settings``, ADR-051)
     against the checked-in ``.env.schema`` profile, expanding the NameSpec
     into real per-cover channels (e.g. ``blindState``/``windowState``)
-    before this annotation is read — see ``docs/schema.yaml`` and cap-0cg.
+    before this annotation is read — see ``docs/schema.yaml``.
     ``cosalette schema check`` (the CI gate) still cannot validate this
-    app at all (no ``--resolve-settings`` support there; cap-wv9 part b,
-    upstream-blocked) — see ``apps/velux2mqtt/README.md`` "Home Assistant
+    app at all (it has no ``--resolve-settings`` support) — see
+    ``apps/velux2mqtt/README.md`` "Home Assistant
     Discovery" section.
 
     Mirrors the dict published by :func:`_publish_position`:

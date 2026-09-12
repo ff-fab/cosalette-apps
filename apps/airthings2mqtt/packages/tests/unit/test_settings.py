@@ -116,7 +116,7 @@ class TestAirthings2MqttSettingsValidation:
         assert settings.poll_timeout == 60.0
 
     def test_default_trigger_min_interval(self) -> None:
-        """Default trigger throttle is 30.0 seconds (cap-9hn).
+        """Default trigger throttle is 30.0 seconds .
 
         Technique: Specification-based — the field default preserves the
         previously hard-coded constant.

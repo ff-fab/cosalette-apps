@@ -9,7 +9,7 @@ tags: [telemetry, architecture, mqtt, scheduling, lifecycle]
 
 ## Status
 
-Accepted **Date:** 2026-09-06
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12
 
 ## Context
 
@@ -95,4 +95,33 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Timely publication now depends on the push return path, which requires the ADR-004 host-networking deployment
 - Real-bulb push and heartbeat cadence is not covered by the unit/integration suite and is deferred to cap-10u.19
 
-_2026-09-06_
+## Amendment (2026-09-12) — Corrective
+
+**Rationale:** Completed cap-10u.19 hardware verification found that pywizlight suppresses unchanged heartbeat states and observed rapid slider bursts, correcting the earlier no-burst premise and the deferred verification reference.
+
+> **Justification for amendment (not supersession):** The event-driven architecture, local trigger, OnChange gate, and heartbeat interval remain implemented and unchanged. The correction records their observed operational behavior and does not require a code or migration change, so supersession is not warranted.
+
+### Revised Decision
+
+Publish `bulb_entity` state on the WiZ push, not on the poll tick. `WizBulbAdapter` is constructed with `Wiz2MqttSettings` and an injected `cosalette.EntityNotifier`; its push callback writes the state cache and then calls `notify(bulb_name)`. `bulb_entity` is registered `triggerable="local"` (no MQTT trigger topic subscribed), `publish=cosalette.OnChange()`, `interval=60.0` as a heartbeat/liveness floor, and without `min_interval=`. pywizlight suppresses unchanged heartbeat states, so once the last observed push is older than 60 seconds the next heartbeat tick polls as the fallback; heartbeat cadence does not affect that freshness result. Rapid slider input can burst, but trigger scheduling coalesces to the latest state rather than publishing every input, preserving low latency without a throttle.
+
+!!! note "Editorial note (2026-09-12)"
+    Completed cap-10u.19 verification found that pywizlight suppresses consecutive unchanged heartbeat states before the adapter callback. With no refreshed push timestamp, the next heartbeat tick after the age exceeds 60 seconds performs the polling fallback.
+
+!!! note "Editorial note (2026-09-12)"
+    Because unchanged heartbeats are suppressed, their cadence does not affect freshness: polling occurs on the next tick once the recorded push age is greater than 60 seconds.
+
+!!! note "Editorial note (2026-09-12)"
+    Rapid dimmer-slider input produced bursts. This corrects the original assumption that WiZ only produces a non-bursty change stream; publication scheduling coalesces the latest state instead of publishing every input, so `min_interval=` is still unnecessary.
+
+!!! note "Editorial note (2026-09-12)"
+    This amendment replaces the original cap-10u.19 future verification reference with completed manual verification.
+
+### Additional Positive Consequences
+
+- The fallback remains bounded to one poll on the next eligible 60-second tick after push age exceeds the threshold.
+- Bursting slider input retains responsive final-state publication without imposing a fixed throttle.
+
+### Additional Negative Consequences
+
+- Idle bulbs can use the polling fallback even when they continue emitting suppressed heartbeat traffic.

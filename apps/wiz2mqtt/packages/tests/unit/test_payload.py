@@ -1,4 +1,4 @@
-"""Unit tests for payload.py — retained state payload construction (cap-10u.13).
+"""Unit tests for payload.py — retained state payload construction .
 
 Test Techniques Used:
 - Specification-based: HA's schema:json shape plus the openHAB hsb key

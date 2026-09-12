@@ -58,7 +58,7 @@ default, which would cancel a legitimate schedule write mid-batch. 90 s
 clears it with margin while still bounding a wedged bus. Paired with
 ``unavailable_on`` so a timeout also marks the device offline, and with
 the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so a healthy
-bus still lands every signal after the cancel unwinds (cap-ug0).
+bus still lands every signal after cancellation unwinds.
 """
 
 COMMAND_WAKE_MIN_INTERVAL_SECONDS: float = Vito2MqttSettings.model_fields[
@@ -84,7 +84,7 @@ def _resolve_command_wake_min_interval(app: App) -> float:
     """Read the configured throttle, or the default when settings are absent.
 
     ``min_interval=`` takes a concrete ``float`` (cosalette 0.9.1 has no
-    ``setting_ref`` support for it, cap-9hn), so the value is read from the
+    ``setting_ref`` support for it), so the value is read from the
     eagerly-built ``app.settings`` at registration time. ``app.settings`` raises
     when required fields (``serial_port``) are unset — as under ``--help``,
     tests, or schema generation — so fall back to the field default to keep
@@ -159,6 +159,5 @@ def configure_app(app: App) -> None:
     # per-invocation handler, so cosalette's 30 s command backstop does not
     # wrap it. It manages its own ctx.commands() budgets (5 s / 60 s) and
     # runs a shutdown-safe restore so the boiler is never left at the
-    # elevated setpoint; its writes are single-signal and protocol-atomic
-    # (cap-ug0).
+    # elevated setpoint; its writes are single-signal and protocol-atomic.
     app.add_device("legionella", legionella_device, discoverable=False)

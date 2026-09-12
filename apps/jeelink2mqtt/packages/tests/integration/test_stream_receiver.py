@@ -1,11 +1,11 @@
 """Integration tests for the @app.stream receiver handler.
 
-Verifies cap-5xy acceptance: the receiver handler processes readings from
+Verifies  acceptance: the receiver handler processes readings from
 a cosalette.Stream[SensorReading], publishes the raw diagnostic and mapping
 MQTT messages, and persists registry state — without any manual adapter
 lifecycle code in main.py.
 
-Since cap-ayy, the stream no longer publishes per-sensor state/availability
+Since , the stream no longer publishes per-sensor state/availability
 itself — it caches the calibrated reading in SharedState for the sensor's
 own per-sensor device (sensor_entity, see test_receiver.py's
 TestSensorEntityTick) to publish. These tests verify the stream's half of
@@ -164,7 +164,7 @@ class TestStreamReceiverHandler:
 
     async def test_mapped_sensor_caches_calibrated_reading(self) -> None:
         """A reading for a mapped sensor is calibrated and cached in
-        SharedState for the sensor's own device to publish (cap-ayy) —
+        SharedState for the sensor's own device to publish  —
         the stream itself no longer publishes state/availability.
 
         Technique: Integration Testing — registry → pipeline → cache.
@@ -301,7 +301,7 @@ class TestStreamReceiverHandler:
     async def test_shutdown_does_not_publish_availability(self) -> None:
         """The stream itself no longer publishes availability on shutdown.
 
-        Technique: Specification-based — cap-ayy moved availability
+        Technique: Specification-based —  moved availability
         ownership to each sensor's own device (sensor_entity), which the
         framework marks offline on graceful shutdown via HealthReporter —
         outside what this stream-only harness exercises. This test guards

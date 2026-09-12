@@ -15,7 +15,7 @@ payload per configured cover, with ``state_topic`` matching the real runtime
 topic (``velux2mqtt/{cover.name}/state``, e.g. ``velux2mqtt/blind/state`` —
 see ``docs/mqtt-topics.md``) rather than the qualname channel
 ``velux2mqtt/cover_device/state`` that produced a phantom entity before this
-fix (cap-hze).
+fix .
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
@@ -23,12 +23,12 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: every payload must describe a real, currently
   configured cover with a matching real runtime state_topic
-- Cross-check (cap-5f8): every state_topic is verified against topics the
+- Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime — not a
   regex pattern independently derived from documentation. The prior
   regex-based regression guard would have passed even if the real cover
   names had diverged from docs/mqtt-topics.md; this replaces it with the
-  same technique cap-hze's own fix should have used.
+  same technique 's own fix should have used.
 """
 
 from __future__ import annotations
@@ -123,12 +123,12 @@ class TestStateTopicsAreReal:
         HA-discovery payload's ``state_topic`` against the topics actually
         published at runtime. A state_topic with no matching runtime publish
         would ship a phantom HA entity — exactly the regression that shipped
-        in production before cap-hze's fix (PR #201), which this test guards
+        in production before 's fix (PR #201), which this test guards
         against with runtime ground truth instead of a documentation-derived
-        regex (cap-5f8).
+        regex .
 
         The check itself is the framework helper ``assert_discovery_topics_published``
-        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        (adopted per monorepo ADR-004 fed the CLI-generated payloads
         wrapped as ``SimpleNamespace`` objects (duck-typed;
         ``assert_discovery_topics_published`` only accesses
         ``.config.get('state_topic')``).

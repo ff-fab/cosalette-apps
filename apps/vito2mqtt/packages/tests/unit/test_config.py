@@ -164,7 +164,7 @@ class TestDefaults:
     def test_config_command_wake_min_interval_default(
         self, settings: Vito2MqttSettings
     ) -> None:
-        """Default command-wake throttle is 15 s (cap-9hn).
+        """Default command-wake throttle is 15 s .
 
         Technique: Specification-based — the field default preserves the
         previously hard-coded constant.
@@ -359,7 +359,7 @@ class TestPollingIntervalValidation:
     def test_config_command_wake_min_interval_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A deployment can retune the command-wake throttle (cap-9hn).
+        """A deployment can retune the command-wake throttle .
 
         Technique: Equivalence Partitioning — representative override.
         """

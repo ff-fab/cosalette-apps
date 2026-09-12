@@ -40,7 +40,7 @@ class TestCalDates2MqttSettingsDefaults:
         assert settings.caldav_timeout == 30.0
 
     def test_default_trigger_min_interval(self) -> None:
-        """Default trigger throttle is 60.0 seconds (cap-9hn).
+        """Default trigger throttle is 60.0 seconds .
 
         Technique: Specification-based — the field default preserves the
         previously hard-coded constant.
@@ -119,7 +119,7 @@ class TestCalDates2MqttSettingsValidation:
 
         The configured values share the caps that the MQTT trigger overrides
         clamp to. The entries cap also keeps the HA attributes under the
-        recorder's 16384-byte limit (cap-6hw).
+        recorder's 16384-byte limit .
         """
 
         def make(value: int) -> CalDates2MqttSettings:

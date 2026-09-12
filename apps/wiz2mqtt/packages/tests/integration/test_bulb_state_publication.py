@@ -1,4 +1,4 @@
-"""Integration tests for the bulb_entity telemetry device (cap-10u.13).
+"""Integration tests for the bulb_entity telemetry device .
 
 Exercises the full state-publication path: FakeWizBulbAdapter ->
 bulb_entity_tick -> the cosalette telemetry runner's OnChange() gating ->
@@ -28,7 +28,7 @@ _TICKS = 3
 """Scheduled ticks to fire past the startup run.
 
 Four runs total clears the framework's three-consecutive-failure offline
-debounce (cap-10u.13); the dedup and single-publish assertions only need the
+debounce ; the dedup and single-publish assertions only need the
 run count above one. Each advance releases exactly one gated tick, so the
 count is deterministic where the old real-sleep window was not.
 """

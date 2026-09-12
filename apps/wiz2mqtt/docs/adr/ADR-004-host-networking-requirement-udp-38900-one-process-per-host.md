@@ -9,7 +9,7 @@ tags: [packaging, architecture, lifecycle, mqtt]
 
 ## Status
 
-Accepted **Date:** 2026-09-06
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12
 
 ## Context
 
@@ -65,4 +65,26 @@ Keep the container on a bridge network and publish UDP 38900 (and the discovery/
 - Host networking weakens container isolation and is not fully faithful on Docker Desktop / macOS, limiting local push testing there
 - Operators on non-host orchestration (some Kubernetes CNIs, restrictive PaaS) must arrange host-network access explicitly or accept poll-only latency
 
-_2026-09-06_
+## Amendment (2026-09-12) — Corrective
+
+**Rationale:** Completed cap-10u.19 hardware verification clarified the Wi-Fi reachability boundary for idle heartbeat traffic and makes the original future-tense verification reference stale.
+
+> **Justification for amendment (not supersession):** The host-networking and singleton-port decision remains implemented and unchanged. This correction only narrows an operational observation and updates its verification status, so it has no migration impact and does not warrant supersession.
+
+### Revised Decision
+
+Require `network_mode: host` (or an equivalent host-network deployment) for wiz2mqtt, and document that exactly one wiz2mqtt process may run per host because pywizlight's push listener binds the fixed singleton UDP port 38900. Ship `compose.yml` with host networking. Completed cap-10u.19 verification also establishes that the host must join the same Wi-Fi network as the bulbs to receive observed idle heartbeat traffic; an Ethernet-only host may miss those heartbeats and relies on polling as the fallback. This observation is limited to heartbeat traffic and does not claim that state-change pushes fail across that boundary.
+
+!!! note "Editorial note (2026-09-12)"
+    Completed cap-10u.19 hardware verification observed WiZ idle heartbeats as Wi-Fi broadcast traffic that did not reach an Ethernet-only host. The required deployment wording therefore includes same-Wi-Fi host participation while retaining polling as the fallback.
+
+!!! note "Editorial note (2026-09-12)"
+    This amendment replaces the original cap-10u.19 future verification reference with the completed verification result.
+
+### Additional Positive Consequences
+
+- Operators have a concrete network-placement requirement for the observed heartbeat path.
+
+### Additional Negative Consequences
+
+- An Ethernet-only deployment may not receive idle heartbeats and consequently exercises the polling fallback more often.

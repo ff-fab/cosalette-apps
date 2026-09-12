@@ -16,7 +16,7 @@ Each configured sensor is registered as its own ``@app.device`` entity
 (a callable ``NameSpec`` keyed by ``settings.sensors`` — see
 ``sensor_entity`` below); the ``receiver`` stream only decodes frames,
 resolves them through the registry, and caches the calibrated reading
-for the sensor's device to publish (cap-ayy).
+for the sensor's device to publish.
 """
 
 from __future__ import annotations
@@ -169,8 +169,8 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
 _TICK_INTERVAL_SECONDS: float = 1.0
 """Heartbeat bound on :meth:`cosalette.DeviceTrigger.wait`.
 
-Deliberately unchanged from the pre-trigger ``ctx.sleep(1.0)``: a wake only
-arrives when a *frame* does, and the whole point of the remaining timeout is
+The timeout bounds the resolution of staleness detection and heartbeat
+republishing. A wake only arrives when a *frame* does, and the timeout serves
 the paths a frame never drives — staleness (``staleness_timeout_seconds``,
 default 600 s) and the heartbeat re-publish (``heartbeat_interval_seconds``,
 default 180 s).  Both are resolved to the granularity of this bound, so
@@ -243,7 +243,7 @@ def _parse_or_error(
         return None, {"error": str(exc)}
 
 
-# cap-ug0: none of the four `mapping` sub-commands sets an explicit timeout=.
+# Mapping sub-commands use the framework timeout backstop.
 # Each does an in-memory registry mutation plus one local `JsonFileStore`
 # write (`_persist_registry`) — no network, no hardware, no shared lock with a
 # slow path. Worst case is sub-second, so cosalette's bounded 30 s default is

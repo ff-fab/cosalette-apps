@@ -1,4 +1,4 @@
-"""Integration tests for Home Assistant MQTT discovery in wiz2mqtt (cap-10u.14).
+"""Integration tests for Home Assistant MQTT discovery in wiz2mqtt .
 
 Covers both halves of the consumer-integration adoption:
 
@@ -266,7 +266,7 @@ def _build_discovery_app(
     ``SharedState`` factory. Backed by a ``MemoryStore`` so the test touches no
     disk. Both handler bodies are no-ops — the runtime publish path is
     exercised directly in ``TestStateTopicsAreReal``. Pass ``enrich=True`` to
-    wire the cap-3tr per-bulb narrowing hook against *store*.
+    wire the  per-bulb narrowing hook against *store*.
     """
     app = cosalette.App(
         name=TOPIC_PREFIX,
@@ -407,7 +407,7 @@ class TestRuntimeDiscoveryPublication:
 
 @pytest.mark.integration
 class TestRuntimeDiscoveryEnrichment:
-    """cap-3tr: app.discovery(enrich=...) narrows a bulb from its cached caps."""
+    """: app.discovery(enrich=...) narrows a bulb from its cached caps."""
 
     async def _publish_office_light(self, store: MemoryStore | None) -> dict[str, Any]:
         """Run discovery for one ``office`` bulb and return its light config."""

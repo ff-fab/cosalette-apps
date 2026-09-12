@@ -327,7 +327,7 @@ class TestNullableRadonPayload:
         value this cycle" — never a silently missing key.
 
         Technique: Specification-based — asserts the published payload shape
-        end-to-end, resolving the radon-None question from cap-awb.
+        end-to-end, resolving the radon-None question.
         """
         reader = FakeAirthingsReader()
         reader.readings = [

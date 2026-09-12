@@ -28,7 +28,7 @@ class SensorStateModel(pydantic.BaseModel):
     :func:`cosalette.schema.consumer`) so ``app.discovery()`` — and the
     offline ``cosalette schema ha-discovery`` path — emit one Home
     Assistant MQTT discovery entity per field, per configured sensor
-    (cap-egy, ADR-059). ``timestamp`` is publish-freshness bookkeeping,
+    (ADR-059). ``timestamp`` is publish-freshness bookkeeping,
     not a user-facing entity, so it is left unannotated.
     """
 

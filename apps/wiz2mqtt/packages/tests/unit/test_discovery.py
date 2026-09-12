@@ -1,4 +1,4 @@
-"""Unit tests for discovery.py — per-bulb HA discovery enrichment (cap-3tr).
+"""Unit tests for discovery.py — per-bulb HA discovery enrichment .
 
 Mechanism B narrows the advertised ``light`` metadata from a
 DeviceStore-cached ``BulbCapabilities``. These tests drive the cache round-trip,

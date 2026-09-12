@@ -435,7 +435,7 @@ class TestApp:
     def test_app_registers_per_sensor_device(self) -> None:
         """app registers sensor_entity as a callable-NameSpec device.
 
-        Technique: Specification-based — verify cap-ayy refactor wiring.
+        Technique: Specification-based — verify  refactor wiring.
         NameSpec expansion only happens at bootstrap (app.run()), so at
         import time the registration's name is still the handler's
         qualname; `name_spec` is set to confirm it's the dict-name
