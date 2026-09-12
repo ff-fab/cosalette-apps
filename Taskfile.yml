@@ -42,14 +42,12 @@ includes:
     dir: ./apps/gas2mqtt
     vars:
       APP_NAME: gas2mqtt
-      HA_DISCOVERY_DEPRECATED: 'true'
 
   jeelink2mqtt:
     taskfile: ./taskfiles/PythonApp.yml
     dir: ./apps/jeelink2mqtt
     vars:
       APP_NAME: jeelink2mqtt
-      HA_DISCOVERY_DEPRECATED: 'true'
       # 'sensor_entity' uses a settings-derived (ADR-023 callable name=) NameSpec.
       # schema:generate/schema:check both resolve it via --resolve-settings
       # against this checked-in representative profile (see .env.schema,
@@ -61,14 +59,12 @@ includes:
     dir: ./apps/vito2mqtt
     vars:
       APP_NAME: vito2mqtt
-      HA_DISCOVERY_DEPRECATED: 'true'
 
   velux2mqtt:
     taskfile: ./taskfiles/PythonApp.yml
     dir: ./apps/velux2mqtt
     vars:
       APP_NAME: velux2mqtt
-      HA_DISCOVERY_DEPRECATED: 'true'
       # 'cover_device' uses a settings-derived (ADR-023 callable name=) NameSpec.
       # schema:generate/schema:check both resolve it via --resolve-settings
       # against this checked-in representative profile (see .env.schema,
@@ -80,14 +76,12 @@ includes:
     dir: ./apps/airthings2mqtt
     vars:
       APP_NAME: airthings2mqtt
-      HA_DISCOVERY_DEPRECATED: 'true'
 
   caldates2mqtt:
     taskfile: ./taskfiles/PythonApp.yml
     dir: ./apps/caldates2mqtt
     vars:
       APP_NAME: caldates2mqtt
-      HA_DISCOVERY_DEPRECATED: 'true'
       # 'calendar' uses a settings-derived (ADR-023 callable name=) NameSpec.
       # schema:generate/schema:check both resolve it via --resolve-settings
       # against this checked-in representative profile (see .env.schema,
@@ -108,7 +102,6 @@ includes:
     vars:
       APP_NAME: wallpanel-control
       MODULE_NAME: wallpanel_control
-      HA_DISCOVERY_DEPRECATED: 'true'
 
   wiz2mqtt:
     taskfile: ./taskfiles/PythonApp.yml

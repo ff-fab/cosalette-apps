@@ -40,8 +40,7 @@ capability-filtered discovery metadata is deferred (`cap-3tr`; see
 Because `app.discovery()` reads the runtime registry rather than the checked-in
 `docs/schema.yaml`, bulb names are always correct without a representative `.env.schema`
 profile. `docs/schema.yaml` and `task wiz2mqtt:schema:check` stay as the openHAB
-(`cosalette schema openhab`) and drift-gate path; `task wiz2mqtt:schema:ha-discovery`
-remains available for offline inspection of the same payloads. See
+(`cosalette schema openhab`) and drift-gate path. See
 `packages/tests/integration/test_schema_discovery.py`.
 
 ## Onboarding

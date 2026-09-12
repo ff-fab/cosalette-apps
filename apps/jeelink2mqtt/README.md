@@ -35,8 +35,7 @@ Because `app.discovery()` reads the runtime registry rather than the checked-in
 `docs/schema.yaml`, settings-derived sensor names are always correct without a
 representative `.env.schema` profile. `docs/schema.yaml` and
 `task jeelink2mqtt:schema:check` stay as the openHAB (`cosalette schema openhab`) and
-drift-gate path; `task jeelink2mqtt:schema:ha-discovery` remains available for offline
-inspection of the same payloads.
+drift-gate path.
 
 jeelink2mqtt sensors are configured by logical name — the set of sensor names is static,
 fixed at configuration time. Only the ephemeral LaCrosse radio ID behind each name is

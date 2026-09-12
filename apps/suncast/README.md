@@ -143,8 +143,7 @@ buildings and highlighted regions.
 ## Home Assistant Discovery
 
 **Not applicable.** This app does not emit Home Assistant MQTT discovery payloads, and
-its `docs/schema.yaml` carries no `x-cosalette-consumer` annotations (running
-`task suncast:schema:ha-discovery` yields an empty payload list `[]`).
+its `docs/schema.yaml` carries no `x-cosalette-consumer` annotations.
 
 Since cosalette 0.9.4 the exclusion is also declared explicitly: the `shadow` telemetry
 handler is registered `discoverable=False`, so `shadowState` carries

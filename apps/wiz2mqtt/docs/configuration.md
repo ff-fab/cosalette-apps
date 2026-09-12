@@ -124,11 +124,8 @@ wiz2mqtt has contacted the bulb once. Discovery is published on connect, before
 any bulb is reached, so a **freshly onboarded or newly swapped bulb advertises a
 safe wire-format superset on its first run and the accurate, narrowed metadata
 from the next restart onward** (see "Adding or replacing a bulb" in
-[Getting Started](getting-started.md)). The offline
-`task wiz2mqtt:schema:ha-discovery` path has no hardware to probe and always emits
-the superset.
-
-Inspect the payloads offline with `task wiz2mqtt:schema:ha-discovery`.
+[Getting Started](getting-started.md)). This is Mechanism B in
+[ADR-003](adr/ADR-003-toml-inventory-as-the-configuration-boundary.md).
 
 ### openHAB generation
 
