@@ -86,6 +86,7 @@ def build_integration_app(
         min_interval=min_interval,
         retry=3,
         retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
+        unavailable_on=(BleConnectionError, BleTimeoutError, TimeoutError),
         state_model=AirthingsReading,
     )(_telemetry)
     return test_app

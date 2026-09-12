@@ -323,6 +323,11 @@ class TestTelemetryRetryConfig:
         reg = _telemetry_registration()
         assert TimeoutError in reg.retry_on
 
+    def test_unavailable_on_matches_retry_on(self) -> None:
+        """Transport failures mark the device unavailable after retry exhaustion."""
+        reg = _telemetry_registration()
+        assert reg.unavailable_on == reg.retry_on
+
     def test_timeout_configured_from_poll_timeout_setting(self) -> None:
         """Telemetry timeout= resolves via setting_ref("poll_timeout").
 

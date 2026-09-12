@@ -30,13 +30,9 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 from .conftest import TOPIC_PREFIX, make_harness, run_app_briefly
 
 
-def _fail_every_read(reader: FakeCalDavReader, error: Exception) -> None:
-    """Configure *reader* to exhaust telemetry retries with *error*."""
-
-    async def raise_error(*args, **kwargs):
-        raise error
-
-    reader.read_events = raise_error  # type: ignore[method-assign]
+def _fail_retry_budget(reader: FakeCalDavReader, error: Exception) -> None:
+    """Configure *reader* to exhaust the telemetry retry budget with *error*."""
+    reader.fail_next_reads(error, count=4)
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +55,7 @@ class TestErrorPublishing:
         Technique: Error Guessing — verify error routing through full stack.
         """
         # Arrange
-        _fail_every_read(fake_reader, CalDavConnectionError("server unreachable"))
+        _fail_retry_budget(fake_reader, CalDavConnectionError("server unreachable"))
         harness = make_harness(
             fake_reader, test_settings.calendars, settings=test_settings
         )
@@ -82,7 +78,7 @@ class TestErrorPublishing:
         Technique: Specification-based — global error topic contract.
         """
         # Arrange
-        _fail_every_read(fake_reader, CalDavConnectionError("server unreachable"))
+        _fail_retry_budget(fake_reader, CalDavConnectionError("server unreachable"))
         harness = make_harness(
             fake_reader, test_settings.calendars, settings=test_settings
         )
@@ -128,7 +124,7 @@ class TestErrorPublishing:
         Technique: Error Guessing — timeout is caught by framework.
         """
         # Arrange
-        _fail_every_read(fake_reader, CalDavTimeoutError("request timed out"))
+        _fail_retry_budget(fake_reader, CalDavTimeoutError("request timed out"))
         harness = make_harness(
             fake_reader, test_settings.calendars, settings=test_settings
         )
@@ -151,7 +147,7 @@ class TestErrorPublishing:
         Technique: Specification-based — error payload structure.
         """
         # Arrange
-        _fail_every_read(fake_reader, CalDavConnectionError("server unreachable"))
+        _fail_retry_budget(fake_reader, CalDavConnectionError("server unreachable"))
         harness = make_harness(
             fake_reader, test_settings.calendars, settings=test_settings
         )

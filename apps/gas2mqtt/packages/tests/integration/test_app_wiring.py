@@ -20,7 +20,6 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-import inspect
 import typing
 
 import cosalette
@@ -425,22 +424,24 @@ class TestTelemetryAvailabilityLifecycle:
     async def test_exhausted_oserror_marks_magnetometer_offline_then_recovers(
         self,
     ) -> None:
-        class _DebugPollFailingMagnetometer(FakeMagnetometer):
-            debug_failures = 4
+        class _DebugTelemetryFailures:
+            """Fail only debug telemetry, leaving shared counter reads healthy."""
 
-            def read(self):
-                frame = inspect.currentframe()
-                while frame is not None:
-                    if frame.f_code.co_name == "magnetometer":
-                        if self.debug_failures:
-                            self.debug_failures -= 1
-                            raise OSError("simulated debug poll failure")
-                        break
-                    frame = frame.f_back
-                return super().read()
+            def __init__(self, failures: int) -> None:
+                self.remaining_failures = failures
 
-        magnetometer = _DebugPollFailingMagnetometer()
-        test_app = build_full_integration_app(lambda: magnetometer)
+            async def handler(self, adapter: MagnetometerPort) -> dict[str, object]:
+                if self.remaining_failures:
+                    self.remaining_failures -= 1
+                    raise OSError("simulated debug poll failure")
+                return await magnetometer(adapter)
+
+        failures = _DebugTelemetryFailures(failures=4)
+        adapter = FakeMagnetometer()
+        test_app = build_full_integration_app(
+            lambda: adapter,
+            debug_magnetometer_handler=failures.handler,
+        )
         clock = ManualClock()
         harness = AppHarness(
             app=test_app,
@@ -455,8 +456,10 @@ class TestTelemetryAvailabilityLifecycle:
         task = asyncio.create_task(harness.run())
         try:
             await clock.settle()
-            while magnetometer.debug_failures:
+            await asyncio.sleep(0.1)
+            for _ in range(4):
                 await harness.advance_time(0.1)
+            assert failures.remaining_failures == 0
             await harness.wait_for_publish_count(topic, 2)
             assert harness.messages_for(topic)[-1] == ("offline", True, 1)
 

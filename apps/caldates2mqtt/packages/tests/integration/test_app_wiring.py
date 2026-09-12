@@ -187,17 +187,7 @@ class TestAvailability:
     async def test_retry_exhaustion_marks_calendar_offline_then_recovers(self) -> None:
         """Terminal CalDAV transport failure drives offline -> online lifecycle."""
         reader = FakeCalDavReader()
-        original_read = reader.read_events
-        remaining_failures = 4
-
-        async def fail_retry_budget(*args, **kwargs):
-            nonlocal remaining_failures
-            if remaining_failures:
-                remaining_failures -= 1
-                raise CalDavConnectionError("CalDAV unavailable")
-            return await original_read(*args, **kwargs)
-
-        reader.read_events = fail_retry_budget  # type: ignore[method-assign]
+        reader.fail_next_reads(CalDavConnectionError("CalDAV unavailable"), count=4)
         clock = ManualClock()
         config = calendar_config("garbage")
         config.schedule = "0 0 * * * ?"
@@ -206,8 +196,13 @@ class TestAvailability:
         task = asyncio.create_task(harness.run())
         try:
             await clock.settle()
-            while remaining_failures:
+            await harness.inject_command(
+                "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
+            )
+            await asyncio.sleep(0.3)
+            for _ in range(4):
                 await harness.advance_time(10)
+            assert not reader.failure_sequence
             await harness.wait_for_publish_count(availability_topic, 2)
             assert harness.messages_for(availability_topic)[-1] == ("offline", True, 1)
 

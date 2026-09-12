@@ -189,8 +189,9 @@ class TestTelemetryErrorPublishing:
         task = asyncio.create_task(harness.run())
         try:
             await clock.settle()
-            while adapter.remaining_failures:
+            for _ in range(4):
                 await harness.advance_time(10)
+            assert adapter.remaining_failures == 0
             await harness.wait_for_publish_count(topic, 2)
             assert harness.messages_for(topic)[-1] == ("offline", True, 1)
 

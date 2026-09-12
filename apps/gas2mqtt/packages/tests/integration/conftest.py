@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from cosalette import (
@@ -36,13 +37,19 @@ from gas2mqtt.settings import Gas2MqttSettings
 
 def build_full_integration_app(
     magnetometer_adapter: type | object = FakeMagnetometer,
+    *,
+    debug_magnetometer_handler: Callable[
+        [MagnetometerPort], Awaitable[dict[str, object]]
+    ] = magnetometer,
 ) -> App:
     """Construct a fully-wired App mirroring gas2mqtt.main.create_app().
 
     Substitutes ``FakeMagnetometer`` for the real QMC5883L adapter and
     ``MemoryStore`` for the JsonFileStore, so tests exercise the real
     handler registrations (gas_counter, consumption, temperature,
-    magnetometer) without hardware or filesystem I/O.
+    magnetometer) without hardware or filesystem I/O. A test can replace
+    only the debug handler to model failures without affecting gas-counter
+    reads that share the same adapter.
     """
     app = App(
         name="gas2mqtt",
@@ -93,7 +100,7 @@ def build_full_integration_app(
         unavailable_on=(OSError,),
         backoff=FixedBackoff(delay=0.05),
         enabled=lambda s: s.enable_debug_device,
-    )(magnetometer)
+    )(debug_magnetometer_handler)
 
     return app
 
