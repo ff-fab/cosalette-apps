@@ -66,3 +66,20 @@ Keep the container on a bridge network and publish UDP 38900 (and the discovery/
 - Operators on non-host orchestration (some Kubernetes CNIs, restrictive PaaS) must arrange host-network access explicitly or accept poll-only latency
 
 _2026-09-06_
+
+## Addendum: WiFi Broadcast Boundary (cap-10u.19)
+
+Hardware testing (cap-10u.19, 2026-09-12) revealed an additional network
+constraint: WiZ heartbeat pushes (`src: "hb"`) are WiFi broadcast frames.
+They do not cross a WiFi-to-Ethernet bridge. A host connected only via
+Ethernet receives zero heartbeat pushes even with `network_mode: host`.
+
+**Deployment rule:** the host that runs wiz2mqtt must connect to the same
+WiFi network as the bulbs. An Ethernet-only host silently degrades push to
+polling.
+
+Cross-AP behaviour varies. Bulbs on a Fritz!Box WiFi access point delivered
+heartbeats at a steady ~5 s cadence. A bulb on a Ubiquiti access point
+(same VLAN, bridged at L2) delivered heartbeats at ~12.6 s with high
+variance (1.4 s to 20.3 s). The 60-second staleness threshold tolerates
+both cadences.

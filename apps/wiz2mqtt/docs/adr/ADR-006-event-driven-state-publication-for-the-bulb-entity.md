@@ -96,3 +96,32 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Real-bulb push and heartbeat cadence is not covered by the unit/integration suite and is deferred to cap-10u.19
 
 _2026-09-06_
+
+## Addendum: pywizlight Heartbeat Suppression (cap-10u.19)
+
+Hardware testing (cap-10u.19, 2026-09-12) revealed that pywizlight's push
+callback includes a `states_match` check that suppresses consecutive
+pushes with identical state. Idle heartbeats (`src: "hb"`) carry unchanged
+state, so pywizlight silently drops them. The adapter's `_on_push`
+callback never fires for idle heartbeats.
+
+This means `_last_push_at` is not refreshed while a bulb is idle. After
+60 seconds the staleness threshold triggers `_poll_state` on the next
+tick. This is exactly the designed fallback path: one UDP poll per bulb
+per 60-second tick, which is negligible.
+
+**The 60-second tick interval is confirmed safe.** Real heartbeat cadence
+is ~5 s (Fritz!Box WiFi) to ~12.6 s (cross-AP Ubiquiti). Both values are
+well below the threshold. The `states_match` filter means the staleness
+fallback activates on every idle tick regardless of heartbeat cadence, but
+the cost is one poll per bulb per minute.
+
+Additional findings:
+- State-change pushes arrive within 100-300 ms. The `src` field reads
+  `"ios2"` for WiZ iOS app changes.
+- Rapid dimmer-slider changes produce up to ~10 pushes/second per bulb.
+  Each push carries a distinct dimming value, so `OnChange()` publishes
+  all of them. The deliberate omission of `min_interval=` remains correct.
+- In CCT mode, the bulb firmware omits `r`, `g`, `b` entirely (the fields
+  are absent, not zeroed). The adapter's CCT guard in
+  `_hue_saturation_from_parser` is therefore correct and conservative.
