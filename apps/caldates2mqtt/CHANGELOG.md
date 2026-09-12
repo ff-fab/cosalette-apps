@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.2.2](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.1...caldates2mqtt-v0.2.2) (2026-09-12)
+
+
+### Features
+
+* **caldates2mqtt:** adopt runtime HA discovery (cap-2qg, cap-gsd) ([#258](https://github.com/ff-fab/cosalette-apps/issues/258)) ([10ab611](https://github.com/ff-fab/cosalette-apps/commit/10ab6113f73f714456119cc5f85040809dbf3ead))
+* **caldates2mqtt:** carry the event list as HA attributes (cap-6hw) ([#257](https://github.com/ff-fab/cosalette-apps/issues/257)) ([2f4d517](https://github.com/ff-fab/cosalette-apps/commit/2f4d517ef4261cdbcb8fdaf0a790f6d6aecf87c0))
+* **caldates2mqtt:** expose events as a portable count aggregate (cap-p09) ([#259](https://github.com/ff-fab/cosalette-apps/issues/259)) ([0dd1963](https://github.com/ff-fab/cosalette-apps/commit/0dd1963b5d6f734d29d615a17ec071a8c70a1d10))
+
+
+### Bug Fixes
+
+* **docs:** publish app docs from root updates ([#264](https://github.com/ff-fab/cosalette-apps/issues/264)) ([0188712](https://github.com/ff-fab/cosalette-apps/commit/0188712a1b300624d502571f6828064adf3ceb0d))
+* upgrade cosalette to 0.9.4 and declare per-channel discovery intent ([#250](https://github.com/ff-fab/cosalette-apps/issues/250)) ([632b58b](https://github.com/ff-fab/cosalette-apps/commit/632b58b612c8c46d83aa78ad8ac51a74039ad79e))
+* upgrade cosalette to 0.9.5 and plan the migration work it unlocks ([#252](https://github.com/ff-fab/cosalette-apps/issues/252)) ([0103c59](https://github.com/ff-fab/cosalette-apps/commit/0103c5955b817a1ab468fe28880400f6debd2d6a))
+* upgrade cosalette to 0.9.6 ([#256](https://github.com/ff-fab/cosalette-apps/issues/256)) ([965ef69](https://github.com/ff-fab/cosalette-apps/commit/965ef691d5e810f3790c3c9eb7145c49955ba43d))
+
+
+### Documentation
+
+* **wiz2mqtt:** record cap-10u.19 hardware verification findings ([#262](https://github.com/ff-fab/cosalette-apps/issues/262)) ([d3ca03e](https://github.com/ff-fab/cosalette-apps/commit/d3ca03ea6064260dee4804bfa08a8cadce212550))
+
 ## [0.2.1](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.0...caldates2mqtt-v0.2.1) (2026-09-08)
 
 
