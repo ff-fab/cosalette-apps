@@ -53,12 +53,4 @@ periodic polling and on-demand re-read via MQTT command.
 
     [:octicons-arrow-right-24: Topics](mqtt-topics.md)
 
--   :material-file-document-multiple:{ .lg .middle } **ADRs**
-
-    ---
-
-    Architecture decision records documenting design choices.
-
-    [:octicons-arrow-right-24: Decisions](adr/)
-
 </div>

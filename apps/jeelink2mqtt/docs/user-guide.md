@@ -62,9 +62,8 @@ ephemeral IDs to stable logical names you define in configuration.
 
 When exactly **one** configured sensor is stale (no reading within its
 staleness timeout) and a new unknown ID appears, the registry
-automatically assigns the new ID to that sensor.  This is the
-**oldest-stale heuristic** from
-[ADR-002](adr/ADR-002-sensor-id-management-strategy.md).
+automatically assigns the new ID to that sensor. This uses the
+**oldest-stale heuristic**.
 
 ```mermaid
 sequenceDiagram

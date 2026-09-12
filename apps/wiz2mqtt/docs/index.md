@@ -40,14 +40,6 @@ bulb gets its own retained state topic, command topic, and availability signal.
 
     [:octicons-arrow-right-24: Topics](mqtt-topics.md)
 
--   :material-file-document-multiple:{ .lg .middle } **ADRs**
-
-    ---
-
-    Architecture decision records documenting design choices.
-
-    [:octicons-arrow-right-24: Decisions](adr/)
-
 </div>
 
 ## Features

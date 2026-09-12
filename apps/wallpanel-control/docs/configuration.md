@@ -41,8 +41,7 @@ you need.
     that default in code and states its transport posture in deployment config
     instead: `compose.yml` defaults `WALLPANEL_CONTROL_MQTT__TLS` to `false`
     for its bundled plaintext broker. Set `WALLPANEL_CONTROL_MQTT__TLS=true`
-    in `.env` or a Compose override once the broker has a TLS listener. See
-    [ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/).
+    in `.env` or a Compose override once the broker has a TLS listener.
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables use

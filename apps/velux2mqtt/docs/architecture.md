@@ -234,6 +234,4 @@ GPIO adapter and declares configured cover devices with `@app.device(name=_cover
 - [Ports & Adapters (Hexagonal Architecture)](https://alistair.cockburn.us/hexagonal-architecture/)
   --- the architectural pattern used by velux2mqtt
 - [cosalette documentation](https://ff-fab.github.io/cosalette/) --- the IoT framework
-- [ADR-001: cosalette Migration](adr/ADR-001-cosalette-migration.md) --- why velux2mqtt
-  adopted cosalette
 - [Calibration](calibration.md) --- the timed calibration procedure

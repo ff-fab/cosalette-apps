@@ -577,4 +577,3 @@ services:
 
 - [Configuration Reference](./configuration.md)
 - [Signal Reference](./signals.md)
-- [Architecture Decisions](../adr/index.md)

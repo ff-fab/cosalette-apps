@@ -228,9 +228,7 @@ that publishes this topic".
 
 Both topics disclose handler names, channel addresses, and payload schemas. If you
 run a production broker ACL file, protect `_meta/#` the same way you protect
-`_meta/registry` — see
-[ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/)
-for this repo's transport posture. Every `mosquitto.conf` shipped in this repo is
+`_meta/registry`. Every `mosquitto.conf` shipped in this repo is
 dev-only (`allow_anonymous true`, no ACL file), so there is nothing to change
 in-repo — this note only applies if you deploy your own broker ACLs.
 
