@@ -72,13 +72,7 @@ jobs:
             echo 'apps=${{ steps.discover.outputs.apps }}' >> "$GITHUB_OUTPUT"
           else
             apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
-            # The root landing page owns the app tiles. Rebuild it whenever an
-            # app's documentation changes so new or updated tiles are deployed
-            # with the app site.
             root="${{ steps.filter.outputs.root }}"
-            if [ "$apps" != '[]' ]; then
-              root=true
-            fi
             echo "root=$root" >> "$GITHUB_OUTPUT"
             echo "apps=$apps" >> "$GITHUB_OUTPUT"
           fi
