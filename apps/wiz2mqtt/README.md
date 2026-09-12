@@ -30,18 +30,16 @@ the one retained `wiz2mqtt/{name}/state` payload:
 One bridge-level `binary_sensor` (`device_class: connectivity`, state topic
 `wiz2mqtt/status`) is published once for the whole app.
 
-The `light` discovery metadata is a **static wire-format superset** — every bulb
-advertises `color_temp` + `rgb` and the full scene list regardless of its actual class.
-Runtime capability auto-detection still governs which commands the adapter forwards, so
-a control that a given bulb lacks is a no-op, never a mis-routed command. Per-bulb
-capability-filtered discovery metadata is deferred (`cap-3tr`; see
-[ADR-003](docs/adr/ADR-003-toml-inventory-as-the-configuration-boundary.md)).
+The `light` discovery metadata is refined from capabilities detected and cached after
+first contact with each bulb; capabilities are never declared in configuration. A
+first-run, newly added, or swapped bulb safely receives the static wire-format superset
+(`color_temp` + `rgb` and the full scene list). On a later connection, discovery
+publishes metadata narrowed to that bulb's cached capabilities.
 
 Because `app.discovery()` reads the runtime registry rather than the checked-in
 `docs/schema.yaml`, bulb names are always correct without a representative `.env.schema`
 profile. `docs/schema.yaml` and `task wiz2mqtt:schema:check` stay as the openHAB
-(`cosalette schema openhab`) and drift-gate path; `task wiz2mqtt:schema:ha-discovery`
-remains available for offline inspection of the same payloads. See
+(`cosalette schema openhab`) and drift-gate path. See
 `packages/tests/integration/test_schema_discovery.py`.
 
 ## Onboarding

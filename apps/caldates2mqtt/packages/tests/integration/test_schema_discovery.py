@@ -11,8 +11,8 @@ NameSpec into real per-calendar channels (``birthdayState``, ``garbageState``,
 per ``.env.schema``). This resolves the same qualname-collapse issue fixed for
 velux2mqtt , verified below by asserting the real channel names appear.
 
-HA discovery (``task caldates2mqtt:schema:ha-discovery``) emits one event-count
-sensor per calendar, plus the ADR-058 app bridge. It reaches that from the
+Runtime HA discovery emits one event-count sensor per calendar, plus the ADR-058
+app bridge. It reaches that from the
 channel-level ``ha_entities()`` composite on ``CalendarState``, not from the
 per-event annotations: ``CalendarState``'s only property is ``events``, an array
 of objects, and an array of objects has no single value an HA sensor could hold.

@@ -9,7 +9,7 @@ tags: [mqtt, architecture, dependencies, lifecycle, testing]
 
 ## Status
 
-Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11
+Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11 | Amended **Date:** 2026-09-12
 
 - All seven per-app adoption tasks are closed.
 - `schema:ha-discovery` is deprecated for adopted apps (cap-8sw, 2026-09-11).
@@ -141,3 +141,14 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Additional Negative Consequences
 
 - The per-app inventory in this ADR's Context is a snapshot, not a contract, and it drifted within three cosalette releases. Read ADR-008 for the current per-channel rule rather than this list.
+
+## Amendment (2026-09-12) — Minor
+
+!!! note "Editorial note (2026-09-12)"
+    After the runtime discovery migration, the shared `schema:ha-discovery` Taskfile target and its compatibility variables were removed.
+
+!!! note "Editorial note (2026-09-12)"
+    `App.discovery()` is the supported Home Assistant discovery path.
+
+!!! note "Editorial note (2026-09-12)"
+    `docs/schema.yaml`, `schema:generate`, and `schema:check` remain supported for schema validation and offline openHAB generation.

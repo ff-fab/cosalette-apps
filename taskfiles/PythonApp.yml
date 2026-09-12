@@ -7,7 +7,6 @@ vars:
   APP_NAME: '{{.APP_NAME}}'
   MODULE_NAME: '{{.MODULE_NAME | default .APP_NAME}}'
   PKG: packages
-  HA_DISCOVERY_DEPRECATED: '{{.HA_DISCOVERY_DEPRECATED | default "false"}}'
 
 tasks:
   test:
@@ -168,19 +167,6 @@ tasks:
           --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml.tmp
         {{end}}
         mv docs/schema.yaml.tmp docs/schema.yaml
-
-  # DEPRECATED per cap-8sw: all apps with an HA surface have adopted runtime
-  # discovery (ADR-004).  Use schema:generate + schema:check for openHAB drift
-  # detection instead.  The task remains functional so existing scripts do not
-  # break, but prints a deprecation warning on every invocation.
-  schema:ha-discovery:
-    desc: '[DEPRECATED] Generate Home Assistant MQTT discovery payloads for {{.APP_NAME}}'
-    cmds:
-      - >-
-        {{if eq .HA_DISCOVERY_DEPRECATED "true"}}
-        echo "DEPRECATED -- schema:ha-discovery is deprecated for apps that adopted runtime HA discovery (ADR-004). Use schema:generate + schema:check for openHAB drift detection instead." >&2
-        {{end}}
-      - uv run --package {{.APP_NAME}} cosalette schema ha-discovery docs/schema.yaml
 
   schema:openhab:
     desc: 'Generate openHAB .things/.items configuration for {{.APP_NAME}}'

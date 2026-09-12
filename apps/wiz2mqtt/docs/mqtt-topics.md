@@ -106,9 +106,6 @@ payload uses `min` 10, `max` 200, `step` 1, `command_template`
 `{"effect_speed": {{ value }}}`. The `sensor` payload is `device_class: power`,
 `unit_of_measurement: W`, `state_class: measurement`.
 
-Preview the exact payloads with `task wiz2mqtt:schema:ha-discovery` (the offline
-path always emits the superset — it has no bulb to probe).
-
 ## openHAB Generic MQTT Thing
 
 `task wiz2mqtt:schema:openhab` renders — offline, from `docs/schema.yaml` — a

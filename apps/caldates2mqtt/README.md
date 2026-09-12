@@ -19,10 +19,8 @@ calendar clears its discovery topic on the next start (ADR-048). The sensor stat
 event count. The sensor attributes carry the full event list, so a template or a
 dashboard card can read `state_attr('sensor.birthday_events', 'events')`.
 
-`task caldates2mqtt:schema:ha-discovery` previews the same payloads offline from
-`docs/schema.yaml` for the `.env.schema` calendars (`birthday_events`, `garbage_events`)
-and exits 0. `docs/schema.yaml` carries a typed `state_model` (`CalendarState` in
-`main.py`, wired via `state_model=` on `@app.telemetry`) so the channel is not a bare
+`docs/schema.yaml` carries a typed `state_model` (`CalendarState` in `main.py`, wired
+via `state_model=` on `@app.telemetry`) so the channel is not a bare
 `additionalProperties: true` object. Two independent things originally blocked a working
 entity:
 
