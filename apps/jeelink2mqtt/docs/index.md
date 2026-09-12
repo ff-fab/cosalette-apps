@@ -18,7 +18,7 @@ framework.
 :   LaCrosse sensors generate a new random ID on every battery swap.
     jeelink2mqtt's auto-adopt algorithm detects the change and re-maps
     the ID automatically — no manual intervention needed
-    ([ADR-002](adr/ADR-002-sensor-id-management-strategy.md)).
+    (the developer ADR records the design rationale).
 
 **Per-Sensor Calibration Offsets**
 :   Each sensor can carry individual temperature and humidity offsets,

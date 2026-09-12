@@ -167,5 +167,3 @@ magnetometer adapter, wires all devices, and exposes a fully configured `App`.
 - [Ports & Adapters (Hexagonal Architecture)](https://alistair.cockburn.us/hexagonal-architecture/)
   — the architectural pattern used by gas2mqtt
 - [cosalette documentation](https://ff-fab.github.io/cosalette/) — the IoT framework
-- [ADR-001: cosalette Migration](adr/ADR-001-cosalette-migration.md) — why gas2mqtt
-  adopted cosalette

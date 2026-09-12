@@ -62,12 +62,4 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
     [:octicons-arrow-right-24: Topics](mqtt-topics.md)
 
--   :material-file-document-multiple:{ .lg .middle } **ADRs**
-
-    ---
-
-    Architecture decision records documenting design choices.
-
-    [:octicons-arrow-right-24: Decisions](adr/)
-
 </div>

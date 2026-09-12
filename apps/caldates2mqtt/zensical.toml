@@ -36,7 +36,6 @@ nav = [
     { "Getting Started" = "getting-started.md" },
     { "Configuration" = "configuration.md" },
     { "MQTT Topics" = "mqtt-topics.md" },
-    { "ADRs" = "adr/" },
 ]
 
 # ---------------------------------------------------------------------------

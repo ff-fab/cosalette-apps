@@ -70,8 +70,7 @@ model. Common environment variables are:
 Transport security is a per-deployment setting. cosalette defaults `tls` to
 `true`; the shipped `compose.yml` defaults `WIZ2MQTT_MQTT__TLS` to `false` for
 its bundled plaintext broker. Set `WIZ2MQTT_MQTT__TLS=true` in `.env` or a
-Compose override when your broker expects TLS. See
-[ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/).
+Compose override when your broker expects TLS.
 
 ## Config-file and environment interplay
 
@@ -127,8 +126,7 @@ safe wire-format superset on its first run and the accurate, narrowed metadata
 from the next restart onward** (see "Adding or replacing a bulb" in
 [Getting Started](getting-started.md)). The offline
 `task wiz2mqtt:schema:ha-discovery` path has no hardware to probe and always emits
-the superset. This is Mechanism B in
-[ADR-003](adr/ADR-003-toml-inventory-as-the-configuration-boundary.md).
+the superset.
 
 Inspect the payloads offline with `task wiz2mqtt:schema:ha-discovery`.
 

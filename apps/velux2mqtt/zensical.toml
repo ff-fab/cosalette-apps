@@ -36,7 +36,6 @@ nav = [
     { "MQTT Topics" = "mqtt-topics.md" },
     { "Calibration" = "calibration.md" },
     { "Architecture" = "architecture.md" },
-    { "ADRs" = "adr/" },
 ]
 
 # ---------------------------------------------------------------------------

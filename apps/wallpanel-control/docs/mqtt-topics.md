@@ -9,8 +9,7 @@ unknown fields are rejected with an error publication.
     output. It is **still subscribed and still acts on what it receives.** The flag
     changes what Home Assistant is told about, not who may publish. Anyone who can
     reach the broker can still drive these topics, and the bundled broker in
-    `compose.yml` is plaintext with `allow_anonymous true`
-    ([ADR-006](../../../docs/adr/ADR-006-mqtt-transport-security-posture.md)). Restrict
+    `compose.yml` is plaintext with `allow_anonymous true`. Restrict
     access with broker ACLs and `<PREFIX>_MQTT__TLS=true`, not with this flag.
 
 ---
@@ -244,8 +243,6 @@ that publishes this topic".
 
 Both topics disclose handler names, channel addresses, and payload schemas. If you
 run a production broker ACL file, protect `_meta/#` the same way you protect
-`_meta/registry` — see
-[ADR-006](https://ff-fab.github.io/cosalette-apps/adr/ADR-006-mqtt-transport-security-posture/)
-for this repo's transport posture. Every `mosquitto.conf` shipped in this repo is
+`_meta/registry`. Every `mosquitto.conf` shipped in this repo is
 dev-only (`allow_anonymous true`, no ACL file), so there is nothing to change
 in-repo — this note only applies if you deploy your own broker ACLs.

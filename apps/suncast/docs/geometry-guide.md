@@ -214,5 +214,4 @@ an L-shaped building as two overlapping rectangles.
 - Use `geometry.example.yaml` from the repository as a starting point
 - Adjust `north_rotation` by comparing rendered shadows with reality at a known time
 - Keep buildings convex — split complex shapes into overlapping rectangles
-- See [ADR-003](adr/ADR-003-house-geometry-configuration.md) for the design rationale
-  behind the geometry format
+- The geometry format's design rationale is recorded in the developer ADRs

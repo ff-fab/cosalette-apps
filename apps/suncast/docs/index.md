@@ -77,12 +77,4 @@ Home Assistant dashboards to display real-time shadow maps.
 
     [:octicons-arrow-right-24: Geometry](geometry-guide.md)
 
--   :material-file-document-multiple:{ .lg .middle } **ADRs**
-
-    ---
-
-    Architecture decision records documenting design choices.
-
-    [:octicons-arrow-right-24: Decisions](adr/)
-
 </div>

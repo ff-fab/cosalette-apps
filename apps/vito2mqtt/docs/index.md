@@ -52,14 +52,14 @@ operating modes.
     ---
 
     Signals due for polling at the same tick are batched into a single serial
-    session, minimizing Optolink bus occupancy (see [ADR-007](adr/ADR-007-telemetry-coalescing-groups.md)).
+    session, minimizing Optolink bus occupancy.
 
 -   :material-translate:{ .lg .middle } **Bilingual Signal Names**
 
     ---
 
     Signal names available in German and English. Set `VITO2MQTT_SIGNAL_LANGUAGE`
-    to `de` or `en` (see [ADR-006](adr/ADR-006-configurable-signal-language.md)).
+    to `de` or `en`.
 
 -   :material-bacteria:{ .lg .middle } **Automated Legionella Treatment**
 
@@ -113,7 +113,6 @@ See the [Getting Started](getting-started/index.md) guide for the full walkthrou
 | [Guides](guides/index.md) | Home Assistant integration, Docker, recipes |
 | [Configuration Reference](reference/configuration.md) | All settings and environment variables |
 | [MQTT Signal Reference](reference/signals.md) | Complete signal tables with addresses and types |
-| [Architecture Decisions](adr/index.md) | ADRs documenting project design choices |
 
 ---
 

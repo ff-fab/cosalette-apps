@@ -7,8 +7,7 @@ title: Configuration Reference
 vito2mqtt is configured via environment variables or a `.env` file. All variables
 use the `VITO2MQTT_` prefix. Settings are validated at startup using
 [pydantic-settings](https://docs.pydantic.dev/latest/concepts/pydantic_settings/)
-through the [cosalette](https://github.com/ff-fab/cosalette) framework
-(see [ADR-001](../adr/ADR-001-framework-choice.md)).
+through the [cosalette](https://github.com/ff-fab/cosalette) framework.
 
 ---
 
@@ -48,12 +47,12 @@ These settings are specific to vito2mqtt and defined in `Vito2MqttSettings`:
 | Setting | Environment Variable | Type | Default | Description |
 |---------|---------------------|------|---------|-------------|
 | `device_id` | `VITO2MQTT_DEVICE_ID` | `str` | `vitodens200w` | Device identifier in MQTT topic hierarchy |
-| `signal_language` | `VITO2MQTT_SIGNAL_LANGUAGE` | `"de"` \| `"en"` | `"en"` | Language for signal names (see [ADR-006](../adr/ADR-006-configurable-signal-language.md)) |
+| `signal_language` | `VITO2MQTT_SIGNAL_LANGUAGE` | `"de"` \| `"en"` | `"en"` | Language for signal names |
 
 ### Polling Intervals
 
 Per-domain polling intervals in seconds. Each controls how often a signal group is
-read from the boiler (see [ADR-005](../adr/ADR-005-configuration-settings.md)).
+read from the boiler.
 
 | Setting | Environment Variable | Type | Default | Description |
 |---------|---------------------|------|---------|-------------|
@@ -74,8 +73,7 @@ read from the boiler (see [ADR-005](../adr/ADR-005-configuration-settings.md)).
 !!! info "Polling intervals no longer bound command feedback"
     A successful write on a `/set` topic wakes that group's telemetry handler
     directly, so the boiler is re-read within seconds rather than at the next
-    tick — see [ADR-007](../adr/ADR-007-telemetry-coalescing-groups.md), amended
-    2026-09-02. Treat these intervals as the heartbeat and staleness bound, not
+    tick. Treat these intervals as the heartbeat and staleness bound, not
     as the latency you will observe after changing a setting.
 
     Repeated writes are throttled to one extra read per group per
