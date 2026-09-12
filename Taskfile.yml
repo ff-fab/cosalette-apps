@@ -76,6 +76,9 @@ includes:
     dir: ./apps/airthings2mqtt
     vars:
       APP_NAME: airthings2mqtt
+      # 'device_name' is settings-derived, so schema checks resolve it against
+      # the representative profile rather than rejecting the NameSpec.
+      SCHEMA_ENV_FILE: .env.schema
 
   caldates2mqtt:
     taskfile: ./taskfiles/PythonApp.yml
