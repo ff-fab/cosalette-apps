@@ -201,7 +201,7 @@ class TestTelemetryTriggerConfig:
     def test_resolver_reads_the_configured_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A deployment override flows from settings into the throttle (cap-9hn).
+        """A deployment override flows from settings into the throttle .
 
         Technique: Specification-based — the whole point of the field is that a
         non-default value reaches min_interval= at registration time.
@@ -236,7 +236,7 @@ class TestTelemetryTriggerConfig:
     def test_configured_override_reaches_registration(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A non-default override lands on every telemetry registration (cap-9hn).
+        """A non-default override lands on every telemetry registration .
 
         Technique: Specification-based — closes the loop the resolver test
         opens by driving the override through ``configure_app`` to the
@@ -304,7 +304,7 @@ class TestCommandRegistration:
 
 
 class TestCommandDiscoveryOptOut:
-    """Verify discoverable="state" on command registrations (cap-33eq, ADR-074).
+    """Verify discoverable="state" on command registrations , ADR-074).
 
     Technique: Specification-based — the /set channel is not an HA entity;
     discoverable="state" opts it out while staying forward-compatible with
@@ -528,7 +528,7 @@ class TestCommandUnavailableOnConfig:
 
 
 class TestCommandTimeoutConfig:
-    """Verify the explicit per-command backstop (cap-ug0)."""
+    """Verify the explicit per-command backstop ."""
 
     def test_all_commands_use_the_audited_timeout(self) -> None:
         """Every Optolink command sets timeout=COMMAND_TIMEOUT_SECONDS.

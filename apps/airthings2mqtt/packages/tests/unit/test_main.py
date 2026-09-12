@@ -416,7 +416,7 @@ class TestTriggerThrottleRegistration:
     def test_resolver_reads_the_configured_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """A deployment override flows from settings into the throttle (cap-9hn).
+        """A deployment override flows from settings into the throttle .
 
         Technique: Specification-based — the whole point of the field is that a
         non-default value reaches min_interval= at registration time.

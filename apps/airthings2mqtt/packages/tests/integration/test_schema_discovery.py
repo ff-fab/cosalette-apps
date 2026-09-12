@@ -12,7 +12,7 @@ Test Techniques Used:
 - Specification-based: schema enrichment must yield the documented HA entities
 - Equivalence Partitioning: typed (device_class) vs untyped (radon) sensors
 - Parametrize: all four sensor fields declared once, no duplication
-- Cross-check (cap-5f8): every state_topic is verified against topics the
+- Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
 """
@@ -199,10 +199,10 @@ class TestStateTopicsAreReal:
         for BLE hardware) and cross-checks each HA-discovery payload's
         ``state_topic`` against the topics actually published at runtime.
         A state_topic with no matching runtime publish would ship a
-        phantom HA entity (cap-5f8).
+        phantom HA entity.
 
         The check itself is the framework helper ``assert_discovery_topics_published``
-        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        (adopted per monorepo ADR-004 fed the CLI-generated payloads
         wrapped as ``SimpleNamespace`` objects (duck-typed;
         ``assert_discovery_topics_published`` only accesses
         ``.config.get('state_topic')``).

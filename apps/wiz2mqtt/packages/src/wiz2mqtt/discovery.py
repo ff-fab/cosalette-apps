@@ -1,4 +1,4 @@
-"""Runtime HA discovery enrichment: narrow advertised metadata per bulb (cap-3tr).
+"""Runtime HA discovery enrichment: narrow advertised metadata per bulb.
 
 The static ``_HA_LIGHT_ENTITY`` in :mod:`wiz2mqtt.models` advertises a
 wire-format *superset* — every configured bulb is offered ``rgb`` +

@@ -99,7 +99,7 @@ class CalendarState:
     resolves settings first (``cosalette schema dump --resolve-settings``,
     ADR-051, against the checked-in ``.env.schema`` profile), expanding
     the NameSpec into real per-calendar channels (e.g. ``birthdayState``,
-    ``garbageState``). See ``docs/schema.yaml`` and cap-0cg. Home Assistant
+    ``garbageState``). See ``docs/schema.yaml``. Home Assistant
     discovery emits one event-count sensor per calendar from the
     :data:`_EVENT_COUNT_SENSOR` composite above; that sensor also carries the
     calendar's event list as attributes. See
@@ -160,8 +160,8 @@ override it via ``CALDATES2MQTT_TRIGGER_MIN_INTERVAL``.
 def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     """Read the configured throttle, or the default when settings are absent.
 
-    ``min_interval=`` takes a concrete ``float`` (cosalette 0.9.1 has no
-    ``setting_ref`` support for it, cap-9hn), so the value is read from the
+    ``min_interval=`` takes a concrete ``float`` without ``setting_ref``
+    support, so the value is read from the
     eagerly-built ``app.settings`` at registration time. ``app.settings``
     raises when required fields (``calendars``) are unset — as under ``--help``,
     tests, or schema generation — so fall back to the field default to keep the
@@ -182,7 +182,7 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     triggerable=True,
     # Resolved at import time. App.__init__ eagerly builds settings, so a
     # configured deployment gets its override here; under --help/tests/schema-gen
-    # (settings unavailable) it falls back to the field default (cap-9hn).
+    # (settings unavailable) it falls back to the field default.
     min_interval=_resolve_trigger_min_interval(app),
     retry=3,
     retry_on=(CalDavConnectionError, CalDavTimeoutError),

@@ -133,7 +133,7 @@ class TestCalendarHandlerHappyPath:
 
         Technique: Boundary Value Analysis — at and one past TITLE_MAX. Titles
         come from a third-party CalDAV server and feed the HA attributes, which
-        the recorder drops above 16384 bytes (cap-6hw).
+        the recorder drops above 16384 bytes .
         """
         at_limit = "a" * TITLE_MAX
         fake_reader.readings = [

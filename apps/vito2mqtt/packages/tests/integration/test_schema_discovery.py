@@ -52,7 +52,7 @@ Test Techniques Used:
 - Equivalence Partitioning: temperature vs modulation/count/duration sensors
 - Golden set: exact object_id set guards against both stripping and leakage
 - Parametrize: per-sensor config fields declared once, no duplication
-- Cross-check (cap-5f8): every state_topic is verified against topics the
+- Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
 """
@@ -303,10 +303,10 @@ class TestStateTopicsAreReal:
         for the serial Optolink connection) and cross-checks each
         HA-discovery payload's ``state_topic`` against the topics actually
         published at runtime. A state_topic with no matching runtime publish
-        would ship a phantom HA entity (cap-5f8).
+        would ship a phantom HA entity.
 
         The check itself is the framework helper ``assert_discovery_topics_published``
-        (adopted per monorepo ADR-004 / cap-6y0), fed the CLI-generated payloads
+        (adopted per monorepo ADR-004 fed the CLI-generated payloads
         wrapped as ``SimpleNamespace`` objects (duck-typed;
         ``assert_discovery_topics_published`` only accesses
         ``.config.get('state_topic')``). This also re-verifies that every

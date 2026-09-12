@@ -1,4 +1,4 @@
-"""Integration tests for the bulb_set command handler (cap-10u.12).
+"""Integration tests for the bulb_set command handler .
 
 Exercises the full command path: MQTT inbound -> per-bulb command
 dispatch -> BulbSetCommand mutual-exclusion validation ->

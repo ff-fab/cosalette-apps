@@ -80,8 +80,8 @@ cadence. Deployments override it via ``AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL``.
 def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     """Read the configured throttle, or the default when settings are absent.
 
-    ``min_interval=`` takes a concrete ``float`` (cosalette 0.9.1 has no
-    ``setting_ref`` support for it, cap-9hn), so the value is read from the
+    ``min_interval=`` takes a concrete ``float`` without ``setting_ref``
+    support, so the value is read from the
     eagerly-built ``app.settings`` at registration time. ``app.settings``
     raises when required fields (``device_mac``) are unset — as under
     ``--help``, tests, or schema generation — so fall back to the field default
@@ -103,7 +103,7 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     triggerable=True,
     # Resolved at import time. App.__init__ eagerly builds settings, so a
     # configured deployment gets its override here; under --help/tests/schema-gen
-    # (settings unavailable) it falls back to the field default (cap-9hn).
+    # (settings unavailable) it falls back to the field default.
     min_interval=_resolve_trigger_min_interval(app),
     retry=3,
     retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),

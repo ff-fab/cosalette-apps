@@ -2,21 +2,21 @@
 
 Covers both halves of the discovery adoption:
 
-* **cap-egy** — ``SensorStateModel``'s ``temperature``/``humidity``/
+* **Discovery metadata:** ``SensorStateModel``'s ``temperature``/``humidity``/
   ``low_battery`` fields carry ``x-cosalette-consumer`` metadata (see
   :mod:`jeelink2mqtt.models`), and ``docs/schema.yaml`` is regenerated
   from the settings-resolved registry (``task jeelink2mqtt:schema:generate``,
   ADR-051). ``TestHaDiscoveryGeneration`` runs the offline
   ``cosalette schema ha-discovery`` CLI against that checked-in artifact
   and pins the entities it must emit.
-* **cap-hpa** — :mod:`jeelink2mqtt.main` calls ``app.discovery()`` (ADR-059),
+* **Discovery metadata:** :mod:`jeelink2mqtt.main` calls ``app.discovery()`` (ADR-059),
   so retained ``homeassistant/<component>/.../config`` payloads are published
   on the first MQTT connect. ``TestRuntimeDiscoveryPublication`` runs the
   real wiring through :class:`~cosalette.testing.AppHarness` and asserts the
   payloads land. ``TestStateTopicsAreReal`` cross-checks every generated
   ``state_topic`` against a topic the per-sensor device actually publishes,
   via the framework helper ``assert_discovery_topics_published`` (ADR-004 /
-  cap-6y0).
+  .
 
 ``sensor_entity`` registers with a callable ``name=`` NameSpec keyed off
 ``settings.sensors``; the ``.env.schema`` profile the schema is generated
@@ -31,7 +31,7 @@ Test Techniques Used:
 - Specification-based: the resolved schema must yield the documented HA entities
 - Equivalence Partitioning: sensor (temperature/humidity) vs binary_sensor
   (low_battery); unannotated ``timestamp`` yields nothing
-- Cross-check (cap-5f8): every discovery ``state_topic`` is verified against a
+- Cross-check: every discovery ``state_topic`` is verified against a
   topic the running device actually publishes, not a string re-derived from
   the same schema
 """
@@ -97,7 +97,7 @@ def _expected_config_topics(names: tuple[str, ...]) -> set[str]:
 
 
 # ---------------------------------------------------------------------------
-# cap-egy — offline HA discovery generation from docs/schema.yaml
+# Offline HA discovery generation from docs/schema.yaml
 # ---------------------------------------------------------------------------
 
 
@@ -237,7 +237,7 @@ class TestHaDiscoveryGeneration:
 
 
 # ---------------------------------------------------------------------------
-# cap-hpa — runtime discovery publication via app.discovery()
+# Runtime discovery publication via app.discovery()
 # ---------------------------------------------------------------------------
 
 
@@ -418,7 +418,7 @@ class TestStateTopicsAreReal:
         ``test_event_driven_acceptance``), caching a calibrated reading and
         an assigned mapping so ``sensor_entity_tick`` publishes
         ``{prefix}/{sensor}/state``. ``assert_discovery_topics_published``
-        (ADR-004 / cap-6y0) then fails if any discovery ``state_topic`` was
+        (ADR-004 /  then fails if any discovery ``state_topic`` was
         never published.
 
         Technique: Cross-check — schema-derived expectation validated against

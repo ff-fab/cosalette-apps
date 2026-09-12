@@ -521,7 +521,7 @@ class TestWriteSignals:
         Technique: Error Guessing — cosalette's per-command backstop must
         not tear a multi-signal write (e.g. a weekly schedule), which would
         leave the boiler with some values applied and others not. The
-        shielded batch finishes detached after the caller unwinds (cap-ug0).
+        shielded batch finishes detached after the caller unwinds .
         """
         adapter = OptolinkAdapter(vito2mqtt_settings)
         adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]
@@ -562,7 +562,7 @@ class TestWriteSignals:
 
         Technique: Error Guessing — the serial path has no lower-level read
         timeout, so a wedged ``session.write`` must not turn the command
-        backstop (or shutdown) into an unbounded wait (cap-ug0).
+        backstop (or shutdown) into an unbounded wait .
         """
         adapter = OptolinkAdapter(vito2mqtt_settings)
         adapter._open_session = make_open_session_patch(mock_session)  # type: ignore[assignment]

@@ -283,7 +283,7 @@ class OptolinkAdapter:
                 for address, encoded in encoded_writes:
                     await session.write(address, encoded)
 
-        # cap-ug0: a mid-batch cancel (command-timeout backstop or shutdown)
+        # A mid-batch cancellation (command-timeout backstop or shutdown)
         # must not tear a multi-signal batch. A full weekly schedule is seven
         # independent 8-byte writes, and stopping between two of them leaves
         # some days written and others not. Shield the flush so an outer

@@ -1,4 +1,4 @@
-"""Unit tests for entity.py — bulb_entity_tick (cap-10u.13).
+"""Unit tests for entity.py — bulb_entity_tick .
 
 Test Techniques Used:
 - State Transition Testing: online/offline availability debounce transitions

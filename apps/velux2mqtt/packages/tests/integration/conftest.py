@@ -173,7 +173,7 @@ async def _wait_until_startup_settled(harness: AppHarness) -> None:
     needing to know the harness's specific devices. That eliminates the
     default JsonFileStore's thread-pool-backed I/O race, which happens
     *before* subscribe_and_connect and was the confirmed cause of
-    cap-6rm: 'run_app_briefly's fixed 0.3s wait can still race under heavy
+    : 'run_app_briefly's fixed 0.3s wait can still race under heavy
     combined test-suite load'.
 
     Startup device work that runs *after* subscriptions are wired (homing,

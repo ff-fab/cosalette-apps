@@ -17,10 +17,9 @@ _KELVIN_MIN = 2200
 _KELVIN_MAX = 6500
 """Static wire-format Kelvin bounds advertised to Home Assistant.
 
-Per-bulb capability filtering of the discovery metadata is deliberately
-deferred (see ``docs/adr/`` — TOML inventory boundary ADR, and cap-10u.14's
-follow-up).  Runtime auto-detection still governs which commands the adapter
-actually forwards to a given bulb; only the *advertised* range is static.
+Per-bulb capability filtering narrows the runtime discovery metadata. Runtime
+auto-detection governs which commands the adapter forwards to a given bulb;
+these bounds define the static schema range.
 """
 
 _EFFECT_SPEED_MIN = 10
@@ -183,7 +182,7 @@ class BulbColor(BaseModel):
 
 
 class BulbStateModel(BaseModel):
-    """Retained ``{prefix}/{bulb}/state`` payload shape (cap-10u.14).
+    """Retained ``{prefix}/{bulb}/state`` payload shape.
 
     ``prefix`` defaults to ``wiz2mqtt`` when ``mqtt.topic_prefix`` is unset.
 
@@ -198,7 +197,7 @@ class BulbStateModel(BaseModel):
     The model carries the composite HA ``light``/``sensor``/``number``
     discovery entities (``ha_entities`` on ``model_config``); ``app.discovery()``
     and the offline ``cosalette schema ha-discovery`` path emit them per
-    configured bulb (cap-10u.14, cosalette ADR-057/ADR-059).  The
+    configured bulb (cosalette ADR-057/ADR-059). The
     ``state``/``brightness``/``hsb``/``effect`` fields additionally carry
     ``consumer()`` + ``openhab()`` metadata driving the offline openHAB
     Generic MQTT Thing generation.

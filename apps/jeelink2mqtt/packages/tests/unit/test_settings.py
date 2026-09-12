@@ -307,7 +307,7 @@ class TestReservedSensorNameValidation:
     """Sensor names must not collide with reserved jeelink2mqtt topic segments.
 
     Each configured sensor becomes a registered ``@app.device`` entity named
-    after it (cap-ayy) — a sensor named ``raw`` or ``mapping`` would collide
+    after it  — a sensor named ``raw`` or ``mapping`` would collide
     with topics/registrations the composition root already owns.
     """
 

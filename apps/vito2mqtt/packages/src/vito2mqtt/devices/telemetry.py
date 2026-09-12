@@ -28,8 +28,8 @@ Architecture
 classic late-binding pitfall.  The closure constructs its group's
 :data:`~vito2mqtt.devices.telemetry_models.GROUP_STATE_MODELS` dataclass
 from the serialized signal values, so the handler's return type and the
-``state_model=`` passed at registration agree (cosalette 0.9.0 ADR-068,
-cap-z02).  :data:`INTERVAL_ATTR` maps each group to its settings
+``state_model=`` passed at registration agree (cosalette ADR-068).
+:data:`INTERVAL_ATTR` maps each group to its settings
 attribute name for deferred polling interval resolution.
 :data:`GROUP_SUMMARIES` provides human-readable OpenAPI summaries.
 """
@@ -102,7 +102,7 @@ def make_telemetry_handler(
     :data:`~vito2mqtt.devices.telemetry_models.GROUP_STATE_MODELS`
     dataclass — the same type registration passes as ``state_model=`` —
     so the two agree and the wire contract is statically described
-    (cosalette 0.9.0 ADR-068, cap-z02). The serialized signal map is fed
+    (cosalette ADR-068). The serialized signal map is fed
     through a :class:`~pydantic.TypeAdapter` for the model, which coerces
     each value to its field type (``ES`` dicts become
     :class:`~vito2mqtt.devices.telemetry_models.ErrorHistoryEntry`) — the

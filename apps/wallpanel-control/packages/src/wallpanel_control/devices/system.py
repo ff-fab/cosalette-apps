@@ -58,7 +58,7 @@ router = cosalette.Router(prefix="system")
     # entities before 0.9.4 either. Declaring it satisfies the per-channel
     # discovery gate (cosalette ADR-073). Nothing is lost here, unlike the
     # display registration next door, which owns real sensors and therefore
-    # annotates its /set channel instead of opting out (cap-wyy).
+    # annotates its /set channel instead of opting out.
     discoverable=False,
     summary="System power action: wake (WoL), suspend, or hibernate",
     payload_model=SystemActionCommand,
@@ -68,7 +68,7 @@ router = cosalette.Router(prefix="system")
     # via asyncio.wait_for(ssh_timeout=5.0) in SshWallpanel, returning
     # accepted=False rather than hanging. Worst case ~10 s (connect + one run),
     # well inside cosalette's 30 s backstop; systemctl is atomic, so a cancel
-    # leaves nothing half-applied (cap-ug0).
+    # leaves nothing half-applied.
     unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_system_action(

@@ -62,8 +62,8 @@ def create_app() -> cosalette.App:
     # Telemetry handlers do a single ~10ms I2C read plus in-memory processing;
     # runtime is far below the poll intervals, so no explicit timeout= is set —
     # they rely on cosalette's F-3 implicit backstop (timeout=interval).
-    # retry=3/retry_on=(OSError,) covers transient I2C bus failures (cap-65e,
-    # workspace-658). FixedBackoff(delay=0.05) keeps 3 retry delays (0.15s) well
+    # retry=3/retry_on=(OSError,) covers transient I2C bus failures.
+    # FixedBackoff(delay=0.05) keeps 3 retry delays (0.15s) well
     # within the 1s poll interval so retries actually fire before F-3 cancels them.
     app.telemetry(
         "gas_counter",

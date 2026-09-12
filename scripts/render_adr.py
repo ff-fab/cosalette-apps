@@ -750,7 +750,7 @@ def _handle_amendment(data: dict[str, Any], adr_dir: Path) -> int:
     existing_stripped += "\n\n"
     existing_stripped += amendment_md
 
-    target_path.write_text(existing_stripped + "\n", encoding="utf-8")
+    target_path.write_text(existing_stripped.rstrip() + "\n", encoding="utf-8")
     update_amendment_status_line(target_path, data["amendment_date"])
     print(f"Amended {target_path}")
 

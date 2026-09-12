@@ -35,8 +35,8 @@ Deliberately equal to ``WizBulbAdapter._DEFAULT_PUSH_STALENESS_THRESHOLD``
 that threshold does a real ``updateState()`` poll, so every heartbeat tick
 on an idle bulb is also a liveness probe.  Changing one without the other
 either wastes ticks on a cache that cannot have gone stale, or lets stale
-cache entries publish unchallenged.  Real-bulb push/heartbeat cadence is
-validated separately (cap-10u.19).
+cache entries publish unchallenged. Hardware verification confirms this
+fallback in the app ADRs.
 """
 
 app = cosalette.App(
@@ -57,7 +57,7 @@ app = cosalette.App(
 # openHAB has no runtime equivalent; `cosalette schema openhab` (docs/schema.yaml)
 # stays the offline path for its Generic MQTT Thing.
 #
-# cap-3tr (Mechanism B): the enrich hook narrows each bulb's advertised `light`
+# The enrich hook narrows each bulb's advertised `light`
 # metadata from its DeviceStore-cached capabilities. The cache is populated after
 # first contact, so discovery is per-bulb accurate from the *next* connect on;
 # the offline `cosalette schema ha-discovery` path keeps the static superset.
@@ -80,7 +80,7 @@ def _bulb_map(settings: cosalette.Settings) -> dict[str, BulbConfig]:
     # is its own entity over connectionless UDP — no shared lock, no queuing
     # behind a slow peer. Worst case ~13 s, comfortably inside cosalette's
     # 30 s backstop; a UDP set is idempotent, so a cancel leaves nothing
-    # half-written (cap-ug0).
+    # half-written.
 )
 async def bulb_set(
     cmd: Annotated[BulbSetCommand, Payload()],
@@ -111,9 +111,8 @@ def shared_state() -> SharedState:
     # A push therefore publishes through this same handler, with the same
     # OnChange() gating and availability debounce a scheduled tick gets.
     triggerable="local",
-    # No min_interval=: a WiZ bulb only pushes on *change*, and OnChange()
-    # already drops identical payloads, so a throttle would buy nothing but
-    # latency.  Revisit only if cap-10u.19 finds real push storms.
+    # No min_interval=: OnChange() coalesces burst traffic to the latest state;
+    # a throttle would only add latency.
     publish=cosalette.OnChange(),
     summary="Per-bulb state publisher: retained state, availability debounce",
     # state_model validates every publish (cosalette 0.9.0) and types the
@@ -152,8 +151,8 @@ async def bulb_entity(
     emits no ``state_model`` drift warning.
     """
     result = await bulb_entity_tick(ctx, config, port, state)
-    # cap-3tr: cache detected capabilities for the discovery enrich hook. Best
-    # effort — a no-op until the bulb has been reached, persisted on shutdown.
+    # Cache detected capabilities for the discovery enrich hook. This is best
+    # effort and a no-op until the bulb has been reached.
     if store is not None:
         await cache_capabilities(store, config, port)
     return BulbStateModel.model_validate(result) if result is not None else None

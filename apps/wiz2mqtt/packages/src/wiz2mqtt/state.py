@@ -1,4 +1,4 @@
-"""Shared per-bulb debounce state for wiz2mqtt (cap-10u.13).
+"""Shared per-bulb debounce state for wiz2mqtt.
 
 Holds the dedup bookkeeping the per-bulb device tick
 (:func:`wiz2mqtt.entity.bulb_entity_tick`) needs so it never re-publishes
