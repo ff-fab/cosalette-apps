@@ -9,7 +9,7 @@ tags: [mqtt, serialization, architecture, telemetry]
 
 ## Status
 
-Accepted **Date:** 2026-09-06
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-13
 
 ## Context
 
@@ -99,4 +99,34 @@ _Scale: 1 (poor) to 5 (excellent)_
 - The openHAB 0-359 vs HA 0-360 hue domain gap is handled by documentation and a `% 360` in the payload, not by a conversion layer
 - Adopting HA's object shape means HA's future `schema: json` changes are a wire-format concern for wiz2mqtt
 
-_2026-09-06_
+## Amendment (2026-09-13) — Additive
+
+**Rationale:** ADR-007 (mains power awareness through power sources) adds a `powered` key to the state payload. A consumer must tell an unpowered bulb from a faulty bulb, and the rule for "the lamp is lit" must come from one message. This amendment records the new key in the wire format.
+
+### Additional Sub-Decision: The `powered` key on the state payload
+
+The `wiz2mqtt/{bulb}/state` payload gains a `powered` key. The values are `true`, `false` and `null` (unknown). The value is the belief of ADR-007 about the power source of the bulb: `true` when a member bulb answers or the signal says on, `false` when no bulb answers and the signal says off, and `null` when no bulb answers and no signal exists.
+
+The key is outside the Home Assistant JSON light schema, like the existing `hsb` key. Home Assistant ignores it. openHAB binds a Contact or Switch channel to `$.powered`.
+
+A consumer computes "the lamp is lit" as `state AND powered`. While the bulb is unpowered, `state` carries the desired state (ADR-008), never `OFF`, so the payload keeps the intent and the consumer still derives reality from one message.
+
+```json
+{
+  "state": "ON",
+  "brightness": 128,
+  "color_mode": "rgb",
+  "color": {"r": 255, "g": 170, "b": 80},
+  "hsb": "32,69,50",
+  "powered": false
+}
+```
+
+### Additional Positive Consequences
+
+- One message carries both the intent (`state`) and the power (`powered`), so a consumer needs no join across topics.
+
+### Additional Negative Consequences
+
+- `powered` is a second wiz2mqtt convention with no discovery-time schema on either controller, next to `hsb`.
+- A consumer that reads `state` alone and ignores `powered` shows a dark lamp as ON.

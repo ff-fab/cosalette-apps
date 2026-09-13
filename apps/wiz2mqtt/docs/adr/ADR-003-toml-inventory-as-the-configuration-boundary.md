@@ -9,7 +9,7 @@ tags: [configuration, architecture, mqtt, devices]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07 | Amended **Date:** 2026-09-08
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07 | Amended **Date:** 2026-09-08 | Amended **Date:** 2026-09-13
 
 ## Context
 
@@ -145,3 +145,53 @@ The cache holds *derived* data that every bulb contact refreshes, so ADR-003's n
 
 !!! note "Editorial note (2026-09-08)"
     The generator rejects bulb and group names that collide after openHAB identifier normalization and fails if a member's expected Color command Item is absent. It creates no group MQTT topics. This implementation supersedes the earlier statements that group support is deferred or blocked on cap-10u.14.
+
+## Amendment (2026-09-13) — Additive
+
+**Rationale:** ADR-007 (mains power awareness through power sources) and ADR-008 (desired state with restore on return to reachability) extend the inventory. A circuit is operator knowledge in the same way a bulb address is, so the `[[power_sources]]` block belongs in `wiz2mqtt.toml`. This amendment records the new keys and the legacy mapping. The invariant of ADR-003 holds: nothing in the file describes what a bulb can do.
+
+### Additional Sub-Decision: The `[[power_sources]]` block
+
+The inventory gains an optional `[[power_sources]]` list. Each entry declares a circuit: a unique `name`, exactly one of `group` (a declared group name) or `members` (a non-empty list of declared bulb names), an optional `signal_topic`, `when_unreachable` (`"fault"` by default, or `"no_power"`), `enable_power_on_request` and `enable_power_off_request` (both `false` by default), `power_off_idle_delay` (a bare float in seconds) and `wiz_bulbs_only` (`false` by default). The validator follows the pattern of `_groups_valid`. `signal_topic` rejects `+`, `#` and an empty value.
+
+The per-bulb keys `power_source` (an optional power source name) and `restore_previous_state` (`false` by default) join `[[bulbs]]`. The top-level key `queued_command_ttl` (a bare float in seconds, default `86400.0`) joins the settings.
+
+```toml
+queued_command_ttl = 86400.0
+
+[[bulbs]]
+name = "living-room"
+ip = "192.168.1.102"
+power_source = "downstairs-circuit"
+restore_previous_state = true
+
+[[power_sources]]
+name = "downstairs-circuit"
+group = "downstairs"
+signal_topic = "openhab/relay/downstairs/state"
+when_unreachable = "fault"
+```
+
+### Additional Sub-Decision: Membership resolution order
+
+The membership of a bulb resolves in this order:
+
+1. The `power_source` key on the bulb wins.
+2. A power source block that names the group of the bulb claims the bulb.
+3. The bulb is not power-aware. The bulb behaves as it does today.
+
+A bulb belongs to a maximum of one power source.
+
+### Additional Sub-Decision: Legacy mapping of `when_unreachable`
+
+`when_unreachable` moves from the bulb to the power source. `extra="forbid"` makes a stale bulb-level key a hard `ValidationError` at startup, and the repository has no deprecation precedent and no aliases. The migration maps a legacy bulb-level `when_unreachable = "off"` to an implicit single-bulb power source with `when_unreachable = "no_power"`, and emits a warning that names the replacement.
+
+### Additional Positive Consequences
+
+- A circuit is declared once, and its bulbs follow through the group reference; the per-bulb `power_source` key handles the exception.
+- The ADR-003 invariant holds: every new key is operator knowledge, and none is a hardware fact.
+
+### Additional Negative Consequences
+
+- `BulbConfig` grows from four fields to six, and the settings model gains a second list block and a top-level duration.
+- An operator who set `when_unreachable` on a bulb sees a warning at the first start after the upgrade and must move the key.
