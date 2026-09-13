@@ -390,6 +390,10 @@ class TestSensorEntityTrigger:
         """
         assert self._registration().triggerable == "local"
 
+    def test_device_leaves_availability_to_stale_frame_policy(self) -> None:
+        """Framework failures must not bypass sensor_entity_tick's debounce."""
+        assert self._registration().unavailable_on is None
+
     def test_no_min_interval_throttle(self) -> None:
         """No storm throttle is configured.
 

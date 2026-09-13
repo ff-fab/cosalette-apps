@@ -97,7 +97,7 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
 
 
 @app.telemetry(
-    "airthings",
+    lambda settings: [settings.device_name],
     interval=setting_ref("poll_interval"),
     timeout=setting_ref("poll_timeout"),
     triggerable=True,
@@ -107,6 +107,7 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     min_interval=_resolve_trigger_min_interval(app),
     retry=3,
     retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
+    unavailable_on=(BleConnectionError, BleTimeoutError, TimeoutError),
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )

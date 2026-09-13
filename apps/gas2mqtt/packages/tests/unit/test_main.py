@@ -37,3 +37,10 @@ class TestHandlerRetryConfig:
 
         reg = next(r for r in app.telemetry_registrations if r.name == handler_name)
         assert reg.retry_on == (OSError,)
+
+    def test_unavailable_on_is_exactly_oserror_tuple(self, handler_name: str) -> None:
+        """Only terminal I2C transport failures mark the device unavailable."""
+        from gas2mqtt.main import app
+
+        reg = next(r for r in app.telemetry_registrations if r.name == handler_name)
+        assert reg.unavailable_on == (OSError,)

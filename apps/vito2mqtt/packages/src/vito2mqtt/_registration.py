@@ -138,6 +138,7 @@ def configure_app(app: App) -> None:
             # on an immediate retry. Let F-3 fail fast; OptolinkTimeoutError
             # still retries transient serial read timeouts.
             retry_on=(OptolinkConnectionError, OptolinkTimeoutError),
+            unavailable_on=(OptolinkConnectionError, OptolinkTimeoutError),
         )
     for group in COMMAND_GROUPS:
         app.add_command(
@@ -160,4 +161,9 @@ def configure_app(app: App) -> None:
     # wrap it. It manages its own ctx.commands() budgets (5 s / 60 s) and
     # runs a shutdown-safe restore so the boiler is never left at the
     # elevated setpoint; its writes are single-signal and protocol-atomic.
-    app.add_device("legionella", legionella_device, discoverable=False)
+    # This safety state machine publishes its own operational status. Its I/O
+    # spans startup, treatment, and best-effort restore paths, so no single
+    # narrow exception tuple correctly represents device reachability.
+    app.add_device(
+        "legionella", legionella_device, discoverable=False, unavailable_on=None
+    )

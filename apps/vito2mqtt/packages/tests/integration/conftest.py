@@ -25,7 +25,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MemoryStore, MockMqttClient
+from cosalette import App, ClockPort, MemoryStore, MockMqttClient
 from cosalette.testing import AppHarness, FakeClock
 
 from vito2mqtt import __version__
@@ -66,7 +66,12 @@ def build_integration_app(adapter: FakeOptolinkAdapter) -> App:
     return app
 
 
-def make_harness(adapter: FakeOptolinkAdapter | None = None) -> AppHarness:
+def make_harness(
+    adapter: FakeOptolinkAdapter | None = None,
+    *,
+    clock: ClockPort | None = None,
+    settings: Vito2MqttSettings | None = None,
+) -> AppHarness:
     """Construct an AppHarness wrapping the integration app with *adapter*.
 
     Args:
@@ -78,8 +83,9 @@ def make_harness(adapter: FakeOptolinkAdapter | None = None) -> AppHarness:
     return AppHarness(
         app=build_integration_app(adapter),
         mqtt=MockMqttClient(),
-        clock=FakeClock(),
-        settings=Vito2MqttSettings(
+        clock=clock or FakeClock(),
+        settings=settings
+        or Vito2MqttSettings(
             serial_port="/dev/ttyUSB0",
             polling_outdoor=0.05,
             polling_hot_water=0.05,

@@ -89,6 +89,10 @@ class TestTelemetryTriggerConfig:
         """
         assert self._bulb_entity_registration().triggerable == "local"  # ty: ignore[unresolved-attribute]
 
+    def test_bulb_entity_leaves_availability_to_three_failure_policy(self) -> None:
+        """Framework failures must not bypass bulb_entity_tick's debounce."""
+        assert self._bulb_entity_registration().unavailable_on is None  # ty: ignore[unresolved-attribute]
+
     def test_bulb_entity_carries_no_storm_throttle(self) -> None:
         """Technique: Specification-based — deliberate absence of min_interval.
 

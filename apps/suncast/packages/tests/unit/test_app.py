@@ -88,6 +88,7 @@ class TestCreateApp:
         assert registrations[0].func is _shadow_handler
         assert registrations[0].interval is _poll_interval
         assert registrations[0].init is _build_pipeline
+        assert registrations[0].unavailable_on is None
 
     def test_lifespan_wired(self) -> None:
         """Verify the HTTP lifespan is wired to the app.

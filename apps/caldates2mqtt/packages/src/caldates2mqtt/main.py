@@ -186,6 +186,7 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     min_interval=_resolve_trigger_min_interval(app),
     retry=3,
     retry_on=(CalDavConnectionError, CalDavTimeoutError),
+    unavailable_on=(CalDavConnectionError, CalDavTimeoutError),
     state_model=CalendarState,
 )
 async def calendar(

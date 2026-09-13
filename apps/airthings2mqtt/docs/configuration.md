@@ -61,6 +61,11 @@ you need.
 | Poll interval  | `AIRTHINGS2MQTT_POLL_INTERVAL`     | `1500`         | Polling interval in seconds (minimum 60)            |
 | Trigger min interval | `AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL` | `30.0`  | Minimum seconds between on-demand `/set` re-reads    |
 
+The MQTT entity topics use the configured values as
+`{prefix}/{device_name}/{channel}`. For example, setting
+`AIRTHINGS2MQTT_DEVICE_NAME=living-room` with the default prefix produces
+`airthings2mqtt/living-room/state`, `/set`, `/error`, and `/availability` topics.
+
 !!! note "Finding your device MAC address"
     Use `bluetoothctl` to scan for your Airthings Wave sensor:
 
@@ -78,8 +83,9 @@ you need.
     startup.
 
 !!! note "Trigger throttle (`TRIGGER_MIN_INTERVAL`)"
-    `airthings2mqtt/airthings/set` is a public MQTT topic that forces an on-demand
-    re-read. This throttle is the minimum spacing (seconds) between two such
+    `{prefix}/{device_name}/set` is a public MQTT topic that forces an on-demand
+    re-read (`airthings2mqtt/airthings/set` with both defaults). This throttle is the
+    minimum spacing (seconds) between two such
     trigger-initiated reads --- a held dashboard button or a runaway automation cannot
     queue more than one BLE round-trip per window. A wake that arrives inside a closed
     window is **held, not dropped**, so the re-read still happens once the window

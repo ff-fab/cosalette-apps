@@ -181,6 +181,8 @@ sleeps that are already free.
 
 @app.device(
     name=lambda s: {sc.name: sc for sc in s.sensors},
+    # sensor_entity_tick owns stale-frame availability and recovery transitions.
+    unavailable_on=None,
     summary=(
         "Per-sensor state publisher: calibrated readings, heartbeat "
         "re-publish, and staleness availability"

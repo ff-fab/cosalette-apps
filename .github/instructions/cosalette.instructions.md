@@ -408,17 +408,41 @@ See `cosalette ai help contracts`.
 
 ## Transport Availability Signaling
 
-Use `unavailable_on` to automatically mark a device offline when a transport fails:
+`@app.telemetry` and `@app.device` publish availability **automatically** (ADR-077):
+retained `"offline"` once a handler's retries are exhausted, `"online"` on the next
+successful poll. No parameter needed.
 
 ```python
+@app.telemetry("radon", interval=300, retry=2)
+async def read_radon(ctx: cosalette.DeviceContext) -> dict[str, float]:
+    return await ctx.adapter(SensorPort).read()  # retries exhausted → "offline"
+```
+
+`unavailable_on` **narrows** the trigger; `None` disables it. `@app.command` keeps its
+opt-in `None` default, because a command runs on demand and a failed command says nothing
+about reachability:
+
+```python
+# Only a transport failure marks it offline; a KeyError still reports on the
+# error topic but does not claim the device is unreachable.
+@app.telemetry("radon", interval=300, unavailable_on=(BleakError,))
+async def read_radon(ctx: cosalette.DeviceContext) -> dict[str, float]: ...
+
+
 @app.command("sensor", unavailable_on=(SSHError, TimeoutError))
 async def handle_sensor(ctx: cosalette.DeviceContext) -> dict[str, object]:
     return {"value": await ssh.read()}  # exception → "offline" published + suppressed
 ```
 
+Root entities (`name=None`) are excluded from the automatic default and must pass an
+explicit `unavailable_on` — they publish to the flat `{app}/availability`, so one failed
+read would declare the whole app unavailable.
+
 Or call `ctx.mark_unavailable()` inside the handler body for conditional unavailability.
 Auto-recovery: the framework publishes `"online"` after the next successful invocation.
 Topic: `{app}/{device}/availability`, values `"online"` / `"offline"` (retained, QoS 1).
+Availability carries no error text — *why* it failed stays in `{app}/status` and on the
+error topic.
 
 Removed entities: the framework automatically clears the retained `state`/`availability`
 topics of entities deleted from config on the first MQTT connect (prevents Home Assistant
@@ -559,6 +583,16 @@ into one entity automatically. To surface a list/object payload as HA attributes
 set `json_attributes_template` in `extra`: cosalette defaults
 `json_attributes_topic` to the channel's own state topic (ADR-075), resolved
 per channel so a model-level spec shared by callable-named channels is correct.
+
+WARNING — composites are Home Assistant-only. `cosalette schema openhab` never
+reads `ha_entities()` (ADR-057), so a channel whose only entity is a composite
+generates EMPTY openHAB output and fails the per-channel discovery gate, while
+`schema ha-discovery` exits 0 for the same document. If the app targets openHAB
+too, also annotate a single-valued property with `consumer()`, or declare the
+channel `discoverable=False` when it is Home Assistant-only — that opt-out is
+currently all-or-nothing across targets, so it removes the channel from
+`schema ha-discovery` as well.
+
 See `cosalette ai help consumer-overrides`, ADR-057.
 
 ### Opting a channel out of discovery
@@ -578,8 +612,15 @@ per-channel discovery gate; `x-cosalette-discoverable: false` is emitted on the
 generated channel only when set, so default documents stay byte-identical. The
 gate is evaluated per channel: every consumer-visible channel that emits nothing
 is reported by name. A top-level array-of-objects property (`events: list[Event]`)
-emits no entity — it has no single value, so route it through a channel-level
-`ha_entities()` composite instead. See `cosalette ai help discovery`, ADR-073.
+emits no entity — it has no single value. Give it one with
+`consumer(aggregate="count")` (ADR-076): one declaration renders in both targets
+(`JSONPATH:$.events.length()` for openHAB, `{{ value_json.events | length }}` for
+Home Assistant). `count` works on any array; `min`/`max`/`avg`/`sum` need a
+numeric array and are rejected at generation time otherwise. On openHAB a missing
+key keeps the Item's previous value (not `UNDEF`); an empty array yields 0. Reach
+for a channel-level `ha_entities()` composite only to surface the list *contents*
+as Home Assistant attributes (HA-only, ADR-057). See `cosalette ai help consumer`,
+ADR-076.
 
 A command with both `payload_model` and `state_model` — or a device with
 `payload_model` — emits a paired `/set` command channel and a `/state` channel.

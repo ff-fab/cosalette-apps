@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import struct
 from collections.abc import Buffer
 
 from bleak import BleakClient
+from dbus_fast import BusType, Message, MessageType, Variant
+from dbus_fast.aio import MessageBus
 
 from airthings2mqtt.errors import ERROR_TYPE_MAP, BleReadError
 from airthings2mqtt.ports import AirthingsReading
@@ -47,7 +48,8 @@ Wave 2 frame that unpacks to a wild uint16 (``0xFFFF`` == 65535) is dropped to
 ``None`` rather than published as a false radon spike.
 """
 
-_HCI_SYSFS_PATH = "/sys/class/bluetooth/hci0"
+_BLUEZ_ADAPTER_PATH = "/org/bluez/hci0"
+_HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
 
 logger = logging.getLogger(__name__)
 
@@ -118,12 +120,63 @@ class BleakAirthingsReader:
     """
 
     async def health_check(self) -> bool:
-        """Probe BLE adapter presence via the kernel sysfs interface.
+        """Probe whether BlueZ reports the hci0 adapter as powered.
 
         Returns:
-            True when the hci0 adapter device node is present; False otherwise.
+            True only when BlueZ returns a boolean ``Powered=true`` property;
+            False for unavailable, unpowered, malformed, or timed-out probes.
         """
-        return await asyncio.to_thread(os.path.exists, _HCI_SYSFS_PATH)
+        try:
+            return await asyncio.wait_for(
+                self._probe_adapter_powered(),
+                timeout=_HEALTH_CHECK_TIMEOUT_SECONDS,
+            )
+        except Exception:
+            return False
+
+    @staticmethod
+    async def _probe_adapter_powered() -> bool:
+        """Query BlueZ using one bounded, safely cleaned-up bus lifecycle."""
+        bus: MessageBus | None = None
+        healthy = False
+        try:
+            # dbus-fast binds MessageBus to the running loop, so construction
+            # and all public bus operations belong in this probe coroutine.
+            bus = MessageBus(bus_type=BusType.SYSTEM)
+            await bus.connect()
+            reply: Message = await bus.call(
+                Message(
+                    destination="org.bluez",
+                    path=_BLUEZ_ADAPTER_PATH,
+                    interface="org.freedesktop.DBus.Properties",
+                    member="Get",
+                    signature="ss",
+                    body=["org.bluez.Adapter1", "Powered"],
+                )
+            )
+            body = reply.body
+            if (
+                reply.message_type is not MessageType.METHOD_RETURN
+                or not isinstance(body, list)
+                or len(body) != 1
+            ):
+                healthy = False
+            else:
+                powered = body[0]
+                healthy = (
+                    isinstance(powered, Variant)
+                    and powered.signature == "b"
+                    and powered.value is True
+                )
+        except Exception:
+            healthy = False
+        finally:
+            if bus is not None:
+                try:
+                    bus.disconnect()
+                except Exception:
+                    healthy = False
+        return healthy
 
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.

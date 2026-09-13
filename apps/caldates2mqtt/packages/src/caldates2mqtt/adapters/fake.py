@@ -31,13 +31,24 @@ class FakeCalDavReader:
         readings: List of event lists to cycle through.
         calls: List of (url, calendar_name, username, password, days) tuples.
         raise_on_next: Exception to raise on next read_events(), cleared after use.
+        failure_sequence: Exceptions to raise on successive read_events() calls.
     """
 
     def __init__(self) -> None:
         self.readings: list[list[CalendarEvent]] = [_DEFAULT_EVENTS]
         self.calls: list[tuple[str, str, str, str, int]] = []
         self.raise_on_next: Exception | None = None
+        self.failure_sequence: list[Exception] = []
         self._index: int = 0
+
+    def fail_next_reads(self, error: Exception, *, count: int) -> None:
+        """Configure a finite sequence of read failures.
+
+        Args:
+            error: Exception raised by each configured failed read.
+            count: Number of consecutive reads that should fail.
+        """
+        self.failure_sequence.extend([error] * count)
 
     async def read_events(
         self,
@@ -67,6 +78,8 @@ class FakeCalDavReader:
             err = self.raise_on_next
             self.raise_on_next = None
             raise err
+        if self.failure_sequence:
+            raise self.failure_sequence.pop(0)
         events = self.readings[self._index % len(self.readings)]
         self._index += 1
         return events

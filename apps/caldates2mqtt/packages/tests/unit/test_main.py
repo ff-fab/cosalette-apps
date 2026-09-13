@@ -51,6 +51,16 @@ class TestTelemetryRetryConfig:
         reg = app.telemetry_registrations[0]
         assert CalDavTimeoutError in reg.retry_on
 
+    def test_unavailable_on_matches_transport_failures(self) -> None:
+        """Only terminal CalDAV reachability failures drive availability."""
+        from caldates2mqtt.errors import CalDavConnectionError, CalDavTimeoutError
+        from caldates2mqtt.main import app
+
+        assert app.telemetry_registrations[0].unavailable_on == (
+            CalDavConnectionError,
+            CalDavTimeoutError,
+        )
+
 
 @pytest.mark.unit
 class TestEventAttributesTemplate:

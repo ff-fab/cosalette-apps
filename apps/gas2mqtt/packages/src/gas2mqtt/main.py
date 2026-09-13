@@ -71,6 +71,7 @@ def create_app() -> cosalette.App:
         publish=OnChange(),
         retry=3,
         retry_on=(OSError,),
+        unavailable_on=(OSError,),
         backoff=FixedBackoff(delay=0.05),
         # No persist=SaveOnChange() — stage_state() calls store.save() directly
         # No init=make_gas_counter — GasCounterState injected from @app.state
@@ -123,6 +124,7 @@ def create_app() -> cosalette.App:
         publish=OnChange(threshold={"temperature": 0.05}),
         retry=3,
         retry_on=(OSError,),
+        unavailable_on=(OSError,),
         init=make_pt1,
         state_model=TemperatureReading,
     )(temperature)
@@ -137,6 +139,7 @@ def create_app() -> cosalette.App:
         interval=setting_ref("poll_interval"),
         retry=3,
         retry_on=(OSError,),
+        unavailable_on=(OSError,),
         backoff=FixedBackoff(delay=0.05),
         enabled=lambda s: s.enable_debug_device,
     )(magnetometer)

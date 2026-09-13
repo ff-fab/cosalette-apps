@@ -13,11 +13,13 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import struct
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from dbus_fast import Message, MessageType, Variant
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import BleConnectionError, BleReadError, BleTimeoutError
@@ -508,54 +510,147 @@ class TestBleakAirthingsReaderWave2:
 
 @pytest.mark.unit
 class TestBleakAirthingsReaderHealthCheck:
-    """Verify BleakAirthingsReader.health_check probes the BLE adapter via sysfs."""
+    """Verify health_check reads BlueZ's hci0 Powered property over D-Bus."""
 
-    async def test_returns_true_when_hci0_exists(self) -> None:
-        """health_check returns True when /sys/class/bluetooth/hci0 is present.
+    @staticmethod
+    def _bus_with_reply(reply: Message) -> AsyncMock:
+        bus = AsyncMock()
+        bus.connect = AsyncMock(return_value=bus)
+        bus.call = AsyncMock(return_value=reply)
+        bus.disconnect = Mock()
+        return bus
 
-        Technique: Specification-based — BLE adapter present → healthy.
-        """
-        from unittest.mock import patch
+    @staticmethod
+    def _reply(powered: bool) -> Message:
+        return Message(
+            message_type=MessageType.METHOD_RETURN,
+            reply_serial=1,
+            signature="v",
+            body=[Variant("b", powered)],
+        )
 
+    async def test_returns_true_only_when_bluez_reports_powered(self) -> None:
+        """A successful boolean Powered=true reply is healthy."""
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
-        with patch("airthings2mqtt.adapters.bleak.os.path.exists", return_value=True):
-            reader = BleakAirthingsReader()
-            result = await reader.health_check()
+        bus = self._bus_with_reply(self._reply(True))
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            result = await BleakAirthingsReader().health_check()
 
         assert result is True
+        request = bus.call.call_args.args[0]
+        assert request.destination == "org.bluez"
+        assert request.path == "/org/bluez/hci0"
+        assert request.interface == "org.freedesktop.DBus.Properties"
+        assert request.member == "Get"
+        assert request.body == ["org.bluez.Adapter1", "Powered"]
 
-    async def test_returns_false_when_hci0_absent(self) -> None:
-        """health_check returns False when /sys/class/bluetooth/hci0 is absent.
-
-        Technique: Error Guessing — BLE adapter missing → unhealthy.
-        """
-        from unittest.mock import patch
-
+    async def test_returns_false_when_adapter_is_unpowered(self) -> None:
+        """A valid Powered=false reply is unhealthy."""
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
-        with patch("airthings2mqtt.adapters.bleak.os.path.exists", return_value=False):
-            reader = BleakAirthingsReader()
-            result = await reader.health_check()
+        bus = self._bus_with_reply(self._reply(False))
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            result = await BleakAirthingsReader().health_check()
 
         assert result is False
 
-    async def test_probes_hci0_sysfs_path(self) -> None:
-        """health_check probes /sys/class/bluetooth/hci0 specifically.
+    async def test_returns_false_when_connection_fails(self) -> None:
+        """Failure to connect to the system bus is unhealthy and cleaned up."""
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
-        Technique: Specification-based — confirms the exact probe path.
-        """
-        from unittest.mock import patch
+        bus = self._bus_with_reply(self._reply(True))
+        bus.connect.side_effect = ConnectionError("system bus unavailable")
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            result = await BleakAirthingsReader().health_check()
 
+        assert result is False
+        bus.disconnect.assert_called_once_with()
+
+    async def test_returns_false_when_bus_construction_fails(self) -> None:
+        """A synchronous system-bus construction failure cannot escape."""
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         with patch(
-            "airthings2mqtt.adapters.bleak.os.path.exists", return_value=True
-        ) as mock_exists:
-            reader = BleakAirthingsReader()
-            await reader.health_check()
+            "airthings2mqtt.adapters.bleak.MessageBus",
+            side_effect=RuntimeError("invalid system bus address"),
+        ):
+            result = await BleakAirthingsReader().health_check()
 
-        mock_exists.assert_called_once_with("/sys/class/bluetooth/hci0")
+        assert result is False
+
+    async def test_returns_false_for_dbus_error_reply(self) -> None:
+        """A BlueZ D-Bus error reply is unhealthy."""
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        reply = Mock(message_type=MessageType.ERROR, body=[])
+        bus = self._bus_with_reply(reply)
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            result = await BleakAirthingsReader().health_check()
+
+        assert result is False
+
+    @pytest.mark.parametrize(
+        "body",
+        [
+            None,
+            [],
+            (Variant("b", True),),
+            [True],
+            [Variant("s", "true")],
+            [Variant("b", True), Variant("b", True)],
+        ],
+    )
+    async def test_returns_false_for_malformed_reply(self, body: object) -> None:
+        """Missing, unwrapped, mistyped, and extra property values are unhealthy."""
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        reply = Mock(message_type=MessageType.METHOD_RETURN, body=body)
+        bus = self._bus_with_reply(reply)
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            result = await BleakAirthingsReader().health_check()
+
+        assert result is False
+
+    async def test_returns_false_when_probe_times_out(self) -> None:
+        """The D-Bus probe is bounded and disconnects after cancellation."""
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        bus = self._bus_with_reply(self._reply(True))
+
+        async def wait_forever(_message: Message) -> None:
+            await asyncio.Event().wait()
+
+        bus.call.side_effect = wait_forever
+        with (
+            patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus),
+            patch("airthings2mqtt.adapters.bleak._HEALTH_CHECK_TIMEOUT_SECONDS", 0.001),
+        ):
+            result = await BleakAirthingsReader().health_check()
+
+        assert result is False
+        bus.disconnect.assert_called_once_with()
+
+    async def test_returns_false_when_disconnect_fails(self) -> None:
+        """Cleanup failure makes the probe unhealthy without escaping."""
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        bus = self._bus_with_reply(self._reply(True))
+        bus.disconnect.side_effect = RuntimeError("disconnect failed")
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            result = await BleakAirthingsReader().health_check()
+
+        assert result is False
+
+    async def test_disconnects_after_successful_probe(self) -> None:
+        """The short-lived system bus is disconnected after a successful reply."""
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        bus = self._bus_with_reply(self._reply(True))
+        with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
+            await BleakAirthingsReader().health_check()
+
+        bus.disconnect.assert_called_once_with()
 
     def test_isinstance_health_checkable(self) -> None:
         """BleakAirthingsReader satisfies the HealthCheckable protocol.

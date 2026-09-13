@@ -12,12 +12,17 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette.testing import AppHarness, ManualClock
 
-from .conftest import TOPIC_PREFIX, run_app_briefly
+from caldates2mqtt.adapters.fake import FakeCalDavReader
+from caldates2mqtt.errors import CalDavConnectionError
+
+from .conftest import TOPIC_PREFIX, calendar_config, make_harness, run_app_briefly
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
@@ -177,6 +182,41 @@ class TestAvailability:
         harness.assert_published(
             f"{TOPIC_PREFIX}/garbage/availability", contains="offline"
         )
+
+    @pytest.mark.integration
+    async def test_retry_exhaustion_marks_calendar_offline_then_recovers(self) -> None:
+        """Terminal CalDAV transport failure drives offline -> online lifecycle."""
+        reader = FakeCalDavReader()
+        reader.fail_next_reads(CalDavConnectionError("CalDAV unavailable"), count=4)
+        clock = ManualClock()
+        config = calendar_config("garbage")
+        config.schedule = "0 0 * * * ?"
+        harness = make_harness(reader, [config], clock=clock)
+        availability_topic = f"{TOPIC_PREFIX}/garbage/availability"
+        task = asyncio.create_task(harness.run())
+        try:
+            await clock.settle()
+            await harness.inject_command(
+                "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
+            )
+            await asyncio.sleep(0.3)
+            for _ in range(4):
+                await harness.advance_time(10)
+            assert not reader.failure_sequence
+            await harness.wait_for_publish_count(availability_topic, 2)
+            assert harness.messages_for(availability_topic)[-1] == ("offline", True, 1)
+
+            await harness.inject_command(
+                "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
+            )
+            await harness.wait_for_publish_count(availability_topic, 3)
+            assert harness.messages_for(availability_topic)[-1] == ("online", True, 1)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
 
 
 # ---------------------------------------------------------------------------

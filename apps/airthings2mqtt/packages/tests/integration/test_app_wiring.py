@@ -23,7 +23,9 @@ from cosalette import MockMqttClient
 from cosalette.testing import AppHarness, ManualClock
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
+from airthings2mqtt.errors import BleConnectionError
 from airthings2mqtt.ports import AirthingsReading
+from airthings2mqtt.settings import Airthings2MqttSettings
 
 from .conftest import (
     DEVICE_NAME,
@@ -205,6 +207,71 @@ class TestTriggeredTelemetry:
                 "radon_long_term_avg": 65,
             },
         )
+
+    @pytest.mark.integration
+    async def test_custom_device_name_routes_all_telemetry_topics(
+        self, test_settings: Airthings2MqttSettings
+    ) -> None:
+        """Configured name owns state, set, error, and availability routing."""
+
+        class _ReadErrorThenRecover(FakeAirthingsReader):
+            failures = 4
+
+            async def read(self, mac: str) -> AirthingsReading:
+                if self.failures:
+                    self.calls.append(mac)
+                    self.failures -= 1
+                    raise BleConnectionError("device unreachable")
+                return await super().read(mac)
+
+        device_name = "living-room"
+        settings = test_settings.model_copy(update={"device_name": device_name})
+        reader = _ReadErrorThenRecover()
+        custom_harness = make_harness(adapter=lambda: reader, settings=settings)
+        state_topic = f"{TOPIC_PREFIX}/{device_name}/state"
+        set_topic = f"{TOPIC_PREFIX}/{device_name}/set"
+        error_topic = f"{TOPIC_PREFIX}/{device_name}/error"
+        availability_topic = f"{TOPIC_PREFIX}/{device_name}/availability"
+        task = asyncio.create_task(custom_harness.run())
+        try:
+            await custom_harness.wait_for_publish_count(availability_topic, 1)
+            for _ in range(3):
+                await custom_harness.advance_time(10)
+            await custom_harness.wait_for_publish_count(error_topic, 1)
+            await custom_harness.wait_for_publish_count(availability_topic, 2)
+            assert custom_harness.messages_for(availability_topic)[-1] == (
+                "offline",
+                True,
+                1,
+            )
+
+            custom_harness.assert_subscribed(set_topic)
+            await custom_harness.inject_command(device_name, "", topic=set_topic)
+            await custom_harness.wait_for_publish_count(state_topic, 1)
+
+            assert len(reader.calls) == 5  # initial attempt + 3 retries + trigger
+            custom_harness.assert_published(availability_topic, contains="online")
+            # A prior persisted registration may cause startup cleanup to
+            # tombstone old retained topics; no live payload may use them.
+            assert all(
+                payload == ""
+                for payload, _retain, _qos in custom_harness.messages_for(
+                    f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+                )
+            )
+            assert not custom_harness.messages_for(
+                f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
+            )
+            assert all(
+                payload == ""
+                for payload, _retain, _qos in custom_harness.messages_for(
+                    f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
+                )
+            )
+        finally:
+            custom_harness.shutdown_event.set()
+            if not task.done():
+                await task
 
 
 _THROTTLE_SECONDS = 0.4

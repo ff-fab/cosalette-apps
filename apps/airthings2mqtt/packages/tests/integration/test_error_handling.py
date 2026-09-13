@@ -12,10 +12,12 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import BleConnectionError
+from airthings2mqtt.errors import BleConnectionError, BleReadError
 from airthings2mqtt.ports import AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -61,6 +63,22 @@ class _AlwaysRaisingReader(FakeAirthingsReader):
         """Always raise BleConnectionError."""
         self.calls.append(mac)
         raise BleConnectionError("device unreachable")
+
+
+class _FailuresThenRecoverReader(FakeAirthingsReader):
+    """Exhaust one retryable run, then recover on the next invocation."""
+
+    def __init__(self, failures: int, error: Exception) -> None:
+        super().__init__()
+        self._failures = failures
+        self._error = error
+
+    async def read(self, mac: str) -> AirthingsReading:
+        self.calls.append(mac)
+        if self._failures:
+            self._failures -= 1
+            raise self._error
+        return self.readings[len(self.calls) % len(self.readings)]
 
 
 # ---------------------------------------------------------------------------
@@ -155,9 +173,10 @@ class TestErrorRecovery:
         # Act — two poll cycles past startup: first errors, then recovers
         await run_app_briefly(harness, polls=2)
 
-        # Assert — error was published
+        # Assert — the retry succeeds within the same invocation, so no
+        # terminal error is published.
         error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
-        harness.assert_published(error_topic)
+        assert not harness.messages_for(error_topic)
 
         # Assert — valid telemetry was also published (recovery) with sensor keys
         state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
@@ -182,6 +201,78 @@ class TestErrorRecovery:
 
         # Assert — health status published (app was alive)
         harness.assert_published(f"{TOPIC_PREFIX}/status")
+
+    @pytest.mark.integration
+    async def test_retry_exhaustion_marks_offline_then_recovery_online(
+        self,
+        test_settings: Airthings2MqttSettings,
+    ) -> None:
+        """Four retryable failures publish retained offline once, then online."""
+        reader = _FailuresThenRecoverReader(
+            failures=4, error=BleConnectionError("device unreachable")
+        )
+        harness = make_harness(adapter=lambda: reader, settings=test_settings)
+        availability_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
+        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+        task = asyncio.create_task(harness.run())
+        try:
+            await harness.wait_for_publish_count(availability_topic, 1)
+            for _ in range(3):
+                await harness.advance_time(10)
+            await harness.wait_for_publish_count(availability_topic, 2)
+            assert harness.messages_for(availability_topic)[-1] == (
+                "offline",
+                True,
+                1,
+            )
+            await harness.inject_command(
+                DEVICE_NAME, "", topic=f"{TOPIC_PREFIX}/{DEVICE_NAME}/set"
+            )
+            await harness.wait_for_publish_count(state_topic, 1)
+            assert len(reader.calls) == 5
+            assert harness.messages_for(availability_topic)[-1] == (
+                "online",
+                True,
+                1,
+            )
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                await task
+
+        assert (
+            harness.messages_for(availability_topic).count(("offline", True, 1)) == 2
+        )  # terminal failure + shutdown
+
+    @pytest.mark.integration
+    async def test_non_retryable_read_error_publishes_error_but_remains_online(
+        self,
+        test_settings: Airthings2MqttSettings,
+    ) -> None:
+        """A data/read failure is reported once without changing availability.
+
+        ``BleReadError`` is deliberately outside the retry policy: it describes
+        unusable sensor data, not loss of transport. Cosalette therefore keeps
+        the device online; automatic offline is reserved for exhausted retries.
+        """
+        reader = _FailuresThenRecoverReader(
+            failures=1, error=BleReadError("malformed sensor frame")
+        )
+        harness = make_harness(adapter=lambda: reader, settings=test_settings)
+
+        task = asyncio.create_task(harness.run())
+        error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
+        availability_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
+        try:
+            await harness.wait_for_publish_count(error_topic, 1)
+            assert len(reader.calls) == 1, (
+                "BleReadError unexpectedly entered retry policy"
+            )
+            assert harness.messages_for(availability_topic) == [("online", True, 1)]
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                await task
 
 
 # ---------------------------------------------------------------------------
