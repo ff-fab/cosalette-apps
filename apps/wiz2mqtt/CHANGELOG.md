@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.2...wiz2mqtt-v0.2.3) (2026-09-13)
+
+
+### Features
+
+* adopt cosalette 0.10 ([#265](https://github.com/ff-fab/cosalette-apps/issues/265)) ([678dcb4](https://github.com/ff-fab/cosalette-apps/commit/678dcb482cf51daa7ceea6f4cfe8efe5b81cb18b))
+
 ## [0.2.2](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.1...wiz2mqtt-v0.2.2) (2026-09-12)
 
 
