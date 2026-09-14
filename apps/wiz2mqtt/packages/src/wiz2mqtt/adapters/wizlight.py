@@ -74,6 +74,7 @@ class WizBulbAdapter:
         # the same list (main._bulb_map).
         self._name_by_ip = {bulb.ip: bulb.name for bulb in settings.bulbs}
         self._bulbs: dict[str, Any] = {}
+        self._initialization_locks: dict[str, asyncio.Lock] = {}
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state_cache: dict[str, BulbState] = {}
         self._last_push_at: dict[str, float] = {}
@@ -84,46 +85,52 @@ class WizBulbAdapter:
         if ip in self._bulbs:
             return self._bulbs[ip]
 
-        try:
-            ipaddress.ip_address(ip)
-        except ValueError:
-            msg = f"Invalid IP address: {ip!r}"
-            raise WizBridgeError(msg) from None
+        lock = self._initialization_locks.setdefault(ip, asyncio.Lock())
+        async with lock:
+            if ip in self._bulbs:
+                return self._bulbs[ip]
 
-        from pywizlight import wizlight  # noqa: PLC0415 — lazy import by design
-        from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
-            WizLightConnectionError,
-            WizLightError,
-            WizLightTimeOutError,
-        )
+            try:
+                ipaddress.ip_address(ip)
+            except ValueError:
+                msg = f"Invalid IP address: {ip!r}"
+                raise WizBridgeError(msg) from None
 
-        bulb = wizlight(ip)
-        try:
-            bulb_type = await bulb.get_bulbtype()
-        except WizLightTimeOutError as exc:
-            msg = f"Timed out detecting capabilities for bulb {ip}"
-            raise WizTimeoutError(msg) from exc
-        except WizLightConnectionError as exc:
-            msg = f"Connection failed detecting capabilities for bulb {ip}"
-            raise WizConnectionError(msg) from exc
-        except WizLightError as exc:
-            msg = f"pywizlight error detecting capabilities for bulb {ip}: {exc}"
-            raise WizBridgeError(msg) from exc
-
-        self._capabilities[ip] = _capabilities_from_bulb_type(bulb_type)
-        self._bulbs[ip] = bulb
-
-        # Registration success only means the UDP socket bound, not that
-        # packets will ever arrive (bridge-NAT push falls silently into the
-        # void) — get_state()'s staleness check is the real health signal.
-        try:
-            await bulb.start_push(self._make_push_callback(ip))
-        except WizLightError:
-            logger.warning(
-                "Push registration failed for bulb %s; relying on polling", ip
+            from pywizlight import wizlight  # noqa: PLC0415 — lazy import by design
+            from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
+                WizLightConnectionError,
+                WizLightError,
+                WizLightTimeOutError,
             )
 
-        return bulb
+            bulb = wizlight(ip)
+            try:
+                bulb_type = await bulb.get_bulbtype()
+            except WizLightTimeOutError as exc:
+                msg = f"Timed out detecting capabilities for bulb {ip}"
+                raise WizTimeoutError(msg) from exc
+            except WizLightConnectionError as exc:
+                msg = f"Connection failed detecting capabilities for bulb {ip}"
+                raise WizConnectionError(msg) from exc
+            except WizLightError as exc:
+                msg = f"pywizlight error detecting capabilities for bulb {ip}: {exc}"
+                raise WizBridgeError(msg) from exc
+
+            capabilities = _capabilities_from_bulb_type(bulb_type)
+
+            # Registration success only means the UDP socket bound, not that
+            # packets will ever arrive (bridge-NAT push falls silently into the
+            # void) — get_state()'s staleness check is the real health signal.
+            try:
+                await bulb.start_push(self._make_push_callback(ip))
+            except WizLightError:
+                logger.warning(
+                    "Push registration failed for bulb %s; relying on polling", ip
+                )
+
+            self._capabilities[ip] = capabilities
+            self._bulbs[ip] = bulb
+            return bulb
 
     def _make_push_callback(
         self, ip: str
@@ -323,6 +330,7 @@ class WizBulbAdapter:
             if isinstance(result, BaseException):
                 logger.warning("Failed to close bulb %s: %s", ip, result)
         self._bulbs.clear()
+        self._initialization_locks.clear()
         self._capabilities.clear()
         self._state_cache.clear()
         self._last_push_at.clear()

@@ -17,6 +17,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -273,6 +274,104 @@ class TestGetCapabilities:
         await ctx.adapter.get_capabilities(_IP)
         await ctx.adapter.get_capabilities(_IP)
         assert len(ctx.fake_bulbs[_IP].start_push_calls) == 1
+
+
+class TestFirstContactConcurrency:
+    """First contact is serialized per IP without blocking other bulbs."""
+
+    async def test_same_ip_concurrent_calls_initialize_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        constructions: list[_FakeWizLight] = []
+
+        class _BlockedBulb(_FakeWizLight):
+            async def get_bulbtype(self) -> BulbType:
+                entered.set()
+                await release.wait()
+                return await super().get_bulbtype()
+
+        def _factory(
+            ip: str, port: int = 38899, mac: str | None = None
+        ) -> _FakeWizLight:
+            bulb = _BlockedBulb(ip)
+            constructions.append(bulb)
+            return bulb
+
+        monkeypatch.setattr(pywizlight, "wizlight", _factory)
+        adapter = WizBulbAdapter(_settings(), _RecordingNotifier())
+        state_task = asyncio.create_task(adapter.get_state(_IP))
+        await entered.wait()
+        caps_task = asyncio.create_task(adapter.get_capabilities(_IP))
+        await asyncio.sleep(0)
+        release.set()
+
+        await asyncio.gather(state_task, caps_task)
+
+        assert len(constructions) == 1
+        assert len(constructions[0].start_push_calls) == 1
+
+    async def test_failed_initialization_can_retry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        constructions: list[_FakeWizLight] = []
+
+        def _factory(
+            ip: str, port: int = 38899, mac: str | None = None
+        ) -> _FakeWizLight:
+            bulb = _FakeWizLight(ip)
+            if not constructions:
+                bulb.get_bulbtype_exc = WizLightTimeOutError("first attempt")
+            constructions.append(bulb)
+            return bulb
+
+        monkeypatch.setattr(pywizlight, "wizlight", _factory)
+        adapter = WizBulbAdapter(_settings(), _RecordingNotifier())
+
+        with pytest.raises(WizTimeoutError):
+            await adapter.get_capabilities(_IP)
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+        assert _IP not in adapter._capabilities  # noqa: SLF001
+
+        await adapter.get_capabilities(_IP)
+
+        assert len(constructions) == 2
+        assert len(constructions[1].start_push_calls) == 1
+
+    async def test_different_ips_initialize_concurrently(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        both_entered = asyncio.Event()
+        release = asyncio.Event()
+        entered: set[str] = set()
+
+        class _BlockedBulb(_FakeWizLight):
+            async def get_bulbtype(self) -> BulbType:
+                entered.add(self.ip)
+                if len(entered) == 2:
+                    both_entered.set()
+                await release.wait()
+                return await super().get_bulbtype()
+
+        monkeypatch.setattr(pywizlight, "wizlight", _BlockedBulb)
+        adapter = WizBulbAdapter(_settings(), _RecordingNotifier())
+        tasks = [
+            asyncio.create_task(adapter.get_capabilities(ip))
+            for ip in ("10.0.0.1", "10.0.0.2")
+        ]
+
+        await asyncio.wait_for(both_entered.wait(), timeout=1)
+        release.set()
+        await asyncio.gather(*tasks)
+
+        assert entered == {"10.0.0.1", "10.0.0.2"}
 
 
 # ---------------------------------------------------------------------------
@@ -589,6 +688,7 @@ class TestLifecycle:
             pass
 
         assert ctx.adapter._bulbs == {}  # noqa: SLF001
+        assert ctx.adapter._initialization_locks == {}  # noqa: SLF001
         assert ctx.adapter._capabilities == {}  # noqa: SLF001
         assert ctx.adapter._state_cache == {}  # noqa: SLF001
         assert ctx.adapter._last_push_at == {}  # noqa: SLF001
