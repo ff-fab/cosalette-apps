@@ -14,12 +14,18 @@ import pytest
 from wiz2mqtt.errors import (
     WizBridgeError,
     WizConnectionError,
+    WizIdentityError,
     WizTimeoutError,
     WizUnsupportedCommandError,
     error_type_map,
 )
 
-_SUBCLASSES = [WizConnectionError, WizTimeoutError, WizUnsupportedCommandError]
+_SUBCLASSES = [
+    WizConnectionError,
+    WizTimeoutError,
+    WizIdentityError,
+    WizUnsupportedCommandError,
+]
 
 
 # ---------------------------------------------------------------------------
@@ -88,6 +94,7 @@ class TestErrorTypeMap:
             (WizBridgeError, "wiz_bridge"),
             (WizConnectionError, "wiz_connection"),
             (WizTimeoutError, "wiz_timeout"),
+            (WizIdentityError, "wiz_identity"),
             (WizUnsupportedCommandError, "wiz_unsupported_command"),
         ],
         ids=lambda c: c.__name__ if isinstance(c, type) else c,

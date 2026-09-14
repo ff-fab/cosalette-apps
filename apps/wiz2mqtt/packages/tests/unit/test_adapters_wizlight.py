@@ -36,6 +36,7 @@ from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.errors import (
     WizBridgeError,
     WizConnectionError,
+    WizIdentityError,
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
@@ -66,10 +67,10 @@ class _RecordingNotifier(EntityNotifier):
             self.on_arm(entity_name)
 
 
-def _settings() -> Wiz2MqttSettings:
+def _settings(*, mac: str | None = None) -> Wiz2MqttSettings:
     """Isolated settings with exactly one bulb, ``office`` at ``_IP``."""
     return Wiz2MqttSettings(
-        bulbs=[{"name": _NAME, "ip": _IP}],  # type: ignore[list-item]
+        bulbs=[{"name": _NAME, "ip": _IP, "mac": mac}],  # type: ignore[list-item]
         _env_file=None,  # type: ignore[call-arg]
         _config_file=None,  # type: ignore[call-arg]
     )
@@ -156,6 +157,9 @@ class _FakeWizLight:
         self.ip = ip
         self.bulb_type: BulbType = _RGB_BULB_TYPE
         self.get_bulbtype_exc: Exception | None = None
+        self.mac: str | None = "a8bb5006033d"
+        self.get_mac_exc: Exception | None = None
+        self.get_mac_calls = 0
         self.start_push_exc: Exception | None = None
         self.start_push_calls: list[Any] = []
         self.update_state_result: list[_FakeParser | None] | None = None
@@ -172,6 +176,12 @@ class _FakeWizLight:
         if self.get_bulbtype_exc is not None:
             raise self.get_bulbtype_exc
         return self.bulb_type
+
+    async def getMac(self) -> str | None:  # noqa: N802 — pywizlight API
+        self.get_mac_calls += 1
+        if self.get_mac_exc is not None:
+            raise self.get_mac_exc
+        return self.mac
 
     async def start_push(self, callback: Any) -> bool:
         self.start_push_calls.append(callback)
@@ -274,6 +284,82 @@ class TestGetCapabilities:
         await ctx.adapter.get_capabilities(_IP)
         await ctx.adapter.get_capabilities(_IP)
         assert len(ctx.fake_bulbs[_IP].start_push_calls) == 1
+
+
+class TestIdentityVerification:
+    """A configured MAC is checked once before publishing the bulb cache."""
+
+    async def test_matching_mac_normalizes_case_and_separators(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = "A8:BB-50:06-03:3D"
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        await adapter.get_capabilities(_IP)
+        await adapter.get_capabilities(_IP)
+
+        assert bulb.get_mac_calls == 1
+        assert len(bulb.start_push_calls) == 1
+
+    async def test_mismatch_does_not_cache_or_register_push(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = "001122334455"
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with caplog.at_level(logging.ERROR), pytest.raises(WizIdentityError):
+            await adapter.get_capabilities(_IP)
+
+        assert "identity mismatch" in caplog.text
+        assert bulb.start_push_calls == []
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+        assert _IP not in adapter._capabilities  # noqa: SLF001
+
+    async def test_missing_config_does_not_read_mac(self, ctx: _Ctx) -> None:
+        await ctx.adapter.get_capabilities(_IP)
+
+        assert ctx.fake_bulbs[_IP].get_mac_calls == 0
+
+    async def test_missing_readback_warns_and_initializes(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = None
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with caplog.at_level(logging.WARNING):
+            await adapter.get_capabilities(_IP)
+
+        assert "identity could not be verified" in caplog.text
+        assert len(bulb.start_push_calls) == 1
+
+    async def test_mismatch_can_retry_with_new_instance(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        bulbs = [_FakeWizLight(_IP), _FakeWizLight(_IP)]
+        bulbs[0].mac = "001122334455"
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulbs.pop(0))
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with pytest.raises(WizIdentityError):
+            await adapter.get_capabilities(_IP)
+        await adapter.get_capabilities(_IP)
+
+        assert len(bulbs) == 0
+        assert _IP in adapter._bulbs  # noqa: SLF001
 
 
 class TestFirstContactConcurrency:

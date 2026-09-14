@@ -29,7 +29,12 @@ from wiz2mqtt.colour import (
     rgb_to_hue_saturation,
     validate_scene,
 )
-from wiz2mqtt.errors import WizBridgeError, WizConnectionError, WizTimeoutError
+from wiz2mqtt.errors import (
+    WizBridgeError,
+    WizConnectionError,
+    WizIdentityError,
+    WizTimeoutError,
+)
 from wiz2mqtt.models import BulbCapabilities, BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
 
@@ -73,6 +78,9 @@ class WizBulbAdapter:
         # names and IPs are unique, and the telemetry entity names come from
         # the same list (main._bulb_map).
         self._name_by_ip = {bulb.ip: bulb.name for bulb in settings.bulbs}
+        self._expected_mac_by_ip = {
+            bulb.ip: bulb.mac for bulb in settings.bulbs if bulb.mac is not None
+        }
         self._bulbs: dict[str, Any] = {}
         self._initialization_locks: dict[str, asyncio.Lock] = {}
         self._capabilities: dict[str, BulbCapabilities] = {}
@@ -115,6 +123,39 @@ class WizBulbAdapter:
             except WizLightError as exc:
                 msg = f"pywizlight error detecting capabilities for bulb {ip}: {exc}"
                 raise WizBridgeError(msg) from exc
+
+            expected_mac = self._expected_mac_by_ip.get(ip)
+            if expected_mac is not None:
+                try:
+                    reported_mac = await bulb.getMac()
+                except WizLightTimeOutError as exc:
+                    msg = f"Timed out reading identity for bulb {ip}"
+                    raise WizTimeoutError(msg) from exc
+                except WizLightConnectionError as exc:
+                    msg = f"Connection failed reading identity for bulb {ip}"
+                    raise WizConnectionError(msg) from exc
+                except WizLightError as exc:
+                    msg = f"pywizlight error reading identity for bulb {ip}: {exc}"
+                    raise WizBridgeError(msg) from exc
+
+                if reported_mac is None:
+                    logger.warning(
+                        "Bulb %s did not report a MAC; identity could not be verified",
+                        ip,
+                    )
+                else:
+                    normalized_mac = (
+                        reported_mac.lower().replace(":", "").replace("-", "")
+                    )
+                    if normalized_mac != expected_mac:
+                        logger.error(
+                            "Bulb identity mismatch at %s: expected MAC %s, got %s",
+                            ip,
+                            expected_mac,
+                            normalized_mac,
+                        )
+                        msg = f"Bulb identity mismatch at {ip}"
+                        raise WizIdentityError(msg)
 
             capabilities = _capabilities_from_bulb_type(bulb_type)
 

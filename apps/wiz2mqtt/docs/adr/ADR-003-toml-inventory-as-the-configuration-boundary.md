@@ -38,7 +38,7 @@ Make `wiz2mqtt.toml` the boundary for **inventory only**: each `[[bulbs]]` entry
 class BulbConfig(BaseModel):
     name: str                      # MQTT topic segment + entity identity
     ip: str                        # literal IPv4 — the transport handle (ADR-002)
-    mac: str | None = None         # optional: verified once at startup
+    mac: str | None = None         # optional: verified at first successful contact
     when_unreachable: Literal["unavailable", "off"] = "unavailable"
     # no capability fields — bulb_class, kelvin range, scene list are runtime-detected
 
