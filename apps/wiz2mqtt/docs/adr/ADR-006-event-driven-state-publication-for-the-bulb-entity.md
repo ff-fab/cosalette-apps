@@ -9,7 +9,7 @@ tags: [telemetry, architecture, mqtt, scheduling, lifecycle]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-09-13
 
 ## Context
 
@@ -125,3 +125,31 @@ Publish `bulb_entity` state on the WiZ push, not on the poll tick. `WizBulbAdapt
 ### Additional Negative Consequences
 
 - Idle bulbs can use the polling fallback even when they continue emitting suppressed heartbeat traffic.
+
+## Amendment (2026-09-13) — Additive
+
+**Rationale:** ADR-008 (desired state with restore on return to reachability) makes the return of a bulb a publication trigger and needs a fast path to detect it. A WiZ bulb sends a `firstBeat` broadcast when it boots. This amendment records `firstBeat` as a third arming path next to the push and the heartbeat.
+
+### Additional Sub-Decision: `firstBeat` as a publication trigger and the restore fast path
+
+A WiZ bulb sends a `firstBeat` broadcast when it boots. `pywizlight/push_manager.py:131-132` routes the broadcast to the callback that `wizlight.set_discovery_callback(cb)` installs. wiz2mqtt installs no callback today, so the event is discarded.
+
+`WizBulbAdapter` installs a discovery callback. On `firstBeat` for a configured address, the callback marks the return of the bulb, arms `bulb_entity` through the same `EntityNotifier` so the publication runs the same handler and `OnChange()` gate, and starts the return path of ADR-008 (queued command, else restore, else accept the report). The heartbeat poll of the original decision stays the slow path for a host that does not receive the broadcast.
+
+The wake stays in-process. `triggerable="local"` and the absence of `min_interval=` are unchanged.
+
+!!! note "Editorial note (2026-09-13)"
+    Cross-reference: the corrective amendment of 2026-09-12 states that the heartbeat tick polls once the push age exceeds 60 s. cap-dc5y reports that on a host that receives idle syncPilot pushes the tick calls `updateState()` with no network I/O, so the documented liveness probe is a no-op there. This amendment does not resolve that contradiction. It is tracked in cap-dc5y.
+
+### Additional Positive Consequences
+
+- A bulb that reboots is detected within a broadcast round-trip instead of on the next heartbeat tick, so the restore of ADR-008 starts sub-second when push works.
+
+### Additional Negative Consequences
+
+- Three arming paths (heartbeat, push notifier, discovery callback) share one handler, so a missing `set_discovery_callback` is a silent regression of the restore fast path, not a loud failure.
+- The fast path depends on the broadcast reaching the host, which is the ADR-004 host-networking requirement.
+
+## Amendment (2026-09-14) — Corrective
+
+`firstBeat` is a wake hint only. Its callback maps a configured IP, marks reconnect pending, and arms the local notifier; it performs no network read or write and changes no persisted state. Only the next entity tick, after a successful read, may confirm reachability, update belief, persist an observation, or run ADR-008's return path. Coalesce duplicate events while return is pending.
