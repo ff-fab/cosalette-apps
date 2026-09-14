@@ -130,3 +130,7 @@ A consumer computes "the lamp is lit" as `state AND powered`. While the bulb is 
 
 - `powered` is a second wiz2mqtt convention with no discovery-time schema on either controller, next to `hsb`.
 - A consumer that reads `state` alone and ignores `powered` shows a dark lamp as ON.
+
+## Amendment (2026-09-14) — Additive
+
+`powered` is required in every published state payload: serialize `true` for `on`, `false` for `off`, and the JSON literal `null` for unknown or no source. Do not use a null-excluding serializer for this field. Tests assert complete true/false/null payloads, including the presence of `"powered": null`.

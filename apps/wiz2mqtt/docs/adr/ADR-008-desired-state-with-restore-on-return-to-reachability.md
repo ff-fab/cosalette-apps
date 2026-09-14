@@ -139,3 +139,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 - A queued command that expires after `queued_command_ttl` is dropped without a wire-visible trace beyond the log
 
 _2026-09-13_
+
+## Amendment (2026-09-14) — Corrective
+
+After a successful read, run exactly one branch: apply a non-expired queued command; else apply stored desired state only when `restore_previous_state` is true **and the record exists**; otherwise accept the observation and enter steady phase. The callback never runs this logic. A restore receives three total write-and-read-back attempts, including the first—not three retries after it. Tests cover enabled restore with no stored record and both retry outcomes.

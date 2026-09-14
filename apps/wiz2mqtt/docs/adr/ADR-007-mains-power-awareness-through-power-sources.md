@@ -139,3 +139,11 @@ _Scale: 1 (poor) to 5 (excellent)_
 - The belief is derived, so a wrong rule in wiz2mqtt shows as a wrong `powered` value on every member bulb at once
 
 _2026-09-13_
+
+## Amendment (2026-09-14) — Additive
+
+**Membership.** Resolve each bulb once: explicit `power_source`; then a source whose `members` contains it; then a source whose `group` contains it; otherwise none. Reject ambiguous implicit claims, including `members`/`group` overlap. Explicit references must name a source and override implicit claims.
+
+**Signal contract.** `signal_topic` is a retained status input, never a command surface. Accept only UTF-8 `on` or `off` (lowercase, whitespace trimmed once); ignore and warn on every other payload without echoing it, leaving belief unchanged. A topic is unique per source. Broker ACLs permit only the configured controller to publish it; wiz2mqtt subscribes and never publishes there.
+
+**Source contract.** Each source is one retained `wiz2mqtt/{source}/state` device payload: `{\"powered\": \"on\" | \"off\" | \"unknown\", \"power_request\": \"on\" | \"off\" | null, \"members\": [...]}`. It exposes the first field as the power binary sensor and the second as the diagnostic desired-power binary sensor. Source names must not collide with bulb or group names.

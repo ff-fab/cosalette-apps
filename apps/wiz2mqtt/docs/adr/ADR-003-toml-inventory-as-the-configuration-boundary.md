@@ -195,3 +195,7 @@ A bulb belongs to a maximum of one power source.
 
 - `BulbConfig` grows from four fields to six, and the settings model gains a second list block and a top-level duration.
 - An operator who set `when_unreachable` on a bulb sees a warning at the first start after the upgrade and must move the key.
+
+## Amendment (2026-09-14) — Corrective
+
+Before Pydantic validation, compatibility normalization maps legacy bulb-level `when_unreachable = "off"` to an implicit single-member source with `when_unreachable = "no_power"`, removes the legacy key, and logs its named replacement. Every other legacy value is rejected with a migration error. Validation therefore never sees an unsupported legacy field. `BulbConfig` grows from four to five fields, not six; tests cover the accepted legacy value, rejected values, and no legacy key.

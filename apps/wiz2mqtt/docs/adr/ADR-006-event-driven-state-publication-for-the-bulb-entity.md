@@ -149,3 +149,7 @@ The wake stays in-process. `triggerable="local"` and the absence of `min_interva
 
 - Three arming paths (heartbeat, push notifier, discovery callback) share one handler, so a missing `set_discovery_callback` is a silent regression of the restore fast path, not a loud failure.
 - The fast path depends on the broadcast reaching the host, which is the ADR-004 host-networking requirement.
+
+## Amendment (2026-09-14) — Corrective
+
+`firstBeat` is a wake hint only. Its callback maps a configured IP, marks reconnect pending, and arms the local notifier; it performs no network read or write and changes no persisted state. Only the next entity tick, after a successful read, may confirm reachability, update belief, persist an observation, or run ADR-008's return path. Coalesce duplicate events while return is pending.

@@ -115,3 +115,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 - The consumer needs a rule that maps the desired power to the relay; wiz2mqtt cannot ship that rule
 
 _2026-09-13_
+
+## Amendment (2026-09-14) — Additive
+
+Raise retained desired power `on` only when an accepted bulb command results in desired `ON`, belief is `off`, and power-on requests are enabled—not on reads, `firstBeat`, observations, or invalid signals. Request `off` only when power-off is enabled, `wiz_bulbs_only` is true, and every member has been desired `OFF` for `power_off_idle_delay`. Clear the retained request to JSON `null` on observed convergence, when it becomes inapplicable, and at startup before recomputation. ACLs allow wiz2mqtt to publish and the configured controller to subscribe; no consumer command is accepted on this topic.
