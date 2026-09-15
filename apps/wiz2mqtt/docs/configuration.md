@@ -29,7 +29,7 @@ when_unreachable = "off"
 | ----- | -------- | ----------- |
 | `name` | yes | MQTT topic segment for the bulb |
 | `ip` | yes | Literal IPv4 address of the bulb |
-| `mac` | no | Bare 12-hex-digit MAC used for identity verification |
+| `mac` | no | Bare 12-hex-digit MAC verified on first successful contact; a mismatch rejects that contact, while a missing device MAC is warned as unverifiable |
 | `when_unreachable` | no | `unavailable` (default) or `off` |
 
 `when_unreachable = "off"` keeps the bulb available and publishes

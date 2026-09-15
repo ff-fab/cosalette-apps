@@ -26,8 +26,9 @@ when_unreachable = "off"
 ```
 
 `name` becomes the MQTT topic segment (`wiz2mqtt/<name>/...`). `mac` is optional
-but useful when you want startup verification that the configured IP still
-belongs to the intended bulb.
+but useful when you want the bulb's first successful contact to verify that the
+configured IP still belongs to the intended bulb. A mismatch rejects that
+contact; a device that reports no MAC is warned as unverifiable.
 
 ## 2. Point the app at your broker
 

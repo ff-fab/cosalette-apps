@@ -17,6 +17,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -35,6 +36,7 @@ from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.errors import (
     WizBridgeError,
     WizConnectionError,
+    WizIdentityError,
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
@@ -65,10 +67,10 @@ class _RecordingNotifier(EntityNotifier):
             self.on_arm(entity_name)
 
 
-def _settings() -> Wiz2MqttSettings:
+def _settings(*, mac: str | None = None) -> Wiz2MqttSettings:
     """Isolated settings with exactly one bulb, ``office`` at ``_IP``."""
     return Wiz2MqttSettings(
-        bulbs=[{"name": _NAME, "ip": _IP}],  # type: ignore[list-item]
+        bulbs=[{"name": _NAME, "ip": _IP, "mac": mac}],  # type: ignore[list-item]
         _env_file=None,  # type: ignore[call-arg]
         _config_file=None,  # type: ignore[call-arg]
     )
@@ -155,6 +157,9 @@ class _FakeWizLight:
         self.ip = ip
         self.bulb_type: BulbType = _RGB_BULB_TYPE
         self.get_bulbtype_exc: Exception | None = None
+        self.mac: str | None = "a8bb5006033d"
+        self.get_mac_exc: Exception | None = None
+        self.get_mac_calls = 0
         self.start_push_exc: Exception | None = None
         self.start_push_calls: list[Any] = []
         self.update_state_result: list[_FakeParser | None] | None = None
@@ -171,6 +176,12 @@ class _FakeWizLight:
         if self.get_bulbtype_exc is not None:
             raise self.get_bulbtype_exc
         return self.bulb_type
+
+    async def getMac(self) -> str | None:  # noqa: N802 — pywizlight API
+        self.get_mac_calls += 1
+        if self.get_mac_exc is not None:
+            raise self.get_mac_exc
+        return self.mac
 
     async def start_push(self, callback: Any) -> bool:
         self.start_push_calls.append(callback)
@@ -273,6 +284,231 @@ class TestGetCapabilities:
         await ctx.adapter.get_capabilities(_IP)
         await ctx.adapter.get_capabilities(_IP)
         assert len(ctx.fake_bulbs[_IP].start_push_calls) == 1
+
+
+class TestIdentityVerification:
+    """A configured MAC is checked once before publishing the bulb cache."""
+
+    async def test_matching_mac_normalizes_case_and_separators(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = "A8:BB-50:06-03:3D"
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        await adapter.get_capabilities(_IP)
+        await adapter.get_capabilities(_IP)
+
+        assert bulb.get_mac_calls == 1
+        assert len(bulb.start_push_calls) == 1
+
+    async def test_mismatch_does_not_cache_or_register_push(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = "001122334455"
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with caplog.at_level(logging.ERROR), pytest.raises(WizIdentityError):
+            await adapter.get_capabilities(_IP)
+
+        assert "identity mismatch" in caplog.text
+        assert bulb.start_push_calls == []
+        assert bulb.closed is True
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+        assert _IP not in adapter._capabilities  # noqa: SLF001
+
+    async def test_close_error_does_not_mask_identity_mismatch(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Cleanup is best-effort; the initialization error remains authoritative."""
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = "001122334455"
+        bulb.async_close_exc = RuntimeError("close failed")
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with caplog.at_level(logging.WARNING), pytest.raises(WizIdentityError):
+            await adapter.get_capabilities(_IP)
+
+        assert "failed to close rejected bulb" in caplog.text.lower()
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+
+    @pytest.mark.parametrize(
+        ("pywizlight_exc", "domain_exc"),
+        [
+            (WizLightTimeOutError, WizTimeoutError),
+            (WizLightConnectionError, WizConnectionError),
+            (WizLightError, WizBridgeError),
+        ],
+        ids=["timeout", "connection", "generic"],
+    )
+    async def test_get_mac_errors_close_without_caching_or_push(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        pywizlight_exc: type[Exception],
+        domain_exc: type[Exception],
+    ) -> None:
+        """MAC-read failures reject and close the unpublished bulb instance."""
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.get_mac_exc = pywizlight_exc("boom")
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with pytest.raises(domain_exc):
+            await adapter.get_capabilities(_IP)
+
+        assert bulb.closed is True
+        assert bulb.start_push_calls == []
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+        assert _IP not in adapter._capabilities  # noqa: SLF001
+
+    async def test_missing_config_does_not_read_mac(self, ctx: _Ctx) -> None:
+        await ctx.adapter.get_capabilities(_IP)
+
+        assert ctx.fake_bulbs[_IP].get_mac_calls == 0
+
+    async def test_missing_readback_warns_and_initializes(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = None
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with caplog.at_level(logging.WARNING):
+            await adapter.get_capabilities(_IP)
+
+        assert "identity could not be verified" in caplog.text
+        assert len(bulb.start_push_calls) == 1
+
+    async def test_mismatch_can_retry_with_new_instance(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        bulbs = [_FakeWizLight(_IP), _FakeWizLight(_IP)]
+        bulbs[0].mac = "001122334455"
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulbs.pop(0))
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with pytest.raises(WizIdentityError):
+            await adapter.get_capabilities(_IP)
+        await adapter.get_capabilities(_IP)
+
+        assert len(bulbs) == 0
+        assert _IP in adapter._bulbs  # noqa: SLF001
+
+
+class TestFirstContactConcurrency:
+    """First contact is serialized per IP without blocking other bulbs."""
+
+    async def test_same_ip_concurrent_calls_initialize_once(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        constructions: list[_FakeWizLight] = []
+
+        class _BlockedBulb(_FakeWizLight):
+            async def get_bulbtype(self) -> BulbType:
+                entered.set()
+                await release.wait()
+                return await super().get_bulbtype()
+
+        def _factory(
+            ip: str, port: int = 38899, mac: str | None = None
+        ) -> _FakeWizLight:
+            bulb = _BlockedBulb(ip)
+            constructions.append(bulb)
+            return bulb
+
+        monkeypatch.setattr(pywizlight, "wizlight", _factory)
+        adapter = WizBulbAdapter(_settings(), _RecordingNotifier())
+        state_task = asyncio.create_task(adapter.get_state(_IP))
+        await entered.wait()
+        caps_task = asyncio.create_task(adapter.get_capabilities(_IP))
+        await asyncio.sleep(0)
+        release.set()
+
+        await asyncio.gather(state_task, caps_task)
+
+        assert len(constructions) == 1
+        assert len(constructions[0].start_push_calls) == 1
+
+    async def test_failed_initialization_can_retry(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        constructions: list[_FakeWizLight] = []
+
+        def _factory(
+            ip: str, port: int = 38899, mac: str | None = None
+        ) -> _FakeWizLight:
+            bulb = _FakeWizLight(ip)
+            if not constructions:
+                bulb.get_bulbtype_exc = WizLightTimeOutError("first attempt")
+            constructions.append(bulb)
+            return bulb
+
+        monkeypatch.setattr(pywizlight, "wizlight", _factory)
+        adapter = WizBulbAdapter(_settings(), _RecordingNotifier())
+
+        with pytest.raises(WizTimeoutError):
+            await adapter.get_capabilities(_IP)
+        assert constructions[0].closed is True
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+        assert _IP not in adapter._capabilities  # noqa: SLF001
+
+        await adapter.get_capabilities(_IP)
+
+        assert len(constructions) == 2
+        assert len(constructions[1].start_push_calls) == 1
+
+    async def test_different_ips_initialize_concurrently(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        both_entered = asyncio.Event()
+        release = asyncio.Event()
+        entered: set[str] = set()
+
+        class _BlockedBulb(_FakeWizLight):
+            async def get_bulbtype(self) -> BulbType:
+                entered.add(self.ip)
+                if len(entered) == 2:
+                    both_entered.set()
+                await release.wait()
+                return await super().get_bulbtype()
+
+        monkeypatch.setattr(pywizlight, "wizlight", _BlockedBulb)
+        adapter = WizBulbAdapter(_settings(), _RecordingNotifier())
+        tasks = [
+            asyncio.create_task(adapter.get_capabilities(ip))
+            for ip in ("10.0.0.1", "10.0.0.2")
+        ]
+
+        await asyncio.wait_for(both_entered.wait(), timeout=1)
+        release.set()
+        await asyncio.gather(*tasks)
+
+        assert entered == {"10.0.0.1", "10.0.0.2"}
 
 
 # ---------------------------------------------------------------------------
@@ -589,6 +825,7 @@ class TestLifecycle:
             pass
 
         assert ctx.adapter._bulbs == {}  # noqa: SLF001
+        assert ctx.adapter._initialization_locks == {}  # noqa: SLF001
         assert ctx.adapter._capabilities == {}  # noqa: SLF001
         assert ctx.adapter._state_cache == {}  # noqa: SLF001
         assert ctx.adapter._last_push_at == {}  # noqa: SLF001

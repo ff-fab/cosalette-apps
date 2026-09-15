@@ -9,7 +9,7 @@ tags: [configuration, architecture, mqtt, devices]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07 | Amended **Date:** 2026-09-08 | Amended **Date:** 2026-09-13
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-07 | Amended **Date:** 2026-09-08 | Amended **Date:** 2026-09-13 | Amended **Date:** 2026-09-15
 
 ## Context
 
@@ -38,7 +38,7 @@ Make `wiz2mqtt.toml` the boundary for **inventory only**: each `[[bulbs]]` entry
 class BulbConfig(BaseModel):
     name: str                      # MQTT topic segment + entity identity
     ip: str                        # literal IPv4 — the transport handle (ADR-002)
-    mac: str | None = None         # optional: verified once at startup
+    mac: str | None = None         # optional: verified at first successful contact
     when_unreachable: Literal["unavailable", "off"] = "unavailable"
     # no capability fields — bulb_class, kelvin range, scene list are runtime-detected
 
@@ -199,3 +199,27 @@ A bulb belongs to a maximum of one power source.
 ## Amendment (2026-09-14) — Corrective
 
 Before Pydantic validation, compatibility normalization maps legacy bulb-level `when_unreachable = "off"` to an implicit single-member source with `when_unreachable = "no_power"`, removes the legacy key, and logs its named replacement. Every other legacy value is rejected with a migration error. Validation therefore never sees an unsupported legacy field. `BulbConfig` grows from four to five fields, not six; tests cover the accepted legacy value, rejected values, and no legacy key.
+
+## Amendment (2026-09-15) — Corrective
+
+**Rationale:** ADR-003 used first-contact and startup wording that is incompatible with the adapter's lazy, retryable initialization and the MAC verification boundary recorded in ADR-002. Capability-derived discovery metadata must only be cached from an accepted initialization attempt.
+
+> **Justification for amendment (not supersession):** Supersession is not warranted because the implemented decision that TOML owns inventory and runtime owns capabilities remains unchanged. The correction only clarifies when existing runtime detection becomes eligible for persistence and discovery enrichment, with no schema or migration change.
+
+### Revised Decision
+
+Make `wiz2mqtt.toml` the boundary for inventory only: each `[[bulbs]]` entry carries operator-owned identity and power-source configuration, never hardware capabilities. Runtime initialization detects capabilities from pywizlight on demand. When optional MAC verification is configured, capability data becomes eligible for adapter caching, capability persistence, and discovery enrichment only after the same initialization attempt accepts the reported MAC (or logs an absent MAC as unverifiable). A failed capability or MAC-read attempt is not cached and does not establish discovery metadata; a later first-contact attempt retries the complete sequence. Startup registers the configured inventory without contacting bulbs, and retained discovery uses only capability records that were successfully persisted before the discovery publication.
+
+!!! note "Editorial note (2026-09-15)"
+    The historical "at startup", "first contact", and "next start" timing statements are superseded where they imply one non-retryable probe or that capability detection alone establishes a durable record. Contact is lazy and retryable; only an accepted, persisted attempt can narrow later discovery metadata.
+
+!!! note "Editorial note (2026-09-15)"
+    This clarification does not change the accepted offline path: hardware-free schema generation continues to emit the documented static superset.
+
+### Additional Positive Consequences
+
+- Discovery enrichment never reflects capability data from a connection that failed identity verification.
+
+### Additional Negative Consequences
+
+- A newly configured bulb with repeated failed initialization continues to advertise the static discovery superset until an accepted attempt persists its capabilities.

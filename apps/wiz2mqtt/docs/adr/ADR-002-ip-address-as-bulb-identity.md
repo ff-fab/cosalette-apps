@@ -9,7 +9,7 @@ tags: [configuration, architecture, naming, devices]
 
 ## Status
 
-Accepted **Date:** 2026-09-06
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-14 | Amended **Date:** 2026-09-15
 
 ## Context
 
@@ -90,4 +90,51 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Correct operation depends on static DHCP reservations, which wiz2mqtt documents but cannot enforce
 - The planned `discover` CLI subcommand (cap-10u.15) is an onboarding aid that prints `[[bulbs]]` entries; it is explicitly not wired into the daemon's addressing
 
-_2026-09-06_
+## Amendment (2026-09-14) — Corrective
+
+**Rationale:** The original decision described MAC verification as a startup operation, but the adapter deliberately creates and contacts each bulb lazily. The record must state the achievable first-contact behavior and its failure boundaries while preserving IP-addressed operation.
+
+> **Justification for amendment (not supersession):** Supersession is not warranted because the implemented IP-address-as-identity decision, configuration shape, and no-discovery/no-remapping boundary remain unchanged. The correction is confined to when the existing optional check runs and how that single contact is handled, with negligible migration impact for operators or downstream code.
+
+### Revised Decision
+
+Use the literal IPv4 address as a bulb's identity: `[[bulbs]]` requires `name` and `ip`, and every adapter call is addressed to `ip`. Keep `mac` as an optional bare-hex verification value, never as an address or discovery key. After capability detection succeeds on the bulb's first successful contact, compare the configured MAC exactly once with the MAC reported by that device. A mismatch is logged and rejects that contact before capabilities are cached, push listening starts, or commands are accepted. If the device reports no MAC, log a warning and treat the identity as unverifiable rather than as a match or mismatch. Do not perform IP/MAC discovery, tracking, or address remapping. Operators remain responsible for stable DHCP reservations.
+
+!!! note "Editorial note (2026-09-14)"
+    First successful contact means the first contact for which capability detection completes. Unreachable or otherwise failed attempts do not consume the one-time verification; a later successful contact still performs it.
+
+!!! note "Editorial note (2026-09-14)"
+    The mismatch boundary is per contact: it prevents capability caching, push setup, and command handling for that rejected contact. It does not turn MAC into identity, discover another address, or rewrite the configured IP.
+
+### Additional Positive Consequences
+
+- Verification follows the lazy adapter lifecycle, so startup remains independent of bulb reachability while the first usable contact still guards against controlling a different bulb at the configured address.
+
+### Additional Negative Consequences
+
+- A bulb that omits its MAC cannot be authenticated by this check; wiz2mqtt warns and continues with the configured IP as an unverifiable identity.
+- A MAC mismatch is detected only after a successful capability probe, not during process startup.
+
+## Amendment (2026-09-15) — Corrective
+
+**Rationale:** The prior amendment still described a successful capability probe as consuming a one-time MAC check. Initialization can fail while reading or comparing the MAC, so that wording incorrectly implies later attempts can bypass verification.
+
+> **Justification for amendment (not supersession):** Supersession is not warranted because IP-addressed operation, the optional MAC field, and the no-discovery/no-remapping decision are implemented and unchanged. This correction only makes the existing lazy first-contact verification lifecycle precise, with no configuration or migration impact.
+
+### Revised Decision
+
+Use the literal IPv4 address as a bulb's identity: `[[bulbs]]` requires `name` and `ip`, and every adapter call is addressed to `ip`. Keep `mac` as an optional bare-hex verification value, never as an address or discovery key. For every uncached initialization attempt, first detect capabilities and then, when `mac` is configured, compare it with the MAC reported by that device. Publish the bulb to the capability and connection caches only after that attempt verifies (or the device reports no MAC, which is logged as unverifiable). A MAC mismatch is logged, rejects that attempt before push listening or commands, and closes the unpublished connection. Timeout, connection, or other MAC-read failures also reject and close that attempt; they are retryable, so a later initialization attempt repeats verification. Do not perform IP/MAC discovery, tracking, or address remapping. Operators remain responsible for stable DHCP reservations.
+
+!!! note "Editorial note (2026-09-15)"
+    The original references to verification "at startup" and "once" are superseded by this lifecycle wording. Process startup does not contact bulbs. Verification is per uncached initialization attempt, and successful publication to the adapter cache—not merely completion of capability detection—is what ends further verification for that adapter lifetime.
+
+!!! note "Editorial note (2026-09-15)"
+    An identity mismatch is a configuration/identity failure, not an unreachable-bulb condition. It must not be converted into a configured `when_unreachable = "off"` fallback.
+
+### Additional Positive Consequences
+
+- Transient MAC-read failures recover safely without ever caching or commanding an unverified bulb.
+
+### Additional Negative Consequences
+
+- A persistently unreadable MAC repeats the capability and identity probe on each attempted first contact until the operator fixes reachability or configuration.
