@@ -23,20 +23,24 @@ from wiz2mqtt.state import SharedState
 _TICK_INTERVAL_SECONDS = 60.0
 """Per-bulb heartbeat cadence — the *floor* on publication, not the driver.
 
-State reaches MQTT when the bulb pushes (see ``triggerable="local"`` on
-``bulb_entity`` below), so this interval no longer sets command→state
-latency; it only guarantees a periodic re-read for bulbs that have gone
-quiet.  A WiZ bulb pushes on *change* only, so silence is ambiguous —
+State-changing callback pushes reach MQTT immediately (see
+``triggerable="local"`` on ``bulb_entity`` below). Suppressed syncPilot
+heartbeat packets refresh pywizlight's ``last_push`` clock but do not invoke
+that callback or publish state. This interval therefore only guarantees a
+periodic re-read for bulbs whose heartbeat traffic has gone quiet. A WiZ bulb
+pushes on *change* only, so silence is ambiguous —
 "nothing happened" and "the push subscription died" look identical from
 here.
 
 Deliberately equal to ``WizBulbAdapter._DEFAULT_PUSH_STALENESS_THRESHOLD``
-(``adapters/wizlight.py``): a tick that finds the push cache older than
-that threshold does a real ``updateState()`` poll, so every heartbeat tick
-on an idle bulb is also a liveness probe.  Changing one without the other
-either wastes ticks on a cache that cannot have gone stale, or lets stale
-cache entries publish unchallenged. Hardware verification confirms this
-fallback in the app ADRs.
+(``adapters/wizlight.py``): a tick that finds ``bulb.last_push`` older than
+that threshold does a real ``updateState()`` poll, so it is a liveness
+probe for a bulb that has gone genuinely silent. It is not a probe on a
+bulb still sending heartbeats the host can hear — that traffic already
+proves liveness, and ``get_state`` skips the poll (cap-dc5y). Changing one
+without the other either wastes ticks on a cache that cannot have gone
+stale, or lets stale cache entries publish unchallenged. Hardware
+verification confirms this fallback in the app ADRs.
 """
 
 app = cosalette.App(

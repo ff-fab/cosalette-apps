@@ -9,7 +9,7 @@ tags: [telemetry, architecture, mqtt, scheduling, lifecycle]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-09-13
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-09-13 | Amended **Date:** 2026-09-15
 
 ## Context
 
@@ -153,3 +153,28 @@ The wake stays in-process. `triggerable="local"` and the absence of `min_interva
 ## Amendment (2026-09-14) — Corrective
 
 `firstBeat` is a wake hint only. Its callback maps a configured IP, marks reconnect pending, and arms the local notifier; it performs no network read or write and changes no persisted state. Only the next entity tick, after a successful read, may confirm reachability, update belief, persist an observation, or run ADR-008's return path. Coalesce duplicate events while return is pending.
+
+## Amendment (2026-09-15) — Corrective
+
+**Rationale:** cap-dc5y found that the 2026-09-12 amendment incorrectly said every idle heartbeat tick polls once the adapter's state-changing callback record is old. pywizlight stamps last_push for every received syncPilot, including suppressed unchanged heartbeats, and updateState() reuses its cached parser while that clock is fresh. The old divergent-clock decision could therefore call updateState() without network I/O. This correction records the adapter's use of pywizlight's clock and resolves the previously noted contradiction.
+
+> **Justification for amendment (not supersession):** Supersession is not warranted because the event-driven architecture, local trigger, OnChange gate, and 60-second heartbeat interval remain unchanged. The implementation impact is confined to get_state in one adapter and its tests: it aligns the existing fallback decision with pywizlight's cache gate, with no migration or downstream contract change.
+
+### Revised Decision
+
+Measure get_state cache freshness against pywizlight's bulb.last_push, which is refreshed by every received syncPilot, including unchanged packets suppressed before the adapter callback. The first adapter read must still call updateState() so pywizlight can return its cached parser and seed the adapter cache even when a suppressed heartbeat arrived first. A heartbeat tick polls only after last_push is stale; otherwise it reuses cached state. Thus the old consequence that every idle tick polls is superseded/corrected: bulbs with continuing heartbeat traffic are not periodically polled, while a bulb silent for 60 seconds triggers an authoritative network read. UDP heartbeat freshness assumes the same trusted-LAN and host-network security posture as ADR-004. Spoof-resistant liveness requires an authoritative poll or upstream packet provenance; a received UDP heartbeat alone is not proof against an untrusted sender.
+
+!!! note "Editorial note (2026-09-15)"
+    The state-changing callback records only membership for stale-push warning eligibility; it is not a freshness clock.
+
+!!! note "Editorial note (2026-09-15)"
+    This corrective amendment supersedes/corrects the old every-idle-tick-polls consequence, resolving the 2026-09-13 editorial contradiction.
+
+### Additional Positive Consequences
+
+- A poll selected after last_push is stale performs a real network read rather than a pywizlight cache no-op.
+- A first read after a suppressed heartbeat safely imports pywizlight's cached state without a needless network send.
+
+### Additional Negative Consequences
+
+- While trusted-LAN heartbeat traffic continues, periodic polling does not independently detect cache corruption or UDP spoofing; authoritative polling or packet provenance is required for that assurance.

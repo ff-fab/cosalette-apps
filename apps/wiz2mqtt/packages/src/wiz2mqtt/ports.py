@@ -43,8 +43,10 @@ class WizBulbPort(HealthCheckable, Protocol):
     async def get_state(self, ip: str) -> BulbState:
         """Return the bulb's current state.
 
-        Prefers the push-populated cache; falls back to a live poll when
-        no push has been received recently (empirical push-health check).
+        Prefers the cache populated from a push or pywizlight's cached parser.
+        Freshness includes every syncPilot heartbeat pywizlight receives, even
+        an unchanged packet it suppresses before invoking the adapter callback.
+        Falls back to a live poll only after that heartbeat clock is stale.
         """
         ...
 

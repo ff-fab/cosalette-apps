@@ -45,11 +45,17 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _DEFAULT_PUSH_STALENESS_THRESHOLD = 60.0
-"""Seconds since the last real push before ``get_state`` falls back to polling.
+"""Seconds since ``bulb.last_push`` before ``get_state`` falls back to polling.
 
-A bulb only pushes on state *changes* — an idle, healthy bulb can go
-arbitrarily long without a push. This threshold is a periodic
-freshness re-check, not solely a push-failure detector.
+Measured against ``pywizlight``'s own ``wizlight.last_push`` — stamped on
+every syncPilot, suppressed or not — rather than the adapter's own push
+cache timestamp. Comparing the same clock ``updateState()`` gates its
+short-circuit on (``MAX_TIME_BETWEEN_PUSH`` = 33 s) guarantees that a
+decision to poll here always produces a real network read (cap-dc5y): 60 s
+exceeds pywizlight's own 33 s gate, so this method never decides to poll
+while ``updateState()`` would still short-circuit. A bulb that keeps
+heartbeating — suppressed or not — never trips this fallback; only a bulb
+that has gone genuinely silent does.
 """
 
 
@@ -85,7 +91,9 @@ class WizBulbAdapter:
         self._initialization_locks: dict[str, asyncio.Lock] = {}
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state_cache: dict[str, BulbState] = {}
-        self._last_push_at: dict[str, float] = {}
+        # Presence records that the adapter has received a state-changing
+        # callback, which is all the stale-push warning needs to know.
+        self._received_state_pushes: set[str] = set()
         self._warned_stale: set[str] = set()
 
     async def _get_bulb(self, ip: str) -> Any:
@@ -196,7 +204,7 @@ class WizBulbAdapter:
                 return
             if state is not None:
                 self._state_cache[ip] = state
-                self._last_push_at[ip] = time.monotonic()
+                self._received_state_pushes.add(ip)
                 self._wake(ip)
 
         return _on_push
@@ -219,11 +227,27 @@ class WizBulbAdapter:
         return self._capabilities[ip]
 
     async def get_state(self, ip: str) -> BulbState:
-        """Return the bulb's current state, polling if the push cache is stale."""
-        await self._get_bulb(ip)
-        last_push = self._last_push_at.get(ip)
+        """Return the bulb's current state, polling if the push cache is stale.
+
+        Staleness is measured against ``bulb.last_push``, not the adapter's
+        own state-changing push record. The two diverge because pywizlight
+        stamps ``bulb.last_push`` on every syncPilot it receives, suppressed
+        or not. Deciding from the adapter's own record could call
+        ``_poll_state`` while ``updateState()`` still short-circuits on its
+        own fresher clock, performing zero network I/O (cap-dc5y).
+
+        A first read always calls ``updateState()`` regardless of
+        ``bulb.last_push``: a suppressed heartbeat can stamp it fresh in the
+        window between connecting and this call, before ``_state_cache``
+        holds anything to return. In that case pywizlight returns its cached
+        parser without sending a network request, and this method populates
+        the adapter cache from it.
+        """
+        bulb = await self._get_bulb(ip)
         now = time.monotonic()
-        if last_push is None or (now - last_push) > self._push_staleness_threshold:
+        if ip not in self._state_cache or (
+            (now - bulb.last_push) > self._push_staleness_threshold
+        ):
             await self._poll_state(ip)
         return self._state_cache[ip]
 
@@ -247,7 +271,7 @@ class WizBulbAdapter:
             msg = f"pywizlight error polling bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
 
-        if ip in self._last_push_at and ip not in self._warned_stale:
+        if ip in self._received_state_pushes and ip not in self._warned_stale:
             logger.warning("No recent push for bulb %s — falling back to polling", ip)
             self._warned_stale.add(ip)
 
@@ -391,7 +415,7 @@ class WizBulbAdapter:
         self._initialization_locks.clear()
         self._capabilities.clear()
         self._state_cache.clear()
-        self._last_push_at.clear()
+        self._received_state_pushes.clear()
         self._warned_stale.clear()
 
 
