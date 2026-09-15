@@ -14,15 +14,22 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from cosalette.testing import AppHarness
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 
-from .conftest import _COMMAND_SETTLE_TIME, TOPIC_PREFIX, wait_until_subscribed
+from .conftest import (
+    _COMMAND_SETTLE_TIME,
+    _FAST_TICK_INTERVAL,
+    TOPIC_PREFIX,
+    wait_until_subscribed,
+)
 
 _BULB_IP = "10.0.0.5"
+_STATE_TOPIC = f"{TOPIC_PREFIX}/office/state"
 
 
 async def _run_with_command(
@@ -145,3 +152,46 @@ class TestMutualExclusionRejection:
         assert state.color_temp_kelvin is None
         assert state.scene is None
         harness.assert_published(f"{TOPIC_PREFIX}/office/error")
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestColourModeSupersession:
+    """A colour-mode command clears the mode it supersedes in the published state.
+
+    Regression coverage for cap-sxul: before the fix, the optimistic cache
+    merge left a superseded mode's fields in place, so the second command's
+    payload was byte-identical to the first and OnChange() published nothing
+    at all — not a stale value, but no message.
+    """
+
+    async def test_color_after_color_temp_publishes_a_new_rgb_state(
+        self, harness: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition Testing — CCT mode to RGB mode, end to end."""
+        task = asyncio.create_task(harness.run())
+        try:
+            await wait_until_subscribed(harness)
+            await harness.advance_time(0)  # settle the startup run
+            await harness.wait_for_publish_count(_STATE_TOPIC, 1)
+
+            await harness.inject_command("office", {"color_temp": 2700})
+            await harness.advance_time(_FAST_TICK_INTERVAL)
+            await harness.wait_for_publish_count(_STATE_TOPIC, 2)
+            payload, _retain, _qos = harness.messages_for(_STATE_TOPIC)[1]
+            assert json.loads(payload)["color_mode"] == "color_temp"
+
+            await harness.inject_command(
+                "office", {"color": {"r": 255, "g": 0, "b": 0}}
+            )
+            await harness.advance_time(_FAST_TICK_INTERVAL)
+            await harness.wait_for_publish_count(_STATE_TOPIC, 3)
+            payload, _retain, _qos = harness.messages_for(_STATE_TOPIC)[2]
+            assert json.loads(payload)["color_mode"] == "rgb"
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            else:
+                await task

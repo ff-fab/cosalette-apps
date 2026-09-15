@@ -298,16 +298,21 @@ class WizBulbAdapter:
         )
 
         # Optimistic merge pending the next authoritative push/poll.
+        # _send_pilot only sends turn_off() when state is False — merge just
+        # that field rather than the unsent brightness/colour fields.
         current = self._state_cache.get(ip, _EMPTY_STATE)
-        self._state_cache[ip] = current.replace_non_none(
-            state=state,
-            brightness=brightness,
-            hue=hue,
-            saturation=saturation,
-            color_temp_kelvin=color_temp_kelvin,
-            scene=scene,
-            effect_speed=speed,
-        )
+        if state is False:
+            self._state_cache[ip] = current.apply_command(state=False)
+        else:
+            self._state_cache[ip] = current.apply_command(
+                state=state,
+                brightness=brightness,
+                hue=hue,
+                saturation=saturation,
+                color_temp_kelvin=color_temp_kelvin,
+                scene=scene,
+                effect_speed=speed,
+            )
 
     async def _send_pilot(
         self,

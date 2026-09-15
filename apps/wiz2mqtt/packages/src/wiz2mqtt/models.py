@@ -163,14 +163,49 @@ class BulbState:
     power_draw_w: float | None = None
     """Live power draw in watts, from pywizlight's ``get_power()``."""
 
-    def replace_non_none(self, **updates: object) -> BulbState:
-        """Return a copy with only the non-``None`` *updates* applied.
+    def apply_command(self, **updates: object) -> BulbState:
+        """Return a copy with *updates* merged, clearing a superseded colour mode.
 
-        Used for partial-update semantics: merging a command's given
-        fields onto cached/default state while leaving unset fields alone.
+        ``hue``/``saturation``, ``color_temp_kelvin`` and ``scene`` are
+        mutually exclusive colour modes, mirroring
+        :meth:`BulbSetCommand._at_most_one_color_mode`'s own rule. Giving a
+        complete hue/saturation pair clears the fields of the other two modes,
+        so the cache never describes two modes at once. Partial hue or
+        saturation updates are ignored, matching the command sent to the bulb.
+        Every other field (state,
+        brightness, effect_speed) keeps plain partial-update semantics:
+        apply only the non-``None`` updates and leave the rest alone.
         """
-        filtered = {k: v for k, v in updates.items() if v is not None}
-        return dataclasses.replace(self, **filtered)
+        hue = updates.pop("hue", None)
+        saturation = updates.pop("saturation", None)
+        color_temp_kelvin = updates.pop("color_temp_kelvin", None)
+        scene = updates.pop("scene", None)
+
+        color_updates: dict[str, object | None] = {}
+        if hue is not None and saturation is not None:
+            color_updates = {
+                "hue": hue,
+                "saturation": saturation,
+                "color_temp_kelvin": None,
+                "scene": None,
+            }
+        elif color_temp_kelvin is not None:
+            color_updates = {
+                "color_temp_kelvin": color_temp_kelvin,
+                "hue": None,
+                "saturation": None,
+                "scene": None,
+            }
+        elif scene is not None:
+            color_updates = {
+                "scene": scene,
+                "hue": None,
+                "saturation": None,
+                "color_temp_kelvin": None,
+            }
+
+        other = {k: v for k, v in updates.items() if v is not None}
+        return dataclasses.replace(self, **color_updates, **other)
 
 
 class BulbColor(BaseModel):
