@@ -91,7 +91,9 @@ class WizBulbAdapter:
         self._initialization_locks: dict[str, asyncio.Lock] = {}
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state_cache: dict[str, BulbState] = {}
-        self._last_push_at: dict[str, float] = {}
+        # Presence records that the adapter has received a state-changing
+        # callback, which is all the stale-push warning needs to know.
+        self._received_state_pushes: set[str] = set()
         self._warned_stale: set[str] = set()
 
     async def _get_bulb(self, ip: str) -> Any:
@@ -202,7 +204,7 @@ class WizBulbAdapter:
                 return
             if state is not None:
                 self._state_cache[ip] = state
-                self._last_push_at[ip] = time.monotonic()
+                self._received_state_pushes.add(ip)
                 self._wake(ip)
 
         return _on_push
@@ -228,17 +230,18 @@ class WizBulbAdapter:
         """Return the bulb's current state, polling if the push cache is stale.
 
         Staleness is measured against ``bulb.last_push``, not the adapter's
-        own ``_last_push_at`` — the two diverge because ``_last_push_at``
-        only advances on a state *change*, while ``bulb.last_push`` is
-        stamped by ``pywizlight`` on every syncPilot it receives, suppressed
-        or not. Deciding from the adapter's own clock could call
+        own state-changing push record. The two diverge because pywizlight
+        stamps ``bulb.last_push`` on every syncPilot it receives, suppressed
+        or not. Deciding from the adapter's own record could call
         ``_poll_state`` while ``updateState()`` still short-circuits on its
         own fresher clock, performing zero network I/O (cap-dc5y).
 
-        A first read always polls regardless of ``bulb.last_push``: a
-        suppressed heartbeat can stamp it fresh in the window between
-        connecting and this call, before ``_state_cache`` holds anything to
-        return.
+        A first read always calls ``updateState()`` regardless of
+        ``bulb.last_push``: a suppressed heartbeat can stamp it fresh in the
+        window between connecting and this call, before ``_state_cache``
+        holds anything to return. In that case pywizlight returns its cached
+        parser without sending a network request, and this method populates
+        the adapter cache from it.
         """
         bulb = await self._get_bulb(ip)
         now = time.monotonic()
@@ -268,7 +271,7 @@ class WizBulbAdapter:
             msg = f"pywizlight error polling bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
 
-        if ip in self._last_push_at and ip not in self._warned_stale:
+        if ip in self._received_state_pushes and ip not in self._warned_stale:
             logger.warning("No recent push for bulb %s — falling back to polling", ip)
             self._warned_stale.add(ip)
 
@@ -412,7 +415,7 @@ class WizBulbAdapter:
         self._initialization_locks.clear()
         self._capabilities.clear()
         self._state_cache.clear()
-        self._last_push_at.clear()
+        self._received_state_pushes.clear()
         self._warned_stale.clear()
 
 

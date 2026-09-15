@@ -23,10 +23,12 @@ from wiz2mqtt.state import SharedState
 _TICK_INTERVAL_SECONDS = 60.0
 """Per-bulb heartbeat cadence — the *floor* on publication, not the driver.
 
-State reaches MQTT when the bulb pushes (see ``triggerable="local"`` on
-``bulb_entity`` below), so this interval no longer sets command→state
-latency; it only guarantees a periodic re-read for bulbs that have gone
-quiet.  A WiZ bulb pushes on *change* only, so silence is ambiguous —
+State-changing callback pushes reach MQTT immediately (see
+``triggerable="local"`` on ``bulb_entity`` below). Suppressed syncPilot
+heartbeat packets refresh pywizlight's ``last_push`` clock but do not invoke
+that callback or publish state. This interval therefore only guarantees a
+periodic re-read for bulbs whose heartbeat traffic has gone quiet. A WiZ bulb
+pushes on *change* only, so silence is ambiguous —
 "nothing happened" and "the push subscription died" look identical from
 here.
 

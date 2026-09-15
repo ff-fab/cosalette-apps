@@ -155,7 +155,7 @@ class _FakeParser:
 class _FakeWizLight:
     """Fake standing in for pywizlight's ``wizlight`` — no network I/O.
 
-    ``last_push`` and ``updateState``'s short-circuit gate mirror
+    ``last_push``, the cached ``state``, and ``updateState``'s short-circuit gate mirror
     pywizlight's own ``bulb.py:582,702,936`` (cap-dc5y): a real send only
     happens once ``last_push`` is older than ``_MAX_TIME_BETWEEN_PUSH``,
     exactly like the object ``WizBulbAdapter`` actually polls.
@@ -174,6 +174,7 @@ class _FakeWizLight:
         self.start_push_exc: Exception | None = None
         self.start_push_calls: list[Any] = []
         self.last_push: float = self._NEVER_TIME
+        self.state: list[_FakeParser | None] = []
         self.update_state_result: list[_FakeParser | None] | None = None
         self.update_state_exc: Exception | None = None
         self.update_state_calls = 0
@@ -197,6 +198,7 @@ class _FakeWizLight:
         """
         self.last_push = time.monotonic()
         if changed_state is not None and self.start_push_calls:
+            self.state = changed_state
             self.start_push_calls[0](changed_state)
 
     async def get_bulbtype(self) -> BulbType:
@@ -226,7 +228,7 @@ class _FakeWizLight:
     async def updateState(self, device: int = 0) -> list[_FakeParser | None] | None:
         self.update_state_calls += 1
         if self.last_push + self._MAX_TIME_BETWEEN_PUSH >= time.monotonic():
-            return None  # short-circuit: no network I/O, mirrors bulb.py:936
+            return self.state  # short-circuit: reuse cache, mirrors bulb.py:922
         self.real_send_calls += 1
         if self.update_state_exc is not None:
             raise self.update_state_exc
@@ -668,6 +670,28 @@ class TestGetState:
         assert ctx.fake_bulbs[_IP].update_state_calls == 0
         assert state.brightness == 77
 
+    async def test_wizlight_get_state_first_read_uses_pywizlight_cached_heartbeat(
+        self, ctx: _Ctx
+    ) -> None:
+        """A suppressed heartbeat before first read still seeds our cache.
+
+        pywizlight refreshes ``last_push`` before suppressing an unchanged
+        callback, then ``updateState()`` returns its own cached parser. The
+        adapter must retain its unconditional first read to consume that
+        parser rather than indexing an empty cache.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.state = [_FakeParser(brightness=77)]
+        fake.receive_heartbeat()  # unchanged: refreshes pywizlight only
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert fake.update_state_calls == 1
+        assert fake.real_send_calls == 0
+        assert state.brightness == 77
+
     async def test_wizlight_get_state_parses_effect_speed_and_power_draw(
         self, ctx: _Ctx
     ) -> None:
@@ -734,11 +758,11 @@ class TestGetStateLivenessProbe:
     """A poll get_state decides on must always be a real network read.
 
     Before cap-dc5y, ``get_state`` measured staleness against the adapter's
-    own ``_last_push_at``, which only advances on a state *change*.
+    own state-changing callback record.
     ``pywizlight`` stamps ``bulb.last_push`` on every syncPilot, suppressed
     or not, and gates ``updateState()``'s own network send on that clock
     (``MAX_TIME_BETWEEN_PUSH`` = 33 s). A bulb idling on Wi-Fi keeps
-    ``bulb.last_push`` fresh while ``_last_push_at`` goes stale, so the old
+    ``bulb.last_push`` fresh while that record carried no freshness, so the old
     decision could call ``updateState()`` while pywizlight's own gate was
     still shut — zero network I/O, a heartbeat tick that probed nothing.
     """
@@ -750,8 +774,8 @@ class TestGetStateLivenessProbe:
 
         Technique: State Transition Testing — repeated fresh-heartbeat
         state across many ``get_state`` calls, after the first read has
-        seeded the cache. Fails today: pre-cap-dc5y, ``_last_push_at``
-        never advances for a suppressed heartbeat, so every call decided to
+        seeded the cache. Fails today: pre-cap-dc5y, the adapter's callback
+        record never advances for a suppressed heartbeat, so every call decided to
         poll and every poll was a no-op.
         """
         ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
@@ -998,7 +1022,7 @@ class TestLifecycle:
         assert ctx.adapter._initialization_locks == {}  # noqa: SLF001
         assert ctx.adapter._capabilities == {}  # noqa: SLF001
         assert ctx.adapter._state_cache == {}  # noqa: SLF001
-        assert ctx.adapter._last_push_at == {}  # noqa: SLF001
+        assert ctx.adapter._received_state_pushes == set()  # noqa: SLF001
         assert ctx.adapter._warned_stale == set()  # noqa: SLF001
 
     async def test_wizlight_aexit_closes_remaining_bulbs_after_close_error(

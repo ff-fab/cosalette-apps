@@ -89,7 +89,7 @@ Two related values are fixed constants in the code, not settings:
 
 | Value | Where | Behaviour |
 | ----- | ----- | --------- |
-| Heartbeat tick, 60 s | `main._TICK_INTERVAL_SECONDS` | Refreshes idle bulbs and re-checks availability |
+| Heartbeat tick, 60 s | `main._TICK_INTERVAL_SECONDS` | Polls only when `last_push` is stale; otherwise reuses the push cache |
 | Push-staleness threshold, 60 s | `adapters.wizlight._DEFAULT_PUSH_STALENESS_THRESHOLD` | A read falls back to polling the bulb when its own `last_push` clock is older than this |
 
 They are deliberately equal, and the poll decision reads the bulb's own
