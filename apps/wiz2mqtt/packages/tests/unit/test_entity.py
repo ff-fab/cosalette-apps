@@ -12,7 +12,7 @@ from __future__ import annotations
 from tests.fixtures.doubles import FakeDeviceContext
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
-from wiz2mqtt.errors import WizTimeoutError
+from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
 from wiz2mqtt.settings import BulbConfig
 from wiz2mqtt.state import SharedState
 
@@ -181,3 +181,17 @@ class TestWhenUnreachableOff:
         await bulb_entity_tick(ctx, _config(when_unreachable="off"), adapter, state)
 
         assert ctx.availability_calls == []
+
+    async def test_identity_failure_uses_normal_offline_policy(self) -> None:
+        """Identity failures never masquerade as an unreachable bulb switched off."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext()
+        config = _config(when_unreachable="off")
+
+        for _ in range(3):
+            adapter.fail_next(_IP, WizIdentityError("wrong bulb"))
+            assert await bulb_entity_tick(ctx, config, adapter, state) is None
+
+        assert ctx.availability_calls == ["unavailable"]
+        assert state.last_availability["office"] == "offline"

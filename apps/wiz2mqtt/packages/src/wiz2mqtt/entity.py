@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import cosalette
 
-from wiz2mqtt.errors import WizBridgeError
+from wiz2mqtt.errors import WizBridgeError, WizIdentityError
 from wiz2mqtt.payload import build_state_payload
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig
@@ -39,8 +39,8 @@ async def bulb_entity_tick(
     name = config.name
     try:
         bulb_state = await port.get_state(config.ip)
-    except WizBridgeError:
-        if config.when_unreachable == "off":
+    except WizBridgeError as exc:
+        if config.when_unreachable == "off" and not isinstance(exc, WizIdentityError):
             await _mark_online_once(ctx, state, name)
             return {"state": "OFF"}
 

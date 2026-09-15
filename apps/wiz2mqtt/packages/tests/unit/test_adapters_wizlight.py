@@ -320,6 +320,56 @@ class TestIdentityVerification:
 
         assert "identity mismatch" in caplog.text
         assert bulb.start_push_calls == []
+        assert bulb.closed is True
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+        assert _IP not in adapter._capabilities  # noqa: SLF001
+
+    async def test_close_error_does_not_mask_identity_mismatch(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Cleanup is best-effort; the initialization error remains authoritative."""
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.mac = "001122334455"
+        bulb.async_close_exc = RuntimeError("close failed")
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with caplog.at_level(logging.WARNING), pytest.raises(WizIdentityError):
+            await adapter.get_capabilities(_IP)
+
+        assert "failed to close rejected bulb" in caplog.text.lower()
+        assert _IP not in adapter._bulbs  # noqa: SLF001
+
+    @pytest.mark.parametrize(
+        ("pywizlight_exc", "domain_exc"),
+        [
+            (WizLightTimeOutError, WizTimeoutError),
+            (WizLightConnectionError, WizConnectionError),
+            (WizLightError, WizBridgeError),
+        ],
+        ids=["timeout", "connection", "generic"],
+    )
+    async def test_get_mac_errors_close_without_caching_or_push(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        pywizlight_exc: type[Exception],
+        domain_exc: type[Exception],
+    ) -> None:
+        """MAC-read failures reject and close the unpublished bulb instance."""
+        import pywizlight
+
+        bulb = _FakeWizLight(_IP)
+        bulb.get_mac_exc = pywizlight_exc("boom")
+        monkeypatch.setattr(pywizlight, "wizlight", lambda ip: bulb)
+        adapter = WizBulbAdapter(_settings(mac="a8bb5006033d"), _RecordingNotifier())
+
+        with pytest.raises(domain_exc):
+            await adapter.get_capabilities(_IP)
+
+        assert bulb.closed is True
+        assert bulb.start_push_calls == []
         assert _IP not in adapter._bulbs  # noqa: SLF001
         assert _IP not in adapter._capabilities  # noqa: SLF001
 
@@ -421,6 +471,7 @@ class TestFirstContactConcurrency:
 
         with pytest.raises(WizTimeoutError):
             await adapter.get_capabilities(_IP)
+        assert constructions[0].closed is True
         assert _IP not in adapter._bulbs  # noqa: SLF001
         assert _IP not in adapter._capabilities  # noqa: SLF001
 
