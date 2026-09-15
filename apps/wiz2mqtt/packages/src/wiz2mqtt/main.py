@@ -31,12 +31,14 @@ quiet.  A WiZ bulb pushes on *change* only, so silence is ambiguous —
 here.
 
 Deliberately equal to ``WizBulbAdapter._DEFAULT_PUSH_STALENESS_THRESHOLD``
-(``adapters/wizlight.py``): a tick that finds the push cache older than
-that threshold does a real ``updateState()`` poll, so every heartbeat tick
-on an idle bulb is also a liveness probe.  Changing one without the other
-either wastes ticks on a cache that cannot have gone stale, or lets stale
-cache entries publish unchallenged. Hardware verification confirms this
-fallback in the app ADRs.
+(``adapters/wizlight.py``): a tick that finds ``bulb.last_push`` older than
+that threshold does a real ``updateState()`` poll, so it is a liveness
+probe for a bulb that has gone genuinely silent. It is not a probe on a
+bulb still sending heartbeats the host can hear — that traffic already
+proves liveness, and ``get_state`` skips the poll (cap-dc5y). Changing one
+without the other either wastes ticks on a cache that cannot have gone
+stale, or lets stale cache entries publish unchallenged. Hardware
+verification confirms this fallback in the app ADRs.
 """
 
 app = cosalette.App(

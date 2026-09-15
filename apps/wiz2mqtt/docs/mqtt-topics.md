@@ -73,7 +73,8 @@ Optional state keys include `brightness`, `effect`, `effect_speed`, and
 Payload values are `online` and `offline`.
 
 wiz2mqtt publishes immediately when a bulb push update arrives, and it also runs
-a 60-second heartbeat tick so idle bulbs still get periodic liveness checks.
+a 60-second heartbeat tick so a bulb that has gone silent still gets a
+liveness check.
 
 `set` is the only topic wiz2mqtt subscribes. The push wake is in-process, so
 there is no trigger topic to publish to; see

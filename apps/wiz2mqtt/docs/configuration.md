@@ -90,11 +90,14 @@ Two related values are fixed constants in the code, not settings:
 | Value | Where | Behaviour |
 | ----- | ----- | --------- |
 | Heartbeat tick, 60 s | `main._TICK_INTERVAL_SECONDS` | Refreshes idle bulbs and re-checks availability |
-| Push-staleness threshold, 60 s | `adapters.wizlight._DEFAULT_PUSH_STALENESS_THRESHOLD` | A read falls back to polling the bulb when the last push is older than this |
+| Push-staleness threshold, 60 s | `adapters.wizlight._DEFAULT_PUSH_STALENESS_THRESHOLD` | A read falls back to polling the bulb when its own `last_push` clock is older than this |
 
-They are deliberately equal: a bulb only pushes on *change*, so a healthy but
-idle bulb produces no traffic, and every heartbeat tick finds the push cache
-stale and polls once.
+They are deliberately equal, and the poll decision reads the bulb's own
+`last_push` clock rather than the adapter's push-cache timestamp: a bulb
+that keeps heartbeating (a syncPilot, changed or suppressed) proves its
+own liveness, so no poll is needed while that traffic arrives. Only a
+bulb that has gone genuinely silent for 60 s trips the fallback, and that
+poll is then a real network read, not a no-op.
 
 The bulb entity is declared `triggerable="local"`, so the wake is in-process
 only — wiz2mqtt subscribes **no** trigger topic. The only inbound topic is each

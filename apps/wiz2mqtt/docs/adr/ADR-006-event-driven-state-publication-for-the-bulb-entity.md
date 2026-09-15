@@ -9,7 +9,7 @@ tags: [telemetry, architecture, mqtt, scheduling, lifecycle]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-09-13
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-09-13 | Amended **Date:** 2026-09-15
 
 ## Context
 
@@ -139,7 +139,7 @@ A WiZ bulb sends a `firstBeat` broadcast when it boots. `pywizlight/push_manager
 The wake stays in-process. `triggerable="local"` and the absence of `min_interval=` are unchanged.
 
 !!! note "Editorial note (2026-09-13)"
-    Cross-reference: the corrective amendment of 2026-09-12 states that the heartbeat tick polls once the push age exceeds 60 s. cap-dc5y reports that on a host that receives idle syncPilot pushes the tick calls `updateState()` with no network I/O, so the documented liveness probe is a no-op there. This amendment does not resolve that contradiction. It is tracked in cap-dc5y.
+    Cross-reference: the corrective amendment of 2026-09-12 states that the heartbeat tick polls once the push age exceeds 60 s. cap-dc5y reports that on a host that receives idle syncPilot pushes the tick calls `updateState()` with no network I/O, so the documented liveness probe is a no-op there. This amendment does not resolve that contradiction. It is resolved by the corrective amendment of 2026-09-15.
 
 ### Additional Positive Consequences
 
@@ -153,3 +153,28 @@ The wake stays in-process. `triggerable="local"` and the absence of `min_interva
 ## Amendment (2026-09-14) — Corrective
 
 `firstBeat` is a wake hint only. Its callback maps a configured IP, marks reconnect pending, and arms the local notifier; it performs no network read or write and changes no persisted state. Only the next entity tick, after a successful read, may confirm reachability, update belief, persist an observation, or run ADR-008's return path. Coalesce duplicate events while return is pending.
+
+## Amendment (2026-09-15) — Corrective
+
+**Rationale:** cap-dc5y found that the 2026-09-12 corrective amendment's claim -- 'once the last observed push is older than 60 seconds the next heartbeat tick polls as the fallback' -- is false on a host that receives idle syncPilot heartbeats. The adapter measured staleness against its own _last_push_at, which only advances on a state change, while pywizlight gates updateState()'s real network send on wizlight.last_push, which it stamps on every syncPilot it receives, suppressed or not (MAX_TIME_BETWEEN_PUSH = 33 s). A host receiving idle heartbeats kept last_push fresh while _last_push_at went stale, so the promised fallback poll called updateState() but performed zero network I/O there -- the liveness probe was a no-op. This is the contradiction the 2026-09-13 editorial note flagged as unresolved and tracked in cap-dc5y.
+
+> **Justification for amendment (not supersession):** Impact is confined to this ADR and the get_state method in one module, adapters/wizlight.py. The event-driven architecture, the local trigger, the OnChange gate, and the 60 s heartbeat interval are all unchanged -- only the staleness clock get_state compares against changes. This matches the justification already accepted for this same ADR's 2026-09-12 and 2026-09-14 corrective amendments: a targeted correction to observed operational behavior, not a change to the decision those amendments recorded.
+
+### Revised Decision
+
+get_state measures push-cache staleness against bulb.last_push -- pywizlight's own clock, stamped on every syncPilot it receives whether or not the state changed -- instead of the adapter's own _last_push_at, which only advances on a state change. Comparing the same clock updateState() gates its short-circuit on guarantees agreement by construction: the 60 s adapter threshold exceeds pywizlight's own 33 s gate, so a decision to poll here can never land inside that gate, and the poll always performs a real network read. get_state also polls unconditionally on a bulb's first read, regardless of bulb.last_push, so a heartbeat that lands in the window between connecting and the first read cannot skip populating the state cache. One behavior changes from the original decision: a bulb that keeps heartbeating -- even only suppressed, unchanged heartbeats -- is no longer polled at all, because that traffic already proves the bulb is reachable. Only a bulb that has gone genuinely silent for 60 s trips the fallback poll. This trades away the originally-promised periodic freshness re-check on every idle tick -- it no longer runs while heartbeats keep arriving -- in exchange for eliminating wasted no-op polls and tightening mains-cut detection on the ADR-004 same-Wi-Fi deployment, where the old no-op behavior added an extra, unbounded-length wasted poll cycle before a real read could ever land.
+
+!!! note "Editorial note (2026-09-15)"
+    This amendment resolves the contradiction the 2026-09-13 editorial note flagged as tracked in cap-dc5y: the heartbeat tick's liveness probe is no longer a no-op on a host that receives idle syncPilot pushes.
+
+!!! note "Editorial note (2026-09-15)"
+    Regression coverage lives in apps/wiz2mqtt/packages/tests/unit/test_adapters_wizlight.py::TestGetStateLivenessProbe, plus two TestGetState cases updated for the corrected staleness clock.
+
+### Additional Positive Consequences
+
+- A poll get_state decides on is now guaranteed to be a real network read, never a no-op that reports the bulb healthy from a stale cache
+- A bulb that keeps heartbeating is never polled, removing the constant wasted updateState() calls the old, divergent-clock comparison produced on a same-Wi-Fi deployment
+
+### Additional Negative Consequences
+
+- The periodic freshness re-check the original _DEFAULT_PUSH_STALENESS_THRESHOLD docstring promised no longer runs while a bulb keeps heartbeating -- a cache corrupted by something other than a missed push is only corrected once the bulb goes silent for 60 s, not on every idle tick

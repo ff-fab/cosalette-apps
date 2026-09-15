@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -152,7 +153,16 @@ class _FakeParser:
 
 
 class _FakeWizLight:
-    """Fake standing in for pywizlight's ``wizlight`` — no network I/O."""
+    """Fake standing in for pywizlight's ``wizlight`` — no network I/O.
+
+    ``last_push`` and ``updateState``'s short-circuit gate mirror
+    pywizlight's own ``bulb.py:582,702,936`` (cap-dc5y): a real send only
+    happens once ``last_push`` is older than ``_MAX_TIME_BETWEEN_PUSH``,
+    exactly like the object ``WizBulbAdapter`` actually polls.
+    """
+
+    _MAX_TIME_BETWEEN_PUSH = 33.0  # PUSH_KEEP_ALIVE_INTERVAL(20) + TIMEOUT(13)
+    _NEVER_TIME = -120.0
 
     def __init__(self, ip: str) -> None:
         self.ip = ip
@@ -163,15 +173,31 @@ class _FakeWizLight:
         self.get_mac_calls = 0
         self.start_push_exc: Exception | None = None
         self.start_push_calls: list[Any] = []
+        self.last_push: float = self._NEVER_TIME
         self.update_state_result: list[_FakeParser | None] | None = None
         self.update_state_exc: Exception | None = None
         self.update_state_calls = 0
+        self.real_send_calls = 0
         self.turn_on_calls: list[Any] = []
         self.turn_on_exc: Exception | None = None
         self.turn_off_calls = 0
         self.turn_off_exc: Exception | None = None
         self.closed = False
         self.async_close_exc: Exception | None = None
+
+    def receive_heartbeat(
+        self, changed_state: list[_FakeParser | None] | None = None
+    ) -> None:
+        """Simulate an incoming syncPilot at this fake's local UDP socket.
+
+        Always stamps ``last_push``, mirroring pywizlight's unconditional
+        stamp at ``bulb.py:702``. Only invokes the registered push callback
+        when *changed_state* is given, mirroring pywizlight's suppression of
+        an unchanged heartbeat before the callback (``bulb.py:705-708``).
+        """
+        self.last_push = time.monotonic()
+        if changed_state is not None and self.start_push_calls:
+            self.start_push_calls[0](changed_state)
 
     async def get_bulbtype(self) -> BulbType:
         if self.get_bulbtype_exc is not None:
@@ -185,13 +211,23 @@ class _FakeWizLight:
         return self.mac
 
     async def start_push(self, callback: Any) -> bool:
-        self.start_push_calls.append(callback)
+        def _stamped(parsers: Any) -> None:
+            # Mirrors pywizlight bulb.py:702 — last_push is stamped
+            # unconditionally, before the suppression check decides
+            # whether the adapter callback below even runs.
+            self.last_push = time.monotonic()
+            callback(parsers)
+
+        self.start_push_calls.append(_stamped)
         if self.start_push_exc is not None:
             raise self.start_push_exc
         return True
 
     async def updateState(self, device: int = 0) -> list[_FakeParser | None] | None:
         self.update_state_calls += 1
+        if self.last_push + self._MAX_TIME_BETWEEN_PUSH >= time.monotonic():
+            return None  # short-circuit: no network I/O, mirrors bulb.py:936
+        self.real_send_calls += 1
         if self.update_state_exc is not None:
             raise self.update_state_exc
         return self.update_state_result
@@ -645,70 +681,157 @@ class TestGetState:
         assert state.power_draw_w == 8.4
 
     async def test_wizlight_get_state_falls_back_to_polling_when_stale(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, ctx: _Ctx
     ) -> None:
-        """A threshold of 0 means any prior push is immediately stale.
+        """A push older than both staleness clocks means the next read polls
+        for real.
 
-        Technique: Boundary Value Analysis — staleness threshold at zero.
+        Technique: Boundary Value Analysis — ``bulb.last_push`` past the
+        60 s adapter threshold and pywizlight's own 33 s gate.
         """
-        import pywizlight
-
-        fake_bulbs: dict[str, _FakeWizLight] = {}
-
-        def _factory(
-            ip: str, port: int = 38899, mac: str | None = None
-        ) -> _FakeWizLight:
-            return fake_bulbs.setdefault(ip, _FakeWizLight(ip))
-
-        monkeypatch.setattr(pywizlight, "wizlight", _factory)
-        monkeypatch.setattr(pywizlight, "PilotBuilder", _PilotBuilderSpy)
-        adapter = WizBulbAdapter(
-            _settings(), _RecordingNotifier(), push_staleness_threshold=0.0
-        )
-        fake_bulbs[_IP] = _FakeWizLight(_IP)
-        await adapter.get_capabilities(_IP)
-        push_callback = fake_bulbs[_IP].start_push_calls[0]
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        push_callback = fake.start_push_calls[0]
         push_callback([_FakeParser(brightness=77)])
-        fake_bulbs[_IP].update_state_result = [_FakeParser(brightness=99)]
+        fake.last_push = time.monotonic() - 65.0  # push cache now stale
+        fake.update_state_result = [_FakeParser(brightness=99)]
 
-        state = await adapter.get_state(_IP)
+        state = await ctx.adapter.get_state(_IP)
 
-        assert fake_bulbs[_IP].update_state_calls == 1
+        assert fake.update_state_calls == 1
         assert state.brightness == 99
 
     async def test_wizlight_get_state_warns_on_stale_push_not_first_poll(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
     ) -> None:
         """Warning fires exactly once when a previously-fresh push goes stale.
 
         Technique: State Transition Testing — received-push then stale-push path.
         """
-        import pywizlight
-
-        fake_bulbs: dict[str, _FakeWizLight] = {}
-
-        def _factory(
-            ip: str, port: int = 38899, mac: str | None = None
-        ) -> _FakeWizLight:
-            return fake_bulbs.setdefault(ip, _FakeWizLight(ip))
-
-        monkeypatch.setattr(pywizlight, "wizlight", _factory)
-        monkeypatch.setattr(pywizlight, "PilotBuilder", _PilotBuilderSpy)
-        adapter = WizBulbAdapter(
-            _settings(), _RecordingNotifier(), push_staleness_threshold=0.0
-        )
-        fake_bulbs[_IP] = _FakeWizLight(_IP)
-        await adapter.get_capabilities(_IP)
-        push_callback = fake_bulbs[_IP].start_push_calls[0]
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        push_callback = fake.start_push_calls[0]
         push_callback([_FakeParser(brightness=77)])  # push received
-        fake_bulbs[_IP].update_state_result = [_FakeParser(brightness=99)]
+        fake.last_push = time.monotonic() - 65.0  # push cache now stale
+        fake.update_state_result = [_FakeParser(brightness=99)]
 
         with caplog.at_level(logging.WARNING):
-            await adapter.get_state(_IP)  # threshold=0 → stale → poll → warn
+            await ctx.adapter.get_state(_IP)  # stale → poll → warn
 
         warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
         assert len(warnings) == 1
         assert "recent push" in warnings[0].message.lower()
+
+
+# ---------------------------------------------------------------------------
+# get_state — staleness measured against bulb.last_push (cap-dc5y)
+# ---------------------------------------------------------------------------
+
+
+class TestGetStateLivenessProbe:
+    """A poll get_state decides on must always be a real network read.
+
+    Before cap-dc5y, ``get_state`` measured staleness against the adapter's
+    own ``_last_push_at``, which only advances on a state *change*.
+    ``pywizlight`` stamps ``bulb.last_push`` on every syncPilot, suppressed
+    or not, and gates ``updateState()``'s own network send on that clock
+    (``MAX_TIME_BETWEEN_PUSH`` = 33 s). A bulb idling on Wi-Fi keeps
+    ``bulb.last_push`` fresh while ``_last_push_at`` goes stale, so the old
+    decision could call ``updateState()`` while pywizlight's own gate was
+    still shut — zero network I/O, a heartbeat tick that probed nothing.
+    """
+
+    async def test_wizlight_get_state_never_polls_while_bulb_keeps_heartbeating(
+        self, ctx: _Ctx
+    ) -> None:
+        """Sustained suppressed heartbeats must never trigger a wasted poll.
+
+        Technique: State Transition Testing — repeated fresh-heartbeat
+        state across many ``get_state`` calls, after the first read has
+        seeded the cache. Fails today: pre-cap-dc5y, ``_last_push_at``
+        never advances for a suppressed heartbeat, so every call decided to
+        poll and every poll was a no-op.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        await ctx.adapter.get_state(_IP)  # first read seeds the cache
+        calls_after_seed = fake.update_state_calls
+
+        for _ in range(5):
+            fake.receive_heartbeat()  # suppressed: no state change
+            await ctx.adapter.get_state(_IP)
+
+        assert fake.update_state_calls == calls_after_seed
+
+    async def test_wizlight_get_state_poll_is_a_real_send_once_bulb_goes_silent(
+        self, ctx: _Ctx
+    ) -> None:
+        """A bulb silent past the threshold is polled, and the poll is real.
+
+        Technique: Boundary Value Analysis — ``bulb.last_push`` older than
+        both the 60 s adapter threshold and pywizlight's own 33 s gate.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.last_push = time.monotonic() - 70.0
+        fake.update_state_result = [_FakeParser(brightness=99)]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert fake.real_send_calls == 1
+        assert state.brightness == 99
+
+    async def test_wizlight_get_state_detects_mains_cut_once_heartbeats_stop(
+        self, ctx: _Ctx
+    ) -> None:
+        """Heartbeats stop; the next eligible poll is real and surfaces the
+        timeout instead of reporting the bulb healthy from a cache read.
+
+        Technique: State Transition Testing — heartbeating, then silent.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        await ctx.adapter.get_state(_IP)  # first read seeds the cache
+        calls_after_seed = fake.update_state_calls
+
+        fake.receive_heartbeat()
+        await ctx.adapter.get_state(_IP)
+        assert fake.update_state_calls == calls_after_seed  # still fresh
+
+        fake.last_push = time.monotonic() - 65.0  # mains cut; silent past 60 s
+        fake.update_state_exc = WizLightTimeOutError("bulb unreachable")
+        real_sends_before_cut = fake.real_send_calls
+
+        with pytest.raises(WizTimeoutError):
+            await ctx.adapter.get_state(_IP)
+
+        assert fake.real_send_calls == real_sends_before_cut + 1
+
+    async def test_wizlight_get_state_cadence_unchanged_when_bulb_never_pushes(
+        self, ctx: _Ctx
+    ) -> None:
+        """Ethernet-only host: no push, suppressed or not, ever reaches the
+        bulb object, so ``last_push`` never advances past its initial
+        sentinel and every call keeps polling for real — the existing
+        cadence for a host outside ADR-004's push reach is unchanged.
+
+        Technique: Boundary Value Analysis — the never-pushed sentinel.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.update_state_result = [_FakeParser(brightness=50)]
+
+        await ctx.adapter.get_state(_IP)
+        await ctx.adapter.get_state(_IP)
+
+        assert fake.update_state_calls == 2
+        assert fake.real_send_calls == 2
 
 
 # ---------------------------------------------------------------------------

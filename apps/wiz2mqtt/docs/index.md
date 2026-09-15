@@ -62,4 +62,4 @@ bulb gets its own retained state topic, command topic, and availability signal.
 | Bulbs | One or more WiZ bulbs reachable on the local network |
 | Identity | Configure a stable `name`, IPv4 `ip`, and optional bare-hex `mac` |
 | MQTT | Inherits cosalette MQTT settings; default topic prefix is `wiz2mqtt` |
-| Freshness | Push updates publish immediately; the heartbeat probes idle bulbs |
+| Freshness | Push updates publish immediately; the heartbeat probes bulbs that have gone silent |
