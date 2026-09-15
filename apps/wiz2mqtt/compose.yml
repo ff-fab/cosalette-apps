@@ -20,6 +20,7 @@ services:
       # Broker terminates plaintext MQTT; see monorepo
       # ../../docs/adr/ADR-006-mqtt-transport-security-posture.md.
       WIZ2MQTT_MQTT__TLS: ${WIZ2MQTT_MQTT__TLS:-false}
+      WIZ2MQTT_STORE_PATH: /app/data/store.json
     depends_on:
       - mosquitto
 
