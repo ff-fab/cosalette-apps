@@ -360,6 +360,18 @@ class TestApplyCommand:
         assert updated.hue == 0.0
         assert updated.saturation == 100.0
 
+    def test_apply_command_hue_only_preserves_color_temp(self) -> None:
+        """A partial colour update does not supersede CCT mode."""
+        current = _state(color_temp_kelvin=2700)
+        updated = current.apply_command(hue=0.0)
+        assert updated == current
+
+    def test_apply_command_saturation_only_preserves_scene(self) -> None:
+        """A partial colour update does not supersede scene mode."""
+        current = _state(scene=1)
+        updated = current.apply_command(saturation=100.0)
+        assert updated == current
+
     def test_apply_command_scene_clears_colour(self) -> None:
         """Colour to scene: giving scene clears hue/saturation.
 

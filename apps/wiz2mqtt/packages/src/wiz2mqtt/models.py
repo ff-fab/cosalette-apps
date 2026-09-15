@@ -169,8 +169,10 @@ class BulbState:
         ``hue``/``saturation``, ``color_temp_kelvin`` and ``scene`` are
         mutually exclusive colour modes, mirroring
         :meth:`BulbSetCommand._at_most_one_color_mode`'s own rule. Giving a
-        field from one mode clears the fields of the other two modes, so the
-        cache never describes two modes at once. Every other field (state,
+        complete hue/saturation pair clears the fields of the other two modes,
+        so the cache never describes two modes at once. Partial hue or
+        saturation updates are ignored, matching the command sent to the bulb.
+        Every other field (state,
         brightness, effect_speed) keeps plain partial-update semantics:
         apply only the non-``None`` updates and leave the rest alone.
         """
@@ -180,7 +182,7 @@ class BulbState:
         scene = updates.pop("scene", None)
 
         color_updates: dict[str, object | None] = {}
-        if hue is not None or saturation is not None:
+        if hue is not None and saturation is not None:
             color_updates = {
                 "hue": hue,
                 "saturation": saturation,
