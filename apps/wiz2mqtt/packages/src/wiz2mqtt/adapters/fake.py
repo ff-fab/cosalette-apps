@@ -98,18 +98,28 @@ class FakeWizBulbAdapter:
         scene: int | None = None,
         speed: int | None = None,
     ) -> None:
-        """Merge the given fields into the bulb's stored state."""
+        """Merge the given fields into the bulb's stored state.
+
+        Mirrors the real adapter's mode-aware merge (:meth:`BulbState.apply_command`)
+        so the fake and production adapters stay pinned to the same behaviour: a
+        colour-mode field clears the fields of the modes it supersedes, and
+        ``state=False`` merges only that field, since the real bulb only receives
+        ``turn_off()`` in that case.
+        """
         self._raise_if_primed(ip)
         current = self._state.setdefault(ip, _DEFAULT_STATE)
-        self._state[ip] = current.replace_non_none(
-            state=state,
-            brightness=brightness,
-            hue=hue,
-            saturation=saturation,
-            color_temp_kelvin=color_temp_kelvin,
-            scene=scene,
-            effect_speed=speed,
-        )
+        if state is False:
+            self._state[ip] = current.apply_command(state=False)
+        else:
+            self._state[ip] = current.apply_command(
+                state=state,
+                brightness=brightness,
+                hue=hue,
+                saturation=saturation,
+                color_temp_kelvin=color_temp_kelvin,
+                scene=scene,
+                effect_speed=speed,
+            )
 
     async def health_check(self) -> bool:
         """Always healthy — the fake has no connection to break."""

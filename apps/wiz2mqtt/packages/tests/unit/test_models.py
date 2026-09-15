@@ -5,6 +5,7 @@ Test Techniques Used:
 - Equivalence Partitioning: valid single-field, multi-field, and empty payloads
 - Boundary Value Analysis: brightness 1-255, color channels 0-255, effect_speed 10-200
 - Decision Table: color/color_temp/effect/hsb mutual exclusion combinations
+- State Transition Testing: BulbState.apply_command colour-mode transitions
 - Error Guessing: extra/unknown fields, out-of-range values
 - Specification-based: the HA ``ha_entities`` discovery metadata each model carries
 """
@@ -14,7 +15,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from wiz2mqtt.models import WIZ_EFFECT_LIST, BulbSetCommand, BulbStateModel
+from wiz2mqtt.models import WIZ_EFFECT_LIST, BulbSetCommand, BulbState, BulbStateModel
 
 # ---------------------------------------------------------------------------
 # Partial updates — every field optional
@@ -302,6 +303,93 @@ class TestMutualExclusion:
         assert cmd.state == "ON"
         assert cmd.brightness == 200
         assert cmd.color_temp == 4000
+
+
+# ---------------------------------------------------------------------------
+# BulbState.apply_command — mode-aware optimistic merge
+# ---------------------------------------------------------------------------
+
+
+def _state(**overrides: object) -> BulbState:
+    """Build a BulbState with every field defaulted to None, overridden as given."""
+    defaults: dict[str, object] = {
+        "state": None,
+        "brightness": None,
+        "hue": None,
+        "saturation": None,
+        "color_temp_kelvin": None,
+        "scene": None,
+    }
+    defaults.update(overrides)
+    return BulbState(**defaults)  # type: ignore[arg-type]
+
+
+class TestApplyCommand:
+    """apply_command clears a superseded colour mode instead of only adding fields."""
+
+    def test_apply_command_colour_clears_color_temp(self) -> None:
+        """CCT to colour: giving hue/saturation clears color_temp_kelvin.
+
+        Technique: State Transition Testing — CCT mode to RGB mode.
+        """
+        current = _state(color_temp_kelvin=2700)
+        updated = current.apply_command(hue=0.0, saturation=100.0)
+        assert updated.color_temp_kelvin is None
+        assert updated.hue == 0.0
+        assert updated.saturation == 100.0
+
+    def test_apply_command_color_temp_clears_colour(self) -> None:
+        """Colour to CCT: giving color_temp_kelvin clears hue/saturation.
+
+        Technique: State Transition Testing — RGB mode to CCT mode.
+        """
+        current = _state(hue=0.0, saturation=100.0)
+        updated = current.apply_command(color_temp_kelvin=2700)
+        assert updated.hue is None
+        assert updated.saturation is None
+        assert updated.color_temp_kelvin == 2700
+
+    def test_apply_command_colour_clears_scene(self) -> None:
+        """Scene to colour: giving hue/saturation clears scene.
+
+        Technique: State Transition Testing — scene mode to RGB mode.
+        """
+        current = _state(scene=1)
+        updated = current.apply_command(hue=0.0, saturation=100.0)
+        assert updated.scene is None
+        assert updated.hue == 0.0
+        assert updated.saturation == 100.0
+
+    def test_apply_command_scene_clears_colour(self) -> None:
+        """Colour to scene: giving scene clears hue/saturation.
+
+        Technique: State Transition Testing — RGB mode to scene mode.
+        """
+        current = _state(hue=0.0, saturation=100.0)
+        updated = current.apply_command(scene=1)
+        assert updated.hue is None
+        assert updated.saturation is None
+        assert updated.scene == 1
+
+    def test_apply_command_no_colour_field_leaves_mode_untouched(self) -> None:
+        """A command touching only brightness leaves the colour mode alone.
+
+        Technique: Equivalence Partitioning — non-colour update.
+        """
+        current = _state(color_temp_kelvin=2700)
+        updated = current.apply_command(brightness=42)
+        assert updated.color_temp_kelvin == 2700
+        assert updated.brightness == 42
+
+    def test_apply_command_state_and_brightness_keep_additive_semantics(self) -> None:
+        """state/brightness/effect_speed only apply when given, like before.
+
+        Technique: Specification-based — non-colour fields unaffected.
+        """
+        current = _state(state=True, brightness=100)
+        updated = current.apply_command(brightness=None)
+        assert updated.state is True
+        assert updated.brightness == 100
 
 
 # ---------------------------------------------------------------------------

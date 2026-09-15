@@ -88,6 +88,35 @@ class TestSetState:
         state = await fake.get_state(_IP)
         assert state.state is False
 
+    async def test_fake_set_state_colour_clears_color_temp(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """A colour command clears a cached CCT mode, pinned to the real adapter.
+
+        Technique: State Transition Testing — CCT mode to RGB mode.
+        """
+        await fake.set_state(_IP, state=True, color_temp_kelvin=2700)
+        await fake.set_state(_IP, hue=0.0, saturation=100.0)
+
+        state = await fake.get_state(_IP)
+        assert state.color_temp_kelvin is None
+        assert state.hue == 0.0
+        assert state.saturation == 100.0
+
+    async def test_fake_set_state_false_merges_only_state(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """``state=False`` must not fabricate unsent brightness/colour fields.
+
+        Technique: Error Guessing — pinned to the real adapter's off branch.
+        """
+        await fake.set_state(_IP, state=True, brightness=200, hue=0.0, saturation=100.0)
+        await fake.set_state(_IP, state=False, brightness=1)
+
+        state = await fake.get_state(_IP)
+        assert state.state is False
+        assert state.brightness == 200
+
 
 # ---------------------------------------------------------------------------
 # Test-injection helpers

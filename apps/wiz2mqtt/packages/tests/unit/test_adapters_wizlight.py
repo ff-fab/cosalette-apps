@@ -40,6 +40,7 @@ from wiz2mqtt.errors import (
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
+from wiz2mqtt.models import BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
 
 _IP = "10.0.0.42"
@@ -780,6 +781,52 @@ class TestSetState:
 
         cached = ctx.adapter._state_cache[_IP]  # noqa: SLF001 — inspecting internal cache is the point
         assert cached.brightness == 42
+
+    async def test_wizlight_set_state_colour_clears_cached_color_temp(
+        self, ctx: _Ctx
+    ) -> None:
+        """A colour command clears a cached CCT mode instead of leaving it stale.
+
+        Technique: State Transition Testing — CCT mode to RGB mode.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.adapter._state_cache[_IP] = BulbState(  # noqa: SLF001
+            state=True,
+            brightness=None,
+            hue=None,
+            saturation=None,
+            color_temp_kelvin=2700,
+            scene=None,
+        )
+
+        await ctx.adapter.set_state(_IP, hue=0.0, saturation=100.0)
+
+        cached = ctx.adapter._state_cache[_IP]  # noqa: SLF001
+        assert cached.color_temp_kelvin is None
+        assert cached.hue == 0.0
+        assert cached.saturation == 100.0
+
+    async def test_wizlight_set_state_false_merges_only_state(self, ctx: _Ctx) -> None:
+        """turn_off sends nothing else, so the merge must not fabricate fields.
+
+        Technique: Error Guessing — _send_pilot's off branch sends only
+        turn_off(); the cache must not record unsent brightness/colour.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.adapter._state_cache[_IP] = BulbState(  # noqa: SLF001
+            state=True,
+            brightness=200,
+            hue=0.0,
+            saturation=100.0,
+            color_temp_kelvin=None,
+            scene=None,
+        )
+
+        await ctx.adapter.set_state(_IP, state=False, brightness=1)
+
+        cached = ctx.adapter._state_cache[_IP]  # noqa: SLF001
+        assert cached.state is False
+        assert cached.brightness == 200
 
 
 # ---------------------------------------------------------------------------
