@@ -11,7 +11,7 @@ authors = [
 
 dependencies = [
     "bleak>=0.22",
-    "cosalette[schema]>=0.10.0,<0.11",
+    "cosalette[schema]>=0.10.1,<0.11",
     "dbus-fast>=1.83.0",
 ]
 
