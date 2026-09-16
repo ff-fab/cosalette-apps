@@ -125,15 +125,17 @@ the environment is stable.
 
 ### Registry State
 
-Sensor mappings are persisted to a JSON file store:
+Sensor mappings are persisted to a JSON file store. Docker Compose defaults to:
 
 ```
-data/jeelink2mqtt.json
+/app/data/store.json
 ```
 
 This file is updated after every mapping mutation (auto-adopt, manual
 assign, reset).  On startup, the registry restores its state from this
 file, so mappings survive restarts.
+
+Set `JEELINK2MQTT_STORE_PATH` in `.env` to use a different path.
 
 !!! danger "Docker: mount the data volume"
 
@@ -149,7 +151,7 @@ file, so mappings survive restarts.
 The state file is plain JSON — back it up with any file-copy tool:
 
 ```bash
-cp data/jeelink2mqtt.json data/jeelink2mqtt.json.bak
+cp /app/data/store.json /app/data/store.json.bak
 ```
 
 ---

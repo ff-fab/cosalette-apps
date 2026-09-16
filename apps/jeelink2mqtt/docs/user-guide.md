@@ -31,7 +31,7 @@ queued in step 2:
 |--------------|-----------|
 | Publish mapping change | `jeelink2mqtt/mapping/event` |
 | Publish full mapping snapshot | `jeelink2mqtt/mapping/state` |
-| Persist registry to `data/jeelink2mqtt.json` | — |
+| Persist registry to the configured store | `JEELINK2MQTT_STORE_PATH` |
 
 Each configured sensor's own `sensor_entity` device runs when step 5 wakes it, and
 otherwise once a second, then decides what to publish:

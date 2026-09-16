@@ -193,7 +193,7 @@ seeing and follow the fix.
     - **Directory exists and is writable:**
 
         ```bash
-        ls -la data/
+        ls -la /app/data/
         ```
 
     - **Docker volume mounted:**
@@ -206,11 +206,12 @@ seeing and follow the fix.
     - **File present after running:**
 
         ```bash
-        cat data/jeelink2mqtt.json
+        cat /app/data/store.json
         ```
 
     If the file is empty or missing, check that the application has write
-    permissions to the `data/` directory.
+    permissions to the `/app/data` directory (or the custom
+    `JEELINK2MQTT_STORE_PATH` parent directory).
 
 ---
 

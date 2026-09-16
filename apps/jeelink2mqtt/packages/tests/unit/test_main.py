@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from cosalette import DeviceStore
-from cosalette.stores import MemoryStore
+from cosalette.stores import JsonFileStore, MemoryStore
 
 from jeelink2mqtt.filters import FilterBank
 from jeelink2mqtt.main import _PARSE_OR_ERROR_IMPOSSIBLE
@@ -367,6 +367,17 @@ class TestAppRestartConfig:
         from jeelink2mqtt.main import app
 
         assert app._max_restarts == 3
+
+    def test_uses_framework_default_store(self) -> None:
+        """The framework resolves ``JEELINK2MQTT_STORE_PATH`` for this app.
+
+        Technique: Specification-based — omitting ``store=`` delegates path
+        selection to cosalette, including its environment-variable override.
+        """
+        from jeelink2mqtt.main import app
+
+        assert app.store_is_default
+        assert isinstance(app.store, JsonFileStore)
 
 
 # ── sensor_entity trigger wiring ──────────────────────────────────────────────

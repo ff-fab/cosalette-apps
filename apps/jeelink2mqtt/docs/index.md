@@ -40,7 +40,8 @@ framework.
     plugging in the receiver.
 
 **Persistent Registry**
-:   Sensor mappings are persisted to `data/jeelink2mqtt.json` and
+:   Sensor mappings are persisted to the configured JSON store (Docker Compose
+    defaults to `/app/data/store.json`) and
     survive restarts. No lost state after a reboot.
 
 ---
