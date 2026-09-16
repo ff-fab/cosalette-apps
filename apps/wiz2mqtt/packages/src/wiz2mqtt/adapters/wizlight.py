@@ -103,9 +103,12 @@ class WizBulbAdapter:
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state_cache: dict[str, BulbState] = {}
         # ips whose push registration has succeeded (bulb.start_push()
-        # returned True) — arms the staleness warning below regardless of
-        # whether a datagram has ever actually arrived (cap-fubw).
+        # returned True).
         self._push_registered: set[str] = set()
+        # ip -> monotonic time of the successful registration.  A first
+        # cache-seeding poll is expected before a bulb has had time to push;
+        # warnings start only after this full window has elapsed.
+        self._push_registered_at: dict[str, float] = {}
         # ip -> monotonic time of the next allowed re-arm attempt, for ips
         # whose registration failed (cap-4rbg).
         self._push_retry_at: dict[str, float] = {}
@@ -215,7 +218,7 @@ class WizBulbAdapter:
         ``bulb.start_push()`` reports the common listener-startup failure
         (port 38900 already bound, or no source IP yet) by returning
         ``False``, not by raising — treat that the same as a raised
-        ``WizLightError``: log once, and leave ``ip`` out of
+        ``WizLightError``: log the failed attempt, and leave ``ip`` out of
         ``_push_registered`` so ``get_state`` retries later.
         """
         from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
@@ -229,6 +232,7 @@ class WizBulbAdapter:
 
         if registered:
             self._push_registered.add(ip)
+            self._push_registered_at[ip] = time.monotonic()
             self._push_retry_at.pop(ip, None)
             if is_retry:
                 logger.info("Push registration recovered for bulb %s", ip)
@@ -247,12 +251,16 @@ class WizBulbAdapter:
         is retried at most once per ``_PUSH_REGISTRATION_RETRY_INTERVAL``,
         not on every ``get_state`` call (cap-4rbg).
         """
-        if ip in self._push_registered:
-            return
-        retry_at = self._push_retry_at.get(ip)
-        if retry_at is not None and time.monotonic() < retry_at:
-            return
-        await self._register_push(ip, bulb, is_retry=True)
+        # Reuse the initialization lock so concurrent reads cannot all pass
+        # the eligibility check and register separate UDP listeners.
+        lock = self._initialization_locks.setdefault(ip, asyncio.Lock())
+        async with lock:
+            if ip in self._push_registered:
+                return
+            retry_at = self._push_retry_at.get(ip)
+            if retry_at is not None and time.monotonic() < retry_at:
+                return
+            await self._register_push(ip, bulb, is_retry=True)
 
     def _make_push_callback(
         self, ip: str
@@ -332,10 +340,15 @@ class WizBulbAdapter:
             msg = f"pywizlight error polling bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
 
-        # Keyed on registration succeeding, not on a push ever having arrived:
-        # a bulb whose push never works (bridge-NAT, VLAN) must warn too, not
-        # just one that worked and then went stale (cap-fubw).
-        if ip in self._push_registered and ip not in self._warned_stale:
+        # A registration only says the UDP listener bound.  Give the bulb a
+        # full staleness window to deliver its first datagram before warning;
+        # the initial cache-seeding poll is normal, not a health failure.
+        registered_at = self._push_registered_at.get(ip)
+        if (
+            registered_at is not None
+            and (time.monotonic() - registered_at) > self._push_staleness_threshold
+            and ip not in self._warned_stale
+        ):
             logger.warning("No recent push for bulb %s — falling back to polling", ip)
             self._warned_stale.add(ip)
 
@@ -480,6 +493,7 @@ class WizBulbAdapter:
         self._capabilities.clear()
         self._state_cache.clear()
         self._push_registered.clear()
+        self._push_registered_at.clear()
         self._push_retry_at.clear()
         self._warned_stale.clear()
 
