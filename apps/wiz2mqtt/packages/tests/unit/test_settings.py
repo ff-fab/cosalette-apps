@@ -21,7 +21,12 @@ import pytest
 from cosalette import SettingsLoadError
 from pydantic import ValidationError
 
-from wiz2mqtt.settings import BulbConfig, GroupConfig, Wiz2MqttSettings
+from wiz2mqtt.settings import (
+    BulbConfig,
+    GroupConfig,
+    PowerSourceConfig,
+    Wiz2MqttSettings,
+)
 
 _UNCONFIGURED = {"_env_file": None, "_config_file": None}
 """Kwargs isolating a Wiz2MqttSettings() call from any real .env/.toml on disk."""
@@ -75,25 +80,20 @@ class TestWiz2MqttSettings:
 class TestBulbConfigDefaults:
     """Optional BulbConfig fields default sensibly."""
 
-    def test_bulb_when_unreachable_defaults_to_unavailable(self) -> None:
-        """Technique: Specification-based."""
-        bulb = BulbConfig(name="desk", ip="10.0.0.1")
-        assert bulb.when_unreachable == "unavailable"
-
-    def test_bulb_when_unreachable_accepts_off(self) -> None:
-        """Technique: Equivalence Partitioning — valid 'off' literal."""
-        bulb = BulbConfig(name="desk", ip="10.0.0.1", when_unreachable="off")
-        assert bulb.when_unreachable == "off"
-
-    def test_bulb_when_unreachable_rejects_invalid_literal(self) -> None:
-        """Technique: Equivalence Partitioning — invalid literal class."""
-        with pytest.raises(ValidationError):
-            BulbConfig(name="desk", ip="10.0.0.1", when_unreachable="always")  # type: ignore[arg-type]
-
     def test_bulb_mac_defaults_to_none(self) -> None:
         """Technique: Specification-based — mac is optional identity verification."""
         bulb = BulbConfig(name="desk", ip="10.0.0.1")
         assert bulb.mac is None
+
+    def test_bulb_power_source_defaults_to_none(self) -> None:
+        """Technique: Specification-based."""
+        bulb = BulbConfig(name="desk", ip="10.0.0.1")
+        assert bulb.power_source is None
+
+    def test_bulb_restore_previous_state_defaults_to_false(self) -> None:
+        """Technique: Specification-based."""
+        bulb = BulbConfig(name="desk", ip="10.0.0.1")
+        assert bulb.restore_previous_state is False
 
 
 class TestBulbNameValidation:
@@ -271,7 +271,6 @@ class TestConfigFileLoading:
             name = "lamp"
             ip = "10.0.0.2"
             mac = "a8bb5006033d"
-            when_unreachable = "off"
             """
         )
 
@@ -279,8 +278,6 @@ class TestConfigFileLoading:
 
         assert [b.name for b in settings.bulbs] == ["desk", "lamp"]
         assert settings.bulbs[1].mac == "a8bb5006033d"
-        assert settings.bulbs[1].when_unreachable == "off"
-        assert settings.bulbs[0].when_unreachable == "unavailable"
 
     def test_settings_env_overrides_config_file(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -353,3 +350,290 @@ class TestGroups:
         settings = Wiz2MqttSettings(_env_file=None, _config_file=str(config))
         assert [g.members for g in settings.groups] == [["desk"], ["desk"]]
         assert Wiz2MqttSettings(**_UNCONFIGURED).groups == []
+
+
+# ---------------------------------------------------------------------------
+# PowerSourceConfig field validation
+# ---------------------------------------------------------------------------
+
+
+class TestPowerSourceMembersValidation:
+    """Technique: Equivalence Partitioning — members presence/emptiness."""
+
+    def test_members_rejects_empty_list(self) -> None:
+        with pytest.raises(ValidationError, match="members must not be empty"):
+            PowerSourceConfig(name="kitchen-power", members=[])
+
+    def test_members_accepts_none(self) -> None:
+        source = PowerSourceConfig(name="kitchen-power", group="kitchen")
+        assert source.members is None
+
+
+class TestPowerSourceSignalTopicValidation:
+    """Mirrors cosalette's topic_prefix validation; signal_topic is non-empty."""
+
+    @pytest.mark.parametrize(
+        "topic", ["openhab/relay/downstairs/state", "relay1", "a/b/c"]
+    )
+    def test_signal_topic_accepts_valid_topics(self, topic: str) -> None:
+        """Technique: Equivalence Partitioning — valid-topic class."""
+        source = PowerSourceConfig(name="p", members=["desk"], signal_topic=topic)
+        assert source.signal_topic == topic
+
+    def test_signal_topic_strips_leading_trailing_slashes(self) -> None:
+        """Technique: Boundary Value Analysis — leading/trailing slash boundary."""
+        source = PowerSourceConfig(
+            name="p", members=["desk"], signal_topic="/relay/state/"
+        )
+        assert source.signal_topic == "relay/state"
+
+    @pytest.mark.parametrize("topic", ["", "a/+/b", "a/#", "a b", "a$b"])
+    def test_signal_topic_rejects_invalid_topics(self, topic: str) -> None:
+        """Technique: Equivalence Partitioning — invalid-topic class (empty,
+        wildcards, out-of-charset)."""
+        with pytest.raises(ValidationError):
+            PowerSourceConfig(name="p", members=["desk"], signal_topic=topic)
+
+
+# ---------------------------------------------------------------------------
+# [[power_sources]] cross-field validation on Wiz2MqttSettings
+# ---------------------------------------------------------------------------
+
+
+class TestPowerSourcesValidation:
+    """Decision-table validation mirroring TestGroups, for [[power_sources]]
+    (ADR-007, amendment 2026-09-14)."""
+
+    def _settings(self, **overrides: object) -> Wiz2MqttSettings:
+        defaults: dict[str, object] = {
+            "bulbs": [
+                {"name": "desk", "ip": "10.0.0.1"},
+                {"name": "lamp", "ip": "10.0.0.2"},
+            ],
+            "groups": [{"name": "downstairs", "members": ["desk", "lamp"]}],
+        }
+        return Wiz2MqttSettings(**{**defaults, **overrides}, **_UNCONFIGURED)
+
+    def test_rejects_name_colliding_with_bulb(self) -> None:
+        with pytest.raises(ValidationError, match="collides with another name"):
+            self._settings(power_sources=[{"name": "desk", "members": ["desk"]}])
+
+    def test_rejects_name_colliding_with_group(self) -> None:
+        with pytest.raises(ValidationError, match="collides with another name"):
+            self._settings(power_sources=[{"name": "downstairs", "members": ["desk"]}])
+
+    def test_rejects_both_group_and_members_set(self) -> None:
+        with pytest.raises(ValidationError, match="exactly one of"):
+            self._settings(
+                power_sources=[
+                    {"name": "p", "group": "downstairs", "members": ["desk"]}
+                ]
+            )
+
+    def test_rejects_neither_group_nor_members_set(self) -> None:
+        with pytest.raises(ValidationError, match="exactly one of"):
+            self._settings(power_sources=[{"name": "p"}])
+
+    def test_rejects_unknown_group_reference(self) -> None:
+        with pytest.raises(ValidationError, match="unknown group"):
+            self._settings(power_sources=[{"name": "p", "group": "upstairs"}])
+
+    def test_rejects_unknown_member_bulb(self) -> None:
+        with pytest.raises(ValidationError, match="unknown bulbs"):
+            self._settings(power_sources=[{"name": "p", "members": ["missing"]}])
+
+    def test_rejects_duplicate_member_in_members(self) -> None:
+        with pytest.raises(ValidationError, match="duplicate members"):
+            self._settings(power_sources=[{"name": "p", "members": ["desk", "desk"]}])
+
+    def test_rejects_power_off_without_wiz_bulbs_only(self) -> None:
+        with pytest.raises(ValidationError, match="requires wiz_bulbs_only"):
+            self._settings(
+                power_sources=[
+                    {
+                        "name": "p",
+                        "members": ["desk"],
+                        "enable_power_off_request": True,
+                    }
+                ]
+            )
+
+    def test_allows_power_off_with_wiz_bulbs_only(self) -> None:
+        settings = self._settings(
+            power_sources=[
+                {
+                    "name": "p",
+                    "members": ["desk"],
+                    "enable_power_off_request": True,
+                    "wiz_bulbs_only": True,
+                }
+            ]
+        )
+        assert settings.power_sources[0].enable_power_off_request is True
+
+    def test_rejects_bulb_referencing_unknown_power_source(self) -> None:
+        with pytest.raises(ValidationError, match="unknown power_source"):
+            self._settings(
+                bulbs=[{"name": "desk", "ip": "10.0.0.1", "power_source": "ghost"}],
+                groups=[],
+            )
+
+    def test_rejects_bulb_double_claimed_by_two_sources_via_members(self) -> None:
+        with pytest.raises(ValidationError, match="claimed by multiple power"):
+            self._settings(
+                power_sources=[
+                    {"name": "p1", "members": ["desk"]},
+                    {"name": "p2", "members": ["desk"]},
+                ]
+            )
+
+    def test_rejects_bulb_double_claimed_by_members_and_group(self) -> None:
+        with pytest.raises(ValidationError, match="claimed by multiple power"):
+            self._settings(
+                power_sources=[
+                    {"name": "p1", "members": ["desk"]},
+                    {"name": "p2", "group": "downstairs"},
+                ]
+            )
+
+    def test_explicit_power_source_wins_over_group_claim_no_error(self) -> None:
+        """ADR-007 amendment: explicit power_source beats an implicit group
+        claim with no error, even though the group also claims this bulb."""
+        settings = self._settings(
+            bulbs=[
+                {"name": "desk", "ip": "10.0.0.1", "power_source": "other"},
+                {"name": "lamp", "ip": "10.0.0.2"},
+            ],
+            power_sources=[
+                {"name": "p1", "group": "downstairs"},
+                {"name": "other", "members": ["desk"]},
+            ],
+        )
+        resolved = settings.power_source_of("desk")
+        assert resolved is not None
+        assert resolved.name == "other"
+
+
+# ---------------------------------------------------------------------------
+# power_source_of resolution
+# ---------------------------------------------------------------------------
+
+
+class TestPowerSourceOf:
+    """Technique: State Transition / Decision Table — resolution precedence."""
+
+    def test_resolves_via_direct_members(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[{"name": "desk", "ip": "10.0.0.1"}],
+            power_sources=[{"name": "p", "members": ["desk"]}],
+            **_UNCONFIGURED,
+        )
+        source = settings.power_source_of("desk")
+        assert source is not None
+        assert source.name == "p"
+
+    def test_resolves_via_group(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[{"name": "desk", "ip": "10.0.0.1"}],
+            groups=[{"name": "downstairs", "members": ["desk"]}],
+            power_sources=[{"name": "p", "group": "downstairs"}],
+            **_UNCONFIGURED,
+        )
+        source = settings.power_source_of("desk")
+        assert source is not None
+        assert source.name == "p"
+
+    def test_direct_power_source_wins_over_group(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[{"name": "desk", "ip": "10.0.0.1", "power_source": "other"}],
+            groups=[{"name": "downstairs", "members": ["desk"]}],
+            power_sources=[
+                {"name": "p", "group": "downstairs"},
+                {"name": "other", "members": ["desk"]},
+            ],
+            **_UNCONFIGURED,
+        )
+        source = settings.power_source_of("desk")
+        assert source is not None
+        assert source.name == "other"
+
+    def test_returns_none_when_no_source_claims_bulb(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[{"name": "desk", "ip": "10.0.0.1"}], **_UNCONFIGURED
+        )
+        assert settings.power_source_of("desk") is None
+
+    def test_returns_none_for_unknown_bulb_name(self) -> None:
+        settings = Wiz2MqttSettings(**_UNCONFIGURED)
+        assert settings.power_source_of("ghost") is None
+
+
+# ---------------------------------------------------------------------------
+# Legacy bulb-level when_unreachable migration
+# ---------------------------------------------------------------------------
+
+
+class TestLegacyWhenUnreachableMigration:
+    """Pre-ADR-007 bulb-level when_unreachable migrates to power_sources
+    (ADR-003 amendment 2026-09-14 Corrective)."""
+
+    def test_off_creates_implicit_power_source(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Technique: Decision Table — legacy 'off' branch."""
+        with caplog.at_level("WARNING"):
+            settings = Wiz2MqttSettings(
+                bulbs=[{"name": "desk", "ip": "10.0.0.1", "when_unreachable": "off"}],
+                **_UNCONFIGURED,
+            )
+
+        assert settings.bulbs[0].name == "desk"
+        source = settings.power_source_of("desk")
+        assert source is not None
+        assert source.name == "desk-power"
+        assert source.members == ["desk"]
+        assert source.when_unreachable == "no_power"
+        assert "when_unreachable = 'off'" in caplog.text
+
+    def test_unavailable_drops_key_with_warning_no_source_created(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Technique: Decision Table — legacy 'unavailable' branch (no-op)."""
+        with caplog.at_level("WARNING"):
+            settings = Wiz2MqttSettings(
+                bulbs=[
+                    {
+                        "name": "desk",
+                        "ip": "10.0.0.1",
+                        "when_unreachable": "unavailable",
+                    }
+                ],
+                **_UNCONFIGURED,
+            )
+
+        assert settings.power_sources == []
+        assert settings.power_source_of("desk") is None
+        assert "when_unreachable = 'unavailable'" in caplog.text
+
+    def test_unsupported_legacy_value_still_errors(self) -> None:
+        """Technique: Equivalence Partitioning — invalid legacy value class."""
+        with pytest.raises(ValidationError, match="unsupported legacy"):
+            Wiz2MqttSettings(
+                bulbs=[
+                    {"name": "desk", "ip": "10.0.0.1", "when_unreachable": "always"}
+                ],
+                **_UNCONFIGURED,
+            )
+
+
+# ---------------------------------------------------------------------------
+# queued_command_ttl
+# ---------------------------------------------------------------------------
+
+
+class TestQueuedCommandTtl:
+    """Technique: Specification-based."""
+
+    def test_defaults_to_one_day(self) -> None:
+        settings = Wiz2MqttSettings(**_UNCONFIGURED)
+        assert settings.queued_command_ttl == 86400.0

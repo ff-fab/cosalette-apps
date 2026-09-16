@@ -274,3 +274,199 @@ class TestInjectPushArmsTrigger:
 
         assert notifier.armed == []
         assert (await fake.get_state("10.0.0.99")) == state
+
+
+# ---------------------------------------------------------------------------
+# set_unreachable (ADR-008 / cap-bjw9.2)
+# ---------------------------------------------------------------------------
+
+
+class TestSetUnreachable:
+    """set_unreachable makes a specific bulb behave as unreachable."""
+
+    async def test_get_state_raises_while_unreachable(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition Testing — reachable to unreachable."""
+        fake.set_unreachable(_IP, True)
+
+        with pytest.raises(WizTimeoutError):
+            await fake.get_state(_IP)
+
+    async def test_get_state_call_count_still_increments_while_unreachable(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Specification-based — the attempt still counts."""
+        fake.set_unreachable(_IP, True)
+
+        with pytest.raises(WizTimeoutError):
+            await fake.get_state(_IP)
+
+        assert fake.get_state_call_count == 1
+
+    async def test_set_state_raises_while_unreachable(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Equivalence Partitioning — both read and write paths."""
+        fake.set_unreachable(_IP, True)
+
+        with pytest.raises(WizTimeoutError):
+            await fake.set_state(_IP, state=True)
+
+    async def test_clearing_unreachable_restores_normal_behaviour(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition Testing — unreachable back to reachable."""
+        fake.set_unreachable(_IP, True)
+        fake.set_unreachable(_IP, False)
+
+        state = await fake.get_state(_IP)
+        assert state.state is False
+
+    async def test_unreachable_is_per_bulb(self, fake: FakeWizBulbAdapter) -> None:
+        """Technique: Equivalence Partitioning — an untouched bulb is unaffected."""
+        fake.set_unreachable(_IP, True)
+
+        other = await fake.get_state("10.0.0.99")
+        assert other.state is False
+
+    async def test_always_fail_is_a_shortcut_for_every_bulb(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Specification-based — always_fail kept as a global shim."""
+        fake.always_fail = True
+
+        with pytest.raises(WizTimeoutError):
+            await fake.get_state(_IP)
+        with pytest.raises(WizTimeoutError):
+            await fake.get_state("10.0.0.99")
+
+
+# ---------------------------------------------------------------------------
+# boot / register_boot_callback (ADR-008 / cap-bjw9.2)
+# ---------------------------------------------------------------------------
+
+
+class TestBoot:
+    """boot() simulates a bulb power-cycling into its default state."""
+
+    @staticmethod
+    def _boot_state(*, state: bool, brightness: int | None) -> BulbState:
+        return BulbState(
+            state=state,
+            brightness=brightness,
+            hue=None,
+            saturation=None,
+            color_temp_kelvin=None,
+            scene=None,
+        )
+
+    async def test_boot_clears_unreachable(self, fake: FakeWizBulbAdapter) -> None:
+        """Technique: State Transition Testing."""
+        fake.set_unreachable(_IP, True)
+
+        fake.boot(_IP, self._boot_state(state=True, brightness=255))
+
+        state = await fake.get_state(_IP)
+        assert state.state is True
+        assert state.brightness == 255
+
+    async def test_boot_replaces_cached_state(self, fake: FakeWizBulbAdapter) -> None:
+        """Technique: Specification-based — boot state wins over any prior state."""
+        await fake.set_state(_IP, state=True, brightness=1)
+
+        fake.boot(_IP, self._boot_state(state=False, brightness=None))
+
+        state = await fake.get_state(_IP)
+        assert state.state is False
+        assert state.brightness is None
+
+    async def test_boot_fires_the_registered_callback_exactly_once_with_ip(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Specification-based — firstBeat-equivalent boot event."""
+        calls: list[str] = []
+        fake.register_boot_callback(calls.append)
+
+        fake.boot(_IP, self._boot_state(state=True, brightness=100))
+
+        assert calls == [_IP]
+
+    async def test_boot_without_a_registered_callback_does_not_raise(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Error Guessing — no callback registered is a valid state."""
+        fake.boot(_IP, self._boot_state(state=True, brightness=100))  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# refuse_writes (ADR-008 / cap-bjw9.2)
+# ---------------------------------------------------------------------------
+
+
+class TestRefuseWrites:
+    """refuse_writes drives the three-retry rule: N writes are silently dropped."""
+
+    async def test_refused_writes_leave_cached_state_unchanged(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Boundary Value Analysis — exactly at the refused count."""
+        fake.refuse_writes(_IP, 2)
+
+        await fake.set_state(_IP, state=True, brightness=200)
+        await fake.set_state(_IP, state=True, brightness=201)
+
+        state = await fake.get_state(_IP)
+        assert state.state is False
+        assert state.brightness is None
+
+    async def test_call_after_refused_count_changes_state(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Boundary Value Analysis — first call past the boundary."""
+        fake.refuse_writes(_IP, 2)
+
+        await fake.set_state(_IP, state=True, brightness=200)
+        await fake.set_state(_IP, state=True, brightness=201)
+        await fake.set_state(_IP, state=True, brightness=202)
+
+        state = await fake.get_state(_IP)
+        assert state.state is True
+        assert state.brightness == 202
+
+    async def test_refused_writes_do_not_raise(self, fake: FakeWizBulbAdapter) -> None:
+        """Technique: Specification-based — refused writes 'succeed on the wire'."""
+        fake.refuse_writes(_IP, 1)
+
+        await fake.set_state(_IP, state=True)  # must not raise
+
+
+# ---------------------------------------------------------------------------
+# set_state_calls (ADR-008 / cap-bjw9.2)
+# ---------------------------------------------------------------------------
+
+
+class TestSetStateCalls:
+    """set_state_calls logs every call, in order, with its kwargs."""
+
+    async def test_records_calls_in_order_with_kwargs(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Specification-based — order and payload fidelity."""
+        await fake.set_state(_IP, state=False)
+        await fake.set_state(_IP, state=True, brightness=128)
+
+        assert fake.set_state_calls[0][0] == _IP
+        assert fake.set_state_calls[0][1]["state"] is False
+        assert fake.set_state_calls[1][1]["state"] is True
+        assert fake.set_state_calls[1][1]["brightness"] == 128
+
+    async def test_records_calls_even_when_refused(
+        self, fake: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Error Guessing — a refused write is still a logged attempt."""
+        fake.refuse_writes(_IP, 1)
+
+        await fake.set_state(_IP, state=True)
+
+        assert len(fake.set_state_calls) == 1

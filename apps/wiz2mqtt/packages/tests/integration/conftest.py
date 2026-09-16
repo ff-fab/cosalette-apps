@@ -91,10 +91,17 @@ def build_integration_app(
     return app
 
 
-def make_settings(**bulb_overrides: object) -> Wiz2MqttSettings:
+def make_settings(
+    power_sources: list[dict[str, object]] | None = None, **bulb_overrides: object
+) -> Wiz2MqttSettings:
     """Isolated settings with a single bulb, ignoring host env/files."""
     bulb = {**_DEFAULT_BULB, **bulb_overrides}
-    return Wiz2MqttSettings(bulbs=[bulb], _env_file=None, _config_file=None)  # type: ignore[arg-type,call-arg]
+    return Wiz2MqttSettings(
+        bulbs=[bulb],
+        power_sources=power_sources or [],
+        _env_file=None,
+        _config_file=None,
+    )  # type: ignore[arg-type,call-arg]
 
 
 async def wait_until_subscribed(harness: AppHarness) -> None:
@@ -171,8 +178,17 @@ def push_harness(
 
 @pytest.fixture
 def settings_when_off() -> Wiz2MqttSettings:
-    """Settings with when_unreachable='off' for the OFF-policy integration tests."""
-    return make_settings(when_unreachable="off")
+    """Settings with a power source (when_unreachable='no_power') claiming the
+    'office' bulb, for the OFF-policy integration tests."""
+    return make_settings(
+        power_sources=[
+            {
+                "name": "office-power",
+                "members": ["office"],
+                "when_unreachable": "no_power",
+            }
+        ]
+    )
 
 
 @pytest.fixture
