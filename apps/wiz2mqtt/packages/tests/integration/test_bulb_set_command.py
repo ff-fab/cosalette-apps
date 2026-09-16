@@ -30,6 +30,7 @@ from .conftest import (
 
 _BULB_IP = "10.0.0.5"
 _STATE_TOPIC = f"{TOPIC_PREFIX}/office/state"
+_ERROR_TOPIC = f"{TOPIC_PREFIX}/office/error"
 
 
 async def _run_with_command(
@@ -195,3 +196,86 @@ class TestColourModeSupersession:
                 await asyncio.gather(task, return_exceptions=True)
             else:
                 await task
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestQueueWhileUnreachable:
+    """cap-bjw9.6 — a command to an unreachable bulb queues instead of erroring.
+
+    ``harness_when_off``'s ``office`` bulb sits behind a ``no_power`` source
+    (see ``conftest.settings_when_off``); setting the fake adapter
+    unreachable before the harness starts keeps the source's belief at
+    ``"off"`` for the whole run (no member ever answers, no signal exists).
+    """
+
+    async def test_command_to_unreachable_bulb_does_not_reach_the_wire(
+        self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Specification-based — cap-bjw9.6 AC, no error, no wire call."""
+        fake_adapter.set_unreachable(_BULB_IP, True)
+
+        await _run_with_command(
+            harness_when_off, "office", {"state": "ON", "brightness": 200}
+        )
+
+        assert fake_adapter.set_state_calls == []
+        assert harness_when_off.messages_for(_ERROR_TOPIC) == []
+
+    async def test_queued_command_republishes_the_desired_state(
+        self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Round-trip Testing — the queued intent reaches /state."""
+        fake_adapter.set_unreachable(_BULB_IP, True)
+        task = asyncio.create_task(harness_when_off.run())
+        try:
+            await wait_until_subscribed(harness_when_off)
+            await harness_when_off.advance_time(0)  # settle the startup run
+
+            await harness_when_off.inject_command(
+                "office", {"state": "ON", "brightness": 200}
+            )
+            await asyncio.sleep(_COMMAND_SETTLE_TIME)  # let the command worker run
+            await harness_when_off.wait_for_publish_count(_STATE_TOPIC, 1)
+        finally:
+            harness_when_off.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            else:
+                await task
+
+        payload, _retain, _qos = harness_when_off.messages_for(_STATE_TOPIC)[0]
+        body = json.loads(payload)
+        assert body["state"] == "ON"
+        assert body["brightness"] == 200
+        assert body["powered"] is False  # never a hard-coded OFF
+
+    async def test_a_second_command_replaces_the_first_in_the_queue(
+        self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition — the queue holds exactly one entry."""
+        fake_adapter.set_unreachable(_BULB_IP, True)
+        task = asyncio.create_task(harness_when_off.run())
+        try:
+            await wait_until_subscribed(harness_when_off)
+            await harness_when_off.advance_time(0)
+
+            await harness_when_off.inject_command("office", {"brightness": 50})
+            await asyncio.sleep(_COMMAND_SETTLE_TIME)  # let the first command settle
+            await harness_when_off.wait_for_publish_count(_STATE_TOPIC, 1)
+
+            await harness_when_off.inject_command("office", {"brightness": 200})
+            await asyncio.sleep(_COMMAND_SETTLE_TIME)  # let the second command run
+            await harness_when_off.wait_for_publish_count(_STATE_TOPIC, 2)
+        finally:
+            harness_when_off.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            else:
+                await task
+
+        # Only the newest command's value shows — nothing from the first.
+        payload, _retain, _qos = harness_when_off.messages_for(_STATE_TOPIC)[-1]
+        assert json.loads(payload)["brightness"] == 200

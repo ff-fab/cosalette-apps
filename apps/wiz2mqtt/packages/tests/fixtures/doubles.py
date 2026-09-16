@@ -9,7 +9,25 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from cosalette import EntityNotifier
+
 from wiz2mqtt.settings import Wiz2MqttSettings
+
+
+class RecordingNotifier(EntityNotifier):
+    """An ``EntityNotifier`` that records names instead of arming real slots.
+
+    Subclassing keeps a handler's ``notify: EntityNotifier`` annotation
+    honest while sidestepping the framework's Phase-2 slot binding, which a
+    unit test has no ``App`` to perform.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.armed: list[str] = []
+
+    def __call__(self, entity_name: str) -> None:
+        self.armed.append(entity_name)
 
 
 def _default_settings() -> Wiz2MqttSettings:

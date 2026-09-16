@@ -11,12 +11,13 @@ import asyncio
 
 import pytest
 from cosalette import App, EntityNotifier, MockMqttClient, OnChange
+from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, ManualClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
-from wiz2mqtt.main import _bulb_map, bulb_set
+from wiz2mqtt.main import _bulb_map, _power_source_map, bulb_set, power_source_entity
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -78,12 +79,30 @@ def build_integration_app(
         settings_class=Wiz2MqttSettings,
         adapters={WizBulbPort: _adapter_factory},
         error_type_map=error_type_map,
+        # An isolated, per-test in-memory store: without this the app falls
+        # back to the real on-disk default store path, which persists across
+        # every test in the session. That was harmless while the only thing
+        # it held was the capability cache, but the desired state
+        # (cap-bjw9.5/.6) now feeds directly into published payloads, so a
+        # leftover record from an earlier test would leak into this one.
+        store=MemoryStore(),
     )
     app.add_command(_bulb_map, bulb_set)
     app.state(_shared_state_factory)
     app.add_telemetry(
         _bulb_map,
         bulb_entity_tick,
+        interval=interval,
+        triggerable="local",
+        publish=OnChange(),
+    )
+    # Mirrors main.py's power_source_entity registration: bulb_entity_tick
+    # arms a bulb's power source by name (cap-bjw9.7), so a source-bearing
+    # bulb needs that entity registered too, or notify() raises
+    # UnknownEntityError and the whole bulb tick fails.
+    app.add_telemetry(
+        _power_source_map,
+        power_source_entity,
         interval=interval,
         triggerable="local",
         publish=OnChange(),

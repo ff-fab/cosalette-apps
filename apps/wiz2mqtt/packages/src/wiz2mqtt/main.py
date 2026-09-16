@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+import time
+from typing import Annotated, cast
 
 import cosalette
-from cosalette import DeviceStore, Optional
+from cosalette import DeviceStore, EntityNotifier, Optional
 from cosalette.mqtt import Payload
 
-from wiz2mqtt import __version__
+from wiz2mqtt import __version__, intent, power
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.commands import to_set_state_kwargs
 from wiz2mqtt.discovery import cache_capabilities, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
-from wiz2mqtt.errors import error_type_map
-from wiz2mqtt.models import BulbSetCommand, BulbStateModel
+from wiz2mqtt.errors import WizConnectionError, WizTimeoutError, error_type_map
+from wiz2mqtt.models import BulbSetCommand, BulbStateModel, PowerSourceStateModel
 from wiz2mqtt.ports import WizBulbPort
-from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
+from wiz2mqtt.settings import BulbConfig, PowerSourceConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
 _TICK_INTERVAL_SECONDS = 60.0
@@ -75,6 +76,13 @@ def _bulb_map(settings: cosalette.Settings) -> dict[str, BulbConfig]:
     return {bulb.name: bulb for bulb in settings.bulbs}
 
 
+def _power_source_map(settings: cosalette.Settings) -> dict[str, PowerSourceConfig]:
+    """Map configured power sources to one telemetry registration each."""
+    if not isinstance(settings, Wiz2MqttSettings):
+        raise TypeError(f"Expected Wiz2MqttSettings, got {type(settings).__name__}")
+    return {source.name: source for source in settings.power_sources}
+
+
 @app.command(
     name=_bulb_map,
     summary="Apply a partial state update to a bulb",
@@ -90,6 +98,10 @@ async def bulb_set(
     cmd: Annotated[BulbSetCommand, Payload()],
     config: BulbConfig,
     port: WizBulbPort,
+    state: SharedState,
+    ctx: cosalette.DeviceContext,
+    notify: EntityNotifier,
+    store: Annotated[DeviceStore | None, Optional()] = None,
 ) -> None:
     """Handle ``wiz2mqtt/{bulb}/set``: partial update, every field optional.
 
@@ -97,8 +109,40 @@ async def bulb_set(
     enforced by ``BulbSetCommand``'s own validator, so a conflicting
     payload never reaches this body — the framework rejects it and
     publishes to the bulb's error topic before the handler runs.
+
+    ADR-008/cap-bjw9.6: the desired state is written before any wire
+    attempt, so an unreachable bulb still records the intent. A bulb whose
+    power source is known off, or that has already crossed the failure
+    threshold, is not sent to the wire at all — the command is queued
+    instead and the entity is armed to republish the (now updated) desired
+    state immediately, without an error. A bulb believed reachable that
+    still times out on the wire is queued too, then the timeout still
+    surfaces on the error topic as before.
     """
-    await port.set_state(config.ip, **to_set_state_kwargs(cmd))
+    settings = cast(Wiz2MqttSettings, ctx.settings)
+    kwargs = to_set_state_kwargs(cmd)
+    if all(value is None for value in kwargs.values()):
+        return
+    now = time.time()
+    intent.record_command(state, store, config.name, kwargs, now)
+
+    belief = power.belief_for_bulb(settings, state, config.name)
+    unreachable = (
+        belief == "off" or state.last_availability.get(config.name) == "offline"
+    )
+    if unreachable:
+        intent.enqueue(state.pending_commands, config.name, kwargs, now)
+        notify(config.name)
+        return
+
+    try:
+        await port.set_state(config.ip, **kwargs)
+    except WizTimeoutError, WizConnectionError:
+        await ctx.mark_unavailable()
+        state.last_availability[config.name] = "offline"
+        intent.enqueue(state.pending_commands, config.name, kwargs, now)
+        notify(config.name)
+        raise
 
 
 @app.state
@@ -133,6 +177,7 @@ async def bulb_entity(
     config: BulbConfig,
     port: WizBulbPort,
     state: SharedState,
+    notify: EntityNotifier,
     # Optional() keeps the handler usable when persistence is opted out
     # (store=None); under the default store the framework injects a per-bulb
     # DeviceStore keyed by the bulb name.
@@ -156,12 +201,36 @@ async def bulb_entity(
     in agreement (repo idiom — airthings2mqtt / gas2mqtt) so registration
     emits no ``state_model`` drift warning.
     """
-    result = await bulb_entity_tick(ctx, config, port, state)
+    result = await bulb_entity_tick(ctx, config, port, state, store, notify)
     # Cache detected capabilities for the discovery enrich hook. This is best
     # effort and a no-op until the bulb has been reached.
     if store is not None:
         await cache_capabilities(store, config, port)
     return BulbStateModel.model_validate(result) if result is not None else None
+
+
+@app.telemetry(
+    name=_power_source_map,
+    interval=_TICK_INTERVAL_SECONDS,
+    # Armed by bulb_entity_tick (any member bulb's answer/failure/boot
+    # changes the belief) and by bulb_set (a queued command). No live
+    # signal_topic input yet — cap-bjw9.11.
+    triggerable="local",
+    publish=cosalette.OnChange(),
+    # Home Assistant discovery for this entity is cap-bjw9.10, not this
+    # task — the payload publishes, but nothing announces it yet.
+    discoverable=False,
+    summary="Per-source power belief publisher",
+    state_model=PowerSourceStateModel,
+)
+async def power_source_entity(
+    ctx: cosalette.DeviceContext, config: PowerSourceConfig, state: SharedState
+) -> PowerSourceStateModel:
+    """Per-configured-power-source telemetry: publish the belief (ADR-007)."""
+    settings = cast(Wiz2MqttSettings, ctx.settings)
+    return PowerSourceStateModel.model_validate(
+        power.source_payload(settings, config, state)
+    )
 
 
 def main() -> None:

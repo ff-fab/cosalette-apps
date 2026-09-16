@@ -56,6 +56,7 @@ from ha_discovery import (
     entities_without_bridge,
     load_ha_discovery_payloads,
 )
+from tests.fixtures.doubles import RecordingNotifier
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.discovery import capabilities_to_dict, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
@@ -489,7 +490,9 @@ class TestStateTopicsAreReal:
                 clock=schema_harness.clock,
                 state_model=BulbStateModel,
             )
-            payload = await bulb_entity_tick(ctx, config, port, state)
+            payload = await bulb_entity_tick(
+                ctx, config, port, state, None, RecordingNotifier()
+            )
             assert payload is not None
             await ctx.publish_state(BulbStateModel.model_validate(payload))
         finally:

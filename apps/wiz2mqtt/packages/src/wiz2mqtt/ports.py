@@ -88,16 +88,16 @@ class WizBulbPort(HealthCheckable, Protocol):
         Clears any :meth:`set_unreachable` flag, replaces the cached state
         with *default_state*, and fires the callback registered via
         :meth:`register_boot_callback` with ``ip`` — standing in for
-        pywizlight's firstBeat notification (cap-bjw9.4 wires the real
-        adapter's callback to pywizlight; this method only fires it).
+        pywizlight's firstBeat notification, which the production adapter
+        routes through the same callback (cap-bjw9.4).
         """
         ...
 
     def register_boot_callback(self, callback: Callable[[str], None]) -> None:
         """Register *callback* to be invoked with a bulb's ip on boot.
 
-        The production adapter stores the callback but does not yet invoke
-        it — pywizlight's firstBeat event is not wired up until cap-bjw9.4.
+        The production adapter invokes it on a pywizlight firstBeat for a
+        configured ip (cap-bjw9.4); an unconfigured ip is ignored.
         """
         ...
 

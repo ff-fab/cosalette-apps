@@ -13,25 +13,39 @@ import math
 from typing import TYPE_CHECKING
 
 from wiz2mqtt.colour import hue_saturation_to_rgb, is_cct_mode, scene_id_to_effect_name
+from wiz2mqtt.models import POWERED_UNKNOWN
 
 _MAX_BRIGHTNESS: int = 255
 """HA brightness scale upper bound (0-255)."""
 
 if TYPE_CHECKING:
-    from wiz2mqtt.models import BulbState
+    from wiz2mqtt.models import BulbState, PoweredWire
+    from wiz2mqtt.power import Belief
 
 
-def build_state_payload(state: BulbState) -> dict[str, object]:
+def build_state_payload(state: BulbState, powered: Belief | None) -> dict[str, object]:
     """Build the retained state payload for one bulb.
 
     ``state`` is always present — HA discards the whole message on
     ``KeyError`` if it's missing. Every other key is included only when
     known/applicable — see :func:`_color_fields` for the colour-mode keys.
+    ``powered`` (ADR-007/ADR-001 amendment) is the exception: it is always
+    present, rendered as ``true``/``false``/``null`` — ``None`` (no power
+    source) and ``"unknown"`` both map to the wire ``null``.
     """
     payload: dict[str, object] = {"state": "ON" if state.state else "OFF"}
     payload.update(_color_fields(state))
     payload.update(_optional_fields(state))
+    payload["powered"] = _powered_wire_value(powered)
     return payload
+
+
+def _powered_wire_value(powered: Belief | None) -> PoweredWire:
+    if powered == "on":
+        return True
+    if powered == "off":
+        return False
+    return POWERED_UNKNOWN
 
 
 def _optional_fields(state: BulbState) -> dict[str, object]:

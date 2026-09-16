@@ -585,6 +585,70 @@ class TestPowerSourceOf:
         assert settings.power_source_of("desk") is settings.power_sources[0]
 
 
+class TestBulbsForPowerSource:
+    """The reverse of :class:`TestPowerSourceOf` — cap-bjw9.7's source payload.
+
+    Technique: State Transition / Decision Table — the same resolution
+    precedence as ``power_source_of``, read from the other direction.
+    """
+
+    def test_returns_direct_members(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[
+                {"name": "desk", "ip": "10.0.0.1"},
+                {"name": "lamp", "ip": "10.0.0.2"},
+            ],
+            power_sources=[{"name": "p", "members": ["desk", "lamp"]}],
+            **_UNCONFIGURED,
+        )
+        assert settings.bulbs_for_power_source("p") == ["desk", "lamp"]
+
+    def test_returns_sorted_group_members(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[
+                {"name": "z-desk", "ip": "10.0.0.1"},
+                {"name": "a-lamp", "ip": "10.0.0.2"},
+            ],
+            groups=[{"name": "downstairs", "members": ["z-desk", "a-lamp"]}],
+            power_sources=[{"name": "p", "group": "downstairs"}],
+            **_UNCONFIGURED,
+        )
+        assert settings.bulbs_for_power_source("p") == ["a-lamp", "z-desk"]
+
+    def test_excludes_a_bulb_overridden_away_by_its_own_power_source(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[
+                {"name": "desk", "ip": "10.0.0.1", "power_source": "other"},
+                {"name": "lamp", "ip": "10.0.0.2"},
+            ],
+            groups=[{"name": "downstairs", "members": ["desk", "lamp"]}],
+            power_sources=[
+                {"name": "p", "group": "downstairs"},
+                {"name": "other", "members": ["desk"]},
+            ],
+            **_UNCONFIGURED,
+        )
+        # "desk" belongs to "other" (its own power_source wins), not "p".
+        assert settings.bulbs_for_power_source("p") == ["lamp"]
+
+    def test_returns_empty_list_for_a_source_with_no_resolved_members(self) -> None:
+        settings = Wiz2MqttSettings(**_UNCONFIGURED)
+        assert settings.bulbs_for_power_source("ghost") == []
+
+    def test_caches_stable_members_at_validation_time(self) -> None:
+        """Technique: Specification-based — belief ticks reuse validated membership."""
+        settings = Wiz2MqttSettings(
+            bulbs=[
+                {"name": "z-desk", "ip": "10.0.0.1"},
+                {"name": "a-lamp", "ip": "10.0.0.2"},
+            ],
+            power_sources=[{"name": "p", "members": ["z-desk", "a-lamp"]}],
+            **_UNCONFIGURED,
+        )
+
+        assert settings._members_by_power_source == {"p": ("a-lamp", "z-desk")}  # noqa: SLF001
+
+
 # ---------------------------------------------------------------------------
 # Legacy bulb-level when_unreachable migration
 # ---------------------------------------------------------------------------

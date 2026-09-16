@@ -187,6 +187,19 @@ class _FakeWizLight:
         self.turn_off_exc: Exception | None = None
         self.closed = False
         self.async_close_exc: Exception | None = None
+        self.discovery_callback: Any | None = None
+        self.set_discovery_callback_calls = 0
+
+    def set_discovery_callback(self, callback: Any) -> None:
+        """Mirrors ``pywizlight``'s API; tracked per fake instance for tests.
+
+        The real ``PushManager`` singleton is process-wide (any bulb's call
+        reaches the same listener) — tracking the call count per fake
+        instance still proves ``WizBulbAdapter`` installs it exactly once,
+        since a second install would call it on a *different* fake bulb.
+        """
+        self.set_discovery_callback_calls += 1
+        self.discovery_callback = callback
 
     def receive_heartbeat(
         self, changed_state: list[_FakeParser | None] | None = None
@@ -1415,3 +1428,98 @@ class TestPushWakesTelemetry:
 
         assert isinstance(adapter, WizBulbAdapter)
         assert adapter._name_by_ip == {_IP: _NAME}  # noqa: SLF001
+
+
+def _three_bulb_settings() -> Wiz2MqttSettings:
+    return Wiz2MqttSettings(
+        bulbs=[  # type: ignore[list-item]
+            {"name": "a", "ip": "10.0.0.1"},
+            {"name": "b", "ip": "10.0.0.2"},
+            {"name": "c", "ip": "10.0.0.3"},
+        ],
+        _env_file=None,  # type: ignore[call-arg]
+        _config_file=None,  # type: ignore[call-arg]
+    )
+
+
+class TestDiscoveryCallback:
+    """cap-bjw9.4 — the ``firstBeat`` boot signal, wired to pywizlight.
+
+    Test Techniques Used:
+    - Specification-based: known IP arms the registered callback once
+    - Error Guessing: an unknown IP must not raise or invoke the callback
+    - State Transition: the callback installs exactly once across bulbs
+    """
+
+    async def test_first_beat_from_known_ip_calls_registered_callback(
+        self, ctx: _Ctx
+    ) -> None:
+        from pywizlight.models import DiscoveredBulb  # noqa: PLC0415
+
+        await ctx.adapter.get_capabilities(_IP)
+        calls: list[str] = []
+        ctx.adapter.register_boot_callback(calls.append)
+
+        ctx.fake_bulbs[_IP].discovery_callback(DiscoveredBulb(_IP, "a8bb5006033d"))
+
+        assert calls == [_IP]
+
+    async def test_callback_survives_a_failed_startup_query(self, ctx: _Ctx) -> None:
+        """Technique: Error Guessing — firstBeat remains live after startup timeout."""
+        from pywizlight.models import DiscoveredBulb  # noqa: PLC0415
+
+        calls: list[str] = []
+        ctx.adapter.register_boot_callback(calls.append)
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].get_bulbtype_exc = WizLightTimeOutError("unreachable")
+
+        with pytest.raises(WizTimeoutError):
+            await ctx.adapter.get_capabilities(_IP)
+
+        ctx.fake_bulbs[_IP].discovery_callback(DiscoveredBulb(_IP, "a8bb5006033d"))
+
+        assert calls == [_IP]
+        assert ctx.fake_bulbs[_IP].closed is True
+
+    async def test_first_beat_from_unknown_ip_is_ignored(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        from pywizlight.models import DiscoveredBulb  # noqa: PLC0415
+
+        await ctx.adapter.get_capabilities(_IP)
+        calls: list[str] = []
+        ctx.adapter.register_boot_callback(calls.append)
+
+        with caplog.at_level(logging.DEBUG):
+            ctx.fake_bulbs[_IP].discovery_callback(
+                DiscoveredBulb(_UNCONFIGURED_IP, "000000000000")
+            )
+
+        assert calls == []
+        assert "unconfigured ip" in caplog.text.lower()
+
+    async def test_no_registered_callback_does_not_raise(self, ctx: _Ctx) -> None:
+        from pywizlight.models import DiscoveredBulb  # noqa: PLC0415
+
+        await ctx.adapter.get_capabilities(_IP)
+
+        ctx.fake_bulbs[_IP].discovery_callback(DiscoveredBulb(_IP, "a8bb5006033d"))
+
+    async def test_installed_once_across_three_bulbs(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        import pywizlight
+
+        fake_bulbs: dict[str, _FakeWizLight] = {}
+
+        def _factory(ip: str, port: int = 38899, mac: str | None = None) -> Any:
+            return fake_bulbs.setdefault(ip, _FakeWizLight(ip))
+
+        monkeypatch.setattr(pywizlight, "wizlight", _factory)
+        adapter = WizBulbAdapter(_three_bulb_settings(), _RecordingNotifier())
+
+        for ip in ("10.0.0.1", "10.0.0.2", "10.0.0.3"):
+            await adapter.get_capabilities(ip)
+
+        installs = sum(b.set_discovery_callback_calls for b in fake_bulbs.values())
+        assert installs == 1
