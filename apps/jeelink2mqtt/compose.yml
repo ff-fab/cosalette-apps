@@ -13,6 +13,7 @@ services:
       JEELINK2MQTT_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       JEELINK2MQTT_MQTT__TLS: ${JEELINK2MQTT_MQTT__TLS:-false}
+      JEELINK2MQTT_STORE_PATH: ${JEELINK2MQTT_STORE_PATH:-/app/data/store.json}
     volumes:
       - jeelink2mqtt-data:/app/data
     depends_on:

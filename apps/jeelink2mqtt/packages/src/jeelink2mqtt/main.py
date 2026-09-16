@@ -24,11 +24,9 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from pathlib import Path
 
 import cosalette
 from cosalette import DeviceStore, StreamablePort
-from cosalette.stores import JsonFileStore
 
 from jeelink2mqtt import __version__
 from jeelink2mqtt import commands as _commands
@@ -53,7 +51,6 @@ app = cosalette.App(
     version=__version__,
     description="JeeLink LaCrosse sensor bridge for MQTT",
     settings_class=Jeelink2MqttSettings,
-    store=JsonFileStore(Path("data") / "jeelink2mqtt.json"),
     adapters={StreamablePort[SensorReading]: (_make_adapter, FakeJeeLinkAdapter)},
     error_type_map=error_type_map,
     restart_after_failures=5,
