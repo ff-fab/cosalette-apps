@@ -1129,6 +1129,14 @@ class TestSetState:
         await ctx.adapter.set_state(_IP)
         assert _IP not in ctx.fake_bulbs
 
+    async def test_wizlight_set_state_forced_unreachable_precedes_no_op(
+        self, ctx: _Ctx
+    ) -> None:
+        ctx.adapter.set_unreachable(_IP, True)
+
+        with pytest.raises(WizTimeoutError, match="set unreachable"):
+            await ctx.adapter.set_state(_IP)
+
     async def test_wizlight_set_state_false_calls_turn_off(self, ctx: _Ctx) -> None:
         """Technique: State Transition Testing — off path bypasses PilotBuilder."""
         ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)

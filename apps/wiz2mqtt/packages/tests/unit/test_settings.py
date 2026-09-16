@@ -387,7 +387,7 @@ class TestPowerSourceSignalTopicValidation:
         )
         assert source.signal_topic == "relay/state"
 
-    @pytest.mark.parametrize("topic", ["", "a/+/b", "a/#", "a b", "a$b"])
+    @pytest.mark.parametrize("topic", ["", "/", "///", "a/+/b", "a/#", "a b", "a$b"])
     def test_signal_topic_rejects_invalid_topics(self, topic: str) -> None:
         """Technique: Equivalence Partitioning — invalid-topic class (empty,
         wildcards, out-of-charset)."""
@@ -455,6 +455,15 @@ class TestPowerSourcesValidation:
                         "members": ["desk"],
                         "enable_power_off_request": True,
                     }
+                ]
+            )
+
+    def test_rejects_duplicate_normalized_signal_topics(self) -> None:
+        with pytest.raises(ValidationError, match="share signal_topic"):
+            self._settings(
+                power_sources=[
+                    {"name": "p1", "members": ["desk"], "signal_topic": "/relay"},
+                    {"name": "p2", "members": ["lamp"], "signal_topic": "relay/"},
                 ]
             )
 
@@ -567,6 +576,14 @@ class TestPowerSourceOf:
         settings = Wiz2MqttSettings(**_UNCONFIGURED)
         assert settings.power_source_of("ghost") is None
 
+    def test_resolves_from_validated_cache(self) -> None:
+        settings = Wiz2MqttSettings(
+            bulbs=[{"name": "desk", "ip": "10.0.0.1"}],
+            power_sources=[{"name": "p", "members": ["desk"]}],
+            **_UNCONFIGURED,
+        )
+        assert settings.power_source_of("desk") is settings.power_sources[0]
+
 
 # ---------------------------------------------------------------------------
 # Legacy bulb-level when_unreachable migration
@@ -622,6 +639,22 @@ class TestLegacyWhenUnreachableMigration:
                 bulbs=[
                     {"name": "desk", "ip": "10.0.0.1", "when_unreachable": "always"}
                 ],
+                **_UNCONFIGURED,
+            )
+
+    def test_off_rejects_incompatible_generated_source_collision(self) -> None:
+        with pytest.raises(ValidationError, match="not a compatible"):
+            Wiz2MqttSettings(
+                bulbs=[{"name": "desk", "ip": "10.0.0.1", "when_unreachable": "off"}],
+                power_sources=[{"name": "desk-power", "members": ["desk"]}],
+                **_UNCONFIGURED,
+            )
+
+    def test_off_rejects_generated_name_longer_than_64_characters(self) -> None:
+        name = "a" * 64
+        with pytest.raises(ValidationError, match="exceeds 64 characters"):
+            Wiz2MqttSettings(
+                bulbs=[{"name": name, "ip": "10.0.0.1", "when_unreachable": "off"}],
                 **_UNCONFIGURED,
             )
 

@@ -73,8 +73,10 @@ discovery. They are rendered only for openHAB; HA groups remain HA configuration
 
 Optional `[[power_sources]]` entries model a mains circuit (ADR-007) that one
 or more bulbs sit behind, e.g. a smart relay or wall switch feeding several
-WiZ bulbs. wiz2mqtt derives a belief about the source's power state and
-publishes it as the `powered` key on every member bulb's state payload.
+WiZ bulbs. This inventory and its validation are available now. Deriving or
+publishing a `powered` belief, subscribing to `signal_topic`, and sending
+power requests are reserved configuration only until their separately tracked
+ADR-007/ADR-009 runtime work lands.
 
 ```toml
 [[power_sources]]
@@ -98,11 +100,11 @@ wiz_bulbs_only = true
 | `name` | yes | Unique name, `[A-Za-z0-9_-]+`, at most 64 characters; must not collide with a bulb or group name |
 | `group` | one of `group`/`members` | Name of an existing `[[groups]]` entry this source powers |
 | `members` | one of `group`/`members` | Bulb names powered by this source directly |
-| `signal_topic` | no | Retained MQTT topic carrying the raw relay signal (`on`/`off`) for this circuit; wiz2mqtt only subscribes, it never publishes here |
+| `signal_topic` | no | Reserved retained MQTT relay-signal topic (`on`/`off`); subscription is deferred until the ADR-007 runtime work lands |
 | `when_unreachable` | no | What an unreachable member bulb means with no better evidence: `fault` (default, availability = offline) or `no_power` (bulb stays available, publishes `{"state": "OFF"}`) |
-| `enable_power_on_request` | no | Allow wiz2mqtt to request this source be turned on (default `false`) |
-| `enable_power_off_request` | no | Allow wiz2mqtt to request this source be turned off; requires `wiz_bulbs_only = true` (default `false`) |
-| `power_off_idle_delay` | no | Seconds every member bulb must be idle before a power-off request is issued (default `600`) |
+| `enable_power_on_request` | no | Reserve future power-on requests; runtime support is deferred (default `false`) |
+| `enable_power_off_request` | no | Reserve future power-off requests; runtime support is deferred and requires `wiz_bulbs_only = true` (default `false`) |
+| `power_off_idle_delay` | no | Reserved seconds every member bulb must be idle before a future power-off request; runtime support is deferred (default `600`) |
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
 
 Exactly one of `group` or `members` must be set. A bulb resolves to at most
@@ -137,7 +139,7 @@ Compose override when your broker expects TLS.
 
 | Setting | Environment Variable | Default | Description |
 | ------- | --------------------- | ------- | ----------- |
-| `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | How long a command queued for an unreachable bulb waits before it expires (ADR-008). The bulb's desired state itself never expires — only the queued command that produced it can. |
+| `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | Reserved command-queue TTL (ADR-008); queue runtime support is deferred, so this currently has no effect. |
 
 ## Config-file and environment interplay
 

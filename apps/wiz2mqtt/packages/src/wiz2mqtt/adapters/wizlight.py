@@ -382,15 +382,14 @@ class WizBulbAdapter:
         speed: int | None = None,
     ) -> None:
         """Apply a partial state update, clamping/validating against capabilities."""
+        if ip in self._forced_unreachable:
+            msg = f"bulb {ip} is set unreachable"
+            raise WizTimeoutError(msg)
         if state is None and all(
             v is None
             for v in (brightness, hue, saturation, color_temp_kelvin, scene, speed)
         ):
             return
-        if ip in self._forced_unreachable:
-            msg = f"bulb {ip} is set unreachable"
-            raise WizTimeoutError(msg)
-
         bulb = await self._get_bulb(ip)
         caps = self._capabilities[ip]
 

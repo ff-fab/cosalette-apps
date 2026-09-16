@@ -24,7 +24,7 @@ def _config(**overrides: object) -> BulbConfig:
     return BulbConfig(**{**defaults, **overrides})  # type: ignore[arg-type]
 
 
-def _settings_with_no_power_source() -> Wiz2MqttSettings:
+def _settings_with_no_power_policy_source() -> Wiz2MqttSettings:
     """Settings whose 'office' bulb sits behind a source that reports OFF."""
     return Wiz2MqttSettings(
         bulbs=[{"name": "office", "ip": _IP}],
@@ -165,7 +165,7 @@ class TestWhenUnreachableOff:
         adapter = FakeWizBulbAdapter()
         adapter.fail_next(_IP, WizTimeoutError("boom"))
         state = SharedState()
-        ctx = FakeDeviceContext(settings=_settings_with_no_power_source())
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
 
         result = await bulb_entity_tick(ctx, _config(), adapter, state)
 
@@ -177,7 +177,7 @@ class TestWhenUnreachableOff:
         """Technique: Boundary Value Analysis — well past the 3-failure threshold."""
         adapter = FakeWizBulbAdapter()
         state = SharedState()
-        ctx = FakeDeviceContext(settings=_settings_with_no_power_source())
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
         config = _config()
 
         for _ in range(5):
@@ -192,7 +192,7 @@ class TestWhenUnreachableOff:
         adapter.fail_next(_IP, WizTimeoutError("boom"))
         state = SharedState()
         state.last_availability["office"] = "online"
-        ctx = FakeDeviceContext(settings=_settings_with_no_power_source())
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
 
         await bulb_entity_tick(ctx, _config(), adapter, state)
 
@@ -202,7 +202,7 @@ class TestWhenUnreachableOff:
         """Identity failures never masquerade as an unreachable bulb switched off."""
         adapter = FakeWizBulbAdapter()
         state = SharedState()
-        ctx = FakeDeviceContext(settings=_settings_with_no_power_source())
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
         config = _config()
 
         for _ in range(3):

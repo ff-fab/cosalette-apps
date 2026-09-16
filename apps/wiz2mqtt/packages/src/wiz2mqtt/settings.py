@@ -12,10 +12,10 @@ import ipaddress
 import logging
 import re
 from collections import Counter
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 
 import cosalette
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, PrivateAttr, field_validator, model_validator
 from pydantic_settings import SettingsConfigDict
 
 logger = logging.getLogger(__name__)
@@ -104,11 +104,20 @@ class PowerSourceConfig(BaseModel):
     """A mains circuit (ADR-007) that one or more bulbs sit behind.
 
     Claims member bulbs through exactly one of ``group`` or ``members``.
-    wiz2mqtt derives a belief about the source's power state and publishes
-    it as the ``powered`` key on every member bulb's state payload.
+    The inventory shape is available now; deriving and publishing a source
+    power belief is deferred to the ADR-007 runtime work.
     """
 
-    name: Annotated[str, Field(max_length=64, pattern=r"^[A-Za-z0-9_-]+$")]
+    name: Annotated[
+        str,
+        Field(
+            max_length=64,
+            pattern=r"^[A-Za-z0-9_-]+$",
+            description=(
+                "Unique power-source name used by bulb power_source references."
+            ),
+        ),
+    ]
     group: str | None = Field(
         default=None,
         description="Name of an existing [[groups]] entry this source powers.",
@@ -123,9 +132,9 @@ class PowerSourceConfig(BaseModel):
     signal_topic: str | None = Field(
         default=None,
         description=(
-            "Optional retained MQTT topic carrying the raw relay signal "
-            "('on' or 'off') for this circuit. wiz2mqtt only subscribes; "
-            "it never publishes here."
+            "Reserved retained MQTT topic carrying the raw relay signal "
+            "('on' or 'off') for this circuit. Subscription is deferred to "
+            "the ADR-007 runtime work."
         ),
     )
     when_unreachable: Literal["fault", "no_power"] = Field(
@@ -137,20 +146,20 @@ class PowerSourceConfig(BaseModel):
     )
     enable_power_on_request: bool = Field(
         default=False,
-        description="Allow wiz2mqtt to request this source be turned on.",
+        description="Reserve future power-on requests; runtime support is deferred.",
     )
     enable_power_off_request: bool = Field(
         default=False,
         description=(
-            "Allow wiz2mqtt to request this source be turned off. Requires "
-            "wiz_bulbs_only = true."
+            "Reserve future power-off requests; runtime support is deferred. "
+            "Requires wiz_bulbs_only = true."
         ),
     )
     power_off_idle_delay: float = Field(
         default=600.0,
         description=(
-            "Seconds every member bulb must be idle before a power-off "
-            "request is issued."
+            "Reserved seconds every member bulb must be idle before a future "
+            "power-off request; runtime support is deferred."
         ),
     )
     wiz_bulbs_only: bool = Field(
@@ -175,6 +184,7 @@ class PowerSourceConfig(BaseModel):
         """Validate like cosalette's topic_prefix check, but non-empty."""
         if value is None:
             return value
+        value = value.strip("/")
         if value == "":
             raise ValueError("signal_topic must not be empty")
         for wildcard in ("+", "#"):
@@ -187,7 +197,7 @@ class PowerSourceConfig(BaseModel):
                 "signal_topic may only contain letters, digits, and "
                 f"'_-./:' (got {value!r})"
             )
-        return value.strip("/")
+        return value
 
 
 class Wiz2MqttSettings(cosalette.Settings):
@@ -223,9 +233,12 @@ class Wiz2MqttSettings(cosalette.Settings):
     queued_command_ttl: float = Field(
         default=86400.0,
         description=(
-            "Seconds a command queued for an unreachable bulb waits before it "
-            "expires (ADR-008). The bulb's desired state never expires."
+            "Reserved command-queue TTL in seconds (ADR-008). Queue runtime "
+            "support is deferred; the setting currently has no runtime effect."
         ),
+    )
+    _power_sources_by_bulb: dict[str, PowerSourceConfig | None] = PrivateAttr(
+        default_factory=dict
     )
 
     @model_validator(mode="before")
@@ -247,9 +260,13 @@ class Wiz2MqttSettings(cosalette.Settings):
 
         raw_sources = data.get("power_sources")
         power_sources = list(raw_sources) if isinstance(raw_sources, list) else []
-        existing_source_names = {
-            source.get("name") for source in power_sources if isinstance(source, dict)
-        }
+        sources_by_name: dict[object, list[dict[str, Any]]] = {}
+        for source in power_sources:
+            if isinstance(source, dict):
+                normalized_source = cast(dict[str, Any], source)
+                sources_by_name.setdefault(normalized_source.get("name"), []).append(
+                    normalized_source
+                )
 
         migrated_bulbs = []
         for bulb in bulbs:
@@ -270,15 +287,36 @@ class Wiz2MqttSettings(cosalette.Settings):
                 )
             elif legacy_value == "off":
                 source_name = f"{bulb_name}-power"
-                if source_name not in existing_source_names:
-                    power_sources.append(
-                        {
-                            "name": source_name,
-                            "members": [bulb_name],
-                            "when_unreachable": "no_power",
-                        }
+                if isinstance(bulb_name, str) and len(source_name) > 64:
+                    raise ValueError(
+                        f"Bulb {bulb_name}: cannot migrate legacy "
+                        "when_unreachable = 'off' because its generated power "
+                        f"source name {source_name!r} exceeds 64 characters; "
+                        "declare a shorter compatible [[power_sources]] entry "
+                        "and remove the legacy key."
                     )
-                    existing_source_names.add(source_name)
+                colliding_sources = sources_by_name.get(source_name, [])
+                if not colliding_sources:
+                    implicit_source: dict[str, Any] = {
+                        "name": source_name,
+                        "members": [bulb_name],
+                        "when_unreachable": "no_power",
+                    }
+                    power_sources.append(implicit_source)
+                    sources_by_name[source_name] = [implicit_source]
+                elif not all(
+                    source.get("members") == [bulb_name]
+                    and source.get("group") is None
+                    and source.get("when_unreachable", "fault") == "no_power"
+                    for source in colliding_sources
+                ):
+                    raise ValueError(
+                        f"Bulb {bulb_name}: cannot migrate legacy "
+                        "when_unreachable = 'off' because the existing "
+                        f"power source {source_name!r} is not a compatible "
+                        "single-bulb no_power mapping; remove the legacy key "
+                        "and resolve the configuration explicitly."
+                    )
                 logger.warning(
                     "Bulb %s: when_unreachable = 'off' is replaced by "
                     "power_source = %r (see [[power_sources]] name = %r, "
@@ -353,12 +391,22 @@ class Wiz2MqttSettings(cosalette.Settings):
         reserved_names = bulb_names | group_names
 
         source_names: set[str] = set()
+        signal_topics: dict[str, str] = {}
         for source in self.power_sources:
             if source.name in source_names or source.name in reserved_names:
                 raise ValueError(
                     f"Power source name collides with another name: {source.name}"
                 )
             source_names.add(source.name)
+
+            if source.signal_topic is not None:
+                if previous_source := signal_topics.get(source.signal_topic):
+                    raise ValueError(
+                        f"Power sources {previous_source!r} and {source.name!r} "
+                        "share signal_topic "
+                        f"{source.signal_topic!r}"
+                    )
+                signal_topics[source.signal_topic] = source.name
 
             if (source.group is None) == (source.members is None):
                 raise ValueError(
@@ -410,6 +458,26 @@ class Wiz2MqttSettings(cosalette.Settings):
                     f"Bulb {bulb.name!r} is claimed by multiple power "
                     f"sources: {sorted(claiming_sources)}"
                 )
+        sources_by_name = {source.name: source for source in self.power_sources}
+        self._power_sources_by_bulb = {
+            bulb.name: (
+                sources_by_name[bulb.power_source]
+                if bulb.power_source is not None
+                else next(
+                    (
+                        source
+                        for source in self.power_sources
+                        if (source.members is not None and bulb.name in source.members)
+                        or (
+                            source.group is not None
+                            and bulb.name in group_members.get(source.group, set())
+                        )
+                    ),
+                    None,
+                )
+            )
+            for bulb in self.bulbs
+        }
         return self
 
     def power_source_of(self, bulb_name: str) -> PowerSourceConfig | None:
@@ -420,17 +488,4 @@ class Wiz2MqttSettings(cosalette.Settings):
         naming the bulb's group through ``group``. Assumes
         :meth:`_power_sources_valid` already accepted this configuration.
         """
-        sources_by_name = {source.name: source for source in self.power_sources}
-        bulb = next((b for b in self.bulbs if b.name == bulb_name), None)
-        if bulb is not None and bulb.power_source is not None:
-            return sources_by_name.get(bulb.power_source)
-
-        group_members = {group.name: set(group.members) for group in self.groups}
-        for source in self.power_sources:
-            if source.members is not None and bulb_name in source.members:
-                return source
-            if source.group is not None and bulb_name in group_members.get(
-                source.group, set()
-            ):
-                return source
-        return None
+        return self._power_sources_by_bulb.get(bulb_name)
