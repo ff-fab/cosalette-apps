@@ -8,6 +8,7 @@ cosalette's adapter registry.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from types import TracebackType
 from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
 
@@ -68,6 +69,44 @@ class WizBulbPort(HealthCheckable, Protocol):
         scene ids are validated against the bulb's class before sending.
         ``speed`` is the colour-cycling effect speed (pywizlight accepts
         ``10..200``).
+        """
+        ...
+
+    def set_unreachable(self, ip: str, unreachable: bool) -> None:
+        """Force *ip* to behave as unreachable (ADR-008 test support).
+
+        While set, ``get_state`` and ``set_state`` raise
+        :class:`~wiz2mqtt.errors.WizTimeoutError` for ``ip``. Production use
+        is chaos-testing a specific bulb; every unit test drives this
+        through :class:`~wiz2mqtt.adapters.fake.FakeWizBulbAdapter`.
+        """
+        ...
+
+    def boot(self, ip: str, default_state: BulbState) -> None:
+        """Simulate *ip* booting into *default_state* (ADR-008).
+
+        Clears any :meth:`set_unreachable` flag, replaces the cached state
+        with *default_state*, and fires the callback registered via
+        :meth:`register_boot_callback` with ``ip`` — standing in for
+        pywizlight's firstBeat notification (cap-bjw9.4 wires the real
+        adapter's callback to pywizlight; this method only fires it).
+        """
+        ...
+
+    def register_boot_callback(self, callback: Callable[[str], None]) -> None:
+        """Register *callback* to be invoked with a bulb's ip on boot.
+
+        The production adapter stores the callback but does not yet invoke
+        it — pywizlight's firstBeat event is not wired up until cap-bjw9.4.
+        """
+        ...
+
+    def refuse_writes(self, ip: str, count: int) -> None:
+        """Make the next *count* ``set_state`` calls for *ip* no-ops.
+
+        Each of the next *count* calls succeeds (raises nothing) but leaves
+        the cached/reported state unchanged, so a subsequent ``get_state``
+        still reads the old value — the three-retry rule's test support.
         """
         ...
 

@@ -22,7 +22,8 @@ ip = "10.0.0.10"
 name = "lamp"
 ip = "10.0.0.11"
 mac = "a8bb5006033d"
-when_unreachable = "off"
+power_source = "lamp-power"
+restore_previous_state = true
 ```
 
 | Field | Required | Description |
@@ -30,11 +31,26 @@ when_unreachable = "off"
 | `name` | yes | MQTT topic segment for the bulb |
 | `ip` | yes | Literal IPv4 address of the bulb |
 | `mac` | no | Bare 12-hex-digit MAC verified on first successful contact; a mismatch rejects that contact, while a missing device MAC is warned as unverifiable |
-| `when_unreachable` | no | `unavailable` (default) or `off` |
+| `power_source` | no | Name of a `[[power_sources]]` entry that powers this bulb directly. Wins over any `[[power_sources]]` block that claims the bulb's group (ADR-007) |
+| `restore_previous_state` | no | Restore the bulb's previous desired state when it returns to reachability with no queued command (default `false`, ADR-008) |
 
-`when_unreachable = "off"` keeps the bulb available and publishes
-`{"state": "OFF"}` when reads fail. The default `unavailable` path instead
-marks the entity offline after repeated failures.
+### Legacy `when_unreachable` (bulb-level, removed)
+
+The old bulb-level `when_unreachable` field was removed in favour of
+`[[power_sources]]` (ADR-007). A `wiz2mqtt.toml` that still sets it is
+migrated automatically at startup, with a warning logged for each bulb:
+
+- `when_unreachable = "off"` becomes an implicit single-bulb power source
+  (`name = "<bulb>-power"`, `members = ["<bulb>"]`,
+  `when_unreachable = "no_power"`).
+- `when_unreachable = "unavailable"` (the old default) is simply dropped —
+  it is now the implicit default behaviour when no power source claims the
+  bulb.
+- Any other value still raises a validation error.
+
+Update `wiz2mqtt.toml` to remove the bulb-level key and declare the
+equivalent `[[power_sources]]` entry directly; the migration is a
+compatibility shim, not a long-term feature.
 
 ## Groups
 
@@ -52,6 +68,51 @@ distinct, declared bulb names. A bulb can belong to multiple groups.
 
 Groups create no MQTT entities or topics and do not change Home Assistant
 discovery. They are rendered only for openHAB; HA groups remain HA configuration.
+
+## Power Sources
+
+Optional `[[power_sources]]` entries model a mains circuit (ADR-007) that one
+or more bulbs sit behind, e.g. a smart relay or wall switch feeding several
+WiZ bulbs. wiz2mqtt derives a belief about the source's power state and
+publishes it as the `powered` key on every member bulb's state payload.
+
+```toml
+[[power_sources]]
+name = "lamp-power"
+members = ["lamp"]
+when_unreachable = "no_power"
+
+[[power_sources]]
+name = "downstairs-power"
+group = "downstairs"
+signal_topic = "openhab/relay/downstairs/state"
+when_unreachable = "fault"
+enable_power_on_request = true
+enable_power_off_request = true
+power_off_idle_delay = 300
+wiz_bulbs_only = true
+```
+
+| Field | Required | Description |
+| ----- | -------- | ----------- |
+| `name` | yes | Unique name, `[A-Za-z0-9_-]+`, at most 64 characters; must not collide with a bulb or group name |
+| `group` | one of `group`/`members` | Name of an existing `[[groups]]` entry this source powers |
+| `members` | one of `group`/`members` | Bulb names powered by this source directly |
+| `signal_topic` | no | Retained MQTT topic carrying the raw relay signal (`on`/`off`) for this circuit; wiz2mqtt only subscribes, it never publishes here |
+| `when_unreachable` | no | What an unreachable member bulb means with no better evidence: `fault` (default, availability = offline) or `no_power` (bulb stays available, publishes `{"state": "OFF"}`) |
+| `enable_power_on_request` | no | Allow wiz2mqtt to request this source be turned on (default `false`) |
+| `enable_power_off_request` | no | Allow wiz2mqtt to request this source be turned off; requires `wiz_bulbs_only = true` (default `false`) |
+| `power_off_idle_delay` | no | Seconds every member bulb must be idle before a power-off request is issued (default `600`) |
+| `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
+
+Exactly one of `group` or `members` must be set. A bulb resolves to at most
+one power source: its own `power_source` field (see [Bulb
+Inventory](#bulb-inventory)) always wins over an implicit claim through
+`members` or the bulb's group; two power sources implicitly claiming the
+same bulb (through `members` and/or `group`) is a configuration error.
+
+Like `[[bulbs]]` and `[[groups]]`, `power_sources` is TOML-only — there is no
+environment-variable form.
 
 ## MQTT Settings
 
@@ -71,6 +132,12 @@ Transport security is a per-deployment setting. cosalette defaults `tls` to
 `true`; the shipped `compose.yml` defaults `WIZ2MQTT_MQTT__TLS` to `false` for
 its bundled plaintext broker. Set `WIZ2MQTT_MQTT__TLS=true` in `.env` or a
 Compose override when your broker expects TLS.
+
+## Command Queueing
+
+| Setting | Environment Variable | Default | Description |
+| ------- | --------------------- | ------- | ----------- |
+| `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | How long a command queued for an unreachable bulb waits before it expires (ADR-008). The bulb's desired state itself never expires — only the queued command that produced it can. |
 
 ## Config-file and environment interplay
 

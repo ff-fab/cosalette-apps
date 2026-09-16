@@ -22,13 +22,17 @@ ip = "10.0.0.10"
 name = "lamp"
 ip = "10.0.0.11"
 mac = "a8bb5006033d"
-when_unreachable = "off"
 ```
 
 `name` becomes the MQTT topic segment (`wiz2mqtt/<name>/...`). `mac` is optional
 but useful when you want the bulb's first successful contact to verify that the
 configured IP still belongs to the intended bulb. A mismatch rejects that
 contact; a device that reports no MAC is warned as unverifiable.
+
+To model a bulb that sits behind a switched mains circuit, declare a
+`[[power_sources]]` entry instead of the old bulb-level `when_unreachable` —
+see [Power Sources](configuration.md#power-sources) in the Configuration
+guide.
 
 ## 2. Point the app at your broker
 

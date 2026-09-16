@@ -113,6 +113,13 @@ class WizBulbAdapter:
         # whose registration failed (cap-4rbg).
         self._push_retry_at: dict[str, float] = {}
         self._warned_stale: set[str] = set()
+        # Test-support controls mirroring FakeWizBulbAdapter (ADR-008,
+        # cap-bjw9.2) — no live-hardware effect, just protocol conformance.
+        self._forced_unreachable: set[str] = set()
+        self._refuse_writes: dict[str, int] = {}
+        # Stored, not yet invoked: pywizlight's firstBeat event is not wired
+        # to this callback until cap-bjw9.4.
+        self._boot_callback: Callable[[str], None] | None = None
 
     async def _get_bulb(self, ip: str) -> Any:
         """Return the cached bulb for *ip*, connecting on first contact."""
@@ -311,6 +318,10 @@ class WizBulbAdapter:
         parser without sending a network request, and this method populates
         the adapter cache from it.
         """
+        if ip in self._forced_unreachable:
+            msg = f"bulb {ip} is set unreachable"
+            raise WizTimeoutError(msg)
+
         bulb = await self._get_bulb(ip)
         await self._maybe_retry_push_registration(ip, bulb)
         now = time.monotonic()
@@ -376,6 +387,9 @@ class WizBulbAdapter:
             for v in (brightness, hue, saturation, color_temp_kelvin, scene, speed)
         ):
             return
+        if ip in self._forced_unreachable:
+            msg = f"bulb {ip} is set unreachable"
+            raise WizTimeoutError(msg)
 
         bulb = await self._get_bulb(ip)
         caps = self._capabilities[ip]
@@ -397,6 +411,11 @@ class WizBulbAdapter:
             scene=scene,
             speed=speed,
         )
+
+        refused = self._refuse_writes.get(ip, 0)
+        if refused > 0:
+            self._refuse_writes[ip] = refused - 1
+            return  # succeeded on the wire; cached state deliberately unchanged
 
         # Optimistic merge pending the next authoritative push/poll.
         # _send_pilot only sends turn_off() when state is False — merge just
@@ -460,6 +479,40 @@ class WizBulbAdapter:
         except WizLightError as exc:
             msg = f"pywizlight error sending command to bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
+
+    def set_unreachable(self, ip: str, unreachable: bool) -> None:
+        """Force *ip* unreachable for testing (ADR-008); no live-hardware effect.
+
+        While set, ``get_state``/``set_state`` raise ``WizTimeoutError``
+        without attempting a connection.
+        """
+        if unreachable:
+            self._forced_unreachable.add(ip)
+        else:
+            self._forced_unreachable.discard(ip)
+
+    def register_boot_callback(self, callback: Callable[[str], None]) -> None:
+        """Store *callback* for pywizlight's firstBeat event.
+
+        Not yet invoked — pywizlight's firstBeat wiring lands in cap-bjw9.4.
+        """
+        self._boot_callback = callback
+
+    def boot(self, ip: str, default_state: BulbState) -> None:
+        """Simulate *ip* booting (ADR-008 test support).
+
+        Clears :meth:`set_unreachable`, replaces the cached state with
+        *default_state*, and fires the registered boot callback with *ip*.
+        """
+        self._forced_unreachable.discard(ip)
+        self._state_cache[ip] = default_state
+        if self._boot_callback is not None:
+            self._boot_callback(ip)
+
+    def refuse_writes(self, ip: str, count: int) -> None:
+        """Make the next *count* ``set_state`` calls for *ip* leave the cache
+        unchanged, even though they succeed on the wire."""
+        self._refuse_writes[ip] = count
 
     async def health_check(self) -> bool:
         """Always healthy — UDP is connectionless, there is no single link to probe.
