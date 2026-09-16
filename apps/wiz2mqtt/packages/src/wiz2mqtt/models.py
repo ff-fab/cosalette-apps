@@ -11,7 +11,38 @@ from dataclasses import dataclass
 from typing import Annotated, Literal
 
 from cosalette.schema import consumer, ha_entities, ha_entity, merge, openhab
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PlainSerializer,
+    field_validator,
+    model_validator,
+)
+
+POWERED_UNKNOWN = "__unknown__"
+"""Sentinel for an unknown/no-source power belief (ADR-007).
+
+``BulbStateModel.powered`` must serialise ``None`` for "unknown" while
+staying present on the wire (ADR-001 amendment: "always present... do not
+use a null-excluding serializer for this field"). cosalette's state_model
+validation dumps every publish with ``exclude_none=True``
+(``cosalette._runners._contracts``), which drops a field whose *value* is
+``None`` outright. Using this sentinel as the field's Python value, with a
+``PlainSerializer`` that maps it to ``None`` in the JSON output, sidesteps
+that: Pydantic's ``exclude_none`` filter inspects the raw field value, not
+the serializer's return value, so the sentinel survives the dump and still
+renders as JSON ``null``.
+"""
+
+PoweredWire = Literal[True, False, "__unknown__"]
+"""``BulbStateModel.powered``'s Python-side type; wire values are
+``true``/``false``/``null`` via :func:`_serialize_powered`."""
+
+
+def _serialize_powered(value: PoweredWire) -> bool | None:
+    return None if value == POWERED_UNKNOWN else value
+
 
 _KELVIN_MIN = 2200
 _KELVIN_MAX = 6500
@@ -317,6 +348,25 @@ class BulbStateModel(BaseModel):
     ] = None
     effect_speed: int | None = None
     power_draw_w: float | None = None
+    powered: Annotated[PoweredWire, PlainSerializer(_serialize_powered)]
+    """The power-source belief (ADR-007): ``true``/``false``/``null``. No
+    default — every publish must set it explicitly (ADR-001 amendment)."""
+
+
+class PowerSourceStateModel(BaseModel):
+    """Retained ``{prefix}/{source}/state`` payload for one power source.
+
+    No ``ha_entities`` yet: Home Assistant discovery for this entity is
+    cap-bjw9.10, not this task — the telemetry registration in ``main.py``
+    passes ``discoverable=False`` until then.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    powered: Literal["on", "off", "unknown"]
+    power_request: Literal["on", "off"] | None = None
+    """Always omitted in this PR; cap-bjw9.12 gives it meaning."""
+    members: list[str]
 
 
 class BulbSetCommand(BaseModel):

@@ -119,21 +119,66 @@ class TestUnreachableBulb:
 @pytest.mark.integration
 @pytest.mark.slow
 class TestUnreachableBulbOffPolicy:
-    """A bulb with when_unreachable='off' publishes OFF state, never goes offline."""
+    """A bulb with when_unreachable='off' publishes its desired state while
+    unreachable, never a hard-coded OFF (cap-bjw9.6), and never goes offline."""
 
-    async def test_unreachable_bulb_off_policy_publishes_off_state(
+    async def test_unreachable_bulb_with_no_prior_observation_publishes_nothing(
         self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
     ) -> None:
-        """Technique: Decision Table — when_unreachable='off' end-to-end wiring."""
+        """Technique: Boundary Value Analysis — unreachable from the very
+        first tick, before any observation ever recorded a desired state.
+        """
         fake_adapter.always_fail = True
 
         await _run_briefly(harness_when_off)
 
-        harness_when_off.assert_published(f"{TOPIC_PREFIX}/office/state")
-        payload, _retain, _qos = harness_when_off.messages_for(
-            f"{TOPIC_PREFIX}/office/state"
-        )[0]
-        assert json.loads(payload)["state"] == "OFF"
+        assert harness_when_off.messages_for(f"{TOPIC_PREFIX}/office/state") == []
+
+    async def test_unreachable_bulb_publishes_its_last_observed_state(
+        self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """cap-bjw9.6: once observed, the desired state republishes while
+        unreachable — never a hard-coded OFF, replacing the pre-cap-bjw9.6
+        behaviour this test used to pin.
+
+        Technique: Decision Table — when_unreachable='off' failure branch,
+        with a prior observation on record.
+        """
+        state_topic = f"{TOPIC_PREFIX}/office/state"
+        observed_on = BulbState(
+            state=True,
+            brightness=222,
+            hue=None,
+            saturation=None,
+            color_temp_kelvin=None,
+            scene=None,
+        )
+        task = asyncio.create_task(harness_when_off.run())
+        try:
+            await wait_until_subscribed(harness_when_off)
+            await harness_when_off.advance_time(0)  # settle the startup run
+            await harness_when_off.wait_for_publish_count(state_topic, 1)
+
+            fake_adapter.inject_push("10.0.0.5", observed_on)
+            await harness_when_off.wait_for_publish_count(state_topic, 2)
+
+            fake_adapter.always_fail = True
+            await harness_when_off.advance_time(_FAST_TICK_INTERVAL)
+        finally:
+            harness_when_off.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            else:
+                await task
+
+        payload, _retain, _qos = harness_when_off.messages_for(state_topic)[-1]
+        body = json.loads(payload)
+        # Not the fake adapter's OFF default, not a hard-coded guess — the
+        # bulb's own last observation, carried through while unreachable.
+        assert body["state"] == "ON"
+        assert body["brightness"] == 222
+        assert body["powered"] is False  # never omitted
 
     async def test_unreachable_bulb_off_policy_marks_available(
         self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter

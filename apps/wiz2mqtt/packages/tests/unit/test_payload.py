@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import dataclasses
 
-from wiz2mqtt.models import BulbState
+from wiz2mqtt.models import POWERED_UNKNOWN, BulbState
 from wiz2mqtt.payload import build_state_payload
 
 _EMPTY = BulbState(
@@ -28,17 +28,27 @@ def _state(**overrides: object) -> BulbState:
     return dataclasses.replace(_EMPTY, **overrides)
 
 
+def _payload(state: BulbState) -> dict[str, object]:
+    """``build_state_payload`` with an irrelevant ``powered`` for these tests.
+
+    The colour/brightness/effect rendering these tests exercise is
+    independent of the power belief — see ``test_entity.py`` and the new
+    ``TestPowered`` class below for ``powered`` itself.
+    """
+    return build_state_payload(state, None)
+
+
 class TestMandatoryState:
     """``state`` is mandatory in every payload — HA discards on KeyError."""
 
     def test_payload_on_state_reports_on(self) -> None:
         """Technique: Specification-based — bulb on maps to the literal 'ON'."""
-        payload = build_state_payload(_state(state=True))
+        payload = _payload(_state(state=True))
         assert payload["state"] == "ON"
 
     def test_payload_off_state_reports_off(self) -> None:
         """Technique: Specification-based — bulb off maps to the literal 'OFF'."""
-        payload = build_state_payload(_state(state=False))
+        payload = _payload(_state(state=False))
         assert payload["state"] == "OFF"
 
     def test_payload_unknown_state_reports_off(self) -> None:
@@ -47,7 +57,7 @@ class TestMandatoryState:
         Technique: Boundary Value Analysis — the unset/None case must not
         omit the mandatory key.
         """
-        payload = build_state_payload(_state(state=None))
+        payload = _payload(_state(state=None))
         assert payload["state"] == "OFF"
 
 
@@ -56,12 +66,12 @@ class TestOptionalFields:
 
     def test_payload_omits_brightness_when_unknown(self) -> None:
         """Technique: Equivalence Partitioning — unknown-value branch."""
-        payload = build_state_payload(_state(state=True))
+        payload = _payload(_state(state=True))
         assert "brightness" not in payload
 
     def test_payload_includes_brightness_when_known(self) -> None:
         """Technique: Equivalence Partitioning — known-value branch."""
-        payload = build_state_payload(_state(state=True, brightness=200))
+        payload = _payload(_state(state=True, brightness=200))
         assert payload["brightness"] == 200
 
     def test_payload_includes_effect_from_scene(self) -> None:
@@ -69,7 +79,7 @@ class TestOptionalFields:
 
         Technique: Specification-based — id-to-name translation at the boundary.
         """
-        payload = build_state_payload(_state(state=True, scene=7))
+        payload = _payload(_state(state=True, scene=7))
         assert payload["effect"] == "Forest"  # pywizlight SCENES[7]
 
     def test_payload_omits_effect_for_unknown_scene_id(self) -> None:
@@ -77,20 +87,18 @@ class TestOptionalFields:
 
         Technique: Equivalence Partitioning — unmappable-scene branch.
         """
-        payload = build_state_payload(_state(state=True, scene=10_000))
+        payload = _payload(_state(state=True, scene=10_000))
         assert "effect" not in payload
 
     def test_payload_omits_effect_speed_and_power_when_unknown(self) -> None:
         """Technique: Equivalence Partitioning — unknown-value branch."""
-        payload = build_state_payload(_state(state=True))
+        payload = _payload(_state(state=True))
         assert "effect_speed" not in payload
         assert "power_draw_w" not in payload
 
     def test_payload_includes_effect_speed_and_power_when_known(self) -> None:
         """Technique: Equivalence Partitioning — known-value branch."""
-        payload = build_state_payload(
-            _state(state=True, effect_speed=150, power_draw_w=8.44)
-        )
+        payload = _payload(_state(state=True, effect_speed=150, power_draw_w=8.44))
         assert payload["effect_speed"] == 150
         assert payload["power_draw_w"] == 8.4  # rounded to 1 decimal
 
@@ -103,7 +111,7 @@ class TestColorMode:
 
         Technique: Decision Table — neither CCT nor RGB branch.
         """
-        payload = build_state_payload(_state(state=True, brightness=100))
+        payload = _payload(_state(state=True, brightness=100))
         assert "color_mode" not in payload
         assert "color" not in payload
         assert "color_temp" not in payload
@@ -111,14 +119,14 @@ class TestColorMode:
 
     def test_payload_cct_mode_reports_color_temp(self) -> None:
         """Technique: Decision Table — CCT branch (color_temp_kelvin > 0)."""
-        payload = build_state_payload(_state(state=True, color_temp_kelvin=4000))
+        payload = _payload(_state(state=True, color_temp_kelvin=4000))
         assert payload["color_mode"] == "color_temp"
         assert payload["color_temp"] == 4000
         assert payload["color_temp_kelvin"] is True
 
     def test_payload_cct_mode_has_no_rgb_keys(self) -> None:
         """Technique: Decision Table — CCT branch excludes the RGB keys."""
-        payload = build_state_payload(_state(state=True, color_temp_kelvin=4000))
+        payload = _payload(_state(state=True, color_temp_kelvin=4000))
         assert "color" not in payload
         assert "hsb" not in payload
 
@@ -127,7 +135,7 @@ class TestColorMode:
 
         Pure red at full brightness: hue=0, saturation=100 -> RGB (255,0,0).
         """
-        payload = build_state_payload(
+        payload = _payload(
             _state(state=True, hue=0.0, saturation=100.0, brightness=255)
         )
         assert payload["color_mode"] == "rgb"
@@ -139,7 +147,7 @@ class TestColorMode:
 
         Technique: Boundary Value Analysis — half brightness rounds to 50%.
         """
-        payload = build_state_payload(
+        payload = _payload(
             _state(state=True, hue=120.0, saturation=50.0, brightness=128)
         )
         assert payload["hsb"] == "120,50,50"
@@ -149,7 +157,7 @@ class TestColorMode:
 
         Technique: Boundary Value Analysis — brightness=None edge case.
         """
-        payload = build_state_payload(_state(state=True, hue=0.0, saturation=100.0))
+        payload = _payload(_state(state=True, hue=0.0, saturation=100.0))
         assert payload["color"] == {"r": 255, "g": 0, "b": 0}
         assert payload["hsb"] == "0,100,100"
 
@@ -161,7 +169,7 @@ class TestColorMode:
 
         Technique: Decision Table — both colortemp and hue/saturation set.
         """
-        payload = build_state_payload(
+        payload = _payload(
             _state(state=True, color_temp_kelvin=4000, hue=0.0, saturation=100.0)
         )
         assert payload["color_mode"] == "color_temp"
@@ -173,7 +181,7 @@ class TestColorMode:
 
         Technique: Boundary Value Analysis — the exact rounding boundary.
         """
-        payload = build_state_payload(
+        payload = _payload(
             _state(state=True, hue=359.5, saturation=100.0, brightness=255)
         )
         hue_str = payload["hsb"].split(",")[0]  # type: ignore[union-attr]
@@ -184,7 +192,7 @@ class TestColorMode:
 
         Technique: Equivalence Partitioning — one-None partition (hue set, sat absent).
         """
-        payload = build_state_payload(_state(state=True, hue=0.0, saturation=None))
+        payload = _payload(_state(state=True, hue=0.0, saturation=None))
         assert "color_mode" not in payload
 
     def test_payload_rgb_mode_omits_color_when_only_saturation_known(self) -> None:
@@ -192,5 +200,66 @@ class TestColorMode:
 
         Technique: Equivalence Partitioning — one-None partition (sat set, hue absent).
         """
-        payload = build_state_payload(_state(state=True, hue=None, saturation=100.0))
+        payload = _payload(_state(state=True, hue=None, saturation=100.0))
         assert "color_mode" not in payload
+
+
+class TestPowered:
+    """``powered`` (ADR-007/ADR-001 amendment) — always present, never omitted."""
+
+    def test_powered_on_belief_reports_true(self) -> None:
+        """Technique: Specification-based — belief 'on' maps to the literal True."""
+        payload = build_state_payload(_state(state=True), "on")
+        assert payload["powered"] is True
+
+    def test_powered_off_belief_reports_false(self) -> None:
+        """Technique: Specification-based — belief 'off' maps to the literal False."""
+        payload = build_state_payload(_state(state=True), "off")
+        assert payload["powered"] is False
+
+    def test_powered_unknown_belief_reports_the_wire_sentinel(self) -> None:
+        """Technique: Equivalence Partitioning — belief 'unknown'."""
+        payload = build_state_payload(_state(state=True), "unknown")
+        assert payload["powered"] == POWERED_UNKNOWN
+
+    def test_powered_no_source_reports_the_same_sentinel_as_unknown(self) -> None:
+        """A bulb with no power source (``None``) is indistinguishable on the
+        wire from an ``"unknown"`` belief — both render JSON ``null``.
+
+        Technique: Equivalence Partitioning — the ``None`` input partition.
+        """
+        payload = build_state_payload(_state(state=True), None)
+        assert payload["powered"] == POWERED_UNKNOWN
+
+    def test_powered_key_is_always_present(self) -> None:
+        """Technique: Error Guessing — must never be silently omitted."""
+        payload = build_state_payload(_state(state=True), None)
+        assert "powered" in payload
+
+    def test_powered_sentinel_survives_state_model_exclude_none_dump(self) -> None:
+        """The regression this field exists to prevent.
+
+        cosalette's ``state_model=`` validation dumps every publish with
+        ``exclude_none=True`` (``cosalette._runners._contracts``), which
+        drops a field whose *value* is ``None``. A plain ``bool | None``
+        ``powered`` field would vanish from the wire exactly when unknown is
+        most informative. Confirms the sentinel + ``PlainSerializer``
+        mechanism survives that dump and still renders JSON ``null``.
+
+        Technique: Specification-based — the ADR-001 amendment's exact
+        requirement ("do not use a null-excluding serializer for this
+        field"), verified against the real Pydantic adapter, not just the
+        Python-level sentinel value.
+        """
+        from pydantic import TypeAdapter
+
+        from wiz2mqtt.models import BulbStateModel
+
+        adapter = TypeAdapter(BulbStateModel)
+        for belief, expected in ((True, True), (False, False), (None, None)):
+            payload = build_state_payload(_state(state=True), None)
+            payload["powered"] = POWERED_UNKNOWN if belief is None else belief
+            validated = adapter.validate_python(payload)
+            dumped = adapter.dump_python(validated, mode="json", exclude_none=True)
+            assert "powered" in dumped
+            assert dumped["powered"] == expected

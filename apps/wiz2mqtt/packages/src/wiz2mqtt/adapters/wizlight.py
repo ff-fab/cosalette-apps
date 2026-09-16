@@ -41,6 +41,7 @@ from wiz2mqtt.settings import Wiz2MqttSettings
 if TYPE_CHECKING:
     from pywizlight.bulb import PilotParser
     from pywizlight.bulblibrary import BulbType
+    from pywizlight.models import DiscoveredBulb
 
 logger = logging.getLogger(__name__)
 
@@ -117,9 +118,10 @@ class WizBulbAdapter:
         # cap-bjw9.2) — no live-hardware effect, just protocol conformance.
         self._forced_unreachable: set[str] = set()
         self._refuse_writes: dict[str, int] = {}
-        # Stored, not yet invoked: pywizlight's firstBeat event is not wired
-        # to this callback until cap-bjw9.4.
         self._boot_callback: Callable[[str], None] | None = None
+        # Guards installing pywizlight's process-wide discovery callback
+        # only once, on whichever bulb connects first (cap-bjw9.4).
+        self._discovery_callback_installed = False
 
     async def _get_bulb(self, ip: str) -> Any:
         """Return the cached bulb for *ip*, connecting on first contact."""
@@ -204,6 +206,7 @@ class WizBulbAdapter:
                 # (cap-4rbg): a dropped return silently left the operator with
                 # no diagnostic and no retry.
                 await self._register_push(ip, bulb)
+                self._maybe_install_discovery_callback(bulb)
 
                 self._capabilities[ip] = capabilities
                 self._bulbs[ip] = bulb
@@ -268,6 +271,40 @@ class WizBulbAdapter:
             if retry_at is not None and time.monotonic() < retry_at:
                 return
             await self._register_push(ip, bulb, is_retry=True)
+
+    def _maybe_install_discovery_callback(self, bulb: Any) -> None:
+        """Install the ``firstBeat`` discovery callback once, app-wide.
+
+        ``bulb.set_discovery_callback`` configures pywizlight's process-wide
+        ``PushManager`` singleton (``push_manager.py:43-47``) — any bulb
+        instance's call reaches the same listener, so installing it once is
+        a matter of avoiding a redundant call, not correctness. The flag
+        check is unlocked: a benign, idempotent race between two bulbs'
+        first-contact calls overwrites the same singleton attribute with an
+        equivalent bound method either way.
+        """
+        if self._discovery_callback_installed:
+            return
+        self._discovery_callback_installed = True
+        bulb.set_discovery_callback(self._on_first_beat)
+
+    def _on_first_beat(self, discovered: DiscoveredBulb) -> None:
+        """Route a pywizlight ``firstBeat`` broadcast to the registered boot callback.
+
+        A configured bulb's reboot is a sub-second signal that it has
+        returned (ADR-008); an unconfigured IP is ignored at ``debug`` — it
+        is not this app's concern. Performs no network I/O and mutates no
+        cached/persisted state itself: it only forwards to whatever
+        :meth:`register_boot_callback` installed, mirroring
+        :meth:`adapters.fake.FakeWizBulbAdapter.boot`'s test-support shape
+        (cap-bjw9.4).
+        """
+        ip = discovered.ip_address
+        if ip not in self._name_by_ip:
+            logger.debug("firstBeat from unconfigured ip %s; ignoring", ip)
+            return
+        if self._boot_callback is not None:
+            self._boot_callback(ip)
 
     def _make_push_callback(
         self, ip: str
@@ -491,9 +528,10 @@ class WizBulbAdapter:
             self._forced_unreachable.discard(ip)
 
     def register_boot_callback(self, callback: Callable[[str], None]) -> None:
-        """Store *callback* for pywizlight's firstBeat event.
+        """Store *callback*, invoked with a bulb's ip on a pywizlight firstBeat.
 
-        Not yet invoked — pywizlight's firstBeat wiring lands in cap-bjw9.4.
+        See :meth:`_on_first_beat`, wired from
+        :meth:`_maybe_install_discovery_callback`.
         """
         self._boot_callback = callback
 

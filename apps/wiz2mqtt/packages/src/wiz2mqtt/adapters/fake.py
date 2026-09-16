@@ -229,9 +229,9 @@ class FakeWizBulbAdapter:
         """Simulate *ip* booting: clear unreachable, seed state, fire the boot event.
 
         Note: :meth:`register_boot_callback` mirrors the port method the real
-        adapter will eventually wire to pywizlight's firstBeat notification
-        (cap-bjw9.4) — that wiring does not exist yet, and this fake does not
-        depend on the hardcoded ``start_push`` return value (cap-4rbg).
+        adapter wires to pywizlight's firstBeat notification (cap-bjw9.4);
+        this fake does not depend on the hardcoded ``start_push`` return
+        value (cap-4rbg).
         """
         self._unreachable.pop(ip, None)
         self._state[ip] = default_state

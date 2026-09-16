@@ -489,3 +489,17 @@ class Wiz2MqttSettings(cosalette.Settings):
         :meth:`_power_sources_valid` already accepted this configuration.
         """
         return self._power_sources_by_bulb.get(bulb_name)
+
+    def bulbs_for_power_source(self, source_name: str) -> list[str]:
+        """Return the bulb names resolving to power source *source_name*.
+
+        The reverse of :meth:`power_source_of`: a bulb is a member exactly
+        when its own resolution names this source. Sorted for a stable wire
+        payload.
+        """
+        return sorted(
+            bulb.name
+            for bulb in self.bulbs
+            if (source := self.power_source_of(bulb.name)) is not None
+            and source.name == source_name
+        )

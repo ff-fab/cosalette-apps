@@ -15,7 +15,13 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from wiz2mqtt.models import WIZ_EFFECT_LIST, BulbSetCommand, BulbState, BulbStateModel
+from wiz2mqtt.models import (
+    WIZ_EFFECT_LIST,
+    BulbSetCommand,
+    BulbState,
+    BulbStateModel,
+    PowerSourceStateModel,
+)
 
 # ---------------------------------------------------------------------------
 # Partial updates — every field optional
@@ -533,3 +539,51 @@ class TestHaDiscoveryMetadata:
                 "x-cosalette-openhab"
             ]["channel_params"]
             assert params["min"] == 1
+
+
+class TestPoweredField:
+    """``BulbStateModel.powered`` — required, no default (ADR-001 amendment)."""
+
+    def test_powered_is_required(self) -> None:
+        """Technique: Error Guessing — a publish that forgets ``powered`` is a bug."""
+        with pytest.raises(ValidationError):
+            BulbStateModel.model_validate({"state": "ON"})
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(True, True), (False, False), ("__unknown__", None)],
+    )
+    def test_powered_accepts_bool_or_the_sentinel(
+        self, value: bool | str, expected: bool | None
+    ) -> None:
+        model = BulbStateModel.model_validate({"state": "ON", "powered": value})
+        assert model.model_dump(mode="json", exclude_none=True)["powered"] == expected
+
+    def test_powered_rejects_an_arbitrary_string(self) -> None:
+        with pytest.raises(ValidationError):
+            BulbStateModel.model_validate({"state": "ON", "powered": "unknown"})
+
+
+class TestPowerSourceStateModel:
+    """The retained per-source payload (ADR-007 amendment) — cap-bjw9.7."""
+
+    def test_accepts_the_full_shape(self) -> None:
+        model = PowerSourceStateModel.model_validate(
+            {"powered": "on", "power_request": None, "members": ["desk", "lamp"]}
+        )
+        assert model.powered == "on"
+        assert model.members == ["desk", "lamp"]
+
+    def test_rejects_an_unknown_powered_value(self) -> None:
+        with pytest.raises(ValidationError):
+            PowerSourceStateModel.model_validate({"powered": "maybe", "members": []})
+
+    def test_declares_no_ha_entities_yet(self) -> None:
+        """Discovery for this entity is cap-bjw9.10 — nothing declared yet."""
+        assert PowerSourceStateModel.model_config.get("json_schema_extra") is None
+
+    def test_power_request_omitted_when_none(self) -> None:
+        model = PowerSourceStateModel.model_validate(
+            {"powered": "unknown", "members": []}
+        )
+        assert "power_request" not in model.model_dump(mode="json", exclude_none=True)
