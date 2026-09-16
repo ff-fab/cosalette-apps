@@ -172,6 +172,8 @@ class _FakeWizLight:
         self.get_mac_exc: Exception | None = None
         self.get_mac_calls = 0
         self.start_push_exc: Exception | None = None
+        self.start_push_result = True
+        self.start_push_yields = False
         self.start_push_calls: list[Any] = []
         self.last_push: float = self._NEVER_TIME
         self.state: list[_FakeParser | None] = []
@@ -221,9 +223,11 @@ class _FakeWizLight:
             callback(parsers)
 
         self.start_push_calls.append(_stamped)
+        if self.start_push_yields:
+            await asyncio.sleep(0)
         if self.start_push_exc is not None:
             raise self.start_push_exc
-        return True
+        return self.start_push_result
 
     async def updateState(self, device: int = 0) -> list[_FakeParser | None] | None:
         self.update_state_calls += 1
@@ -605,7 +609,10 @@ class TestGetState:
     async def test_wizlight_get_state_polls_on_first_call(
         self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """No push has ever arrived — first call must poll, no warning logged.
+        """No push has ever arrived — first call must poll without warning.
+
+        A successful registration starts the staleness window, so the first
+        cache-seeding poll is expected rather than a health failure.
 
         Technique: State Transition Testing — initial state has no push history.
         """
@@ -617,7 +624,8 @@ class TestGetState:
 
         assert ctx.fake_bulbs[_IP].update_state_calls == 1
         assert state.brightness == 128
-        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+        warnings = [r for r in caplog.records if r.levelno >= logging.WARNING]
+        assert warnings == []
 
     async def test_wizlight_get_state_parses_rgb_into_hue_saturation(
         self, ctx: _Ctx
@@ -739,6 +747,9 @@ class TestGetState:
         push_callback = fake.start_push_calls[0]
         push_callback([_FakeParser(brightness=77)])  # push received
         fake.last_push = time.monotonic() - 65.0  # push cache now stale
+        ctx.adapter._push_registered_at[_IP] = (  # noqa: SLF001
+            time.monotonic() - ctx.adapter._push_staleness_threshold - 1  # noqa: SLF001
+        )
         fake.update_state_result = [_FakeParser(brightness=99)]
 
         with caplog.at_level(logging.WARNING):
@@ -856,6 +867,251 @@ class TestGetStateLivenessProbe:
 
         assert fake.update_state_calls == 2
         assert fake.real_send_calls == 2
+
+
+# ---------------------------------------------------------------------------
+# Push-health warning — delayed from registration (cap-fubw)
+# ---------------------------------------------------------------------------
+
+
+class TestPushHealthWarning:
+    """A missing push warns only after its full staleness window."""
+
+    async def test_wizlight_initial_cache_seed_does_not_warn_before_deadline(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Registration succeeds, no datagram arrives, first poll stays quiet.
+
+        Technique: Boundary Value Analysis — before the registration deadline.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+
+        with caplog.at_level(logging.WARNING):
+            await ctx.adapter.get_state(_IP)
+
+        warnings = [r for r in caplog.records if "recent push" in r.message.lower()]
+        assert warnings == []
+
+    async def test_wizlight_warns_after_registration_deadline_without_push(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A successfully registered bulb that stays silent eventually warns.
+
+        Technique: Boundary Value Analysis — after the registration deadline.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        await ctx.adapter.get_capabilities(_IP)
+        ctx.adapter._push_registered_at[_IP] = (  # noqa: SLF001
+            time.monotonic() - ctx.adapter._push_staleness_threshold - 1  # noqa: SLF001
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await ctx.adapter.get_state(_IP)
+
+        warnings = [r for r in caplog.records if "recent push" in r.message.lower()]
+        assert len(warnings) == 1
+
+    async def test_wizlight_registration_failure_skips_staleness_warning(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A raised WizLightError warns once for the registration itself,
+        not again for staleness — the operator was already told.
+
+        Technique: Decision Table — registration outcome x warning emitted.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].start_push_exc = WizLightError("boom")
+
+        with caplog.at_level(logging.WARNING):
+            await ctx.adapter.get_state(_IP)
+
+        messages = [r.message.lower() for r in caplog.records]
+        assert sum("registration failed" in m for m in messages) == 1
+        assert sum("recent push" in m for m in messages) == 0
+
+    async def test_wizlight_warns_exactly_once_across_repeated_polls(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A push that never arrives still warns only once, not per poll.
+
+        Technique: Equivalence Partitioning — repeated identical polls.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [_FakeParser(brightness=1)]
+        await ctx.adapter.get_capabilities(_IP)
+        ctx.adapter._push_registered_at[_IP] = (  # noqa: SLF001
+            time.monotonic() - ctx.adapter._push_staleness_threshold - 1  # noqa: SLF001
+        )
+
+        with caplog.at_level(logging.WARNING):
+            await ctx.adapter.get_state(_IP)
+            await ctx.adapter.get_state(_IP)
+            await ctx.adapter.get_state(_IP)
+
+        warnings = [r for r in caplog.records if "recent push" in r.message.lower()]
+        assert len(warnings) == 1
+
+    async def test_wizlight_no_warning_while_push_stays_fresh(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A push arriving within the threshold polls nothing and warns nothing.
+
+        Technique: Boundary Value Analysis — inside the staleness window.
+        Pins that the fix did not change the polling cadence.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)  # registers push
+        push_callback = fake.start_push_calls[0]
+        push_callback([_FakeParser(brightness=77)])  # push arrives, fresh
+
+        with caplog.at_level(logging.WARNING):
+            state = await ctx.adapter.get_state(_IP)
+
+        assert fake.update_state_calls == 0
+        assert state.brightness == 77
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+
+# ---------------------------------------------------------------------------
+# Push registration retry — start_push's False return is honoured (cap-4rbg)
+# ---------------------------------------------------------------------------
+
+
+class TestPushRegistrationRetry:
+    """A failed push registration is diagnosed and retried, not silently
+    permanent for the life of the process.
+    """
+
+    async def test_wizlight_warns_when_start_push_returns_false(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """start_push's False return (not an exception) must still warn.
+
+        Technique: Error Guessing — the dropped-return-value bug cap-4rbg
+        was filed for. Fails before the fix: zero warnings.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].start_push_result = False
+
+        with caplog.at_level(logging.WARNING):
+            await ctx.adapter.get_state(_IP)
+
+        warnings = [
+            r for r in caplog.records if "registration failed" in r.message.lower()
+        ]
+        assert len(warnings) == 1
+
+    async def test_wizlight_retries_registration_once_the_window_elapses(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A failed registration is retried once the retry window elapses,
+        and the recovered bulb starts pushing normally.
+
+        Technique: State Transition Testing — failed, then recovered.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        fake.start_push_result = False
+
+        await ctx.adapter.get_state(_IP)
+        assert len(fake.start_push_calls) == 1
+
+        fake.start_push_result = True
+        ctx.adapter._push_retry_at[_IP] = time.monotonic() - 1  # noqa: SLF001
+
+        with caplog.at_level(logging.INFO):
+            await ctx.adapter.get_state(_IP)
+        assert len(fake.start_push_calls) == 2
+        recovered = [
+            record
+            for record in caplog.records
+            if "Push registration recovered" in record.message
+        ]
+        assert len(recovered) == 1
+
+        push_callback = fake.start_push_calls[1]
+        push_callback([_FakeParser(brightness=42)])
+
+        assert ctx.adapter._state_cache[_IP].brightness == 42  # noqa: SLF001
+        assert ctx.notifier.armed == [_NAME]
+
+    async def test_wizlight_retry_is_rate_limited_within_the_window(
+        self, ctx: _Ctx
+    ) -> None:
+        """Several get_state calls inside one retry window cost at most one
+        extra registration attempt.
+
+        Technique: Boundary Value Analysis — repeated calls before the
+        retry window elapses.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        fake.start_push_result = False
+        fake.update_state_result = [_FakeParser(brightness=1)]
+
+        for _ in range(5):
+            await ctx.adapter.get_state(_IP)
+
+        assert len(fake.start_push_calls) <= 1
+
+    async def test_wizlight_concurrent_expired_retries_register_once(
+        self, ctx: _Ctx
+    ) -> None:
+        """Concurrent reads serialize an expired retry into one registration.
+
+        Technique: Concurrency testing — a yielding ``start_push`` lets both
+        callers contend for the same per-IP lock.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        fake.start_push_result = False
+        await ctx.adapter.get_state(_IP)
+        assert len(fake.start_push_calls) == 1
+
+        fake.start_push_result = True
+        fake.start_push_yields = True
+        ctx.adapter._push_retry_at[_IP] = time.monotonic() - 1  # noqa: SLF001
+
+        await asyncio.gather(ctx.adapter.get_state(_IP), ctx.adapter.get_state(_IP))
+
+        assert len(fake.start_push_calls) == 2
+
+    async def test_wizlight_no_retry_churn_once_registered(self, ctx: _Ctx) -> None:
+        """Registration succeeding on the first attempt costs exactly one
+        call across many get_state calls — no retry loop on the happy path.
+
+        Technique: Equivalence Partitioning — always-succeeding registration.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [_FakeParser(brightness=1)]
+
+        for _ in range(5):
+            await ctx.adapter.get_state(_IP)
+
+        assert len(ctx.fake_bulbs[_IP].start_push_calls) == 1
+
+    async def test_wizlight_raising_registration_is_also_retried(
+        self, ctx: _Ctx
+    ) -> None:
+        """The raising path keeps its existing warning and is retried too.
+
+        Technique: Equivalence Partitioning — exception vs. False-return
+        parity for the retry path.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        fake.start_push_exc = WizLightError("boom")
+
+        await ctx.adapter.get_state(_IP)
+        assert len(fake.start_push_calls) == 1
+
+        fake.start_push_exc = None
+        ctx.adapter._push_retry_at[_IP] = time.monotonic() - 1  # noqa: SLF001
+
+        await ctx.adapter.get_state(_IP)
+        assert len(fake.start_push_calls) == 2
+        assert _IP in ctx.adapter._push_registered  # noqa: SLF001
 
 
 # ---------------------------------------------------------------------------
@@ -1022,7 +1278,9 @@ class TestLifecycle:
         assert ctx.adapter._initialization_locks == {}  # noqa: SLF001
         assert ctx.adapter._capabilities == {}  # noqa: SLF001
         assert ctx.adapter._state_cache == {}  # noqa: SLF001
-        assert ctx.adapter._received_state_pushes == set()  # noqa: SLF001
+        assert ctx.adapter._push_registered == set()  # noqa: SLF001
+        assert ctx.adapter._push_registered_at == {}  # noqa: SLF001
+        assert ctx.adapter._push_retry_at == {}  # noqa: SLF001
         assert ctx.adapter._warned_stale == set()  # noqa: SLF001
 
     async def test_wizlight_aexit_closes_remaining_bulbs_after_close_error(

@@ -58,6 +58,17 @@ heartbeating — suppressed or not — never trips this fallback; only a bulb
 that has gone genuinely silent does.
 """
 
+_PUSH_REGISTRATION_RETRY_INTERVAL = 60.0
+"""Seconds between re-arm attempts for a bulb whose push registration failed.
+
+``_get_bulb`` only ever attempts registration once per bulb's lifetime, so a
+transient failure (port 38900 momentarily in use, no source IP yet) would
+otherwise degrade that bulb to polling for the rest of the process even
+after the underlying condition clears (cap-4rbg). ``get_state`` retries at
+this cadence instead, bounded so a genuinely misconfigured host is not
+spammed with connection attempts.
+"""
+
 
 class WizBulbAdapter:
     """Production adapter wrapping :mod:`pywizlight`.
@@ -91,9 +102,16 @@ class WizBulbAdapter:
         self._initialization_locks: dict[str, asyncio.Lock] = {}
         self._capabilities: dict[str, BulbCapabilities] = {}
         self._state_cache: dict[str, BulbState] = {}
-        # Presence records that the adapter has received a state-changing
-        # callback, which is all the stale-push warning needs to know.
-        self._received_state_pushes: set[str] = set()
+        # ips whose push registration has succeeded (bulb.start_push()
+        # returned True).
+        self._push_registered: set[str] = set()
+        # ip -> monotonic time of the successful registration.  A first
+        # cache-seeding poll is expected before a bulb has had time to push;
+        # warnings start only after this full window has elapsed.
+        self._push_registered_at: dict[str, float] = {}
+        # ip -> monotonic time of the next allowed re-arm attempt, for ips
+        # whose registration failed (cap-4rbg).
+        self._push_retry_at: dict[str, float] = {}
         self._warned_stale: set[str] = set()
 
     async def _get_bulb(self, ip: str) -> Any:
@@ -174,12 +192,11 @@ class WizBulbAdapter:
                 # Registration success only means the UDP socket bound, not that
                 # packets will ever arrive (bridge-NAT push falls silently into the
                 # void) — get_state()'s staleness check is the real health signal.
-                try:
-                    await bulb.start_push(self._make_push_callback(ip))
-                except WizLightError:
-                    logger.warning(
-                        "Push registration failed for bulb %s; relying on polling", ip
-                    )
+                # start_push() signals listener-startup failure by returning
+                # False, not by raising, so the return value is checked too
+                # (cap-4rbg): a dropped return silently left the operator with
+                # no diagnostic and no retry.
+                await self._register_push(ip, bulb)
 
                 self._capabilities[ip] = capabilities
                 self._bulbs[ip] = bulb
@@ -193,6 +210,58 @@ class WizBulbAdapter:
                     )
                 raise
 
+    async def _register_push(
+        self, ip: str, bulb: Any, *, is_retry: bool = False
+    ) -> None:
+        """Attempt push registration, recording the outcome for get_state.
+
+        ``bulb.start_push()`` reports the common listener-startup failure
+        (port 38900 already bound, or no source IP yet) by returning
+        ``False``, not by raising — treat that the same as a raised
+        ``WizLightError``: log the failed attempt, and leave ``ip`` out of
+        ``_push_registered`` so ``get_state`` retries later.
+        """
+        from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
+            WizLightError,
+        )
+
+        try:
+            registered = await bulb.start_push(self._make_push_callback(ip))
+        except WizLightError:
+            registered = False
+
+        if registered:
+            self._push_registered.add(ip)
+            self._push_registered_at[ip] = time.monotonic()
+            self._push_retry_at.pop(ip, None)
+            if is_retry:
+                logger.info("Push registration recovered for bulb %s", ip)
+        else:
+            logger.warning(
+                "Push registration failed for bulb %s; relying on polling", ip
+            )
+            self._push_retry_at[ip] = (
+                time.monotonic() + _PUSH_REGISTRATION_RETRY_INTERVAL
+            )
+
+    async def _maybe_retry_push_registration(self, ip: str, bulb: Any) -> None:
+        """Re-arm push for a bulb whose registration has not yet succeeded.
+
+        Rate-limited by ``_push_retry_at`` so a genuinely misconfigured host
+        is retried at most once per ``_PUSH_REGISTRATION_RETRY_INTERVAL``,
+        not on every ``get_state`` call (cap-4rbg).
+        """
+        # Reuse the initialization lock so concurrent reads cannot all pass
+        # the eligibility check and register separate UDP listeners.
+        lock = self._initialization_locks.setdefault(ip, asyncio.Lock())
+        async with lock:
+            if ip in self._push_registered:
+                return
+            retry_at = self._push_retry_at.get(ip)
+            if retry_at is not None and time.monotonic() < retry_at:
+                return
+            await self._register_push(ip, bulb, is_retry=True)
+
     def _make_push_callback(
         self, ip: str
     ) -> Callable[[list[PilotParser | None] | None], None]:
@@ -204,7 +273,6 @@ class WizBulbAdapter:
                 return
             if state is not None:
                 self._state_cache[ip] = state
-                self._received_state_pushes.add(ip)
                 self._wake(ip)
 
         return _on_push
@@ -244,6 +312,7 @@ class WizBulbAdapter:
         the adapter cache from it.
         """
         bulb = await self._get_bulb(ip)
+        await self._maybe_retry_push_registration(ip, bulb)
         now = time.monotonic()
         if ip not in self._state_cache or (
             (now - bulb.last_push) > self._push_staleness_threshold
@@ -271,7 +340,15 @@ class WizBulbAdapter:
             msg = f"pywizlight error polling bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
 
-        if ip in self._received_state_pushes and ip not in self._warned_stale:
+        # A registration only says the UDP listener bound.  Give the bulb a
+        # full staleness window to deliver its first datagram before warning;
+        # the initial cache-seeding poll is normal, not a health failure.
+        registered_at = self._push_registered_at.get(ip)
+        if (
+            registered_at is not None
+            and (time.monotonic() - registered_at) > self._push_staleness_threshold
+            and ip not in self._warned_stale
+        ):
             logger.warning("No recent push for bulb %s — falling back to polling", ip)
             self._warned_stale.add(ip)
 
@@ -415,7 +492,9 @@ class WizBulbAdapter:
         self._initialization_locks.clear()
         self._capabilities.clear()
         self._state_cache.clear()
-        self._received_state_pushes.clear()
+        self._push_registered.clear()
+        self._push_registered_at.clear()
+        self._push_retry_at.clear()
         self._warned_stale.clear()
 
 
