@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.4](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.3...wiz2mqtt-v0.2.4) (2026-09-16)
+
+
+### Bug Fixes
+
+* **wiz2mqtt:** clear superseded colour mode on optimistic state merge ([#270](https://github.com/ff-fab/cosalette-apps/issues/270)) ([3eb5c64](https://github.com/ff-fab/cosalette-apps/commit/3eb5c6437ab51924e753e885e113a44543239f2f))
+* **wiz2mqtt:** diagnose and retry a failed push registration ([#273](https://github.com/ff-fab/cosalette-apps/issues/273)) ([e4e4c69](https://github.com/ff-fab/cosalette-apps/commit/e4e4c690b4ca2dcb82adff6a65eb3b5e0f8fcd29))
+* **wiz2mqtt:** harden bulb first contact ([#269](https://github.com/ff-fab/cosalette-apps/issues/269)) ([62c3d2d](https://github.com/ff-fab/cosalette-apps/commit/62c3d2de303918c5090953f3ed1bb7abe8ea956f))
+* **wiz2mqtt:** probe with the bulb's own clock so the heartbeat liveness check is real ([#272](https://github.com/ff-fab/cosalette-apps/issues/272)) ([60d2d14](https://github.com/ff-fab/cosalette-apps/commit/60d2d144547c079f7a2c46247116d18b72be385b))
+* **wiz2mqtt:** set WIZ2MQTT_STORE_PATH so the capability cache survives recreation ([#271](https://github.com/ff-fab/cosalette-apps/issues/271)) ([2a6defa](https://github.com/ff-fab/cosalette-apps/commit/2a6defa61b135ce12e79fea9ddcaa3638f9cf82a))
+
+
+### Documentation
+
+* **wiz2mqtt:** record mains power awareness ADRs and plan the epic ([#267](https://github.com/ff-fab/cosalette-apps/issues/267)) ([dd0d842](https://github.com/ff-fab/cosalette-apps/commit/dd0d84285114e80ec460d58ff62c6eb3a3cc5c13))
+
 ## [0.2.3](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.2...wiz2mqtt-v0.2.3) (2026-09-13)
 
 
