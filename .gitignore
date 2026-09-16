@@ -6,6 +6,9 @@ __pycache__/
 # setuptools_scm generated version file
 **/_version.py
 
+# Generated process core dumps
+core.*
+
 # C extensions
 *.so
 

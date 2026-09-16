@@ -15,7 +15,7 @@ from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.commands import to_set_state_kwargs
 from wiz2mqtt.discovery import cache_capabilities, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
-from wiz2mqtt.errors import WizBridgeError, error_type_map
+from wiz2mqtt.errors import WizConnectionError, WizTimeoutError, error_type_map
 from wiz2mqtt.models import BulbSetCommand, BulbStateModel, PowerSourceStateModel
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, PowerSourceConfig, Wiz2MqttSettings
@@ -121,6 +121,8 @@ async def bulb_set(
     """
     settings = cast(Wiz2MqttSettings, ctx.settings)
     kwargs = to_set_state_kwargs(cmd)
+    if all(value is None for value in kwargs.values()):
+        return
     now = time.time()
     intent.record_command(state, store, config.name, kwargs, now)
 
@@ -135,8 +137,11 @@ async def bulb_set(
 
     try:
         await port.set_state(config.ip, **kwargs)
-    except WizBridgeError:
+    except WizTimeoutError, WizConnectionError:
+        await ctx.mark_unavailable()
+        state.last_availability[config.name] = "offline"
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
+        notify(config.name)
         raise
 
 

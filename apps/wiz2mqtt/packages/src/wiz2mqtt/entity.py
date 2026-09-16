@@ -67,18 +67,23 @@ async def bulb_entity_tick(
             else "steady"
         )
 
+    observation_generation = state.desired_state_generation.get(name, 0)
     try:
         bulb_state = await port.get_state(config.ip)
     except WizBridgeError as exc:
-        state.bulb_answered[name] = False
+        failures = state.consecutive_failures.get(name, 0) + 1
+        failures = min(failures, _FAILURE_THRESHOLD)
+        state.consecutive_failures[name] = failures
+        if failures >= _FAILURE_THRESHOLD:
+            state.bulb_answered[name] = False
+        else:
+            state.bulb_answered.setdefault(name, False)
         belief = _recompute_and_notify(settings, state, notify, name)
 
         if when_unreachable == "no_power" and not isinstance(exc, WizIdentityError):
             await _mark_online_once(ctx, state, name)
             return _desired_state_payload(state, store, name, belief)
 
-        failures = state.consecutive_failures.get(name, 0) + 1
-        state.consecutive_failures[name] = min(failures, _FAILURE_THRESHOLD)
         if (
             failures >= _FAILURE_THRESHOLD
             and state.last_availability.get(name) != "offline"
@@ -90,7 +95,10 @@ async def bulb_entity_tick(
     state.consecutive_failures[name] = 0
     state.bulb_answered[name] = True
     await _mark_online_once(ctx, state, name)
-    if state.phase.get(name, "steady") == "steady":
+    if (
+        state.phase.get(name, "steady") == "steady"
+        and state.desired_state_generation.get(name, 0) == observation_generation
+    ):
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return build_state_payload(bulb_state, belief)

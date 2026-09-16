@@ -635,6 +635,19 @@ class TestBulbsForPowerSource:
         settings = Wiz2MqttSettings(**_UNCONFIGURED)
         assert settings.bulbs_for_power_source("ghost") == []
 
+    def test_caches_stable_members_at_validation_time(self) -> None:
+        """Technique: Specification-based — belief ticks reuse validated membership."""
+        settings = Wiz2MqttSettings(
+            bulbs=[
+                {"name": "z-desk", "ip": "10.0.0.1"},
+                {"name": "a-lamp", "ip": "10.0.0.2"},
+            ],
+            power_sources=[{"name": "p", "members": ["z-desk", "a-lamp"]}],
+            **_UNCONFIGURED,
+        )
+
+        assert settings._members_by_power_source == {"p": ("a-lamp", "z-desk")}  # noqa: SLF001
+
 
 # ---------------------------------------------------------------------------
 # Legacy bulb-level when_unreachable migration

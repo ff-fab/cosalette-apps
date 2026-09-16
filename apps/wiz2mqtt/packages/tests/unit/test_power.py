@@ -137,7 +137,7 @@ class TestSourcePayload:
 
         assert payload == {
             "powered": "on",
-            "power_request": None,
+            "power_request": "__inactive__",
             "members": ["desk", "lamp"],
         }
 

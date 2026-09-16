@@ -10,6 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from wiz2mqtt.models import POWER_REQUEST_INACTIVE
+
 if TYPE_CHECKING:
     from wiz2mqtt.settings import PowerSourceConfig, Wiz2MqttSettings
     from wiz2mqtt.state import SharedState
@@ -60,14 +62,14 @@ def source_payload(
 ) -> dict[str, object]:
     """Build the retained ``wiz2mqtt/{source}/state`` payload for *config*.
 
-    ``power_request`` stays ``None`` (omitted on the wire) until
+    ``power_request`` stays inactive (JSON ``null`` on the wire) until
     cap-bjw9.12 gives it meaning.
     """
     belief = belief_for_source(settings, state, config)
     state.source_belief[config.name] = belief
     return {
         "powered": belief,
-        "power_request": None,
+        "power_request": POWER_REQUEST_INACTIVE,
         "members": settings.bulbs_for_power_source(config.name),
     }
 

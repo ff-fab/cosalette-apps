@@ -11,6 +11,8 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
+
 from cosalette import DeviceStore
 from cosalette.stores import MemoryStore
 
@@ -18,8 +20,13 @@ from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
-from wiz2mqtt.intent import Appearance, DesiredState, desired_state_to_dict
-from wiz2mqtt.models import POWERED_UNKNOWN
+from wiz2mqtt.intent import (
+    Appearance,
+    DesiredState,
+    desired_state_to_dict,
+    record_command,
+)
+from wiz2mqtt.models import POWERED_UNKNOWN, BulbState
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -221,6 +228,57 @@ class TestSuccessfulPoll:
 
         assert state.phase["office"] == "reconnect"
 
+    async def test_command_during_poll_keeps_newer_desired_state(self) -> None:
+        """Technique: State Transition — command wins a racing observation."""
+
+        class AwaitingPort:
+            def __init__(self) -> None:
+                self.started = asyncio.Event()
+                self.release = asyncio.Event()
+
+            def register_boot_callback(self, callback: object) -> None:  # noqa: ARG002
+                pass
+
+            async def get_state(self, ip: str) -> BulbState:  # noqa: ARG002
+                self.started.set()
+                await self.release.wait()
+                return BulbState(
+                    state=False,
+                    brightness=None,
+                    hue=None,
+                    saturation=None,
+                    color_temp_kelvin=None,
+                    scene=None,
+                )
+
+        port = AwaitingPort()
+        state = SharedState(phase={"office": "steady"})
+        ctx = FakeDeviceContext()
+        tick = asyncio.create_task(
+            bulb_entity_tick(ctx, _config(), port, state, None, RecordingNotifier())
+        )
+        await port.started.wait()
+        record_command(
+            state,
+            None,
+            "office",
+            {
+                "state": True,
+                "brightness": 200,
+                "hue": None,
+                "saturation": None,
+                "color_temp_kelvin": None,
+                "scene": None,
+                "speed": None,
+            },
+            2000.0,
+        )
+        port.release.set()
+        await tick
+
+        assert state.desired_state["office"].state == "ON"
+        assert state.desired_state["office"].appearance.brightness == 200
+
 
 class TestFailureDebounce:
     """Failures accumulate; only the 3rd consecutive failure goes offline."""
@@ -384,6 +442,28 @@ class TestWhenUnreachableOff:
             await _tick(ctx, config, adapter, state)
 
         assert "unavailable" not in ctx.availability_calls
+
+    async def test_failures_keep_answer_evidence_until_the_threshold(self) -> None:
+        """Technique: Boundary Value Analysis — evidence clears at 3, not 1."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
+
+        await _tick(ctx, config, adapter, state)
+        for expected_failures in (1, 2):
+            adapter.fail_next(_IP, WizTimeoutError("boom"))
+            result = await _tick(ctx, config, adapter, state)
+
+            assert state.consecutive_failures["office"] == expected_failures
+            assert state.bulb_answered["office"] is True
+            assert result == {"state": "OFF", "powered": True}
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        result = await _tick(ctx, config, adapter, state)
+
+        assert state.bulb_answered["office"] is False
+        assert result == {"state": "OFF", "powered": False}
 
     async def test_when_unreachable_off_already_online_does_not_remark(self) -> None:
         """Technique: Equivalence Partitioning — dedup guard on the off-policy path."""

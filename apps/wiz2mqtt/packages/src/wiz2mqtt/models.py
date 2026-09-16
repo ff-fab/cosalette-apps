@@ -44,6 +44,17 @@ def _serialize_powered(value: PoweredWire) -> bool | None:
     return None if value == POWERED_UNKNOWN else value
 
 
+POWER_REQUEST_INACTIVE = "__inactive__"
+"""Sentinel for an inactive power request, serialized as JSON ``null``."""
+
+PowerRequestWire = Literal["on", "off", "__inactive__"]
+"""Python-side type for :attr:`PowerSourceStateModel.power_request`."""
+
+
+def _serialize_power_request(value: PowerRequestWire) -> str | None:
+    return None if value == POWER_REQUEST_INACTIVE else value
+
+
 _KELVIN_MIN = 2200
 _KELVIN_MAX = 6500
 """Static wire-format Kelvin bounds advertised to Home Assistant.
@@ -364,8 +375,10 @@ class PowerSourceStateModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     powered: Literal["on", "off", "unknown"]
-    power_request: Literal["on", "off"] | None = None
-    """Always omitted in this PR; cap-bjw9.12 gives it meaning."""
+    power_request: Annotated[
+        PowerRequestWire, PlainSerializer(_serialize_power_request)
+    ] = POWER_REQUEST_INACTIVE
+    """Inactive requests serialize as ``null``; cap-bjw9.12 gives them meaning."""
     members: list[str]
 
 

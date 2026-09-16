@@ -2,7 +2,6 @@
 
 Exercises the full state-publication path: FakeWizBulbAdapter ->
 bulb_entity_tick -> the cosalette telemetry runner's OnChange() gating ->
-retained MQTT publish, using the real application wiring with an
 in-memory test double port.
 
 Test Techniques Used:
@@ -23,6 +22,8 @@ from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.models import BulbState
 
 from .conftest import _FAST_TICK_INTERVAL, TOPIC_PREFIX, wait_until_subscribed
+
+_SOURCE_TOPIC = f"{TOPIC_PREFIX}/office-power/state"
 
 _TICKS = 3
 """Scheduled ticks to fire past the startup run.
@@ -92,6 +93,49 @@ class TestStatePublication:
             "too few ticks — dedup assertion would be vacuous"
         )
         assert len(harness.messages_for(f"{TOPIC_PREFIX}/office/state")) == 1
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestPowerSourcePublication:
+    """The source entity publishes a retained belief through its real registration.
+
+    Technique: Integration Testing / Equivalence Partitioning — initial belief
+    publication and repeated equal recomputations through ``OnChange``.
+    """
+
+    async def test_retained_source_payload_and_equal_beliefs_are_deduplicated(
+        self, harness_when_off: AppHarness
+    ) -> None:
+        task = asyncio.create_task(harness_when_off.run())
+        try:
+            await wait_until_subscribed(harness_when_off)
+            await harness_when_off.advance_time(0)
+            await harness_when_off.wait_for_publish_count(_STATE_TOPIC, 1)
+            await harness_when_off.clock.settle(stable_rounds=10)
+
+            messages = harness_when_off.messages_for(_SOURCE_TOPIC)
+            payload, retain, _qos = messages[-1]
+            assert json.loads(payload) == {
+                "powered": "on",
+                "power_request": None,
+                "members": ["office"],
+            }
+            assert retain is True
+
+            published_count = len(messages)
+            for _ in range(_TICKS):
+                await harness_when_off.advance_time(_FAST_TICK_INTERVAL)
+            await harness_when_off.clock.settle(stable_rounds=10)
+
+            assert len(harness_when_off.messages_for(_SOURCE_TOPIC)) == published_count
+        finally:
+            harness_when_off.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+            else:
+                await task
 
 
 @pytest.mark.integration
@@ -178,7 +222,7 @@ class TestUnreachableBulbOffPolicy:
         # bulb's own last observation, carried through while unreachable.
         assert body["state"] == "ON"
         assert body["brightness"] == 222
-        assert body["powered"] is False  # never omitted
+        assert body["powered"] is True  # retained evidence clears at threshold
 
     async def test_unreachable_bulb_off_policy_marks_available(
         self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter

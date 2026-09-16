@@ -10,8 +10,17 @@ from __future__ import annotations
 
 import pytest
 
-from wiz2mqtt.main import _bulb_map
+from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
+from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.errors import (
+    WizIdentityError,
+    WizTimeoutError,
+    WizUnsupportedCommandError,
+)
+from wiz2mqtt.main import _bulb_map, bulb_set
+from wiz2mqtt.models import BulbSetCommand
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
+from wiz2mqtt.state import SharedState
 
 
 def _settings_with_bulbs(*bulbs: dict[str, object]) -> Wiz2MqttSettings:
@@ -124,3 +133,89 @@ class TestTelemetryTriggerConfig:
         from wiz2mqtt.main import _TICK_INTERVAL_SECONDS  # noqa: PLC0415
 
         assert _TICK_INTERVAL_SECONDS == _DEFAULT_PUSH_STALENESS_THRESHOLD
+
+
+class TestBulbSet:
+    """Command-side intent and transient queue behavior.
+
+    Technique: Decision Table — no-op, transient, and permanent port outcomes.
+    """
+
+    @staticmethod
+    def _config() -> BulbConfig:
+        return BulbConfig(name="office", ip="10.0.0.1")
+
+    @staticmethod
+    def _ctx() -> FakeDeviceContext:
+        settings = _settings_with_bulbs({"name": "office", "ip": "10.0.0.1"})
+        return FakeDeviceContext(settings=settings)
+
+    async def test_empty_command_is_a_true_no_op(self) -> None:
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        notify = RecordingNotifier()
+
+        await bulb_set(
+            BulbSetCommand(), self._config(), adapter, state, self._ctx(), notify
+        )
+
+        assert state.desired_state == {}
+        assert adapter.set_state_calls == []
+        assert notify.armed == []
+
+    async def test_timeout_marks_offline_and_queues_a_later_command(self) -> None:
+        """Technique: State Transition — transient failure arms one-slot queueing."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        notify = RecordingNotifier()
+        ctx = self._ctx()
+        adapter.fail_next("10.0.0.1", WizTimeoutError("timeout"))
+
+        with pytest.raises(WizTimeoutError):
+            await bulb_set(
+                BulbSetCommand(brightness=50),
+                self._config(),
+                adapter,
+                state,
+                ctx,
+                notify,
+            )
+        await bulb_set(
+            BulbSetCommand(brightness=200),
+            self._config(),
+            adapter,
+            state,
+            ctx,
+            notify,
+        )
+
+        assert state.last_availability["office"] == "offline"
+        assert ctx.availability_calls == ["unavailable"]
+        assert state.pending_commands["office"].kwargs["brightness"] == 200
+        assert len(adapter.set_state_calls) == 1
+        assert notify.armed == ["office", "office"]
+
+    @pytest.mark.parametrize(
+        "error",
+        [WizIdentityError("wrong bulb"), WizUnsupportedCommandError("unsupported")],
+    )
+    async def test_permanent_failures_do_not_queue(self, error: Exception) -> None:
+        """Technique: Equivalence Partitioning — permanent errors are not replayable."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        notify = RecordingNotifier()
+        adapter.fail_next("10.0.0.1", error)
+
+        with pytest.raises(type(error)):
+            await bulb_set(
+                BulbSetCommand(brightness=50),
+                self._config(),
+                adapter,
+                state,
+                self._ctx(),
+                notify,
+            )
+
+        assert state.pending_commands == {}
+        assert state.last_availability == {}
+        assert notify.armed == []

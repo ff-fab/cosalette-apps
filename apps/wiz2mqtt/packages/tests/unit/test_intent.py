@@ -10,6 +10,9 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import copy
+
+import pytest
 from cosalette import DeviceStore
 from cosalette.stores import MemoryStore
 
@@ -65,6 +68,59 @@ class TestSerialisation:
         )
         assert off.as_bulb_state().state is False
 
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("state", "UNKNOWN"),
+            ("state", True),
+            ("writer", "restore"),
+            ("writer", False),
+            ("written_at", float("nan")),
+            ("written_at", True),
+        ],
+    )
+    def test_rejects_invalid_top_level_scalars(self, field: str, value: object) -> None:
+        """Technique: Equivalence Partitioning — invalid persisted scalar classes."""
+        raw = desired_state_to_dict(_DESIRED)
+        raw[field] = value
+
+        with pytest.raises(ValueError):
+            desired_state_from_dict(raw)
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("brightness", 0),
+            ("brightness", 256),
+            ("brightness", True),
+            ("hue", float("inf")),
+            ("saturation", False),
+            ("color_temp_kelvin", 0),
+            ("color_temp_kelvin", True),
+            ("scene", True),
+            ("speed", 1.5),
+        ],
+    )
+    def test_rejects_invalid_appearance_scalars(
+        self, field: str, value: object
+    ) -> None:
+        """Technique: Boundary Value Analysis / Equivalence Partitioning."""
+        raw = desired_state_to_dict(_DESIRED)
+        appearance = copy.deepcopy(raw["appearance"])
+        appearance[field] = value
+        raw["appearance"] = appearance
+
+        with pytest.raises(ValueError):
+            desired_state_from_dict(raw)
+
+    def test_rejects_an_invalid_appearance_shape(self) -> None:
+        """Technique: Error Guessing — persisted partial records cannot leak through."""
+        raw = desired_state_to_dict(_DESIRED)
+        raw["appearance"] = {"brightness": 100}
+
+        with pytest.raises(ValueError):
+            desired_state_from_dict(raw)
+
 
 class TestResolveDesiredState:
     """The SharedState-cache-first, device-store-fallback-once resolution.
@@ -86,6 +142,16 @@ class TestResolveDesiredState:
     def test_returns_none_for_a_malformed_record(self) -> None:
         store = _store({"desired_state": {"state": "ON"}})  # missing fields
         assert resolve_desired_state(SharedState(), store, "office") is None
+
+    def test_returns_none_for_a_corrupt_record(self) -> None:
+        """Technique: Error Guessing — corrupted cache never reaches SharedState."""
+        raw = desired_state_to_dict(_DESIRED)
+        raw["written_at"] = float("inf")
+        store = _store({"desired_state": raw})
+        state = SharedState()
+
+        assert resolve_desired_state(state, store, "office") is None
+        assert state.desired_state == {}
 
     def test_falls_back_to_the_store_on_a_cold_cache(self) -> None:
         """Simulates a restart: fresh SharedState, a store with a record."""
@@ -220,6 +286,24 @@ class TestRecordObservation:
         record_observation(state, None, "office", bulb_state, 2000.0)
 
         assert state.desired_state["office"].state == "ON"
+
+    def test_indeterminate_observation_keeps_existing_desired_state(self) -> None:
+        """Technique: State Transition — unknown readback cannot become OFF intent."""
+        state = SharedState(desired_state={"office": _DESIRED})
+        unknown = BulbState(
+            state=None,
+            brightness=None,
+            hue=None,
+            saturation=None,
+            color_temp_kelvin=None,
+            scene=None,
+            effect_speed=None,
+            power_draw_w=None,
+        )
+
+        record_observation(state, None, "office", unknown, 2000.0)
+
+        assert state.desired_state["office"] == _DESIRED
 
 
 class TestRecordCommand:

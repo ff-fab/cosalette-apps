@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import dataclasses
 import logging
+import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from wiz2mqtt.models import BulbState
 
@@ -94,21 +95,82 @@ def desired_state_to_dict(desired: DesiredState) -> dict[str, Any]:
     }
 
 
+def _require_int(value: object, field: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError(f"{field} must be an integer")
+    return value
+
+
+def _require_finite_number(value: object, field: str) -> float:
+    if not isinstance(value, int | float) or isinstance(value, bool):
+        raise ValueError(f"{field} must be numeric")
+    try:
+        number = float(value)
+    except OverflowError as exc:
+        raise ValueError(f"{field} must be finite") from exc
+    if not math.isfinite(number):
+        raise ValueError(f"{field} must be finite")
+    return number
+
+
+def _optional_finite_number(value: object, field: str) -> float | None:
+    return None if value is None else _require_finite_number(value, field)
+
+
 def desired_state_from_dict(raw: dict[Any, Any]) -> DesiredState:
     """Rebuild a desired state from a stored dict.
 
     Raises ``KeyError``/``TypeError``/``ValueError`` on a malformed record;
-    callers guard against it (see :func:`load_desired_state`).
+    callers guard against it (see :func:`_load_from_device_store`).
     """
+    stored_state = raw["state"]
+    if stored_state not in ("ON", "OFF"):
+        raise ValueError("state must be ON or OFF")
+    writer = raw["writer"]
+    if writer not in ("observation", "command"):
+        raise ValueError("writer must be observation or command")
     appearance_raw = raw["appearance"]
+    if not isinstance(appearance_raw, dict):
+        raise TypeError("appearance must be a dict")
+    if set(appearance_raw) != set(_APPEARANCE_FIELDS):
+        raise ValueError("appearance has an invalid shape")
+
+    brightness = appearance_raw["brightness"]
+    if brightness is not None:
+        brightness = _require_int(brightness, "appearance.brightness")
+        if not 1 <= brightness <= 255:
+            raise ValueError("appearance.brightness must be between 1 and 255")
+    color_temp_kelvin = appearance_raw["color_temp_kelvin"]
+    if color_temp_kelvin is not None:
+        color_temp_kelvin = _require_int(
+            color_temp_kelvin, "appearance.color_temp_kelvin"
+        )
+        if color_temp_kelvin <= 0:
+            raise ValueError("appearance.color_temp_kelvin must be positive")
+
     appearance = Appearance(
-        **{name: appearance_raw[name] for name in _APPEARANCE_FIELDS}
+        brightness=brightness,
+        hue=_optional_finite_number(appearance_raw["hue"], "appearance.hue"),
+        saturation=_optional_finite_number(
+            appearance_raw["saturation"], "appearance.saturation"
+        ),
+        color_temp_kelvin=color_temp_kelvin,
+        scene=(
+            None
+            if appearance_raw["scene"] is None
+            else _require_int(appearance_raw["scene"], "appearance.scene")
+        ),
+        speed=(
+            None
+            if appearance_raw["speed"] is None
+            else _require_int(appearance_raw["speed"], "appearance.speed")
+        ),
     )
     return DesiredState(
-        state=raw["state"],
+        state=cast(Literal["ON", "OFF"], stored_state),
         appearance=appearance,
-        writer=raw["writer"],
-        written_at=raw["written_at"],
+        writer=cast(Literal["observation", "command"], writer),
+        written_at=_require_finite_number(raw["written_at"], "written_at"),
     )
 
 
@@ -131,7 +193,7 @@ def _load_from_device_store(store: DeviceStore) -> DesiredState | None:
         return None
     try:
         return desired_state_from_dict(raw)
-    except KeyError, TypeError, ValueError:
+    except KeyError, TypeError, ValueError, OverflowError:
         return None
 
 
@@ -173,6 +235,8 @@ def record_observation(
     always writes unconditionally when called. Updates the in-process
     ``SharedState`` cache and, when a store is configured, persists it too.
     """
+    if bulb_state.state is None:
+        return
     desired = DesiredState(
         state="ON" if bulb_state.state else "OFF",
         appearance=_appearance_from_bulb_state(bulb_state),
@@ -199,6 +263,9 @@ def record_command(
     fields of the mode(s) it supersedes. Updates the in-process
     ``SharedState`` cache and, when a store is configured, persists it too.
     """
+    state.desired_state_generation[name] = (
+        state.desired_state_generation.get(name, 0) + 1
+    )
     current = resolve_desired_state(state, store, name)
     base = current.as_bulb_state() if current is not None else _EMPTY_BULB_STATE
     merged = base.apply_command(

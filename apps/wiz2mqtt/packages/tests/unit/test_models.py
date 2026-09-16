@@ -16,6 +16,7 @@ import pytest
 from pydantic import ValidationError
 
 from wiz2mqtt.models import (
+    POWER_REQUEST_INACTIVE,
     WIZ_EFFECT_LIST,
     BulbSetCommand,
     BulbState,
@@ -569,7 +570,11 @@ class TestPowerSourceStateModel:
 
     def test_accepts_the_full_shape(self) -> None:
         model = PowerSourceStateModel.model_validate(
-            {"powered": "on", "power_request": None, "members": ["desk", "lamp"]}
+            {
+                "powered": "on",
+                "power_request": POWER_REQUEST_INACTIVE,
+                "members": ["desk", "lamp"],
+            }
         )
         assert model.powered == "on"
         assert model.members == ["desk", "lamp"]
@@ -582,8 +587,15 @@ class TestPowerSourceStateModel:
         """Discovery for this entity is cap-bjw9.10 — nothing declared yet."""
         assert PowerSourceStateModel.model_config.get("json_schema_extra") is None
 
-    def test_power_request_omitted_when_none(self) -> None:
+    def test_inactive_power_request_serializes_as_null(self) -> None:
         model = PowerSourceStateModel.model_validate(
             {"powered": "unknown", "members": []}
         )
-        assert "power_request" not in model.model_dump(mode="json", exclude_none=True)
+        assert model.model_dump(mode="json", exclude_none=True)["power_request"] is None
+
+    def test_power_request_rejects_raw_null(self) -> None:
+        """Technique: Error Guessing — only the internal sentinel is inactive."""
+        with pytest.raises(ValidationError):
+            PowerSourceStateModel.model_validate(
+                {"powered": "unknown", "power_request": None, "members": []}
+            )

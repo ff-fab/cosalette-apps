@@ -233,11 +233,14 @@ class Wiz2MqttSettings(cosalette.Settings):
     queued_command_ttl: float = Field(
         default=86400.0,
         description=(
-            "Reserved command-queue TTL in seconds (ADR-008). Queue runtime "
-            "support is deferred; the setting currently has no runtime effect."
+            "In-memory one-slot command queue TTL in seconds (ADR-008). The TTL "
+            "takes effect when later replay or restore consumes a queued command."
         ),
     )
     _power_sources_by_bulb: dict[str, PowerSourceConfig | None] = PrivateAttr(
+        default_factory=dict
+    )
+    _members_by_power_source: dict[str, tuple[str, ...]] = PrivateAttr(
         default_factory=dict
     )
 
@@ -478,6 +481,17 @@ class Wiz2MqttSettings(cosalette.Settings):
             )
             for bulb in self.bulbs
         }
+        members_by_power_source: dict[str, list[str]] = {
+            source.name: [] for source in self.power_sources
+        }
+        for bulb in self.bulbs:
+            source = self._power_sources_by_bulb[bulb.name]
+            if source is not None:
+                members_by_power_source[source.name].append(bulb.name)
+        self._members_by_power_source = {
+            source_name: tuple(sorted(members))
+            for source_name, members in members_by_power_source.items()
+        }
         return self
 
     def power_source_of(self, bulb_name: str) -> PowerSourceConfig | None:
@@ -497,9 +511,4 @@ class Wiz2MqttSettings(cosalette.Settings):
         when its own resolution names this source. Sorted for a stable wire
         payload.
         """
-        return sorted(
-            bulb.name
-            for bulb in self.bulbs
-            if (source := self.power_source_of(bulb.name)) is not None
-            and source.name == source_name
-        )
+        return list(self._members_by_power_source.get(source_name, ()))

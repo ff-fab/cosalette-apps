@@ -19,9 +19,9 @@ if TYPE_CHECKING:
 class SharedState:
     """Per-bulb debounce state, keyed by bulb name.
 
-    Owned exclusively by :func:`wiz2mqtt.entity.bulb_entity_tick`, with the
-    power-source fields also read/written by :mod:`wiz2mqtt.power` and the
-    command queue by :func:`wiz2mqtt.main.bulb_set`.
+    Telemetry and command handlers share this state: telemetry maintains
+    readback and availability evidence, while commands update desired intent
+    and pending work.
     """
 
     consecutive_failures: dict[str, int] = field(default_factory=dict)
@@ -51,6 +51,13 @@ class SharedState:
     restart; this dict is what lets a command and the next tick agree
     within one process. The device store (see :mod:`wiz2mqtt.intent`) is
     only what survives a restart."""
+
+    desired_state_generation: dict[str, int] = field(default_factory=dict)
+    """Per-bulb command generation, advanced before a desired-state mutation.
+
+    A telemetry tick captures it before awaiting a hardware read and drops
+    that readback when a newer command advanced the generation in the meantime.
+    """
 
     bulb_answered: dict[str, bool] = field(default_factory=dict)
     """Whether the most recent poll/push for a bulb succeeded — the raw

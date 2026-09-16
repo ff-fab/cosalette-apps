@@ -148,6 +148,7 @@ class WizBulbAdapter:
 
             bulb = wizlight(ip)
             try:
+                self._maybe_install_discovery_callback(bulb)
                 try:
                     bulb_type = await bulb.get_bulbtype()
                 except WizLightTimeOutError as exc:
@@ -206,7 +207,6 @@ class WizBulbAdapter:
                 # (cap-4rbg): a dropped return silently left the operator with
                 # no diagnostic and no retry.
                 await self._register_push(ip, bulb)
-                self._maybe_install_discovery_callback(bulb)
 
                 self._capabilities[ip] = capabilities
                 self._bulbs[ip] = bulb

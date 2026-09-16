@@ -1464,6 +1464,23 @@ class TestDiscoveryCallback:
 
         assert calls == [_IP]
 
+    async def test_callback_survives_a_failed_startup_query(self, ctx: _Ctx) -> None:
+        """Technique: Error Guessing — firstBeat remains live after startup timeout."""
+        from pywizlight.models import DiscoveredBulb  # noqa: PLC0415
+
+        calls: list[str] = []
+        ctx.adapter.register_boot_callback(calls.append)
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].get_bulbtype_exc = WizLightTimeOutError("unreachable")
+
+        with pytest.raises(WizTimeoutError):
+            await ctx.adapter.get_capabilities(_IP)
+
+        ctx.fake_bulbs[_IP].discovery_callback(DiscoveredBulb(_IP, "a8bb5006033d"))
+
+        assert calls == [_IP]
+        assert ctx.fake_bulbs[_IP].closed is True
+
     async def test_first_beat_from_unknown_ip_is_ignored(
         self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
     ) -> None:
