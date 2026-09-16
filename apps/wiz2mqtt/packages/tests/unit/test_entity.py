@@ -3,7 +3,7 @@
 Test Techniques Used:
 - State Transition Testing: online/offline availability debounce transitions
 - Boundary Value Analysis: the 3-consecutive-failure availability threshold
-- Decision Table: when_unreachable "unavailable" vs. "off" branches
+- Decision Table: power source when_unreachable "fault" vs. "no_power" branches
 - Equivalence Partitioning: deduplication of repeated availability calls
 """
 
@@ -13,7 +13,7 @@ from tests.fixtures.doubles import FakeDeviceContext
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
-from wiz2mqtt.settings import BulbConfig
+from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
 _IP = "10.0.0.5"
@@ -22,6 +22,22 @@ _IP = "10.0.0.5"
 def _config(**overrides: object) -> BulbConfig:
     defaults: dict[str, object] = {"name": "office", "ip": _IP}
     return BulbConfig(**{**defaults, **overrides})  # type: ignore[arg-type]
+
+
+def _settings_with_no_power_policy_source() -> Wiz2MqttSettings:
+    """Settings whose 'office' bulb sits behind a source that reports OFF."""
+    return Wiz2MqttSettings(
+        bulbs=[{"name": "office", "ip": _IP}],
+        power_sources=[
+            {
+                "name": "office-power",
+                "members": ["office"],
+                "when_unreachable": "no_power",
+            }
+        ],
+        _env_file=None,
+        _config_file=None,
+    )  # type: ignore[call-arg]
 
 
 class TestSuccessfulPoll:
@@ -140,18 +156,18 @@ class TestFailureDebounce:
 
 
 class TestWhenUnreachableOff:
-    """when_unreachable='off' bulbs stay available and report state OFF."""
+    """A bulb behind a power source declaring when_unreachable='no_power'
+    stays available and reports state OFF."""
 
     async def test_failure_reports_off_and_stays_available(self) -> None:
-        """Technique: Decision Table — when_unreachable='off' failure branch."""
+        """Technique: Decision Table — power source when_unreachable='no_power'
+        failure branch."""
         adapter = FakeWizBulbAdapter()
         adapter.fail_next(_IP, WizTimeoutError("boom"))
         state = SharedState()
-        ctx = FakeDeviceContext()
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
 
-        result = await bulb_entity_tick(
-            ctx, _config(when_unreachable="off"), adapter, state
-        )
+        result = await bulb_entity_tick(ctx, _config(), adapter, state)
 
         assert result == {"state": "OFF"}
         assert ctx.availability_calls == ["available"]
@@ -161,8 +177,8 @@ class TestWhenUnreachableOff:
         """Technique: Boundary Value Analysis — well past the 3-failure threshold."""
         adapter = FakeWizBulbAdapter()
         state = SharedState()
-        ctx = FakeDeviceContext()
-        config = _config(when_unreachable="off")
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
 
         for _ in range(5):
             adapter.fail_next(_IP, WizTimeoutError("boom"))
@@ -176,9 +192,9 @@ class TestWhenUnreachableOff:
         adapter.fail_next(_IP, WizTimeoutError("boom"))
         state = SharedState()
         state.last_availability["office"] = "online"
-        ctx = FakeDeviceContext()
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
 
-        await bulb_entity_tick(ctx, _config(when_unreachable="off"), adapter, state)
+        await bulb_entity_tick(ctx, _config(), adapter, state)
 
         assert ctx.availability_calls == []
 
@@ -186,8 +202,8 @@ class TestWhenUnreachableOff:
         """Identity failures never masquerade as an unreachable bulb switched off."""
         adapter = FakeWizBulbAdapter()
         state = SharedState()
-        ctx = FakeDeviceContext()
-        config = _config(when_unreachable="off")
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
 
         for _ in range(3):
             adapter.fail_next(_IP, WizIdentityError("wrong bulb"))

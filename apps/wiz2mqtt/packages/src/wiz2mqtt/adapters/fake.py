@@ -12,14 +12,28 @@ event-driven publication rather than falling back to the heartbeat.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from types import TracebackType
-from typing import Annotated, Self
+from typing import Annotated, Self, TypedDict
 
 from cosalette import EntityNotifier, Optional
 
 from wiz2mqtt.errors import WizTimeoutError
 from wiz2mqtt.models import BulbCapabilities, BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
+
+
+class SetStateKwargs(TypedDict, total=False):
+    """The keyword arguments a ``set_state`` call was made with."""
+
+    state: bool | None
+    brightness: int | None
+    hue: float | None
+    saturation: float | None
+    color_temp_kelvin: int | None
+    scene: int | None
+    speed: int | None
+
 
 _DEFAULT_CAPABILITIES = BulbCapabilities(
     bulb_class="RGB",
@@ -67,11 +81,21 @@ class FakeWizBulbAdapter:
             False  # when True, every get_state raises WizTimeoutError
         )
         self.get_state_call_count: int = 0  # total get_state invocations
+        # Per-bulb unreachability (cap-bjw9.2 / ADR-008). always_fail above is
+        # kept as a shortcut equivalent to setting every bulb unreachable.
+        self._unreachable: dict[str, bool] = {}
+        self._refuse_writes: dict[str, int] = {}
+        self._boot_callback: Callable[[str], None] | None = None
+        self.set_state_calls: list[tuple[str, SetStateKwargs]] = []
 
     def _raise_if_primed(self, ip: str) -> None:
         exc = self._fail_next.pop(ip, None)
         if exc is not None:
             raise exc
+
+    def _raise_if_unreachable(self, ip: str) -> None:
+        if self.always_fail or self._unreachable.get(ip, False):
+            raise WizTimeoutError(f"bulb {ip} is set unreachable")
 
     async def get_capabilities(self, ip: str) -> BulbCapabilities:
         """Return the bulb's capabilities, defaulting to a full-featured RGB bulb."""
@@ -81,8 +105,7 @@ class FakeWizBulbAdapter:
     async def get_state(self, ip: str) -> BulbState:
         """Return the bulb's current state, defaulting to off/unset."""
         self.get_state_call_count += 1
-        if self.always_fail:
-            raise WizTimeoutError(f"always_fail is set for {ip}")
+        self._raise_if_unreachable(ip)
         self._raise_if_primed(ip)
         return self._state.setdefault(ip, _DEFAULT_STATE)
 
@@ -104,9 +127,32 @@ class FakeWizBulbAdapter:
         so the fake and production adapters stay pinned to the same behaviour: a
         colour-mode field clears the fields of the modes it supersedes, and
         ``state=False`` merges only that field, since the real bulb only receives
-        ``turn_off()`` in that case.
+        ``turn_off()`` in that case. Deliberately reproduces cap-sxul (the
+        optimistic merge is applied without waiting for authoritative
+        readback) — do not fix that here.
         """
+        self.set_state_calls.append(
+            (
+                ip,
+                SetStateKwargs(
+                    state=state,
+                    brightness=brightness,
+                    hue=hue,
+                    saturation=saturation,
+                    color_temp_kelvin=color_temp_kelvin,
+                    scene=scene,
+                    speed=speed,
+                ),
+            )
+        )
+        self._raise_if_unreachable(ip)
         self._raise_if_primed(ip)
+
+        refused = self._refuse_writes.get(ip, 0)
+        if refused > 0:
+            self._refuse_writes[ip] = refused - 1
+            return  # succeeds on the wire; cached state deliberately unchanged
+
         current = self._state.setdefault(ip, _DEFAULT_STATE)
         if state is False:
             self._state[ip] = current.apply_command(state=False)
@@ -167,3 +213,31 @@ class FakeWizBulbAdapter:
     def fail_next(self, ip: str, exc: Exception) -> None:
         """Raise *exc* on the next call for *ip*, then clear."""
         self._fail_next[ip] = exc
+
+    def set_unreachable(self, ip: str, unreachable: bool) -> None:
+        """Force *ip* unreachable: get_state/set_state raise WizTimeoutError."""
+        if unreachable:
+            self._unreachable[ip] = True
+        else:
+            self._unreachable.pop(ip, None)
+
+    def register_boot_callback(self, callback: Callable[[str], None]) -> None:
+        """Register the callback :meth:`boot` fires on a simulated boot event."""
+        self._boot_callback = callback
+
+    def boot(self, ip: str, default_state: BulbState) -> None:
+        """Simulate *ip* booting: clear unreachable, seed state, fire the boot event.
+
+        Note: :meth:`register_boot_callback` mirrors the port method the real
+        adapter will eventually wire to pywizlight's firstBeat notification
+        (cap-bjw9.4) — that wiring does not exist yet, and this fake does not
+        depend on the hardcoded ``start_push`` return value (cap-4rbg).
+        """
+        self._unreachable.pop(ip, None)
+        self._state[ip] = default_state
+        if self._boot_callback is not None:
+            self._boot_callback(ip)
+
+    def refuse_writes(self, ip: str, count: int) -> None:
+        """Make the next *count* set_state calls for *ip* succeed as no-ops."""
+        self._refuse_writes[ip] = count

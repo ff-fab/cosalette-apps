@@ -9,12 +9,14 @@ availability is debounced separately here, since
 
 from __future__ import annotations
 
+from typing import cast
+
 import cosalette
 
 from wiz2mqtt.errors import WizBridgeError, WizIdentityError
 from wiz2mqtt.payload import build_state_payload
 from wiz2mqtt.ports import WizBulbPort
-from wiz2mqtt.settings import BulbConfig
+from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
 _FAILURE_THRESHOLD = 3
@@ -32,15 +34,25 @@ async def bulb_entity_tick(
     Returns the payload for the framework's ``publish=OnChange()``
     strategy to gate, or ``None`` to skip publishing this cycle (a
     below-threshold failure — nothing new to report while the last known
-    retained state stands). Bulbs configured with ``when_unreachable =
-    "off"`` stay available and report ``state: "OFF"`` instead of going
-    through the failure-count/offline path.
+    retained state stands). A bulb whose power source (ADR-007) declares
+    ``when_unreachable = "no_power"`` stays available and reports
+    ``state: "OFF"`` instead of going through the failure-count/offline
+    path; a bulb with no power source, or one declaring ``"fault"``
+    (the default), uses the failure-count/offline path below.
+
+    This is a placeholder equivalence to the removed bulb-level
+    ``when_unreachable = "off"`` policy — it does not yet compute the
+    ``powered`` belief or skip reads while a source is known off
+    (cap-bjw9.7, cap-bjw9.9).
     """
     name = config.name
+    settings = cast(Wiz2MqttSettings, ctx.settings)
+    power_source = settings.power_source_of(name)
+    when_unreachable = power_source.when_unreachable if power_source else "fault"
     try:
         bulb_state = await port.get_state(config.ip)
     except WizBridgeError as exc:
-        if config.when_unreachable == "off" and not isinstance(exc, WizIdentityError):
+        if when_unreachable == "no_power" and not isinstance(exc, WizIdentityError):
             await _mark_online_once(ctx, state, name)
             return {"state": "OFF"}
 
