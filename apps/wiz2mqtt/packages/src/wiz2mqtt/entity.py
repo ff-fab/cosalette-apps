@@ -9,6 +9,9 @@ availability is debounced separately here, since
 
 from __future__ import annotations
 
+import dataclasses
+import json
+import logging
 import time
 from collections.abc import Callable
 from typing import Annotated, cast
@@ -17,14 +20,31 @@ import cosalette
 from cosalette import DeviceStore, EntityNotifier, Optional
 
 from wiz2mqtt import intent, power
+from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import WizBridgeError, WizIdentityError
+from wiz2mqtt.models import BulbState
 from wiz2mqtt.payload import build_state_payload
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
+logger = logging.getLogger(__name__)
+
 _FAILURE_THRESHOLD = 3
 """Consecutive failed polls before a bulb is marked unavailable."""
+
+_MAX_WRITE_ATTEMPTS = 3
+"""ADR-008: a return-path write gets three total write-and-read-back
+attempts, including the first — not three retries after it (2026-09-14
+corrective amendment)."""
+
+_HUE_TOLERANCE = 1.0
+_SATURATION_TOLERANCE = 1.0
+"""Read-back comparison tolerance, in the same hue (0..360) / saturation
+(0..100) units :class:`~wiz2mqtt.models.BulbState` uses. A WiZ bulb derives
+hue/saturation from an RGB byte round-trip (see :mod:`wiz2mqtt.colour`), so
+the value read back after a colour write is not always bit-identical to the
+value sent."""
 
 
 async def bulb_entity_tick(
@@ -48,11 +68,14 @@ async def bulb_entity_tick(
     hard-coded ``OFF`` — ``powered`` (ADR-007) is what tells a consumer the
     bulb is dark.
 
-    Also (cap-bjw9.4/cap-bjw9.5): registers the real ``firstBeat`` boot
-    handler once, app-wide, on whichever bulb ticks first; resolves each
-    bulb's ADR-008 phase on its own first tick; records a steady-phase
-    observation as the new desired state; and recomputes the bulb's power
-    source belief on every tick, arming that source's own telemetry entity.
+    Also (cap-bjw9.4/cap-bjw9.5/cap-bjw9.8): registers the real ``firstBeat``
+    boot handler once, app-wide, on whichever bulb ticks first; resolves
+    each bulb's ADR-008 phase on its own first tick; records a steady-phase
+    observation as the new desired state; runs the ADR-008 return path
+    exactly once per return to reachability, from this tick and never from
+    the push callback, when the phase is ``"reconnect"``; and recomputes
+    the bulb's power source belief on every tick, arming that source's own
+    telemetry entity.
     """
     name = config.name
     settings = cast(Wiz2MqttSettings, ctx.settings)
@@ -95,10 +118,11 @@ async def bulb_entity_tick(
     state.consecutive_failures[name] = 0
     state.bulb_answered[name] = True
     await _mark_online_once(ctx, state, name)
-    if (
-        state.phase.get(name, "steady") == "steady"
-        and state.desired_state_generation.get(name, 0) == observation_generation
-    ):
+    if state.phase.get(name, "steady") == "reconnect":
+        return await _run_return_path(
+            ctx, config, port, state, store, settings, notify, name, bulb_state
+        )
+    if state.desired_state_generation.get(name, 0) == observation_generation:
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return build_state_payload(bulb_state, belief)
@@ -136,6 +160,129 @@ def _recompute_and_notify(
     return belief
 
 
+async def _run_return_path(
+    ctx: cosalette.DeviceContext,
+    config: BulbConfig,
+    port: WizBulbPort,
+    state: SharedState,
+    store: DeviceStore | None,
+    settings: Wiz2MqttSettings,
+    notify: EntityNotifier,
+    name: str,
+    bulb_state: BulbState,
+) -> dict[str, object] | None:
+    """Run the ADR-008 return path once for *name* (cap-bjw9.8).
+
+    Called only from :func:`bulb_entity_tick`'s success path, never from
+    the push callback (:func:`_make_boot_handler` only arms the phase).
+    Exactly one branch of the three-way rule applies, per the 2026-09-14
+    corrective amendment: a non-expired pending command always wins; else
+    the stored desired state restores only when ``restore_previous_state``
+    is set *and* a record exists; otherwise *bulb_state* — the report that
+    detected this return — becomes the new desired state and the phase
+    settles to steady without touching the wire.
+
+    A write is read back and retried up to three attempts total
+    (:func:`_write_and_verify`). On success the pending command or stored
+    desired state applied is already what ``state.desired_state`` holds
+    (recorded when the command was issued/stored), so nothing more needs
+    writing. On exhaustion, a structured error is published to
+    ``wiz2mqtt/{bulb}/error``, authority hands back to the lamp (the last
+    observed state becomes the new desired state), and the phase still
+    settles to steady — ADR-008 does not retry a return path across ticks.
+
+    cap-sxul is fixed (mode-aware colour-mode clearing in
+    ``BulbState.apply_command``), so the read-back here reads through the
+    same optimistic cache ``get_state`` always uses rather than bypassing
+    it: a successful write's merge is now trustworthy, and a refused write
+    (production ``refuse_writes``/the fake's mirror) already skips the
+    merge and leaves the cache at its prior value, which is exactly the
+    mismatch this retry loop needs to see.
+    """
+    now = time.time()
+    kwargs = intent.pop_valid(
+        state.pending_commands, name, settings.queued_command_ttl, now
+    )
+    if kwargs is None and config.restore_previous_state:
+        desired = intent.resolve_desired_state(state, store, name)
+        if desired is not None:
+            kwargs = intent.desired_state_to_set_state_kwargs(desired)
+
+    if kwargs is None:
+        observed = bulb_state
+        intent.record_observation(state, store, name, observed, now)
+    else:
+        observed, attempts, confirmed = await _write_and_verify(port, config.ip, kwargs)
+        if not confirmed:
+            logger.warning(
+                "Bulb %s: return-path restore unconfirmed after %d attempts; "
+                "handing authority back to the lamp",
+                name,
+                attempts,
+            )
+            await ctx.publish(
+                "error",
+                json.dumps(
+                    {"attempts": attempts, "state": dataclasses.asdict(observed)}
+                ),
+            )
+            intent.record_observation(state, store, name, observed, now)
+
+    state.phase[name] = "steady"
+    belief = _recompute_and_notify(settings, state, notify, name)
+    return build_state_payload(observed, belief)
+
+
+async def _write_and_verify(
+    port: WizBulbPort, ip: str, kwargs: SetStateKwargs
+) -> tuple[BulbState, int, bool]:
+    """Write *kwargs*, read back, retry until it matches or attempts run out.
+
+    Returns the last-observed state, the attempt count used (1-3), and
+    whether that last read-back confirmed the write.
+    """
+    for attempt in range(1, _MAX_WRITE_ATTEMPTS + 1):
+        await port.set_state(ip, **kwargs)
+        observed = await port.get_state(ip)
+        confirmed = _kwargs_match_observed(kwargs, observed)
+        if confirmed or attempt == _MAX_WRITE_ATTEMPTS:
+            return observed, attempt, confirmed
+    raise AssertionError("unreachable: _MAX_WRITE_ATTEMPTS >= 1")
+
+
+def _kwargs_match_observed(kwargs: SetStateKwargs, observed: BulbState) -> bool:
+    """Whether *observed* confirms the write *kwargs* described.
+
+    Desired OFF only checks the on/off bit, since no appearance was sent.
+    Desired ON checks on/off plus every appearance field the write actually
+    carried — a field the caller left ``None`` (a partial pending command
+    that never touched it) is not checked. Hue/saturation tolerate the RGB
+    round-trip rounding :mod:`wiz2mqtt.colour` documents.
+    """
+    if kwargs.get("state") is False:
+        return observed.state is False
+    if kwargs.get("state") is True and observed.state is not True:
+        return False
+    for field in ("brightness", "color_temp_kelvin", "scene"):
+        expected = kwargs.get(field)
+        if expected is not None and getattr(observed, field) != expected:
+            return False
+    speed = kwargs.get("speed")
+    if speed is not None and observed.effect_speed != speed:
+        return False
+    for field, tolerance in (
+        ("hue", _HUE_TOLERANCE),
+        ("saturation", _SATURATION_TOLERANCE),
+    ):
+        expected = kwargs.get(field)
+        if expected is None:
+            continue
+        actual = getattr(observed, field)
+        if actual is None or abs(actual - expected) > tolerance:
+            return False
+    return True
+
+
 def _ensure_boot_callback_registered(
     port: WizBulbPort,
     settings: Wiz2MqttSettings,
@@ -163,10 +310,11 @@ def _make_boot_handler(
         name = name_by_ip.get(ip)
         if name is None:
             return
-        # Marks the return, unconfirmed (ADR-008 reconnect phase); the
-        # restore itself is cap-bjw9.8, not yet implemented — this only
-        # arms the entity so the next tick runs without the 60s wait, and
-        # resets the failure counter since the bulb has visibly returned.
+        # Marks the return, unconfirmed (ADR-008 reconnect phase). The
+        # restore itself (cap-bjw9.8) runs from the next entity tick, never
+        # from here — this only arms the entity so that tick runs without
+        # the 60s wait, and resets the failure counter since the bulb has
+        # visibly returned.
         state.phase[name] = "reconnect"
         state.consecutive_failures[name] = 0
         notify(name)

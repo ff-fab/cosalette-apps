@@ -40,8 +40,9 @@ class SharedState:
     phase: dict[str, Literal["steady", "reconnect"]] = field(default_factory=dict)
     """Per-bulb ADR-008 phase. Resolved lazily on a bulb's first tick from
     whether a desired state is already persisted, then advanced to
-    ``"reconnect"`` on a boot event (cap-bjw9.4). Consumed by the restore
-    task (cap-bjw9.8, not yet implemented) to decide when to leave it."""
+    ``"reconnect"`` on a boot event (cap-bjw9.4). Consumed by the ADR-008
+    return path (cap-bjw9.8, entity.py's ``_run_return_path``), which
+    always leaves it ``"steady"`` again before the tick returns."""
 
     desired_state: dict[str, DesiredState] = field(default_factory=dict)
     """Each bulb's current desired state (ADR-008) — the in-process source of
