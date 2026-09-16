@@ -14,6 +14,7 @@ services:
       GAS2MQTT_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       GAS2MQTT_MQTT__TLS: ${GAS2MQTT_MQTT__TLS:-false}
+      GAS2MQTT_STATE_FILE: /app/data/state.json
     volumes:
       - gas2mqtt-data:/app/data
     depends_on:
