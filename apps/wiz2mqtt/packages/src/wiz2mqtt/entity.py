@@ -270,15 +270,18 @@ def _kwargs_match_observed(kwargs: SetStateKwargs, observed: BulbState) -> bool:
     speed = kwargs.get("speed")
     if speed is not None and observed.effect_speed != speed:
         return False
-    for field, tolerance in (
-        ("hue", _HUE_TOLERANCE),
-        ("saturation", _SATURATION_TOLERANCE),
-    ):
-        expected = kwargs.get(field)
-        if expected is None:
-            continue
-        actual = getattr(observed, field)
-        if actual is None or abs(actual - expected) > tolerance:
+    hue_expected = kwargs.get("hue")
+    if hue_expected is not None:
+        hue_actual = observed.hue
+        if hue_actual is None:
+            return False
+        diff = abs(hue_actual - hue_expected)
+        if min(diff, 360.0 - diff) > _HUE_TOLERANCE:
+            return False
+    sat_expected = kwargs.get("saturation")
+    if sat_expected is not None:
+        sat_actual = observed.saturation
+        if sat_actual is None or abs(sat_actual - sat_expected) > _SATURATION_TOLERANCE:
             return False
     return True
 
