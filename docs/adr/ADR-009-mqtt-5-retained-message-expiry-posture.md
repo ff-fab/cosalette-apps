@@ -9,7 +9,7 @@ tags: [mqtt, configuration, testing, documentation]
 
 ## Status
 
-Accepted **Date:** 2026-09-18
+Accepted **Date:** 2026-09-18 | Amended **Date:** 2026-09-18
 
 ## Context
 
@@ -92,4 +92,26 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Retained topics published before the switch never expire and need a manual clear.
 - The real-broker check was run once by hand against `eclipse-mosquitto:2`; CI exercises a broker double, not a broker.
 
-_2026-09-18_
+## Amendment (2026-09-18) — Additive
+
+**Rationale:** cap-pnjx.6, .7 and .8 apply the same posture to jeelink2mqtt, suncast and velux2mqtt. The record needs their evidence and the three consumer-visible differences the first three apps did not have.
+
+### Additional Sub-Decision: Extension to jeelink2mqtt, suncast and velux2mqtt
+
+Declare MQTT 5 per deployment for jeelink2mqtt, suncast and velux2mqtt (cap-pnjx.6, .7, .8) exactly as for the first three apps: the code default stays MQTT 3.1.1, and each shipped `compose.yml` and `.env.example` defaults `<PREFIX>_MQTT__PROTOCOL_VERSION` to `5` for the bundled mosquitto 2 broker. The cross-app test `test_mqtt5_expiry_defaults.py` and a per-app `test_mqtt5_expiry.py` built on `mqtt5_broker` and `mqtt5_contract` guard the declaration and the wire behaviour.
+
+Evidence: all three ship the same `mosquitto.conf` and `eclipse-mosquitto:2` as the first three apps. Against that image (mosquitto 2.1.2), a retained MQTT 5 message with a 3 s expiry that nothing refreshed was gone after 8 s, while a 3 s topic and a 300 kB topic published through the real cosalette `MqttClient` were still retained, and an MQTT 3.1.1 client connected on the same listener. In the tested wiring the apps publish 14 (jeelink2mqtt, after one frame and one mapping snapshot), 5 (suncast) and 10 (velux2mqtt, two covers) retained topics, far below the ledger limits. None sets `force_update`, so a repeat does not change a sensor state.
+
+### Additional Sub-Decision: Consumer-visible differences of the three apps
+
+**jeelink2mqtt:** `{sensor}/state` is already re-published every `heartbeat_interval_seconds` (180 s), so its refresh is negligible. `mapping/state` is published only when a mapping changes, so its refresh is a real repeat. A repeat carries the original `timestamp` and `last_seen`, so a freshness check on those fields is not fooled.
+
+**suncast:** the retained payloads are the SVG and the optional base64 PNG, the largest of any app. The image is replaced every `poll_interval` (360 s), so the refresh is invisible to a dashboard. A retained publish that would push the refresh ledger past 16 MiB raises, and suncast logs a warning and skips that image; the default SVG is about 5 kB. suncast publishes no Home Assistant discovery (`discoverable=False`), so its contract test sets `has_discovery = False`.
+
+**velux2mqtt:** a repeat of a cover state never moves a blind, because velux2mqtt acts only on the `set` topics, which are neither retained nor refreshed. An automation that triggers on receipt of `{cover}/state` runs once more per refresh. `calibrate/result` is published once and refreshed only while the process runs, so after a restart it expires within the expiry interval; the operator must copy the values into `VELUX2MQTT_COVERS` when a calibration ends.
+
+### Additional Negative Consequences
+
+- jeelink2mqtt, suncast and velux2mqtt republish every retained topic with an unchanged payload every 8 hours, which a consumer that triggers on message receipt sees as a duplicate.
+- A velux2mqtt calibration result that is not copied into the cover configuration is lost within 24 hours of a restart.
+- The real-broker check for these three apps drove the cosalette `MqttClient` directly against `eclipse-mosquitto:2`; CI still exercises the broker double, not a broker.

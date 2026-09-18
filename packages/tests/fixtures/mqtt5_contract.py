@@ -32,6 +32,8 @@ class Mqtt5Contract:
     """MQTT 5 opt-in: expiry on every retained topic, kept alive by refresh."""
 
     state_topic: str
+    has_discovery: bool = True
+    """False for an app with no Home Assistant entity, hence no discovery topic."""
 
     def test_connects_with_mqtt5(self, mqtt5: Observation) -> None:
         """Technique: Specification-based - the CONNECT requests protocol level 5."""
@@ -44,7 +46,8 @@ class Mqtt5Contract:
         retained = [p for p in mqtt5.broker.publishes if p.retain]
 
         assert self.state_topic in {p.topic for p in retained}
-        assert any(p.topic.startswith("homeassistant/") for p in retained)
+        if self.has_discovery:
+            assert any(p.topic.startswith("homeassistant/") for p in retained)
         assert {p.expiry for p in retained} == {EXPIRY_SECONDS}
 
     def test_non_retained_publishes_carry_no_expiry(self, mqtt5: Observation) -> None:

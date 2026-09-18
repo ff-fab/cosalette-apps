@@ -14,6 +14,9 @@ services:
       VELUX2MQTT_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       VELUX2MQTT_MQTT__TLS: ${VELUX2MQTT_MQTT__TLS:-false}
+      # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+      # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+      VELUX2MQTT_MQTT__PROTOCOL_VERSION: ${VELUX2MQTT_MQTT__PROTOCOL_VERSION:-5}
       VELUX2MQTT_STORE_PATH: /app/data/store.json
     volumes:
       - velux2mqtt-data:/app/data
