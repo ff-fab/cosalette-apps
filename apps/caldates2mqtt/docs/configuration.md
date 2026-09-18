@@ -27,8 +27,8 @@ you need.
 | Topic prefix       | `CALDATES2MQTT_MQTT__TOPIC_PREFIX`          | _(app name)_ | Root prefix for all MQTT topics                        |
 | Reconnect interval | `CALDATES2MQTT_MQTT__RECONNECT_INTERVAL`    | `5.0`        | Initial reconnect delay (seconds, exponential backoff) |
 | Reconnect max      | `CALDATES2MQTT_MQTT__RECONNECT_MAX_INTERVAL`| `300.0`      | Upper bound for reconnect backoff (seconds)            |
-| Protocol version   | `CALDATES2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` | `5` enables retained-message expiry (compose default), see below |
-| Message expiry     | `CALDATES2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds (MQTT 5 only) |
+| Protocol version   | `CALDATES2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
+| Message expiry     | `CALDATES2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables use
@@ -48,11 +48,6 @@ and the last will. While caldates2mqtt runs, it re-publishes each retained topic
 of that interval (default 8 hours), so the topics stay alive. A topic that nothing
 refreshes any more, such as a renamed entity or a stopped process, disappears from the
 broker by itself.
-
-| Setting         | Env Variable                          | Default                          | Description                                                  |
-| --------------- | ------------------------------------- | -------------------------------- | ------------------------------------------------------------ |
-| Protocol        | `CALDATES2MQTT_MQTT__PROTOCOL_VERSION`         | `3.1.1` in code, `5` in compose  | `5` enables expiry and refresh, `3.1.1` disables both        |
-| Expiry interval | `CALDATES2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL`  | `86400`                          | Seconds, at least `3`; valid only with protocol `5`          |
 
 **Operator contract**
 
@@ -75,9 +70,9 @@ broker by itself.
   publish, and the broker forwards it to live subscribers without the retain flag, so it
   looks like a normal message. Home Assistant sensors do not change state on a repeat.
   `caldates2mqtt/<calendar>/state` is republished on every calendar schedule run, and the
-refresh adds one identical repeat every 8 hours. An automation with an MQTT trigger
-on that topic runs for the repeat; an automation on the Home Assistant event count
-sensor does not, because the value does not change.
+  refresh adds one identical repeat every 8 hours. An automation with an MQTT trigger
+  on that topic runs for the repeat; an automation on the Home Assistant event count
+  sensor does not, because the value does not change.
 
 ### Logging
 
