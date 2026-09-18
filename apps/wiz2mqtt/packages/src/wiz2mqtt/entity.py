@@ -61,10 +61,11 @@ async def bulb_entity_tick(
     Returns the payload for the framework's ``publish=OnChange()``
     strategy to gate, or ``None`` when there is nothing to report (an
     unreachable bulb with no desired state on record yet). Availability
-    means fault only (ADR-007/cap-bjw9.9): while the bulb's power source
-    belief is ``"off"``, the network read is skipped entirely — no
-    ``port.get_state`` call, no failure-counter advance — and the bulb
-    stays available, reporting its desired state with ``powered = false``.
+    means fault only (ADR-007/cap-bjw9.9): once the bulb has failed the
+    threshold and its power source belief is ``"off"``, the network read
+    is skipped entirely — no ``port.get_state`` call, no failure-counter
+    advance — and the bulb stays available, reporting its desired state
+    with ``powered = false``.
     A bulb whose belief is ``"on"`` or ``"unknown"`` (no power source, or a
     peer still answering) goes through the normal failure-count and
     availability path below, so a genuinely unreachable bulb on a live
@@ -160,11 +161,11 @@ def _should_skip_read(
     """Whether *name*'s tick should skip ``port.get_state`` this cycle (cap-bjw9.9).
 
     Two conditions must both hold: the belief is ``"off"``, and *name* has
-    answered at least once before (``name in state.bulb_answered``) — a bulb
-    never contacted even once still gets its first real attempt, or a fresh
-    no_power source's tie-break default ("off" with no evidence, see
-    ``power.compute_belief``) would skip forever and never gather the
-    evidence that could prove it wrong.
+    failed ``_FAILURE_THRESHOLD`` polls in a row. ADR-007 skips reads "after
+    the threshold", so a single transient timeout on a live bulb (which
+    already yields the tie-break belief ``"off"`` on a ``no_power`` source,
+    see ``power.compute_belief``) does not latch the bulb dark: it keeps
+    being read until the evidence is firm.
 
     The "reconnect" phase bypasses the skip too — set by the boot callback
     (``_make_boot_handler``) reacting to the bulb's own firstBeat broadcast,
@@ -173,7 +174,7 @@ def _should_skip_read(
     """
     return (
         belief == "off"
-        and name in state.bulb_answered
+        and state.consecutive_failures.get(name, 0) >= _FAILURE_THRESHOLD
         and state.phase.get(name) != "reconnect"
     )
 

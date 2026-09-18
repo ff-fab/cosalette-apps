@@ -12,6 +12,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import jinja2
 import pytest
 from pydantic import ValidationError
 
@@ -596,6 +597,26 @@ class TestPowerSourceStateModel:
         entities = extra["x-cosalette-ha-discovery"]["entities"]
         belief = next(e for e in entities if e["name"] == "powered")
         assert belief["extra"]["device_class"] == "power"
+
+    @pytest.mark.parametrize(
+        ("powered", "rendered"),
+        [("on", "ON"), ("off", "OFF"), ("unknown", "None")],
+    )
+    def test_belief_template_keeps_unknown_distinct_from_off(
+        self, powered: str, rendered: str
+    ) -> None:
+        """An unknown belief must not read as a dark circuit.
+
+        Technique: Equivalence Partitioning — one case per belief value.
+        ``None`` is the payload Home Assistant reads as an unknown state.
+        """
+        extra = PowerSourceStateModel.model_config["json_schema_extra"]
+        entities = extra["x-cosalette-ha-discovery"]["entities"]
+        belief = next(e for e in entities if e["name"] == "powered")
+
+        template = jinja2.Template(belief["extra"]["value_template"])
+
+        assert template.render(value_json={"powered": powered}) == rendered
 
     def test_power_request_entity_is_diagnostic(self) -> None:
         extra = PowerSourceStateModel.model_config["json_schema_extra"]

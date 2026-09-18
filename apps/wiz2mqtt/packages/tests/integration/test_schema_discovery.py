@@ -663,12 +663,12 @@ class TestPowerSourceDiscovery:
     async def test_existing_per_bulb_entities_unaffected(self) -> None:
         """AC: the existing four-entity output per bulb is unchanged.
 
-        Runs the same settings through the ordinary per-bulb discovery app
-        (no power source telemetry registered) and confirms it still
-        publishes exactly the light/number/sensor set plus bridge.
+        Runs the per-bulb discovery app with the enrich hook wired (the code
+        path this task restructured) and confirms it still publishes exactly
+        the light/number/sensor set plus bridge.
         """
         harness = AppHarness(
-            app=_build_discovery_app(),
+            app=_build_discovery_app(enrich=True),
             mqtt=MockMqttClient(),
             clock=FakeClock(),
             settings=_make_settings((SCHEMA_BULB,)),

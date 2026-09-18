@@ -22,7 +22,7 @@ from cosalette.stores import MemoryStore
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
-from wiz2mqtt.entity import bulb_entity_tick
+from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
 from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
 from wiz2mqtt.intent import (
     Appearance,
@@ -780,16 +780,15 @@ class TestWhenUnreachableOff:
     ) -> None:
         """cap-bjw9.9 — once evidence says off, further ticks cost no read.
 
-        Technique: Boundary Value Analysis — the skip only applies once
-        ``bulb_answered`` holds real evidence (seeded here as False,
-        simulating a source already known off), never on a bulb that has
-        not had its first chance yet (see ``TestBootCallback`` and
-        ``test_failures_keep_answer_evidence_until_the_threshold``, which
-        both rely on a fresh bulb's very first tick still reading).
+        Technique: Boundary Value Analysis — the skip only applies once the
+        failure counter reaches the threshold (seeded here, simulating a
+        source already known off), never on a bulb that has not had its
+        chance yet (see ``test_belief_off_after_one_failure_still_reads``).
         """
         adapter = FakeWizBulbAdapter()
         state = SharedState()
         state.bulb_answered["office"] = False
+        state.consecutive_failures["office"] = _FAILURE_THRESHOLD
         ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
         config = _config()
 
@@ -798,14 +797,36 @@ class TestWhenUnreachableOff:
             assert result is None
 
         assert adapter.get_state_call_count == 0
-        assert state.consecutive_failures.get("office", 0) == 0
+        assert state.consecutive_failures["office"] == _FAILURE_THRESHOLD
         assert ctx.availability_calls == ["available"]
+
+    async def test_belief_off_after_one_failure_still_reads(self) -> None:
+        """cap-bjw9.9 — one transient timeout must not latch the bulb dark.
+
+        Technique: Boundary Value Analysis — threshold minus one. The
+        ``no_power`` tie-break already yields belief "off" after the first
+        failure, but ADR-007 skips reads only after the threshold.
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        await _tick(ctx, config, adapter, state)
+        result = await _tick(ctx, config, adapter, state)
+
+        assert adapter.get_state_call_count == 2
+        assert state.bulb_answered["office"] is True
+        assert result is not None
+        assert result["powered"] is True
 
     async def test_belief_off_reports_desired_state_with_powered_false(self) -> None:
         """cap-bjw9.9 — the skip path still reports intent, not a bare None."""
         adapter = FakeWizBulbAdapter()
         state = SharedState()
         state.bulb_answered["office"] = False
+        state.consecutive_failures["office"] = _FAILURE_THRESHOLD
         state.desired_state["office"] = _DESIRED_ON
         state.phase["office"] = "steady"  # a persisted desired state alone
         # would otherwise resolve the *lazy* phase init to "reconnect" and

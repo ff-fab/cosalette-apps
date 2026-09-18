@@ -176,7 +176,12 @@ _HA_SOURCE_POWERED_ENTITY = ha_entity(
     name="powered",
     extra={
         "device_class": "power",
-        "value_template": "{{ 'ON' if value_json.powered == 'on' else 'OFF' }}",
+        # "unknown" renders as Python None, which Home Assistant's MQTT
+        # binary_sensor reads as an unknown state rather than a dark circuit.
+        "value_template": (
+            "{{ 'ON' if value_json.powered == 'on' else "
+            "('OFF' if value_json.powered == 'off' else None) }}"
+        ),
         POWER_SOURCE_ENTITY_MARKER: True,
     },
 )
@@ -187,7 +192,7 @@ _HA_SOURCE_POWER_REQUEST_ENTITY = ha_entity(
     name="power_request",
     extra={
         "entity_category": "diagnostic",
-        "value_template": ("{{ 'ON' if value_json.power_request == 'on' else 'OFF' }}"),
+        "value_template": "{{ 'ON' if value_json.power_request == 'on' else 'OFF' }}",
         POWER_SOURCE_ENTITY_MARKER: True,
     },
 )
