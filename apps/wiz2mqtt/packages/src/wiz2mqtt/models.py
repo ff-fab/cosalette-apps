@@ -158,6 +158,50 @@ _HA_POWER_SENSOR_ENTITY = ha_entity(
 )
 """Composite HA ``sensor`` for live power draw — state-only, so state model only."""
 
+POWER_SOURCE_ENTITY_MARKER = "x-wiz2mqtt-power-source"
+"""Internal ``extra`` key on a power-source composite entity (cap-bjw9.10).
+
+Not a real Home Assistant discovery key:
+:func:`wiz2mqtt.discovery.make_discovery_enrich` pops it back out of the
+assembled config before publish. It exists only so the
+enrich hook can recognise a power-source entity (to drop its per-device
+availability entry — a source has no reachability of its own, ADR-007) without
+depending on ``app.settings`` or on any HA-visible field the two entities happen
+to share (``device_class: power`` also appears on :data:`_HA_POWER_SENSOR_ENTITY`,
+a per-bulb entity that must NOT be narrowed the same way).
+"""
+
+_HA_SOURCE_POWERED_ENTITY = ha_entity(
+    component="binary_sensor",
+    name="powered",
+    extra={
+        "device_class": "power",
+        # "unknown" renders as Python None, which Home Assistant's MQTT
+        # binary_sensor reads as an unknown state rather than a dark circuit.
+        "value_template": (
+            "{{ 'ON' if value_json.powered == 'on' else "
+            "('OFF' if value_json.powered == 'off' else None) }}"
+        ),
+        POWER_SOURCE_ENTITY_MARKER: True,
+    },
+)
+"""Composite HA ``binary_sensor`` for a power source's belief (ADR-007/ADR-009)."""
+
+_HA_SOURCE_POWER_REQUEST_ENTITY = ha_entity(
+    component="binary_sensor",
+    name="power_request",
+    extra={
+        "entity_category": "diagnostic",
+        "value_template": "{{ 'ON' if value_json.power_request == 'on' else 'OFF' }}",
+        POWER_SOURCE_ENTITY_MARKER: True,
+    },
+)
+"""Composite HA ``binary_sensor`` (diagnostic) for a source's desired power (ADR-009).
+
+Read-only, like :data:`_HA_SOURCE_POWERED_ENTITY` — never a ``switch``: a
+switch invites a user to operate the relay, and then the user and the state
+machine fight over it (ADR-009)."""
+
 # openHAB Generic MQTT Thing channels are generated per-field from ``consumer()``
 # + ``openhab()`` annotations (the offline ``cosalette schema openhab`` path —
 # openHAB has no runtime discovery).  ON/OFF is published as an explicit JSON
@@ -367,12 +411,19 @@ class BulbStateModel(BaseModel):
 class PowerSourceStateModel(BaseModel):
     """Retained ``{prefix}/{source}/state`` payload for one power source.
 
-    No ``ha_entities`` yet: Home Assistant discovery for this entity is
-    cap-bjw9.10, not this task — the telemetry registration in ``main.py``
-    passes ``discoverable=False`` until then.
+    Carries two read-only ``binary_sensor`` discovery entities (ADR-009,
+    cap-bjw9.10): the belief (``device_class: power``) and the desired
+    power (``entity_category: diagnostic``). Never a ``switch`` — see
+    :data:`_HA_SOURCE_POWER_REQUEST_ENTITY`. Both share one Home Assistant
+    device, named after the source, distinct from any bulb device.
     """
 
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra=ha_entities(
+            _HA_SOURCE_POWERED_ENTITY, _HA_SOURCE_POWER_REQUEST_ENTITY
+        ),
+    )
 
     powered: Literal["on", "off", "unknown"]
     power_request: Annotated[

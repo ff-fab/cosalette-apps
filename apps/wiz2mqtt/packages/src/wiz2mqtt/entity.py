@@ -60,12 +60,17 @@ async def bulb_entity_tick(
 
     Returns the payload for the framework's ``publish=OnChange()``
     strategy to gate, or ``None`` when there is nothing to report (an
-    unreachable bulb with no desired state on record yet). A bulb whose
-    power source (ADR-007) declares ``when_unreachable = "no_power"`` stays
-    available while unreachable; one with no power source, or a source
-    declaring ``"fault"`` (the default), goes through the failure-count and
-    availability path below. Either way, while the bulb cannot be read the
-    payload reports its desired state (ADR-008/cap-bjw9.6), never a
+    unreachable bulb with no desired state on record yet). Availability
+    means fault only (ADR-007/cap-bjw9.9): once the bulb has failed the
+    threshold and its power source belief is ``"off"``, the network read
+    is skipped entirely — no ``port.get_state`` call, no failure-counter
+    advance — and the bulb stays available, reporting its desired state
+    with ``powered = false``.
+    A bulb whose belief is ``"on"`` or ``"unknown"`` (no power source, or a
+    peer still answering) goes through the normal failure-count and
+    availability path below, so a genuinely unreachable bulb on a live
+    circuit still goes offline. Either way, while the bulb cannot be read
+    the payload reports its desired state (ADR-008/cap-bjw9.6), never a
     hard-coded ``OFF`` — ``powered`` (ADR-007) is what tells a consumer the
     bulb is dark.
 
@@ -80,8 +85,6 @@ async def bulb_entity_tick(
     """
     name = config.name
     settings = cast(Wiz2MqttSettings, ctx.settings)
-    power_source = settings.power_source_of(name)
-    when_unreachable = power_source.when_unreachable if power_source else "fault"
 
     _ensure_boot_callback_registered(port, settings, state, notify)
     if name not in state.phase:
@@ -90,6 +93,14 @@ async def bulb_entity_tick(
             if intent.resolve_desired_state(state, store, name) is not None
             else "steady"
         )
+
+    # Skip the read while the source is known off (ADR-007/cap-bjw9.9): an
+    # absent bulb otherwise holds pywizlight's asyncio.Lock for the full
+    # 13 s TIMEOUT per cycle. See _should_skip_read for the two bypasses.
+    belief = power.belief_for_bulb(settings, state, name)
+    if _should_skip_read(state, name, belief):
+        await _mark_online_once(ctx, state, name)
+        return _desired_state_payload(state, store, name, belief)
 
     observation_generation = state.desired_state_generation.get(name, 0)
     try:
@@ -104,7 +115,7 @@ async def bulb_entity_tick(
             state.bulb_answered.setdefault(name, False)
         belief = _recompute_and_notify(settings, state, notify, name)
 
-        if when_unreachable == "no_power" and not isinstance(exc, WizIdentityError):
+        if belief == "off" and not isinstance(exc, WizIdentityError):
             await _mark_online_once(ctx, state, name)
             return _desired_state_payload(state, store, name, belief)
 
@@ -142,6 +153,30 @@ async def bulb_entity_tick(
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return build_state_payload(bulb_state, belief)
+
+
+def _should_skip_read(
+    state: SharedState, name: str, belief: power.Belief | None
+) -> bool:
+    """Whether *name*'s tick should skip ``port.get_state`` this cycle (cap-bjw9.9).
+
+    Two conditions must both hold: the belief is ``"off"``, and *name* has
+    failed ``_FAILURE_THRESHOLD`` polls in a row. ADR-007 skips reads "after
+    the threshold", so a single transient timeout on a live bulb (which
+    already yields the tie-break belief ``"off"`` on a ``no_power`` source,
+    see ``power.compute_belief``) does not latch the bulb dark: it keeps
+    being read until the evidence is firm.
+
+    The "reconnect" phase bypasses the skip too — set by the boot callback
+    (``_make_boot_handler``) reacting to the bulb's own firstBeat broadcast,
+    which arrives independently of whether this tick polls, so this is what
+    lets the belief leave "off" again once evidence does exist.
+    """
+    return (
+        belief == "off"
+        and state.consecutive_failures.get(name, 0) >= _FAILURE_THRESHOLD
+        and state.phase.get(name) != "reconnect"
+    )
 
 
 def _desired_state_payload(

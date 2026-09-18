@@ -12,6 +12,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import jinja2
 import pytest
 from pydantic import ValidationError
 
@@ -583,9 +584,47 @@ class TestPowerSourceStateModel:
         with pytest.raises(ValidationError):
             PowerSourceStateModel.model_validate({"powered": "maybe", "members": []})
 
-    def test_declares_no_ha_entities_yet(self) -> None:
-        """Discovery for this entity is cap-bjw9.10 — nothing declared yet."""
-        assert PowerSourceStateModel.model_config.get("json_schema_extra") is None
+    def test_declares_two_binary_sensor_entities(self) -> None:
+        """cap-bjw9.10 — the belief and the desired power, never a switch."""
+        extra = PowerSourceStateModel.model_config.get("json_schema_extra")
+        assert extra is not None
+        entities = extra["x-cosalette-ha-discovery"]["entities"]
+        assert len(entities) == 2
+        assert {entity["component"] for entity in entities} == {"binary_sensor"}
+
+    def test_belief_entity_has_power_device_class(self) -> None:
+        extra = PowerSourceStateModel.model_config["json_schema_extra"]
+        entities = extra["x-cosalette-ha-discovery"]["entities"]
+        belief = next(e for e in entities if e["name"] == "powered")
+        assert belief["extra"]["device_class"] == "power"
+
+    @pytest.mark.parametrize(
+        ("powered", "rendered"),
+        [("on", "ON"), ("off", "OFF"), ("unknown", "None")],
+    )
+    def test_belief_template_keeps_unknown_distinct_from_off(
+        self, powered: str, rendered: str
+    ) -> None:
+        """An unknown belief must not read as a dark circuit.
+
+        Technique: Equivalence Partitioning — one case per belief value.
+        ``None`` is the payload Home Assistant reads as an unknown state.
+        """
+        extra = PowerSourceStateModel.model_config["json_schema_extra"]
+        entities = extra["x-cosalette-ha-discovery"]["entities"]
+        belief = next(e for e in entities if e["name"] == "powered")
+
+        template = jinja2.Environment(autoescape=True).from_string(
+            belief["extra"]["value_template"]
+        )
+
+        assert template.render(value_json={"powered": powered}) == rendered
+
+    def test_power_request_entity_is_diagnostic(self) -> None:
+        extra = PowerSourceStateModel.model_config["json_schema_extra"]
+        entities = extra["x-cosalette-ha-discovery"]["entities"]
+        request = next(e for e in entities if e["name"] == "power_request")
+        assert request["extra"]["entity_category"] == "diagnostic"
 
     def test_inactive_power_request_serializes_as_null(self) -> None:
         model = PowerSourceStateModel.model_validate(

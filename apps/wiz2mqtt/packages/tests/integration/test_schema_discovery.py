@@ -60,15 +60,16 @@ from tests.fixtures.doubles import RecordingNotifier
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.discovery import capabilities_to_dict, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
-from wiz2mqtt.main import _bulb_map
+from wiz2mqtt.main import _bulb_map, _power_source_map
 from wiz2mqtt.models import (
     WIZ_EFFECT_LIST,
     BulbCapabilities,
     BulbSetCommand,
     BulbStateModel,
+    PowerSourceStateModel,
 )
 from wiz2mqtt.ports import WizBulbPort
-from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
+from wiz2mqtt.settings import BulbConfig, PowerSourceConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
 # packages/tests/integration/<file> → app root is parents[3]
@@ -501,3 +502,184 @@ class TestStateTopicsAreReal:
 
         payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(schema_harness, payloads)
+
+
+# ---------------------------------------------------------------------------
+# Power source discovery (cap-bjw9.10, ADR-007/ADR-009)
+# ---------------------------------------------------------------------------
+
+SOURCE_NAME = "downstairs"
+_SOURCE_TOPIC_PREFIX = f"homeassistant/binary_sensor/{TOPIC_PREFIX}"
+SOURCE_POWERED_TOPIC = f"{_SOURCE_TOPIC_PREFIX}/{SOURCE_NAME}_powered/config"
+SOURCE_POWER_REQUEST_TOPIC = (
+    f"{_SOURCE_TOPIC_PREFIX}/{SOURCE_NAME}_power_request/config"
+)
+
+
+def _make_power_source_settings(**source_overrides: object) -> Wiz2MqttSettings:
+    """One bulb behind one named power source; no ``signal_topic`` by default."""
+    source = {"name": SOURCE_NAME, "members": ["office"], **source_overrides}
+    return Wiz2MqttSettings(
+        bulbs=[{"name": "office", "ip": "10.0.0.5"}],  # type: ignore[list-item]
+        power_sources=[source],
+        _env_file=None,  # type: ignore[call-arg]
+        _config_file=None,  # type: ignore[call-arg]
+    )
+
+
+def _build_power_source_discovery_app() -> cosalette.App:
+    """Mirror ``wiz2mqtt.main``'s ``power_source_entity`` discovery wiring.
+
+    Registers the enrich hook too — without it the internal
+    ``POWER_SOURCE_ENTITY_MARKER`` would leak into the published payload and
+    the per-source availability entry would not be dropped.
+    """
+    app = cosalette.App(
+        name=TOPIC_PREFIX,
+        version="0.0.0",
+        settings_class=Wiz2MqttSettings,
+        store=MemoryStore(),
+    )
+    app.discovery(enrich=make_discovery_enrich(app))
+
+    @app.state
+    def shared_state() -> SharedState:
+        return SharedState()
+
+    @app.telemetry(
+        name=_power_source_map,
+        interval=3600.0,
+        triggerable="local",
+        summary="Per-source power belief publisher",
+        state_model=PowerSourceStateModel,
+    )
+    async def power_source_entity(
+        ctx: cosalette.DeviceContext,
+        config: PowerSourceConfig,
+        state: SharedState,
+    ) -> PowerSourceStateModel | None:
+        return None
+
+    return app
+
+
+async def _publish_power_source_configs(
+    settings: Wiz2MqttSettings,
+) -> dict[str, dict[str, Any]]:
+    """Run discovery for *settings* and return the two source entity configs."""
+    harness = AppHarness(
+        app=_build_power_source_discovery_app(),
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=settings,
+        shutdown_event=asyncio.Event(),
+    )
+    expected = {SOURCE_POWERED_TOPIC, SOURCE_POWER_REQUEST_TOPIC}
+    task = asyncio.create_task(harness.run())
+    try:
+        for topic in expected:
+            await harness.wait_for_publish_count(topic, 1)
+    finally:
+        harness.shutdown_event.set()
+        await asyncio.wait_for(task, timeout=_WAIT_TIMEOUT)
+    return {
+        topic: json.loads(payload)
+        for topic, payload, _retain, _qos in harness.mqtt.published
+        if topic in expected
+    }
+
+
+@pytest.mark.integration
+class TestPowerSourceDiscovery:
+    """cap-bjw9.10 — the belief and desired-power binary_sensor entities."""
+
+    async def test_publishes_exactly_two_binary_sensor_entities(self) -> None:
+        """AC: exactly two configs for a configured source, both binary_sensor.
+
+        Technique: Specification-based — the discoverable=False gate removed
+        from ``main.py``'s ``power_source_entity`` registration now yields
+        real discovery output, and only two entities, never a switch.
+        """
+        configs = await _publish_power_source_configs(_make_power_source_settings())
+
+        assert set(configs) == {SOURCE_POWERED_TOPIC, SOURCE_POWER_REQUEST_TOPIC}
+        for topic, config in configs.items():
+            assert "/binary_sensor/" in topic
+            assert "/switch/" not in topic
+            assert config.get("device_class") != "switch"
+
+    async def test_belief_entity_has_power_device_class_and_value_template(
+        self,
+    ) -> None:
+        """AC: the belief config has device_class power and an on/off mapping."""
+        configs = await _publish_power_source_configs(_make_power_source_settings())
+
+        belief = configs[SOURCE_POWERED_TOPIC]
+        assert belief["device_class"] == "power"
+        assert "value_template" in belief
+
+    async def test_power_request_entity_is_diagnostic(self) -> None:
+        """AC: the desired power config carries entity_category diagnostic."""
+        configs = await _publish_power_source_configs(_make_power_source_settings())
+
+        request = configs[SOURCE_POWER_REQUEST_TOPIC]
+        assert request["entity_category"] == "diagnostic"
+
+    async def test_both_entities_share_one_device_named_after_the_source(self) -> None:
+        """AC: one Home Assistant device block, named after the source."""
+        configs = await _publish_power_source_configs(_make_power_source_settings())
+
+        devices = [config["device"] for config in configs.values()]
+        assert devices[0] == devices[1]
+        assert devices[0]["name"] == SOURCE_NAME
+
+    async def test_no_per_source_availability_topic(self) -> None:
+        """AC (design): a source has no availability of its own; it follows
+        the bridge — only the app-wide status topic, never
+        ``{prefix}/{source}/availability``."""
+        configs = await _publish_power_source_configs(_make_power_source_settings())
+
+        for config in configs.values():
+            topics = [entry["topic"] for entry in config["availability"]]
+            assert f"{TOPIC_PREFIX}/{SOURCE_NAME}/availability" not in topics
+            assert f"{TOPIC_PREFIX}/status" in topics
+
+    async def test_marker_key_never_reaches_the_published_payload(self) -> None:
+        configs = await _publish_power_source_configs(_make_power_source_settings())
+
+        for config in configs.values():
+            assert "x-wiz2mqtt-power-source" not in config
+
+    async def test_source_with_no_signal_topic_announced_the_same_way(self) -> None:
+        """AC: a source with no signal_topic is announced the same way; the
+        belief entity works from evidence alone."""
+        settings = _make_power_source_settings()
+        assert settings.power_sources[0].signal_topic is None
+
+        configs = await _publish_power_source_configs(settings)
+
+        assert set(configs) == {SOURCE_POWERED_TOPIC, SOURCE_POWER_REQUEST_TOPIC}
+
+    async def test_existing_per_bulb_entities_unaffected(self) -> None:
+        """AC: the existing four-entity output per bulb is unchanged.
+
+        Runs the per-bulb discovery app with the enrich hook wired (the code
+        path this task restructured) and confirms it still publishes exactly
+        the light/number/sensor set plus bridge.
+        """
+        harness = AppHarness(
+            app=_build_discovery_app(enrich=True),
+            mqtt=MockMqttClient(),
+            clock=FakeClock(),
+            settings=_make_settings((SCHEMA_BULB,)),
+            shutdown_event=asyncio.Event(),
+        )
+        expected = _expected_config_topics((SCHEMA_BULB,))
+        await _run_until_discovery_published(harness, expected)
+
+        published = {
+            topic
+            for topic, *_ in harness.mqtt.published
+            if topic.startswith("homeassistant/")
+        }
+        assert published == expected

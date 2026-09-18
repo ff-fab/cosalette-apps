@@ -36,7 +36,11 @@ from wiz2mqtt.discovery import (
     narrow_light_discovery,
 )
 from wiz2mqtt.errors import WizTimeoutError
-from wiz2mqtt.models import WIZ_EFFECT_LIST, BulbCapabilities
+from wiz2mqtt.models import (
+    POWER_SOURCE_ENTITY_MARKER,
+    WIZ_EFFECT_LIST,
+    BulbCapabilities,
+)
 from wiz2mqtt.settings import BulbConfig
 
 _RGB = BulbCapabilities(
@@ -312,6 +316,66 @@ def test_enrich_leaves_superset_for_malformed_state_topic() -> None:
     enrich = make_discovery_enrich(_app(backend))
     config = _light_config("office")
     config["state_topic"] = "office/state"  # missing the <prefix> segment
+    original = dict(config)
+
+    enrich(None, None, config)  # type: ignore[arg-type]
+
+    assert config == original
+
+
+# --- Power source availability narrowing (cap-bjw9.10) ----------------------
+
+
+def _power_source_config(name: str = "downstairs-circuit") -> dict[str, Any]:
+    """A power source ``binary_sensor`` config as the composite pipeline builds it."""
+    return {
+        "state_topic": f"wiz2mqtt/{name}/state",
+        "object_id": f"{name}_powered",
+        "device_class": "power",
+        "value_template": "{{ 'ON' if value_json.powered == 'on' else 'OFF' }}",
+        POWER_SOURCE_ENTITY_MARKER: True,
+        "availability": [
+            {"topic": f"wiz2mqtt/{name}/availability"},
+            {"topic": "wiz2mqtt/status", "value_template": "{{ ... }}"},
+        ],
+        "availability_mode": "all",
+    }
+
+
+def test_enrich_drops_the_per_source_availability_entry() -> None:
+    """cap-bjw9.10 — a power source follows the bridge, never its own topic."""
+    enrich = make_discovery_enrich(_app(None))
+    config = _power_source_config()
+
+    enrich(None, None, config)  # type: ignore[arg-type]
+
+    assert config["availability"] == [
+        {"topic": "wiz2mqtt/status", "value_template": "{{ ... }}"}
+    ]
+
+
+def test_enrich_strips_the_internal_marker_key() -> None:
+    """The marker never reaches the published HA discovery payload."""
+    enrich = make_discovery_enrich(_app(None))
+    config = _power_source_config()
+
+    enrich(None, None, config)  # type: ignore[arg-type]
+
+    assert POWER_SOURCE_ENTITY_MARKER not in config
+
+
+def test_enrich_ignores_a_bulb_sensor_sharing_device_class_power() -> None:
+    """The bulb power-draw sensor also sets device_class: power, but is unmarked."""
+    enrich = make_discovery_enrich(_app(None))
+    config = {
+        "state_topic": "wiz2mqtt/office/state",
+        "object_id": "office_power",
+        "device_class": "power",
+        "availability": [
+            {"topic": "wiz2mqtt/office/availability"},
+            {"topic": "wiz2mqtt/status", "value_template": "{{ ... }}"},
+        ],
+    }
     original = dict(config)
 
     enrich(None, None, config)  # type: ignore[arg-type]

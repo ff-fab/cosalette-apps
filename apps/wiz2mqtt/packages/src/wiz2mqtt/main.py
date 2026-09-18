@@ -217,9 +217,6 @@ async def bulb_entity(
     # signal_topic input yet — cap-bjw9.11.
     triggerable="local",
     publish=cosalette.OnChange(),
-    # Home Assistant discovery for this entity is cap-bjw9.10, not this
-    # task — the payload publishes, but nothing announces it yet.
-    discoverable=False,
     summary="Per-source power belief publisher",
     state_model=PowerSourceStateModel,
 )

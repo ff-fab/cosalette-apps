@@ -22,7 +22,7 @@ from cosalette.stores import MemoryStore
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
-from wiz2mqtt.entity import bulb_entity_tick
+from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
 from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
 from wiz2mqtt.intent import (
     Appearance,
@@ -66,6 +66,45 @@ def _settings_with_no_power_policy_source() -> Wiz2MqttSettings:
             {
                 "name": "office-power",
                 "members": ["office"],
+                "when_unreachable": "no_power",
+            }
+        ],
+        _env_file=None,
+        _config_file=None,
+    )  # type: ignore[call-arg]
+
+
+def _settings_with_office_power_source(
+    when_unreachable: str,
+) -> Wiz2MqttSettings:
+    """Single-member power source over 'office' with the given policy."""
+    return Wiz2MqttSettings(
+        bulbs=[{"name": "office", "ip": _IP}],
+        power_sources=[
+            {
+                "name": "office-power",
+                "members": ["office"],
+                "when_unreachable": when_unreachable,
+            }
+        ],
+        _env_file=None,
+        _config_file=None,
+    )  # type: ignore[call-arg]
+
+
+def _settings_no_power_with_peer() -> Wiz2MqttSettings:
+    """Two-member no_power source: 'office' plus a 'peer' the test seeds as answering.
+
+    Used where a test needs the source belief pinned to "on" (a peer answers)
+    while exercising 'office's own failure path — cap-bjw9.9: belief == "on"
+    is a real fault, distinct from the whole circuit being off.
+    """
+    return Wiz2MqttSettings(
+        bulbs=[{"name": "office", "ip": _IP}, {"name": "peer", "ip": "10.0.0.6"}],
+        power_sources=[
+            {
+                "name": "office-power",
+                "members": ["office", "peer"],
                 "when_unreachable": "no_power",
             }
         ],
@@ -717,15 +756,132 @@ class TestWhenUnreachableOff:
         assert ctx.availability_calls == []
 
     async def test_identity_failure_uses_normal_offline_policy(self) -> None:
-        """Identity failures never masquerade as an unreachable bulb switched off."""
+        """Identity failures never masquerade as an unreachable bulb switched off.
+
+        Technique: Error Guessing — a peer keeps answering, so the source
+        belief is pinned to "on" (cap-bjw9.9: a real fault, not a dark
+        circuit), and office's identity mismatch must still go offline.
+        """
         adapter = FakeWizBulbAdapter()
         state = SharedState()
-        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        state.bulb_answered["peer"] = True
+        ctx = FakeDeviceContext(settings=_settings_no_power_with_peer())
         config = _config()
 
         for _ in range(3):
             adapter.fail_next(_IP, WizIdentityError("wrong bulb"))
             assert await _tick(ctx, config, adapter, state) is None
+
+        assert ctx.availability_calls == ["unavailable"]
+        assert state.last_availability["office"] == "offline"
+
+    async def test_belief_off_skips_the_read_after_evidence_establishes_it(
+        self,
+    ) -> None:
+        """cap-bjw9.9 — once evidence says off, further ticks cost no read.
+
+        Technique: Boundary Value Analysis — the skip only applies once the
+        failure counter reaches the threshold (seeded here, simulating a
+        source already known off), never on a bulb that has not had its
+        chance yet (see ``test_belief_off_after_one_failure_still_reads``).
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        state.bulb_answered["office"] = False
+        state.consecutive_failures["office"] = _FAILURE_THRESHOLD
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
+
+        for _ in range(3):
+            result = await _tick(ctx, config, adapter, state)
+            assert result is None
+
+        assert adapter.get_state_call_count == 0
+        assert state.consecutive_failures["office"] == _FAILURE_THRESHOLD
+        assert ctx.availability_calls == ["available"]
+
+    async def test_belief_off_after_one_failure_still_reads(self) -> None:
+        """cap-bjw9.9 — one transient timeout must not latch the bulb dark.
+
+        Technique: Boundary Value Analysis — threshold minus one. The
+        ``no_power`` tie-break already yields belief "off" after the first
+        failure, but ADR-007 skips reads only after the threshold.
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        await _tick(ctx, config, adapter, state)
+        result = await _tick(ctx, config, adapter, state)
+
+        assert adapter.get_state_call_count == 2
+        assert state.bulb_answered["office"] is True
+        assert result is not None
+        assert result["powered"] is True
+
+    async def test_belief_off_reports_desired_state_with_powered_false(self) -> None:
+        """cap-bjw9.9 — the skip path still reports intent, not a bare None."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        state.bulb_answered["office"] = False
+        state.consecutive_failures["office"] = _FAILURE_THRESHOLD
+        state.desired_state["office"] = _DESIRED_ON
+        state.phase["office"] = "steady"  # a persisted desired state alone
+        # would otherwise resolve the *lazy* phase init to "reconnect" and
+        # bypass the skip this test targets — pin it explicitly instead.
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+
+        result = await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "ON", "brightness": 100, "powered": False}
+        assert state.last_availability["office"] == "online"
+        assert adapter.get_state_call_count == 0
+
+    async def test_belief_on_with_repeated_failure_goes_offline(self) -> None:
+        """cap-bjw9.9 — a peer answers, so this bulb's own silence is a fault."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        state.bulb_answered["peer"] = True
+        ctx = FakeDeviceContext(settings=_settings_no_power_with_peer())
+        config = _config()
+
+        for _ in range(3):
+            adapter.fail_next(_IP, WizTimeoutError("boom"))
+            await _tick(ctx, config, adapter, state)
+
+        assert ctx.availability_calls == ["unavailable"]
+        assert state.last_availability["office"] == "offline"
+
+    async def test_belief_leaving_off_lets_the_next_tick_read_again(self) -> None:
+        """cap-bjw9.9 — the reconnect phase (a firstBeat) bypasses the skip."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        state.bulb_answered["office"] = False
+        state.phase["office"] = "reconnect"
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config()
+
+        result = await _tick(ctx, config, adapter, state)
+
+        assert adapter.get_state_call_count == 1
+        assert state.bulb_answered["office"] is True
+        assert result is not None
+        assert result["powered"] is True
+
+    async def test_fault_source_with_no_signal_goes_offline_after_threshold(
+        self,
+    ) -> None:
+        """AC: no signal + when_unreachable='fault' + 3 failures -> offline."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        config = _config()
+
+        for _ in range(3):
+            adapter.fail_next(_IP, WizTimeoutError("boom"))
+            await _tick(ctx, config, adapter, state)
 
         assert ctx.availability_calls == ["unavailable"]
         assert state.last_availability["office"] == "offline"
