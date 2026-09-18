@@ -56,16 +56,18 @@ tasks:
   test:cov:
     desc: 'Run tests with coverage for {{.APP_NAME}}'
     cmds:
-      - uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ \
-        --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
-        --cov-report=term-missing --cov-report=xml
+      - |
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ \
+          --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
+          --cov-report=term-missing --cov-report=xml
 
   test:cov:html:
     desc: 'Run tests with HTML coverage for {{.APP_NAME}}'
     cmds:
-      - uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ \
-        --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
-        --cov-report=html --cov-report=term
+      - |
+        uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/ \
+          --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
+          --cov-report=html --cov-report=term
       - cmd: '{{if eq OS "darwin"}}open{{else}}xdg-open{{end}} htmlcov/index.html'
         ignore_error: true
 
