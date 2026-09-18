@@ -64,6 +64,15 @@ runs, it re-publishes each retained topic every third of that interval (default 
 hours), so the topics stay alive. A topic that nothing refreshes any more, such as a
 stopped process, disappears from the broker by itself.
 
+!!! warning "State does not survive a restart"
+    wallpanel-control keeps MQTT 5 as its shipped default. It publishes `display/state`
+    and `system/action/state` only as the answer to a command, and nothing polls the
+    panel. After a restart nothing refreshes these answers, so they expire within the
+    expiry interval (24 hours by default). Until the next command, a subscriber that
+    connects later gets no state, and the Home Assistant light shows no known state.
+    If the light must keep its last state across restarts, set
+    `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1`.
+
 **Operator contract**
 
 - **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
