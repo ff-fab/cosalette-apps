@@ -38,8 +38,8 @@ Nested settings use `__` as delimiter (e.g. `JEELINK2MQTT_MQTT__HOST`).
 The shipped `compose.yml` connects jeelink2mqtt with MQTT 5. Every retained message it
 publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
 (default `86400`, 24 hours): sensor state, availability, mapping snapshot, Home
-Assistant discovery, `_meta/*` and the last will. While jeelink2mqtt runs, it re-
-publishes each retained topic every third of that interval (default 8 hours), so the
+Assistant discovery, `_meta/*` and the last will. While jeelink2mqtt runs, it
+re-publishes each retained topic every third of that interval (default 8 hours), so the
 topics stay alive. A topic that nothing refreshes any more, such as a renamed entity or
 a stopped process, disappears from the broker by itself.
 

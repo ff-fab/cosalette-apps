@@ -94,15 +94,15 @@ class TestMqtt5RetainedExpiry(Mqtt5Contract):
     has_discovery = False
 
     def test_svg_stays_within_the_ledger_size_limit(self, mqtt5: Observation) -> None:
-        """Technique: Boundary Value Analysis - the ledger holds at most 16 MiB.
+        """Technique: Specification-based - headroom below the 16 MiB ledger limit.
 
         A retained publish that would push the refresh ledger past that limit
-        raises, and suncast logs the failure and drops the SVG, so the payload
-        that dominates the ledger must stay far below it.
+        raises, and suncast logs the failure and drops the SVG. The default SVG
+        is about 5 kB, so a 64 KiB bound catches growth long before the limit.
         """
         svg = mqtt5.broker.retained[STATE_TOPIC].payload
 
-        assert len(svg.encode()) < _LEDGER_BYTES // 16
+        assert len(svg.encode()) < _LEDGER_BYTES // 256
 
 
 @pytest.mark.integration
