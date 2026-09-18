@@ -200,6 +200,209 @@ class PowerSourceConfig(BaseModel):
         return value
 
 
+def _index_sources_by_name(
+    power_sources: list[Any],
+) -> dict[object, list[dict[str, Any]]]:
+    """Group the raw ``power_sources`` dicts by their ``name`` value."""
+    indexed: dict[object, list[dict[str, Any]]] = {}
+    for source in power_sources:
+        if isinstance(source, dict):
+            typed = cast(dict[str, Any], source)
+            indexed.setdefault(typed.get("name"), []).append(typed)
+    return indexed
+
+
+def _is_compatible_no_power_source(source: dict[str, Any], bulb_name: object) -> bool:
+    """Whether *source* already is the single-bulb ``no_power`` mapping."""
+    return (
+        source.get("members") == [bulb_name]
+        and source.get("group") is None
+        and source.get("when_unreachable", "fault") == "no_power"
+    )
+
+
+def _migrate_legacy_off(
+    bulb_name: object,
+    power_sources: list[Any],
+    sources_by_name: dict[object, list[dict[str, Any]]],
+) -> None:
+    """Append the implicit single-bulb power source for a legacy ``"off"``."""
+    source_name = f"{bulb_name}-power"
+    if isinstance(bulb_name, str) and len(source_name) > 64:
+        raise ValueError(
+            f"Bulb {bulb_name}: cannot migrate legacy "
+            "when_unreachable = 'off' because its generated power "
+            f"source name {source_name!r} exceeds 64 characters; "
+            "declare a shorter compatible [[power_sources]] entry "
+            "and remove the legacy key."
+        )
+    colliding_sources = sources_by_name.get(source_name, [])
+    if not colliding_sources:
+        implicit_source: dict[str, Any] = {
+            "name": source_name,
+            "members": [bulb_name],
+            "when_unreachable": "no_power",
+        }
+        power_sources.append(implicit_source)
+        sources_by_name[source_name] = [implicit_source]
+    elif not all(
+        _is_compatible_no_power_source(source, bulb_name)
+        for source in colliding_sources
+    ):
+        raise ValueError(
+            f"Bulb {bulb_name}: cannot migrate legacy "
+            "when_unreachable = 'off' because the existing "
+            f"power source {source_name!r} is not a compatible "
+            "single-bulb no_power mapping; remove the legacy key "
+            "and resolve the configuration explicitly."
+        )
+    logger.warning(
+        "Bulb %s: when_unreachable = 'off' is replaced by "
+        "power_source = %r (see [[power_sources]] name = %r, "
+        "when_unreachable = 'no_power'); update wiz2mqtt.toml",
+        bulb_name,
+        source_name,
+        source_name,
+    )
+
+
+def _migrate_legacy_bulb(
+    bulb: Any,
+    power_sources: list[Any],
+    sources_by_name: dict[object, list[dict[str, Any]]],
+) -> Any:
+    """Return *bulb* without its removed ``when_unreachable`` key, migrated."""
+    if not isinstance(bulb, dict) or "when_unreachable" not in bulb:
+        return bulb
+
+    bulb = dict(bulb)
+    legacy_value = bulb.pop("when_unreachable")
+    bulb_name = bulb.get("name", "<unnamed>")
+
+    if legacy_value == "unavailable":
+        logger.warning(
+            "Bulb %s: when_unreachable = 'unavailable' is now the "
+            "implicit default and is no longer a bulb field; remove "
+            "it from wiz2mqtt.toml",
+            bulb_name,
+        )
+    elif legacy_value == "off":
+        _migrate_legacy_off(bulb_name, power_sources, sources_by_name)
+    else:
+        raise ValueError(
+            f"Bulb {bulb_name}: unsupported legacy when_unreachable "
+            f"value {legacy_value!r}. Valid legacy values are 'off' "
+            "and 'unavailable'; migrate to a [[power_sources]] entry."
+        )
+    return bulb
+
+
+def _check_source_names(
+    source: PowerSourceConfig,
+    source_names: set[str],
+    signal_topics: dict[str, str],
+    reserved_names: set[str],
+) -> None:
+    """Reject a colliding source name or a ``signal_topic`` shared with another."""
+    if source.name in source_names or source.name in reserved_names:
+        raise ValueError(f"Power source name collides with another name: {source.name}")
+    source_names.add(source.name)
+
+    if source.signal_topic is None:
+        return
+    if previous_source := signal_topics.get(source.signal_topic):
+        raise ValueError(
+            f"Power sources {previous_source!r} and {source.name!r} "
+            "share signal_topic "
+            f"{source.signal_topic!r}"
+        )
+    signal_topics[source.signal_topic] = source.name
+
+
+def _check_source_members(source: PowerSourceConfig, bulb_names: set[str]) -> None:
+    """Reject unknown or duplicate entries in ``source.members``."""
+    if source.members is None:
+        return
+    if unknown := set(source.members) - bulb_names:
+        raise ValueError(
+            f"Power source {source.name!r} references unknown bulbs: {sorted(unknown)}"
+        )
+    if len(set(source.members)) != len(source.members):
+        raise ValueError(f"Power source {source.name!r} has duplicate members")
+
+
+def _check_source_claim(
+    source: PowerSourceConfig, bulb_names: set[str], group_names: set[str]
+) -> None:
+    """Validate how *source* selects its bulbs and its power-off request flag."""
+    if (source.group is None) == (source.members is None):
+        raise ValueError(
+            f"Power source {source.name!r} must set exactly one of 'group' or 'members'"
+        )
+    if source.group is not None and source.group not in group_names:
+        raise ValueError(
+            f"Power source {source.name!r} references unknown group: {source.group!r}"
+        )
+    _check_source_members(source, bulb_names)
+    if source.enable_power_off_request and not source.wiz_bulbs_only:
+        raise ValueError(
+            f"Power source {source.name!r}: enable_power_off_request "
+            "requires wiz_bulbs_only = true"
+        )
+
+
+def _claimed_bulbs(
+    source: PowerSourceConfig, group_members: dict[str, set[str]]
+) -> set[str]:
+    """Bulb names *source* claims through ``members`` and/or ``group``."""
+    claimed: set[str] = set(source.members or [])
+    if source.group is not None:
+        claimed |= group_members.get(source.group, set())
+    return claimed
+
+
+def _check_bulb_power_sources(
+    bulbs: list[BulbConfig],
+    power_sources: list[PowerSourceConfig],
+    group_members: dict[str, set[str]],
+) -> None:
+    """Reject an unknown ``power_source`` key or an ambiguous implicit claim."""
+    source_names = {source.name for source in power_sources}
+    for bulb in bulbs:
+        if bulb.power_source is not None and bulb.power_source not in source_names:
+            raise ValueError(
+                f"Bulb {bulb.name!r} references unknown power_source: "
+                f"{bulb.power_source!r}"
+            )
+
+    implicit_claims: dict[str, set[str]] = {}
+    for source in power_sources:
+        for bulb_name in _claimed_bulbs(source, group_members):
+            implicit_claims.setdefault(bulb_name, set()).add(source.name)
+
+    for bulb in bulbs:
+        claiming_sources = implicit_claims.get(bulb.name, set())
+        if bulb.power_source is None and len(claiming_sources) > 1:
+            raise ValueError(
+                f"Bulb {bulb.name!r} is claimed by multiple power "
+                f"sources: {sorted(claiming_sources)}"
+            )
+
+
+def _resolve_power_source(
+    bulb: BulbConfig,
+    power_sources: list[PowerSourceConfig],
+    group_members: dict[str, set[str]],
+) -> PowerSourceConfig | None:
+    """The bulb's own ``power_source`` wins; else the first source claiming it."""
+    if bulb.power_source is not None:
+        return next(s for s in power_sources if s.name == bulb.power_source)
+    return next(
+        (s for s in power_sources if bulb.name in _claimed_bulbs(s, group_members)),
+        None,
+    )
+
+
 class Wiz2MqttSettings(cosalette.Settings):
     """wiz2mqtt application settings."""
 
@@ -263,80 +466,10 @@ class Wiz2MqttSettings(cosalette.Settings):
 
         raw_sources = data.get("power_sources")
         power_sources = list(raw_sources) if isinstance(raw_sources, list) else []
-        sources_by_name: dict[object, list[dict[str, Any]]] = {}
-        for source in power_sources:
-            if isinstance(source, dict):
-                normalized_source = cast(dict[str, Any], source)
-                sources_by_name.setdefault(normalized_source.get("name"), []).append(
-                    normalized_source
-                )
-
-        migrated_bulbs = []
-        for bulb in bulbs:
-            if not isinstance(bulb, dict) or "when_unreachable" not in bulb:
-                migrated_bulbs.append(bulb)
-                continue
-
-            bulb = dict(bulb)
-            legacy_value = bulb.pop("when_unreachable")
-            bulb_name = bulb.get("name", "<unnamed>")
-
-            if legacy_value == "unavailable":
-                logger.warning(
-                    "Bulb %s: when_unreachable = 'unavailable' is now the "
-                    "implicit default and is no longer a bulb field; remove "
-                    "it from wiz2mqtt.toml",
-                    bulb_name,
-                )
-            elif legacy_value == "off":
-                source_name = f"{bulb_name}-power"
-                if isinstance(bulb_name, str) and len(source_name) > 64:
-                    raise ValueError(
-                        f"Bulb {bulb_name}: cannot migrate legacy "
-                        "when_unreachable = 'off' because its generated power "
-                        f"source name {source_name!r} exceeds 64 characters; "
-                        "declare a shorter compatible [[power_sources]] entry "
-                        "and remove the legacy key."
-                    )
-                colliding_sources = sources_by_name.get(source_name, [])
-                if not colliding_sources:
-                    implicit_source: dict[str, Any] = {
-                        "name": source_name,
-                        "members": [bulb_name],
-                        "when_unreachable": "no_power",
-                    }
-                    power_sources.append(implicit_source)
-                    sources_by_name[source_name] = [implicit_source]
-                elif not all(
-                    source.get("members") == [bulb_name]
-                    and source.get("group") is None
-                    and source.get("when_unreachable", "fault") == "no_power"
-                    for source in colliding_sources
-                ):
-                    raise ValueError(
-                        f"Bulb {bulb_name}: cannot migrate legacy "
-                        "when_unreachable = 'off' because the existing "
-                        f"power source {source_name!r} is not a compatible "
-                        "single-bulb no_power mapping; remove the legacy key "
-                        "and resolve the configuration explicitly."
-                    )
-                logger.warning(
-                    "Bulb %s: when_unreachable = 'off' is replaced by "
-                    "power_source = %r (see [[power_sources]] name = %r, "
-                    "when_unreachable = 'no_power'); update wiz2mqtt.toml",
-                    bulb_name,
-                    source_name,
-                    source_name,
-                )
-            else:
-                msg = (
-                    f"Bulb {bulb_name}: unsupported legacy when_unreachable "
-                    f"value {legacy_value!r}. Valid legacy values are 'off' "
-                    "and 'unavailable'; migrate to a [[power_sources]] entry."
-                )
-                raise ValueError(msg)
-
-            migrated_bulbs.append(bulb)
+        sources_by_name = _index_sources_by_name(power_sources)
+        migrated_bulbs = [
+            _migrate_legacy_bulb(bulb, power_sources, sources_by_name) for bulb in bulbs
+        ]
 
         data = dict(data)
         data["bulbs"] = migrated_bulbs
@@ -396,89 +529,12 @@ class Wiz2MqttSettings(cosalette.Settings):
         source_names: set[str] = set()
         signal_topics: dict[str, str] = {}
         for source in self.power_sources:
-            if source.name in source_names or source.name in reserved_names:
-                raise ValueError(
-                    f"Power source name collides with another name: {source.name}"
-                )
-            source_names.add(source.name)
+            _check_source_names(source, source_names, signal_topics, reserved_names)
+            _check_source_claim(source, bulb_names, group_names)
+        _check_bulb_power_sources(self.bulbs, self.power_sources, group_members)
 
-            if source.signal_topic is not None:
-                if previous_source := signal_topics.get(source.signal_topic):
-                    raise ValueError(
-                        f"Power sources {previous_source!r} and {source.name!r} "
-                        "share signal_topic "
-                        f"{source.signal_topic!r}"
-                    )
-                signal_topics[source.signal_topic] = source.name
-
-            if (source.group is None) == (source.members is None):
-                raise ValueError(
-                    f"Power source {source.name!r} must set exactly one of "
-                    "'group' or 'members'"
-                )
-            if source.group is not None and source.group not in group_names:
-                raise ValueError(
-                    f"Power source {source.name!r} references unknown group: "
-                    f"{source.group!r}"
-                )
-            if source.members is not None:
-                if unknown := set(source.members) - bulb_names:
-                    raise ValueError(
-                        f"Power source {source.name!r} references unknown "
-                        f"bulbs: {sorted(unknown)}"
-                    )
-                if len(set(source.members)) != len(source.members):
-                    raise ValueError(
-                        f"Power source {source.name!r} has duplicate members"
-                    )
-            if source.enable_power_off_request and not source.wiz_bulbs_only:
-                raise ValueError(
-                    f"Power source {source.name!r}: enable_power_off_request "
-                    "requires wiz_bulbs_only = true"
-                )
-
-        for bulb in self.bulbs:
-            if bulb.power_source is not None and bulb.power_source not in source_names:
-                raise ValueError(
-                    f"Bulb {bulb.name!r} references unknown power_source: "
-                    f"{bulb.power_source!r}"
-                )
-
-        implicit_claims: dict[str, set[str]] = {}
-        for source in self.power_sources:
-            claimed: set[str] = set(source.members or [])
-            if source.group is not None:
-                claimed |= group_members.get(source.group, set())
-            for bulb_name in claimed:
-                implicit_claims.setdefault(bulb_name, set()).add(source.name)
-
-        for bulb in self.bulbs:
-            if bulb.power_source is not None:
-                continue
-            claiming_sources = implicit_claims.get(bulb.name, set())
-            if len(claiming_sources) > 1:
-                raise ValueError(
-                    f"Bulb {bulb.name!r} is claimed by multiple power "
-                    f"sources: {sorted(claiming_sources)}"
-                )
-        sources_by_name = {source.name: source for source in self.power_sources}
         self._power_sources_by_bulb = {
-            bulb.name: (
-                sources_by_name[bulb.power_source]
-                if bulb.power_source is not None
-                else next(
-                    (
-                        source
-                        for source in self.power_sources
-                        if (source.members is not None and bulb.name in source.members)
-                        or (
-                            source.group is not None
-                            and bulb.name in group_members.get(source.group, set())
-                        )
-                    ),
-                    None,
-                )
-            )
+            bulb.name: _resolve_power_source(bulb, self.power_sources, group_members)
             for bulb in self.bulbs
         }
         members_by_power_source: dict[str, list[str]] = {

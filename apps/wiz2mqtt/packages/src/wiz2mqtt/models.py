@@ -7,6 +7,7 @@ never leaks the SDK's shapes across the hexagonal boundary.
 from __future__ import annotations
 
 import dataclasses
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Annotated, Literal
 
@@ -238,11 +239,23 @@ class BulbState:
     """
 
     state: bool | None
+    """On/off; ``None`` while unknown."""
+
     brightness: int | None
+    """Dimming level on pywizlight's ``0..255`` scale."""
+
     hue: float | None
+    """Hue in degrees, ``0..360``."""
+
     saturation: float | None
+    """Saturation in percent, ``0..100``."""
+
     color_temp_kelvin: int | None
+    """White colour temperature in Kelvin."""
+
     scene: int | None
+    """Numeric pywizlight scene id."""
+
     effect_speed: int | None = None
     """Colour-changing effect speed, from pywizlight's ``get_speed()``."""
 
@@ -292,6 +305,30 @@ class BulbState:
 
         other = {k: v for k, v in updates.items() if v is not None}
         return dataclasses.replace(self, **color_updates, **other)
+
+    def apply_set_state(self, kwargs: Mapping[str, object]) -> BulbState:
+        """Merge the keyword arguments of a ``set_state`` call, optimistically.
+
+        ``state=False`` merges only that field, since the bulb only receives
+        ``turn_off()`` in that case; ``speed`` maps onto ``effect_speed``.
+        Shared by the production and fake adapters so both stay pinned to
+        the same behaviour.
+        """
+        if kwargs.get("state") is False:
+            return self.apply_command(state=False)
+        updates = {k: v for k, v in kwargs.items() if k != "speed"}
+        return self.apply_command(**updates, effect_speed=kwargs.get("speed"))
+
+
+EMPTY_BULB_STATE = BulbState(
+    state=None,
+    brightness=None,
+    hue=None,
+    saturation=None,
+    color_temp_kelvin=None,
+    scene=None,
+)
+"""A bulb about which nothing is known yet."""
 
 
 class BulbColor(BaseModel):

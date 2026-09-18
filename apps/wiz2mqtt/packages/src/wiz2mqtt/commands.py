@@ -20,12 +20,25 @@ class SetStateKwargs(TypedDict):
 
     # mirrors WizBulbPort.set_state kwargs — keep in sync with ports.py
     state: bool | None
+    """Target on/off, or ``None`` to leave it alone."""
+
     brightness: int | None
+    """Target dimming level, or ``None``."""
+
     hue: float | None
+    """Target hue; only applied together with ``saturation``."""
+
     saturation: float | None
+    """Target saturation; only applied together with ``hue``."""
+
     color_temp_kelvin: int | None
+    """Target white colour temperature, or ``None``."""
+
     scene: int | None
+    """Target scene id, or ``None``."""
+
     speed: int | None
+    """Target effect speed, or ``None``."""
 
 
 def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:

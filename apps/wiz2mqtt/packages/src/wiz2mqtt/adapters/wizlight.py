@@ -14,10 +14,11 @@ heartbeat.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import ipaddress
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from types import TracebackType
 from typing import TYPE_CHECKING, Annotated, Any, Self
 
@@ -35,7 +36,7 @@ from wiz2mqtt.errors import (
     WizIdentityError,
     WizTimeoutError,
 )
-from wiz2mqtt.models import BulbCapabilities, BulbState
+from wiz2mqtt.models import EMPTY_BULB_STATE, BulbCapabilities, BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
 
 if TYPE_CHECKING:
@@ -140,64 +141,10 @@ class WizBulbAdapter:
                 raise WizBridgeError(msg) from None
 
             from pywizlight import wizlight  # noqa: PLC0415 — lazy import by design
-            from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
-                WizLightConnectionError,
-                WizLightError,
-                WizLightTimeOutError,
-            )
 
             bulb = wizlight(ip)
             try:
-                self._maybe_install_discovery_callback(bulb)
-                try:
-                    bulb_type = await bulb.get_bulbtype()
-                except WizLightTimeOutError as exc:
-                    msg = f"Timed out detecting capabilities for bulb {ip}"
-                    raise WizTimeoutError(msg) from exc
-                except WizLightConnectionError as exc:
-                    msg = f"Connection failed detecting capabilities for bulb {ip}"
-                    raise WizConnectionError(msg) from exc
-                except WizLightError as exc:
-                    msg = (
-                        f"pywizlight error detecting capabilities for bulb {ip}: {exc}"
-                    )
-                    raise WizBridgeError(msg) from exc
-
-                expected_mac = self._expected_mac_by_ip.get(ip)
-                if expected_mac is not None:
-                    try:
-                        reported_mac = await bulb.getMac()
-                    except WizLightTimeOutError as exc:
-                        msg = f"Timed out reading identity for bulb {ip}"
-                        raise WizTimeoutError(msg) from exc
-                    except WizLightConnectionError as exc:
-                        msg = f"Connection failed reading identity for bulb {ip}"
-                        raise WizConnectionError(msg) from exc
-                    except WizLightError as exc:
-                        msg = f"pywizlight error reading identity for bulb {ip}: {exc}"
-                        raise WizBridgeError(msg) from exc
-
-                    if reported_mac is None:
-                        logger.warning(
-                            "Bulb %s did not report a MAC; "
-                            "identity could not be verified",
-                            ip,
-                        )
-                    else:
-                        normalized_mac = (
-                            reported_mac.lower().replace(":", "").replace("-", "")
-                        )
-                        if normalized_mac != expected_mac:
-                            logger.error(
-                                "Bulb identity mismatch at %s: expected MAC %s, got %s",
-                                ip,
-                                expected_mac,
-                                normalized_mac,
-                            )
-                            msg = f"Bulb identity mismatch at {ip}"
-                            raise WizIdentityError(msg)
-
-                capabilities = _capabilities_from_bulb_type(bulb_type)
+                capabilities = await self._probe_bulb(ip, bulb)
 
                 # Registration success only means the UDP socket bound, not that
                 # packets will ever arrive (bridge-NAT push falls silently into the
@@ -219,6 +166,38 @@ class WizBulbAdapter:
                         "Failed to close rejected bulb %s", ip, exc_info=True
                     )
                 raise
+
+    async def _probe_bulb(self, ip: str, bulb: Any) -> BulbCapabilities:
+        """Detect *bulb*'s capabilities and verify its identity (ADR-002)."""
+        self._maybe_install_discovery_callback(bulb)
+        with _wrapped_pywizlight_errors(ip, "detecting capabilities for"):
+            bulb_type = await bulb.get_bulbtype()
+        await self._verify_identity(ip, bulb)
+        return _capabilities_from_bulb_type(bulb_type)
+
+    async def _verify_identity(self, ip: str, bulb: Any) -> None:
+        """Reject *bulb* when its MAC differs from the configured one."""
+        expected_mac = self._expected_mac_by_ip.get(ip)
+        if expected_mac is None:
+            return
+        with _wrapped_pywizlight_errors(ip, "reading identity for"):
+            reported_mac = await bulb.getMac()
+
+        if reported_mac is None:
+            logger.warning(
+                "Bulb %s did not report a MAC; identity could not be verified", ip
+            )
+            return
+        normalized_mac = reported_mac.lower().replace(":", "").replace("-", "")
+        if normalized_mac != expected_mac:
+            logger.error(
+                "Bulb identity mismatch at %s: expected MAC %s, got %s",
+                ip,
+                expected_mac,
+                normalized_mac,
+            )
+            msg = f"Bulb identity mismatch at {ip}"
+            raise WizIdentityError(msg)
 
     async def _register_push(
         self, ip: str, bulb: Any, *, is_retry: bool = False
@@ -404,7 +383,7 @@ class WizBulbAdapter:
         if state is not None:
             self._state_cache[ip] = state
         elif ip not in self._state_cache:
-            self._state_cache[ip] = _EMPTY_STATE
+            self._state_cache[ip] = EMPTY_BULB_STATE
 
     async def set_state(
         self,
@@ -422,16 +401,23 @@ class WizBulbAdapter:
         if ip in self._forced_unreachable:
             msg = f"bulb {ip} is set unreachable"
             raise WizTimeoutError(msg)
-        if state is None and all(
-            v is None
-            for v in (brightness, hue, saturation, color_temp_kelvin, scene, speed)
-        ):
+        changes = {
+            "state": state,
+            "brightness": brightness,
+            "hue": hue,
+            "saturation": saturation,
+            "color_temp_kelvin": color_temp_kelvin,
+            "scene": scene,
+            "speed": speed,
+        }
+        if all(value is None for value in changes.values()):
             return
         bulb = await self._get_bulb(ip)
         caps = self._capabilities[ip]
 
         if color_temp_kelvin is not None:
             color_temp_kelvin = clamp_kelvin(color_temp_kelvin, caps)
+            changes["color_temp_kelvin"] = color_temp_kelvin
         if scene is not None:
             validate_scene(scene, caps)
 
@@ -448,27 +434,19 @@ class WizBulbAdapter:
             speed=speed,
         )
 
-        refused = self._refuse_writes.get(ip, 0)
-        if refused > 0:
-            self._refuse_writes[ip] = refused - 1
+        if self._consume_write_refusal(ip):
             return  # succeeded on the wire; cached state deliberately unchanged
 
         # Optimistic merge pending the next authoritative push/poll.
-        # _send_pilot only sends turn_off() when state is False — merge just
-        # that field rather than the unsent brightness/colour fields.
-        current = self._state_cache.get(ip, _EMPTY_STATE)
-        if state is False:
-            self._state_cache[ip] = current.apply_command(state=False)
-        else:
-            self._state_cache[ip] = current.apply_command(
-                state=state,
-                brightness=brightness,
-                hue=hue,
-                saturation=saturation,
-                color_temp_kelvin=color_temp_kelvin,
-                scene=scene,
-                effect_speed=speed,
-            )
+        current = self._state_cache.get(ip, EMPTY_BULB_STATE)
+        self._state_cache[ip] = current.apply_set_state(changes)
+
+    def _consume_write_refusal(self, ip: str) -> bool:
+        """Spend one ``refuse_writes`` credit for *ip*; whether one was left."""
+        refused = self._refuse_writes.get(ip, 0)
+        if refused > 0:
+            self._refuse_writes[ip] = refused - 1
+        return refused > 0
 
     async def _send_pilot(
         self,
@@ -488,13 +466,8 @@ class WizBulbAdapter:
         (TIMEOUT=13s, 6 datagrams); stacking another would compound delays.
         """
         from pywizlight import PilotBuilder  # noqa: PLC0415 — lazy import by design
-        from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
-            WizLightConnectionError,
-            WizLightError,
-            WizLightTimeOutError,
-        )
 
-        try:
+        with _wrapped_pywizlight_errors(ip, "sending command to"):
             if state is False:
                 await bulb.turn_off()
             else:
@@ -506,15 +479,6 @@ class WizBulbAdapter:
                     speed=speed,
                 )
                 await bulb.turn_on(pilot)
-        except WizLightTimeOutError as exc:
-            msg = f"Timed out sending command to bulb {ip}"
-            raise WizTimeoutError(msg) from exc
-        except WizLightConnectionError as exc:
-            msg = f"Connection failed sending command to bulb {ip}"
-            raise WizConnectionError(msg) from exc
-        except WizLightError as exc:
-            msg = f"pywizlight error sending command to bulb {ip}: {exc}"
-            raise WizBridgeError(msg) from exc
 
     def invalidate_cache(self, ip: str) -> None:
         """Discard the cached state for *ip*, forcing a fresh poll on the next read."""
@@ -592,16 +556,29 @@ class WizBulbAdapter:
         self._warned_stale.clear()
 
 
-_EMPTY_STATE = BulbState(
-    state=None,
-    brightness=None,
-    hue=None,
-    saturation=None,
-    color_temp_kelvin=None,
-    scene=None,
-    effect_speed=None,
-    power_draw_w=None,
-)
+@contextlib.contextmanager
+def _wrapped_pywizlight_errors(ip: str, action: str) -> Iterator[None]:
+    """Re-raise pywizlight's exceptions as the adapter's own at the boundary.
+
+    *action* completes the sentence "... bulb {ip}", e.g. ``"sending command to"``.
+    """
+    from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
+        WizLightConnectionError,
+        WizLightError,
+        WizLightTimeOutError,
+    )
+
+    try:
+        yield
+    except WizLightTimeOutError as exc:
+        msg = f"Timed out {action} bulb {ip}"
+        raise WizTimeoutError(msg) from exc
+    except WizLightConnectionError as exc:
+        msg = f"Connection failed {action} bulb {ip}"
+        raise WizConnectionError(msg) from exc
+    except WizLightError as exc:
+        msg = f"pywizlight error {action} bulb {ip}: {exc}"
+        raise WizBridgeError(msg) from exc
 
 
 def _capabilities_from_bulb_type(bulb_type: BulbType) -> BulbCapabilities:

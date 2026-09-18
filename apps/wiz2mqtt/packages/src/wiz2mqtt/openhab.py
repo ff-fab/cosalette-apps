@@ -26,14 +26,10 @@ def _schema_cli(*args: str) -> str:
     ).stdout
 
 
-def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
-    """Attach Color command Items to write-only groups; preserve channel links.
-
-    A no-op when no groups are configured, so the generator leaves the
-    framework's Items output untouched unless groups are explicitly declared.
-    """
-    if not settings.groups:
-        return items
+def _group_definitions(
+    settings: Wiz2MqttSettings,
+) -> tuple[list[str], dict[str, list[str]]]:
+    """Return the Group definitions and each member bulb's group identifiers."""
     memberships: dict[str, list[str]] = {}
     definitions = ['Group gWiz2Mqtt "WiZ bulbs"']
     group_ids: set[str] = set()
@@ -45,7 +41,11 @@ def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
         definitions.append(f'Group {identifier} "{group.name}"')
         for member in group.members:
             memberships.setdefault(member, []).append(identifier)
+    return definitions, memberships
 
+
+def _bulb_segments(settings: Wiz2MqttSettings) -> dict[str, str]:
+    """Map each bulb name to its openHAB identifier segment; reject collisions."""
     seen: set[str] = set()
     segments: dict[str, str] = {}
     for bulb in settings.bulbs:
@@ -55,14 +55,28 @@ def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
             raise ValueError(f"Bulb names collide or are empty in openHAB: {bulb.name}")
         seen.add(segment)
         segments[bulb.name] = segment
+    return segments
+
+
+def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
+    """Attach Color command Items to write-only groups; preserve channel links.
+
+    A no-op when no groups are configured, so the generator leaves the
+    framework's Items output untouched unless groups are explicitly declared.
+    """
+    if not settings.groups:
+        return items
+    definitions, memberships = _group_definitions(settings)
+    segments = _bulb_segments(settings)
 
     # Validate identifiers fully before mutating: a collision must never leave
     # a partially-rewritten Items document behind.
     for bulb in settings.bulbs:
         if bulb.name not in memberships:
             continue
-        segment = segments[bulb.name]
-        pattern = rf"(Color\s+Wiz2Mqtt_{segment}_Hsb_Cmd\s+[^\n]*?\()([^)]*)(\))"
+        pattern = (
+            rf"(Color\s+Wiz2Mqtt_{segments[bulb.name]}_Hsb_Cmd\s+[^\n]*?\()([^)]*)(\))"
+        )
         groups = ", ".join(memberships[bulb.name])
         items, count = re.subn(pattern, rf"\g<1>\g<2>, {groups}\g<3>", items)
         if count != 1:

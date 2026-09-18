@@ -106,27 +106,56 @@ async def bulb_entity_tick(
     try:
         bulb_state = await port.get_state(config.ip)
     except WizBridgeError as exc:
-        failures = state.consecutive_failures.get(name, 0) + 1
-        failures = min(failures, _FAILURE_THRESHOLD)
-        state.consecutive_failures[name] = failures
-        if failures >= _FAILURE_THRESHOLD:
-            state.bulb_answered[name] = False
-        else:
-            state.bulb_answered.setdefault(name, False)
-        belief = _recompute_and_notify(settings, state, notify, name)
+        return await _handle_read_failure(
+            ctx, settings, state, store, notify, name, exc
+        )
+    return await _handle_read_success(
+        ctx, config, port, state, store, notify, bulb_state, observation_generation
+    )
 
-        if belief == "off" and not isinstance(exc, WizIdentityError):
-            await _mark_online_once(ctx, state, name)
-            return _desired_state_payload(state, store, name, belief)
 
-        if (
-            failures >= _FAILURE_THRESHOLD
-            and state.last_availability.get(name) != "offline"
-        ):
-            await ctx.mark_unavailable()
-            state.last_availability[name] = "offline"
-        return _desired_state_payload(state, store, name, belief)
+async def _handle_read_failure(
+    ctx: cosalette.DeviceContext,
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    store: DeviceStore | None,
+    notify: EntityNotifier,
+    name: str,
+    exc: WizBridgeError,
+) -> dict[str, object] | None:
+    """Advance the failure count and settle availability after a failed read."""
+    failures = min(state.consecutive_failures.get(name, 0) + 1, _FAILURE_THRESHOLD)
+    state.consecutive_failures[name] = failures
+    if failures >= _FAILURE_THRESHOLD:
+        state.bulb_answered[name] = False
+    else:
+        state.bulb_answered.setdefault(name, False)
+    belief = _recompute_and_notify(settings, state, notify, name)
 
+    if belief == "off" and not isinstance(exc, WizIdentityError):
+        await _mark_online_once(ctx, state, name)
+    elif (
+        failures >= _FAILURE_THRESHOLD
+        and state.last_availability.get(name) != "offline"
+    ):
+        await ctx.mark_unavailable()
+        state.last_availability[name] = "offline"
+    return _desired_state_payload(state, store, name, belief)
+
+
+async def _handle_read_success(
+    ctx: cosalette.DeviceContext,
+    config: BulbConfig,
+    port: WizBulbPort,
+    state: SharedState,
+    store: DeviceStore | None,
+    notify: EntityNotifier,
+    bulb_state: BulbState,
+    observation_generation: int,
+) -> dict[str, object] | None:
+    """Record the answer, run the return path if armed, and render the payload."""
+    name = config.name
+    settings = cast(Wiz2MqttSettings, ctx.settings)
     was_unreachable = state.bulb_answered.get(name) is False
     state.consecutive_failures[name] = 0
     state.bulb_answered[name] = True
@@ -338,6 +367,17 @@ def _kwargs_match_observed(
         return observed.state is False
     if kwargs.get("state") is True and observed.state is not True:
         return False
+    return (
+        _scalar_fields_match(kwargs, observed, caps)
+        and _hue_matches(kwargs, observed)
+        and _saturation_matches(kwargs, observed)
+    )
+
+
+def _scalar_fields_match(
+    kwargs: SetStateKwargs, observed: BulbState, caps: BulbCapabilities | None
+) -> bool:
+    """Exact-match check of brightness, scene, colour temperature and speed."""
     for field in ("brightness", "scene"):
         expected = kwargs.get(field)
         if expected is not None and getattr(observed, field) != expected:
@@ -349,22 +389,29 @@ def _kwargs_match_observed(
         if observed.color_temp_kelvin != expected_ct:
             return False
     speed = kwargs.get("speed")
-    if speed is not None and observed.effect_speed != speed:
+    return speed is None or observed.effect_speed == speed
+
+
+def _hue_matches(kwargs: SetStateKwargs, observed: BulbState) -> bool:
+    """Circular-distance hue check within ``_HUE_TOLERANCE``."""
+    expected = kwargs.get("hue")
+    if expected is None:
+        return True
+    if observed.hue is None:
         return False
-    hue_expected = kwargs.get("hue")
-    if hue_expected is not None:
-        hue_actual = observed.hue
-        if hue_actual is None:
-            return False
-        diff = abs(hue_actual - hue_expected)
-        if min(diff, 360.0 - diff) > _HUE_TOLERANCE:
-            return False
-    sat_expected = kwargs.get("saturation")
-    if sat_expected is not None:
-        sat_actual = observed.saturation
-        if sat_actual is None or abs(sat_actual - sat_expected) > _SATURATION_TOLERANCE:
-            return False
-    return True
+    diff = abs(observed.hue - expected)
+    return min(diff, 360.0 - diff) <= _HUE_TOLERANCE
+
+
+def _saturation_matches(kwargs: SetStateKwargs, observed: BulbState) -> bool:
+    """Saturation check within ``_SATURATION_TOLERANCE``."""
+    expected = kwargs.get("saturation")
+    if expected is None:
+        return True
+    return (
+        observed.saturation is not None
+        and abs(observed.saturation - expected) <= _SATURATION_TOLERANCE
+    )
 
 
 def _ensure_boot_callback_registered(
