@@ -132,6 +132,8 @@ Key settings:
 | `mqtt.port`     | `SUNCAST_MQTT__PORT`       | `1883`      | MQTT broker port     |
 | `mqtt.username` | `SUNCAST_MQTT__USERNAME`   | —           | MQTT username        |
 | `mqtt.password` | `SUNCAST_MQTT__PASSWORD`   | —           | MQTT password        |
+| `mqtt.protocol_version` | `SUNCAST_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
+| `mqtt.message_expiry_interval` | `SUNCAST_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables
@@ -142,6 +144,40 @@ Key settings:
     This is a
     [pydantic-settings convention](https://docs.pydantic.dev/latest/concepts/pydantic_settings/#parsing-environment-variable-values)
     for nested models.
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects suncast with MQTT 5. Every retained message it
+publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours): the SVG, the PNG, availability, `status`, `_meta/*` and the
+last will. suncast publishes no Home Assistant discovery. While suncast runs, it re-
+publishes each retained topic every third of that interval (default 8 hours), so the
+topics stay alive. A topic that nothing refreshes any more, such as a renamed entity or
+a stopped process, disappears from the broker by itself.
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, suncast logs
+  `does the broker support MQTT 5?` and retries the connection. Set
+  `SUNCAST_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish.
+- **A long outage lets topics expire.** If suncast is down or disconnected for longer
+  than the expiry interval, the broker drops its retained topics until the next publish.
+- **Consumers see one repeat per refresh.** The repeat replays the last image byte for
+  byte, and the broker forwards it to live subscribers without the retain flag. The image
+  is already replaced every `POLL_INTERVAL` (default 360 s), so a dashboard that shows
+  `suncast/shadow/svg` or `suncast/shadow/png` sees no visible change.
+- **The refresh ledger holds 16 MiB.** A retained publish that would exceed it fails, and
+  suncast logs a warning and skips that image. The default SVG is about 5 KB.
 
 ---
 
@@ -160,6 +196,12 @@ cp .env.example .env
 
 # --- MQTT Settings (cosalette base) ---
 SUNCAST_MQTT__HOST=localhost
+# Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+SUNCAST_MQTT__TLS=false
+# MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+# Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+SUNCAST_MQTT__PROTOCOL_VERSION=5
+# SUNCAST_MQTT__MESSAGE_EXPIRY_INTERVAL=86400
 SUNCAST_MQTT__PORT=1883
 # SUNCAST_MQTT__USERNAME=
 # SUNCAST_MQTT__PASSWORD=

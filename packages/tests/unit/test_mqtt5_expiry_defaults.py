@@ -26,7 +26,14 @@ import pytest
 import yaml
 from test_mqtt_tls_defaults import _SPEC_MATRIX, SettingsSpec
 
-_MQTT5_APP_DIRS = {"airthings2mqtt", "caldates2mqtt", "gas2mqtt"}
+_MQTT5_APP_DIRS = {
+    "airthings2mqtt",
+    "caldates2mqtt",
+    "gas2mqtt",
+    "jeelink2mqtt",
+    "suncast",
+    "velux2mqtt",
+}
 _SPECS = [
     pytest.param(spec.values[0], id=spec.id)
     for spec in _SPEC_MATRIX

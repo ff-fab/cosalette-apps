@@ -18,7 +18,7 @@ in their ``[tool.pytest.ini_options]``.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -135,8 +135,10 @@ def _retained_counts(broker: FakeMqtt5Broker) -> dict[str, int]:
     return {topic: len(broker.publishes_to(topic)) for topic in broker.retained}
 
 
-def _started(client: MqttClient, broker: FakeMqtt5Broker, ready_topic: str) -> bool:
-    return ready_topic in broker.retained and client._connect_ready.is_set()
+async def _poll(condition: Callable[[], bool]) -> None:
+    async with asyncio.timeout(5):
+        while not condition():
+            await asyncio.sleep(0.005)
 
 
 async def run_against_broker(
@@ -146,6 +148,7 @@ async def run_against_broker(
     ready_topic: str,
     windows: int,
     window_seconds: float,
+    prepare: Callable[[], Awaitable[None]] | None = None,
 ) -> Observation:
     """Run the app on the real ``MqttClient`` for *windows* refresh windows.
 
@@ -154,14 +157,19 @@ async def run_against_broker(
     run on one virtual timeline. Startup is over once *ready_topic* is retained
     and the client has finished its connect callbacks (discovery, registry and
     status re-announce), which is what ``_connect_ready`` signals.
+
+    An app whose state topic only appears after outside input (a serial frame,
+    say) passes *prepare*: it runs once the client is connected and should
+    deliver that input.
     """
     client = MqttClient(settings=harness.settings.mqtt, clock=harness.clock)
     harness.mqtt = client  # type: ignore[assignment]
     task = asyncio.create_task(harness.run())
     try:
-        async with asyncio.timeout(5):
-            while not _started(client, broker, ready_topic):
-                await asyncio.sleep(0.005)
+        await _poll(client._connect_ready.is_set)
+        if prepare is not None:
+            await prepare()
+        await _poll(lambda: ready_topic in broker.retained)
         await harness.advance_time(0)
         observation = Observation(broker, _retained_counts(broker))
         for _ in range(windows):

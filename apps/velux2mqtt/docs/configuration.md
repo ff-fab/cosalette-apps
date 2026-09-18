@@ -27,6 +27,8 @@ you need.
 | Topic prefix       | `VELUX2MQTT_MQTT__TOPIC_PREFIX`          | _(app name)_ | Root prefix for all MQTT topics                        |
 | Reconnect interval | `VELUX2MQTT_MQTT__RECONNECT_INTERVAL`    | `5.0`        | Initial reconnect delay (seconds, exponential backoff) |
 | Reconnect max      | `VELUX2MQTT_MQTT__RECONNECT_MAX_INTERVAL`| `300.0`      | Upper bound for reconnect backoff (seconds)            |
+| Protocol version   | `VELUX2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
+| Message expiry     | `VELUX2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables use
@@ -36,6 +38,45 @@ you need.
 
     This is a [pydantic-settings convention](https://docs.pydantic.dev/latest/concepts/pydantic_settings/#parsing-environment-variable-values)
     for nested models.
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects velux2mqtt with MQTT 5. Every retained message it
+publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours): cover state, calibration state and result, availability,
+Home Assistant discovery, `status`, `_meta/*` and the last will. While velux2mqtt runs,
+it re-publishes each retained topic every third of that interval (default 8 hours), so
+the topics stay alive. A topic that nothing refreshes any more, such as a renamed entity
+or a stopped process, disappears from the broker by itself.
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, velux2mqtt logs
+  `does the broker support MQTT 5?` and retries the connection. Set
+  `VELUX2MQTT_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish.
+- **A long outage lets topics expire.** If velux2mqtt is down or disconnected for longer
+  than the expiry interval, the broker drops its retained topics until the next publish.
+- **Consumers see one repeat per refresh.** The repeat has the same payload as the last
+  publish, and the broker forwards it to live subscribers without the retain flag, so it
+  looks like a normal message. Home Assistant cover entities do not change state on a
+  repeat, and a repeat never moves a blind: velux2mqtt acts only on the `set` topics,
+  which are never retained and never refreshed. An automation that triggers on receipt of
+  `velux2mqtt/{cover}/state` runs once more per refresh; trigger on a position change
+  instead.
+- **A calibration result lives only while velux2mqtt runs.** `calibrate/result` is
+  published once, when a calibration completes. velux2mqtt refreshes it while it runs, but
+  the refresh ledger is in memory: after a restart the result expires within the expiry
+  interval. Copy the values into `VELUX2MQTT_COVERS` when the calibration finishes.
 
 ### Logging
 
@@ -165,6 +206,12 @@ cp .env.example .env
 
 # --- MQTT Settings (cosalette base) ---
 VELUX2MQTT_MQTT__HOST=localhost
+# Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+VELUX2MQTT_MQTT__TLS=false
+# MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+# Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+VELUX2MQTT_MQTT__PROTOCOL_VERSION=5
+# VELUX2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL=86400
 VELUX2MQTT_MQTT__PORT=1883
 # VELUX2MQTT_MQTT__USERNAME=
 # VELUX2MQTT_MQTT__PASSWORD=

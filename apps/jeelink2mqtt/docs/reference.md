@@ -30,6 +30,44 @@ Nested settings use `__` as delimiter (e.g. `JEELINK2MQTT_MQTT__HOST`).
 | `mqtt.port` | `JEELINK2MQTT_MQTT__PORT` | `int` | `1883` | MQTT broker port |
 | `mqtt.username` | `JEELINK2MQTT_MQTT__USERNAME` | `str` | `""` | MQTT username |
 | `mqtt.password` | `JEELINK2MQTT_MQTT__PASSWORD` | `str` | `""` | MQTT password |
+| `mqtt.protocol_version` | `JEELINK2MQTT_MQTT__PROTOCOL_VERSION` | `str` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
+| `mqtt.message_expiry_interval` | `JEELINK2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `int` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects jeelink2mqtt with MQTT 5. Every retained message it
+publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours): sensor state, availability, mapping snapshot, Home
+Assistant discovery, `_meta/*` and the last will. While jeelink2mqtt runs, it re-
+publishes each retained topic every third of that interval (default 8 hours), so the
+topics stay alive. A topic that nothing refreshes any more, such as a renamed entity or
+a stopped process, disappears from the broker by itself.
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, jeelink2mqtt logs
+  `does the broker support MQTT 5?` and retries the connection. Set
+  `JEELINK2MQTT_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish.
+- **A long outage lets topics expire.** If jeelink2mqtt is down or disconnected for longer
+  than the expiry interval, the broker drops its retained topics until the next publish.
+- **Consumers see one repeat per refresh.** The repeat has the same payload as the last
+  publish, and the broker forwards it to live subscribers without the retain flag, so it
+  looks like a normal message. Home Assistant sensors do not change state on a repeat.
+  `jeelink2mqtt/{sensor}/state` is already re-published every
+  `HEARTBEAT_INTERVAL_SECONDS` (default 180 s), so its refresh is negligible.
+  `jeelink2mqtt/mapping/state` is published only when a mapping changes, so its refresh
+  is a real repeat. The repeat keeps the original `timestamp` and `last_seen`, so a
+  freshness check on those fields is not fooled by a refresh.
 
 ### Validators
 
@@ -84,6 +122,16 @@ JEELINK2MQTT_SENSORS='[
 | `jeelink2mqtt/mapping/state` | Out | Yes | `{sensor_name: {sensor_id, mapped_at, last_seen}}` |
 | `jeelink2mqtt/mapping/event` | Out | No | `{event_type, sensor_name, old_sensor_id, new_sensor_id, timestamp, reason}` |
 | `jeelink2mqtt/mapping/set` | In | No | `{command, ...params}` |
+
+### Retention and Expiry
+
+With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained topic in
+the tables above expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
+unless jeelink2mqtt refreshes it. jeelink2mqtt re-publishes each retained topic with an unchanged
+payload every third of that interval (8 hours by default). Non-retained topics, such as
+the `error` topics, carry no expiry. See
+[MQTT 5 retained-message expiry](#mqtt-5-retained-message-expiry) for the
+operator contract and the MQTT 3.1.1 fallback.
 
 ### Sensor State Payload
 

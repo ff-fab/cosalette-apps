@@ -10,6 +10,9 @@ services:
       SUNCAST_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       SUNCAST_MQTT__TLS: ${SUNCAST_MQTT__TLS:-false}
+      # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+      # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+      SUNCAST_MQTT__PROTOCOL_VERSION: ${SUNCAST_MQTT__PROTOCOL_VERSION:-5}
     volumes:
       - shadow-output:/output
       - suncast-data:/app/data
