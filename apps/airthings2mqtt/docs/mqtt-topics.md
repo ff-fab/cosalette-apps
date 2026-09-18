@@ -156,6 +156,18 @@ are the most common.
 
 ---
 
+## Retention and Expiry
+
+With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained topic in
+the tables above expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
+unless airthings2mqtt refreshes it. airthings2mqtt re-publishes each retained topic with an unchanged
+payload every third of that interval (8 hours by default). Non-retained topics, such as
+`airthings2mqtt/error`, carry no expiry. See
+[MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
+operator contract and the MQTT 3.1.1 fallback.
+
+---
+
 ## Framework Topics
 
 Alongside the airthings2mqtt-specific topics above, cosalette itself publishes two

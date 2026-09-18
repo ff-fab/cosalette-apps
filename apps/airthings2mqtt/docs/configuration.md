@@ -27,6 +27,8 @@ you need.
 | Topic prefix       | `AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX`         | _(app name)_ | Root prefix for all MQTT topics                        |
 | Reconnect interval | `AIRTHINGS2MQTT_MQTT__RECONNECT_INTERVAL`   | `5.0`        | Initial reconnect delay (seconds, exponential backoff) |
 | Reconnect max      | `AIRTHINGS2MQTT_MQTT__RECONNECT_MAX_INTERVAL`| `300.0`     | Upper bound for reconnect backoff (seconds)            |
+| Protocol version   | `AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` | `5` enables retained-message expiry (compose default), see below |
+| Message expiry     | `AIRTHINGS2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds (MQTT 5 only) |
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables use
@@ -36,6 +38,45 @@ you need.
 
     This is a [pydantic-settings convention](https://docs.pydantic.dev/latest/concepts/pydantic_settings/#parsing-environment-variable-values)
     for nested models.
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects airthings2mqtt with MQTT 5. Every retained message it
+publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours): state, availability, Home Assistant discovery, `_meta/*`
+and the last will. While airthings2mqtt runs, it re-publishes each retained topic every third
+of that interval (default 8 hours), so the topics stay alive. A topic that nothing
+refreshes any more, such as a renamed entity or a stopped process, disappears from the
+broker by itself.
+
+| Setting         | Env Variable                          | Default                          | Description                                                  |
+| --------------- | ------------------------------------- | -------------------------------- | ------------------------------------------------------------ |
+| Protocol        | `AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION`         | `3.1.1` in code, `5` in compose  | `5` enables expiry and refresh, `3.1.1` disables both        |
+| Expiry interval | `AIRTHINGS2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL`  | `86400`                          | Seconds, at least `3`; valid only with protocol `5`          |
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, airthings2mqtt logs
+  `does the broker support MQTT 5?` and retries the connection. Set
+  `AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish.
+- **A long outage lets topics expire.** If airthings2mqtt is down or disconnected for longer
+  than the expiry interval, the broker drops its retained topics until the next publish.
+- **Consumers see one repeat per refresh.** The repeat has the same payload as the last
+  publish, and the broker forwards it to live subscribers without the retain flag, so it
+  looks like a normal message. Home Assistant sensors do not change state on a repeat.
+  `airthings2mqtt/<device>/state` is already published on every poll (25 minutes by
+default), so the refresh adds one identical repeat every 8 hours between two polls.
+A consumer that reacts to message receipt instead of value change sees it.
 
 ### Logging
 

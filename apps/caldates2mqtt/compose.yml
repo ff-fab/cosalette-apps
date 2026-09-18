@@ -10,6 +10,9 @@ services:
       CALDATES2MQTT_MQTT__HOST: mosquitto
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       CALDATES2MQTT_MQTT__TLS: ${CALDATES2MQTT_MQTT__TLS:-false}
+      # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+      # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+      CALDATES2MQTT_MQTT__PROTOCOL_VERSION: ${CALDATES2MQTT_MQTT__PROTOCOL_VERSION:-5}
       CALDATES2MQTT_STORE_PATH: /app/data/store.json
     volumes:
       - caldates2mqtt-data:/app/data

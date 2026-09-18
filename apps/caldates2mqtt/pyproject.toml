@@ -88,4 +88,4 @@ extend = "../../pyproject.toml"
 [tool.ruff.lint.isort]
 # ``ha_discovery`` is the repo-root shared test helper reached via
 # ``pythonpath`` above, not a PyPI package.
-known-first-party = ["caldates2mqtt", "ha_discovery"]
+known-first-party = ["caldates2mqtt", "ha_discovery", "mqtt5_broker", "mqtt5_contract"]
