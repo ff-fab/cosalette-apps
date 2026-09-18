@@ -26,7 +26,7 @@ from typing import TYPE_CHECKING, Any
 
 from wiz2mqtt.colour import effect_list_for_class
 from wiz2mqtt.errors import WizBridgeError
-from wiz2mqtt.models import BulbCapabilities
+from wiz2mqtt.models import POWER_SOURCE_ENTITY_MARKER, BulbCapabilities
 
 if TYPE_CHECKING:
     import cosalette
@@ -153,6 +153,16 @@ def make_discovery_enrich(app: cosalette.App) -> HaEnrichHook:
 
     Reads ``app.store`` lazily at publish time; a missing store or an
     uncached bulb leaves the static superset untouched.
+
+    Also narrows a power source's two composite entities (cap-bjw9.10, ADR-007):
+    they carry no availability of their own, since a belief is derived from
+    member bulbs rather than observed directly, so
+    :func:`_narrow_power_source_availability` drops the auto-generated
+    per-device availability entry, leaving only the app-wide bridge status.
+    Detected via :data:`POWER_SOURCE_ENTITY_MARKER` rather than
+    ``app.settings``, so it needs no settings access and cannot also match a
+    per-bulb entity that happens to share an HA-visible field (e.g.
+    ``device_class: power`` on the bulb power-draw sensor).
     """
 
     def _enrich(
@@ -162,17 +172,33 @@ def make_discovery_enrich(app: cosalette.App) -> HaEnrichHook:
     ) -> None:
         # Only the composite ``light`` entity carries these keys; the number,
         # sensor and bridge entities are left alone.
-        if "supported_color_modes" not in config:
+        if "supported_color_modes" in config:
+            store = app.store
+            if store is None:
+                return
+            name = _bulb_name_from_state_topic(config.get("state_topic"))
+            if name is None:
+                return
+            caps = load_cached_capabilities(store, name)
+            if caps is None:
+                return
+            narrow_light_discovery(config, caps)
             return
-        store = app.store
-        if store is None:
-            return
-        name = _bulb_name_from_state_topic(config.get("state_topic"))
-        if name is None:
-            return
-        caps = load_cached_capabilities(store, name)
-        if caps is None:
-            return
-        narrow_light_discovery(config, caps)
+        if config.pop(POWER_SOURCE_ENTITY_MARKER, None):
+            _narrow_power_source_availability(config)
 
     return _enrich
+
+
+def _narrow_power_source_availability(config: dict[str, Any]) -> None:
+    """Drop a power source entity's per-device availability entry (cap-bjw9.10).
+
+    ``_availability_block`` (cosalette F18) always emits a two-entry
+    ``availability`` list — the device's own topic plus the app-wide
+    ``{prefix}/status`` heartbeat. A power source has no reachability of its
+    own (ADR-007: its belief is derived from member bulbs), so it follows the
+    bridge only; the device-specific entry is dropped, keeping the status entry.
+    """
+    availability = config.get("availability")
+    if isinstance(availability, list) and len(availability) == 2:
+        config["availability"] = availability[1:]
