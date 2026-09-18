@@ -78,7 +78,6 @@
     "deny": [
       "Read(./.env)",
       "Read(./**/.env)",
-      "Read(./**/.env.*)",
       "Read(./.envrc)",
       "Read(./**/.envrc)",
       "Read(./.beads/.beads-credential-key)",

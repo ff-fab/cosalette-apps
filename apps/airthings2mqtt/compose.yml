@@ -17,6 +17,9 @@ services:
       AIRTHINGS2MQTT_MQTT__HOST: localhost
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       AIRTHINGS2MQTT_MQTT__TLS: ${AIRTHINGS2MQTT_MQTT__TLS:-false}
+      # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+      # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+      AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION: ${AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION:-5}
       AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
       # AIRTHINGS2MQTT_DEVICE_MAC: "XX:XX:XX:XX:XX:XX"
       # AIRTHINGS2MQTT_POLL_INTERVAL: "1500"
@@ -39,6 +42,7 @@ services:
   #   environment:
   #     AIRTHINGS2MQTT_MQTT__HOST: localhost
   #     AIRTHINGS2MQTT_MQTT__TLS: ${AIRTHINGS2MQTT_MQTT__TLS:-false}
+  #     AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION: ${AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION:-5}
   #     AIRTHINGS2MQTT_DEVICE_MAC: "AA:BB:CC:DD:EE:FF"
   #     AIRTHINGS2MQTT_DEVICE_NAME: "bedroom"
   #   volumes:

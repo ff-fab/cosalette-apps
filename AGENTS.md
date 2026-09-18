@@ -37,6 +37,18 @@ taskfiles/
 - The decision and rationale live in
   [docs/adr/ADR-006-mqtt-transport-security-posture.md](docs/adr/ADR-006-mqtt-transport-security-posture.md).
 
+## MQTT 5 Retained Expiry
+
+- Do not pin `mqtt.protocol_version` in application code; the default stays MQTT 3.1.1.
+- An app that opts in exposes `<PREFIX>_MQTT__PROTOCOL_VERSION` next to the broker host
+  in `compose.yml` and defaults it with Compose interpolation
+  (`${<PREFIX>_MQTT__PROTOCOL_VERSION:-5}`) for the bundled mosquitto 2 broker. Add the
+  app to `_MQTT5_APP_DIRS` in `packages/tests/unit/test_mqtt5_expiry_defaults.py`, add
+  an integration `test_mqtt5_expiry.py` built on `mqtt5_broker`/`mqtt5_contract`, and
+  document the operator contract in the app's `docs/configuration.md`.
+- The decision and rationale live in
+  [docs/adr/ADR-009-mqtt-5-retained-message-expiry-posture.md](docs/adr/ADR-009-mqtt-5-retained-message-expiry-posture.md).
+
 ## Tooling
 
 - **Use `task <name>` for all operations** (`task --list` to discover). Fall back to
