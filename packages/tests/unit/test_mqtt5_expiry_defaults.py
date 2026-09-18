@@ -121,6 +121,20 @@ def test_operator_can_fall_back_to_mqtt_311(
 
 @pytest.mark.unit
 @pytest.mark.parametrize("spec", _SPECS)
+def test_env_example_declares_mqtt5(spec: SettingsSpec) -> None:
+    """The environment template keeps the compose default visible.
+
+    Technique: Specification-based — same shape as the ADR-006 TLS template check.
+    """
+    setting_name = f"{spec.env_prefix}_MQTT__PROTOCOL_VERSION"
+
+    assert spec.env_example_settings().get(setting_name) == "5", (
+        f"{spec.app_dir}/.env.example must set {setting_name}=5 (see ADR-009)"
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("spec", _SPECS)
 def test_bundled_broker_supports_mqtt5(spec: SettingsSpec) -> None:
     """The bundled broker image is mosquitto 2 or newer, which speaks MQTT 5.
 

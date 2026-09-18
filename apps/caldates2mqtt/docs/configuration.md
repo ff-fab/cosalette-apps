@@ -148,6 +148,12 @@ cp .env.example .env
 
 # --- MQTT Settings (cosalette base) ---
 CALDATES2MQTT_MQTT__HOST=localhost
+# Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+CALDATES2MQTT_MQTT__TLS=false
+# MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+# Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+CALDATES2MQTT_MQTT__PROTOCOL_VERSION=5
+# CALDATES2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL=86400
 CALDATES2MQTT_MQTT__PORT=1883
 # CALDATES2MQTT_MQTT__USERNAME=
 # CALDATES2MQTT_MQTT__PASSWORD=
