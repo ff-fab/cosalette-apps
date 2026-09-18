@@ -146,7 +146,14 @@ class PyLaCrosseAdapter:
             msg = "Async infrastructure not ready — call open() first"
             raise RuntimeError(msg)
 
-        framework_cb = self._framework_callback
+        _wrapper = self._make_scan_callback(self._framework_callback)
+        self._lacrosse.register_all(_wrapper)
+        self._lacrosse.start_scan()
+
+    def _make_scan_callback(
+        self, framework_cb: Callable[[SensorReading], None] | None
+    ) -> Callable[..., None]:
+        """Build the single callback bridging pylacrosse's thread to cosalette."""
 
         def _wrapper(sensor: Any, _user_data: Any = None) -> None:
             """Single callback bridging pylacrosse thread → cosalette stream
@@ -155,56 +162,10 @@ class PyLaCrosseAdapter:
                 reading = self._convert_sensor_to_reading(sensor)
                 if reading is None:
                     return
-
                 if framework_cb is not None:
-                    # Framework path: marshal to the event loop via
-                    # call_soon_threadsafe. cosalette 0.4's Stream.put (and
-                    # asyncio.Queue) are NOT thread-safe — they must only be
-                    # called from the event-loop thread. This wrapper runs on
-                    # the pylacrosse serial reader thread, so we schedule the
-                    # callback on the event loop instead of invoking it directly.
-                    #
-                    # A small dispatcher closure is scheduled rather than the
-                    # framework_cb directly, so that any callback exception is
-                    # caught and logged here rather than propagating to asyncio's
-                    # unhandled-exception handler (which would log a less specific
-                    # message and suppress our structured error reporting).
-                    loop = self._loop
-                    if loop is not None:
-
-                        def _dispatch_reading() -> None:
-                            try:
-                                framework_cb(reading)
-                            except Exception:
-                                logger.exception(
-                                    "Error dispatching reading to framework callback"
-                                )
-
-                        try:
-                            loop.call_soon_threadsafe(_dispatch_reading)
-                        except RuntimeError:
-                            logger.debug(
-                                "Failed to dispatch reading to framework "
-                                "callback during shutdown"
-                            )
+                    self._dispatch_to_framework(framework_cb, reading)
                 else:
-                    # Legacy async-iterator path: bridge via call_soon_threadsafe.
-                    if self._loop is not None and self._queue is not None:
-                        queue = self._queue
-
-                        def _enqueue(r: SensorReading) -> None:
-                            try:
-                                queue.put_nowait(r)
-                            except asyncio.QueueFull:
-                                logger.warning(
-                                    "Queue full — dropping reading from sensor %d",
-                                    r.sensor_id,
-                                )
-
-                        try:
-                            self._loop.call_soon_threadsafe(_enqueue, reading)
-                        except RuntimeError:
-                            logger.debug("Failed to enqueue reading during shutdown")
+                    self._enqueue_reading(reading)
             except Exception:
                 # Thread boundary: this runs on pylacrosse's serial reader
                 # thread, outside cosalette's asyncio error isolation.
@@ -212,8 +173,60 @@ class PyLaCrosseAdapter:
                 # and silently stop all frame processing.
                 logger.exception("Error processing sensor reading: %r", sensor)
 
-        self._lacrosse.register_all(_wrapper)
-        self._lacrosse.start_scan()
+        return _wrapper
+
+    def _dispatch_to_framework(
+        self, framework_cb: Callable[[SensorReading], None], reading: SensorReading
+    ) -> None:
+        """Framework path: marshal *reading* onto the event loop.
+
+        Uses ``call_soon_threadsafe``: cosalette 0.4's ``Stream.put`` (and
+        ``asyncio.Queue``) are NOT thread-safe and must only be called from
+        the event-loop thread, while this runs on the pylacrosse serial reader
+        thread.
+
+        A small dispatcher closure is scheduled rather than *framework_cb*
+        directly, so that any callback exception is caught and logged here
+        rather than propagating to asyncio's unhandled-exception handler
+        (which would log a less specific message and suppress our structured
+        error reporting).
+        """
+        loop = self._loop
+        if loop is None:
+            return
+
+        def _dispatch_reading() -> None:
+            try:
+                framework_cb(reading)
+            except Exception:
+                logger.exception("Error dispatching reading to framework callback")
+
+        try:
+            loop.call_soon_threadsafe(_dispatch_reading)
+        except RuntimeError:
+            logger.debug(
+                "Failed to dispatch reading to framework callback during shutdown"
+            )
+
+    def _enqueue_reading(self, reading: SensorReading) -> None:
+        """Legacy async-iterator path: bridge via ``call_soon_threadsafe``."""
+        loop = self._loop
+        queue = self._queue
+        if loop is None or queue is None:
+            return
+
+        def _enqueue(r: SensorReading) -> None:
+            try:
+                queue.put_nowait(r)
+            except asyncio.QueueFull:
+                logger.warning(
+                    "Queue full — dropping reading from sensor %d", r.sensor_id
+                )
+
+        try:
+            loop.call_soon_threadsafe(_enqueue, reading)
+        except RuntimeError:
+            logger.debug("Failed to enqueue reading during shutdown")
 
     async def stop_scan(self) -> None:
         """No-op — pylacrosse doesn't expose a discrete stop-scan; use close."""

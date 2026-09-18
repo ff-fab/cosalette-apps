@@ -35,7 +35,7 @@ import json
 import logging
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 import cosalette
 from cosalette.schema import consumer
@@ -372,54 +372,22 @@ async def _execute_step(
         return  # Already at target
 
     opening = target > current
-    needs_open_dead_band = (
-        opening and tracker.position_int == 0 and _dead_band_time(cover_cfg, "up") > 0
-    )
-
-    # Determine direction
     pin = cover_cfg.pin_up if opening else cover_cfg.pin_down
+    travel_time = _travel_time(cover_cfg, tracker, current, target)
 
-    # Calculate travel time
-    if target in (0, 100):
-        # Full travel to endpoint: use full duration + margin
-        if target == 100:
-            travel_time = cover_cfg.travel_duration_up + cover_cfg.max_timer_margin
-        else:
-            travel_time = cover_cfg.travel_duration_down + cover_cfg.max_timer_margin
-    else:
-        travel_time = tracker.travel_time_for(current, target)
-
-    # Dead band: when opening from 0, press button and wait for handle
-    # rotation before starting the position tracker
-    if needs_open_dead_band:
-        db_time = _dead_band_time(cover_cfg, "up")
-        logger.info(
-            "Dead band %s: opening handle (%.1fs) then moving to %d%%",
-            cover_cfg.name,
-            db_time,
-            target,
-        )
-        await gpio.press(pin, settings.button_press_duration)
-        await ctx.sleep(db_time)
-        if ctx.shutdown_requested:
-            await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
-            return
-        # Now start tracking effective movement (handle is open)
-        tracker.start_opening()
-    else:
-        logger.info(
-            "Moving %s: %d%% -> %d%% (%.1fs)%s",
-            cover_cfg.name,
-            round(current),
-            target,
-            travel_time,
-            " [recalibration]" if step.is_recalibration else "",
-        )
-        if opening:
-            tracker.start_opening()
-        else:
-            tracker.start_closing()
-        await gpio.press(pin, settings.button_press_duration)
+    started = await _start_move(
+        ctx=ctx,
+        gpio=gpio,
+        cover_cfg=cover_cfg,
+        settings=settings,
+        tracker=tracker,
+        step=step,
+        logger=logger,
+        pin=pin,
+        travel_time=travel_time,
+    )
+    if not started:
+        return
 
     # Wait for travel
     await ctx.sleep(travel_time)
@@ -429,20 +397,16 @@ async def _execute_step(
         tracker.stop()
         return
 
-    # Dead band: when closing to 0, wait for handle to close after
-    # effective travel completes (motor is still running)
-    db_close = _dead_band_time(cover_cfg, "down")
-    if target == 0 and db_close > 0:
-        logger.info(
-            "Dead band %s: closing handle (%.1fs)",
-            cover_cfg.name,
-            db_close,
-        )
-        await ctx.sleep(db_close)
-        if ctx.shutdown_requested:
-            await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
-            tracker.stop()
-            return
+    if not await _wait_close_dead_band(
+        ctx=ctx,
+        gpio=gpio,
+        cover_cfg=cover_cfg,
+        settings=settings,
+        tracker=tracker,
+        target=target,
+        logger=logger,
+    ):
+        return
 
     # Finalize position — endpoint moves let the motor stall at the
     # physical limit so no STOP press is needed.  Intermediate moves
@@ -454,6 +418,102 @@ async def _execute_step(
     else:
         await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
         tracker.stop()
+
+
+def _travel_time(
+    cover_cfg: CoverConfig, tracker: PositionTracker, current: float, target: int
+) -> float:
+    """Seconds to run the motor: full duration + margin for an endpoint target."""
+    if target == 100:
+        return cover_cfg.travel_duration_up + cover_cfg.max_timer_margin
+    if target == 0:
+        return cover_cfg.travel_duration_down + cover_cfg.max_timer_margin
+    return tracker.travel_time_for(current, target)
+
+
+async def _start_move(
+    *,
+    ctx: cosalette.DeviceContext,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    tracker: PositionTracker,
+    step: MoveStep,
+    logger: logging.Logger,
+    pin: int,
+    travel_time: float,
+) -> bool:
+    """Press the direction button and start the tracker.
+
+    Opening from 0% with a dead band presses once and waits for the handle
+    rotation before the tracker starts. Returns ``False`` when shutdown
+    interrupted that wait (the motor was stopped), ``True`` otherwise.
+    """
+    current = tracker.position
+    target = step.target
+    opening = target > current
+    db_time = _dead_band_time(cover_cfg, "up")
+
+    if opening and tracker.position_int == 0 and db_time > 0:
+        logger.info(
+            "Dead band %s: opening handle (%.1fs) then moving to %d%%",
+            cover_cfg.name,
+            db_time,
+            target,
+        )
+        await gpio.press(pin, settings.button_press_duration)
+        await ctx.sleep(db_time)
+        if ctx.shutdown_requested:
+            await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+            return False
+        # Now start tracking effective movement (handle is open)
+        tracker.start_opening()
+        return True
+
+    logger.info(
+        "Moving %s: %d%% -> %d%% (%.1fs)%s",
+        cover_cfg.name,
+        round(current),
+        target,
+        travel_time,
+        " [recalibration]" if step.is_recalibration else "",
+    )
+    if opening:
+        tracker.start_opening()
+    else:
+        tracker.start_closing()
+    await gpio.press(pin, settings.button_press_duration)
+    return True
+
+
+async def _wait_close_dead_band(
+    *,
+    ctx: cosalette.DeviceContext,
+    gpio: GpioSwitchPort,
+    cover_cfg: CoverConfig,
+    settings: Velux2MqttSettings,
+    tracker: PositionTracker,
+    target: int,
+    logger: logging.Logger,
+) -> bool:
+    """When closing to 0, wait for the handle to close (motor still running).
+
+    Returns ``False`` when shutdown interrupted the wait (motor stopped).
+    """
+    db_close = _dead_band_time(cover_cfg, "down")
+    if target != 0 or db_close <= 0:
+        return True
+    logger.info(
+        "Dead band %s: closing handle (%.1fs)",
+        cover_cfg.name,
+        db_close,
+    )
+    await ctx.sleep(db_close)
+    if ctx.shutdown_requested:
+        await gpio.press(cover_cfg.pin_stop, settings.button_press_duration)
+        tracker.stop()
+        return False
+    return True
 
 
 async def _publish_position(
@@ -481,6 +541,25 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
     Returns a dict with at least ``{"action": "<action>"}`` on success,
     plus any extra fields (e.g. ``runs``).
     """
+    data = _load_json_object(payload)
+    if data is None:
+        return None
+    action = data.get("phase")
+    if not isinstance(action, str) or action not in _CALIBRATE_ACTIONS:
+        return None
+    result: dict[str, object] = {"action": action}
+    if "runs" in data:
+        result["runs"] = data["runs"]
+    for key in ("measure_offset", "measure_dead_band"):
+        if isinstance(data.get(key), bool):
+            result[key] = data[key]
+    if isinstance(data.get("starting_state"), str):
+        result["starting_state"] = data["starting_state"]
+    return result
+
+
+def _load_json_object(payload: str) -> dict[str, Any] | None:
+    """Parse *payload* as a JSON object, or ``None`` if it is anything else."""
     text = payload.strip()
     if not text.startswith("{"):
         return None
@@ -488,21 +567,7 @@ def _parse_calibrate(payload: str) -> dict[str, object] | None:
         data = json.loads(text)
     except json.JSONDecodeError:
         return None
-    if not isinstance(data, dict):
-        return None
-    action = data.get("phase")
-    if isinstance(action, str) and action in _CALIBRATE_ACTIONS:
-        result: dict[str, object] = {"action": action}
-        if "runs" in data:
-            result["runs"] = data["runs"]
-        if "measure_offset" in data and isinstance(data["measure_offset"], bool):
-            result["measure_offset"] = data["measure_offset"]
-        if "measure_dead_band" in data and isinstance(data["measure_dead_band"], bool):
-            result["measure_dead_band"] = data["measure_dead_band"]
-        if "starting_state" in data and isinstance(data["starting_state"], str):
-            result["starting_state"] = data["starting_state"]
-        return result
-    return None
+    return data if isinstance(data, dict) else None
 
 
 async def _run_calibration_task(

@@ -77,36 +77,27 @@ class GeometryConfig(BaseModel):
 
         size = self.canvas.size
         for building in self.buildings:
-            if len(building.vertices) < 3:
-                msg = (
-                    f"Building '{building.name}' must have at least 3 vertices, "
-                    f"got {len(building.vertices)}"
-                )
-                raise ValueError(msg)
-            for x, y in building.vertices:
-                if not (0 <= x <= size and 0 <= y <= size):
-                    msg = (
-                        f"Building '{building.name}' vertex ({x}, {y}) is "
-                        f"outside canvas bounds (0..{size})"
-                    )
-                    raise ValueError(msg)
-
+            _validate_polygon("Building", building.name, building.vertices, size)
         for region in self.highlighted_regions:
-            if len(region.vertices) < 3:
-                msg = (
-                    f"Highlighted region '{region.name}' must have at least "
-                    f"3 vertices, got {len(region.vertices)}"
-                )
-                raise ValueError(msg)
-            for x, y in region.vertices:
-                if not (0 <= x <= size and 0 <= y <= size):
-                    msg = (
-                        f"Highlighted region '{region.name}' vertex ({x}, {y}) "
-                        f"is outside canvas bounds (0..{size})"
-                    )
-                    raise ValueError(msg)
+            _validate_polygon("Highlighted region", region.name, region.vertices, size)
 
         return self
+
+
+def _validate_polygon(
+    label: str, name: str, vertices: list[tuple[float, float]], size: float
+) -> None:
+    """Require at least 3 vertices, all inside the ``0..size`` canvas."""
+    if len(vertices) < 3:
+        msg = f"{label} '{name}' must have at least 3 vertices, got {len(vertices)}"
+        raise ValueError(msg)
+    for x, y in vertices:
+        if not (0 <= x <= size and 0 <= y <= size):
+            msg = (
+                f"{label} '{name}' vertex ({x}, {y}) is "
+                f"outside canvas bounds (0..{size})"
+            )
+            raise ValueError(msg)
 
 
 def load_geometry(path: Path) -> GeometryConfig:
