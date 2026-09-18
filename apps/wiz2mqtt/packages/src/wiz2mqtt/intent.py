@@ -85,6 +85,37 @@ def _appearance_from_bulb_state(bulb_state: BulbState) -> Appearance:
     )
 
 
+def desired_state_to_set_state_kwargs(desired: DesiredState) -> SetStateKwargs:
+    """Translate a desired state into a ``WizBulbPort.set_state`` write (ADR-008).
+
+    ``OFF`` sends only ``state=False`` — every appearance kwarg stays
+    ``None`` regardless of what the stored appearance holds, since a dark
+    lamp must not flash its old colour and a WiZ bulb only applies an
+    appearance while it is on. ``ON`` sends ``state=True`` and the full
+    appearance in the same call, mirroring :meth:`DesiredState.as_bulb_state`.
+    """
+    if desired.state == "OFF":
+        return {
+            "state": False,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
+    appearance = desired.appearance
+    return {
+        "state": True,
+        "brightness": appearance.brightness,
+        "hue": appearance.hue,
+        "saturation": appearance.saturation,
+        "color_temp_kelvin": appearance.color_temp_kelvin,
+        "scene": appearance.scene,
+        "speed": appearance.speed,
+    }
+
+
 def desired_state_to_dict(desired: DesiredState) -> dict[str, Any]:
     """Serialise a desired state to a JSON-storable dict."""
     return {

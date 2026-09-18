@@ -109,6 +109,9 @@ class FakeWizBulbAdapter:
         self._raise_if_primed(ip)
         return self._state.setdefault(ip, _DEFAULT_STATE)
 
+    def invalidate_cache(self, ip: str) -> None:  # noqa: ARG002
+        """No-op -- the fake stores authoritative state, not an optimistic cache."""
+
     async def set_state(
         self,
         ip: str,
@@ -127,9 +130,12 @@ class FakeWizBulbAdapter:
         so the fake and production adapters stay pinned to the same behaviour: a
         colour-mode field clears the fields of the modes it supersedes, and
         ``state=False`` merges only that field, since the real bulb only receives
-        ``turn_off()`` in that case. Deliberately reproduces cap-sxul (the
-        optimistic merge is applied without waiting for authoritative
-        readback) — do not fix that here.
+        ``turn_off()`` in that case. The merge is still optimistic — applied
+        without waiting for an authoritative readback — by design (cap-sxul's
+        actual bug, the merge losing track of the superseded colour mode, is
+        fixed by delegating to ``apply_command`` here; a caller needing a
+        confirmed value still reads back via ``get_state`` after the write,
+        which ``refuse_writes`` below deliberately leaves stale on a refusal).
         """
         self.set_state_calls.append(
             (

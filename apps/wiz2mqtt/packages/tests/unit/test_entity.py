@@ -2,9 +2,11 @@
 
 Test Techniques Used:
 - State Transition Testing: online/offline availability debounce transitions,
-  ADR-008 phase resolution (steady/reconnect)
-- Boundary Value Analysis: the 3-consecutive-failure availability threshold
-- Decision Table: power source when_unreachable "fault" vs. "no_power" branches
+  ADR-008 phase resolution (steady/reconnect), the return-path settle to steady
+- Boundary Value Analysis: the 3-consecutive-failure availability threshold,
+  the 3-total-attempts return-path write/read-back retry ceiling
+- Decision Table: power source when_unreachable "fault" vs. "no_power" branches;
+  the ADR-008 three-way return-path rule (pending command / restore / accept)
 - Equivalence Partitioning: deduplication of repeated availability calls
 - Round-trip Testing: desired-state fallback publish while unreachable
 """
@@ -12,6 +14,8 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
+import json
+import time
 
 from cosalette import DeviceStore
 from cosalette.stores import MemoryStore
@@ -24,6 +28,7 @@ from wiz2mqtt.intent import (
     Appearance,
     DesiredState,
     desired_state_to_dict,
+    enqueue,
     record_command,
 )
 from wiz2mqtt.models import POWERED_UNKNOWN, BulbState
@@ -187,10 +192,15 @@ class TestSuccessfulPoll:
 
         assert store.get("desired_state") is not None
 
-    async def test_reconnect_phase_observation_does_not_write_desired_state(
-        self,
-    ) -> None:
-        """Technique: Decision Table — ADR-008 reconnect phase shields intent."""
+    async def test_reconnect_phase_with_no_restore_runs_return_path(self) -> None:
+        """Technique: Decision Table — ADR-008 reconnect phase runs the return
+        path (cap-bjw9.8) instead of a plain steady-phase observation write.
+
+        Default config (``restore_previous_state=False``) with no pending
+        command takes branch 3 of the three-way rule: the bulb's own report
+        becomes the new desired state, overwriting what was seeded, and the
+        phase settles back to steady within this same tick.
+        """
         adapter = FakeWizBulbAdapter()
         state = SharedState()
         state.phase["office"] = "reconnect"
@@ -199,8 +209,11 @@ class TestSuccessfulPoll:
 
         await _tick(ctx, _config(), adapter, state, store=store)
 
-        # Unchanged: still the seeded record, not an overwrite from the poll.
-        assert store.get("desired_state") == desired_state_to_dict(_DESIRED_ON)
+        stored = store.get("desired_state")
+        assert stored is not None
+        assert stored["state"] == "OFF"
+        assert stored["writer"] == "observation"
+        assert state.phase["office"] == "steady"
 
     async def test_first_tick_with_no_stored_intent_starts_steady(self) -> None:
         """Technique: State Transition — no record ⇒ steady (cap-bjw9.5 AC)."""
@@ -213,8 +226,12 @@ class TestSuccessfulPoll:
 
         assert state.phase["office"] == "steady"
 
-    async def test_first_tick_with_stored_intent_starts_reconnect(self) -> None:
-        """Technique: State Transition — a stored intent ⇒ reconnect (cap-bjw9.5 AC).
+    async def test_first_tick_with_stored_intent_runs_return_path_to_steady(
+        self,
+    ) -> None:
+        """Technique: State Transition — a stored intent ⇒ reconnect, then the
+        ADR-008 return path (cap-bjw9.8) runs synchronously within the same
+        first tick and settles the phase back to steady.
 
         Simulates a restart: fresh ``SharedState`` (no phase yet), a store
         already carrying a desired-state record.
@@ -226,7 +243,7 @@ class TestSuccessfulPoll:
 
         await _tick(ctx, _config(), adapter, state, store=store)
 
-        assert state.phase["office"] == "reconnect"
+        assert state.phase["office"] == "steady"
 
     async def test_command_during_poll_keeps_newer_desired_state(self) -> None:
         """Technique: State Transition — command wins a racing observation."""
@@ -278,6 +295,228 @@ class TestSuccessfulPoll:
 
         assert state.desired_state["office"].state == "ON"
         assert state.desired_state["office"].appearance.brightness == 200
+
+
+_DESIRED_OFF = DesiredState(
+    state="OFF",
+    appearance=Appearance(
+        brightness=150,
+        hue=10.0,
+        saturation=50.0,
+        color_temp_kelvin=None,
+        scene=None,
+        speed=None,
+    ),
+    writer="observation",
+    written_at=1000.0,
+)
+
+
+class TestReturnPath:
+    """cap-bjw9.8 — ADR-008's return-to-reachability path, run once per return
+    from ``bulb_entity_tick``'s success branch when the phase is reconnect.
+
+    Every test below arranges ``state.phase["office"] = "reconnect"`` directly
+    rather than going through a boot event, since AC8 already proves the boot
+    callback never runs this logic itself — these tests isolate what a tick
+    does once the phase says reconnect.
+    """
+
+    async def test_pending_command_applies_regardless_of_restore_setting(
+        self,
+    ) -> None:
+        """Technique: Decision Table — branch 1 always wins, restore or not."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        enqueue(
+            state.pending_commands,
+            "office",
+            {
+                "state": True,
+                "brightness": 200,
+                "hue": None,
+                "saturation": None,
+                "color_temp_kelvin": None,
+                "scene": None,
+                "speed": None,
+            },
+            time.time(),
+        )
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=False), adapter, state, store=store
+        )
+
+        assert adapter.set_state_calls == [
+            (
+                _IP,
+                {
+                    "state": True,
+                    "brightness": 200,
+                    "hue": None,
+                    "saturation": None,
+                    "color_temp_kelvin": None,
+                    "scene": None,
+                    "speed": None,
+                },
+            )
+        ]
+        assert state.phase["office"] == "steady"
+        assert ctx.published == []
+
+    async def test_no_pending_command_with_restore_enabled_applies_stored_intent(
+        self,
+    ) -> None:
+        """Technique: Decision Table — branch 2, restore enabled, no pending."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert adapter.set_state_calls == [
+            (
+                _IP,
+                {
+                    "state": True,
+                    "brightness": 100,
+                    "hue": None,
+                    "saturation": None,
+                    "color_temp_kelvin": None,
+                    "scene": None,
+                    "speed": None,
+                },
+            )
+        ]
+        assert state.phase["office"] == "steady"
+        assert ctx.published == []
+
+    async def test_no_pending_no_restore_accepts_report_as_new_desired_state(
+        self,
+    ) -> None:
+        """Technique: Decision Table — branch 3, the fallthrough default."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=False), adapter, state, store=store
+        )
+
+        assert adapter.set_state_calls == []
+        stored = store.get("desired_state")
+        assert stored is not None
+        assert stored["state"] == "OFF"
+        assert stored["writer"] == "observation"
+        assert state.phase["office"] == "steady"
+
+    async def test_desired_off_sends_single_call_without_appearance(self) -> None:
+        """Technique: Boundary Value Analysis — OFF strips appearance kwargs."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store({"desired_state": desired_state_to_dict(_DESIRED_OFF)})
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert adapter.set_state_calls == [
+            (
+                _IP,
+                {
+                    "state": False,
+                    "brightness": None,
+                    "hue": None,
+                    "saturation": None,
+                    "color_temp_kelvin": None,
+                    "scene": None,
+                    "speed": None,
+                },
+            )
+        ]
+
+    async def test_desired_on_sends_single_call_with_appearance(self) -> None:
+        """Technique: Boundary Value Analysis — ON carries state + appearance
+        in one call."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert len(adapter.set_state_calls) == 1
+        ip, kwargs = adapter.set_state_calls[0]
+        assert ip == _IP
+        assert kwargs["state"] is True
+        assert kwargs["brightness"] == 100
+
+    async def test_two_refused_writes_then_third_succeeds_no_error(self) -> None:
+        """Technique: Boundary Value Analysis — exactly at the 3-attempt
+        ceiling, succeeding on the last one."""
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 2)
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert len(adapter.set_state_calls) == 3
+        assert ctx.published == []
+        assert state.phase["office"] == "steady"
+
+    async def test_three_refused_writes_publishes_error_and_hands_back_authority(
+        self,
+    ) -> None:
+        """Technique: Boundary Value Analysis — exhausts all 3 attempts."""
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert len(adapter.set_state_calls) == 3
+        assert len(ctx.published) == 1
+        channel, payload = ctx.published[0]
+        assert channel == "error"
+        body = json.loads(payload)
+        assert body["attempts"] == 3
+        assert "state" in body
+        assert state.phase["office"] == "steady"
+        # Authority hands back to the lamp: desired state now matches its
+        # (unchanged, since every write was refused) actual report.
+        assert state.desired_state["office"].state == "OFF"
+
+    async def test_boot_callback_alone_never_triggers_writes_or_publish(
+        self,
+    ) -> None:
+        """Technique: Specification-based — the return path never runs from
+        the push callback, only from the next entity tick."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+
+        await _tick(ctx, _config(), adapter, state)
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert adapter.set_state_calls == []
+        assert ctx.published == []
 
 
 class TestFailureDebounce:

@@ -45,6 +45,9 @@ class FakeDeviceContext:
     published_state: list[dict[str, object]] = field(default_factory=list)
     availability_calls: list[str] = field(default_factory=list)
     """Sequence of ``"available"``/``"unavailable"`` markers, in call order."""
+    published: list[tuple[str, str]] = field(default_factory=list)
+    """``(channel, payload)`` pairs recorded by :meth:`publish` — e.g. the
+    ADR-008 return-path error published to the ``"error"`` sub-channel."""
     settings: Wiz2MqttSettings = field(default_factory=_default_settings)
     """Backs ``ctx.settings`` — override to exercise power-source resolution."""
 
@@ -53,6 +56,12 @@ class FakeDeviceContext:
     ) -> None:  # noqa: ARG002 — retain unused, mirrors DeviceContext signature
         """Record a publish_state call."""
         self.published_state.append(payload)
+
+    async def publish(
+        self, channel: str, payload: str, *, retain: bool = False, qos: int = 1
+    ) -> None:  # noqa: ARG002 — retain/qos unused, mirrors DeviceContext signature
+        """Record a publish to an arbitrary sub-channel."""
+        self.published.append((channel, payload))
 
     async def mark_unavailable(self) -> None:
         """Record an unavailable marker."""

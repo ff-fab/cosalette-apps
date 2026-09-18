@@ -516,6 +516,10 @@ class WizBulbAdapter:
             msg = f"pywizlight error sending command to bulb {ip}: {exc}"
             raise WizBridgeError(msg) from exc
 
+    def invalidate_cache(self, ip: str) -> None:
+        """Discard the cached state for *ip*, forcing a fresh poll on the next read."""
+        self._state_cache.pop(ip, None)
+
     def set_unreachable(self, ip: str, unreachable: bool) -> None:
         """Force *ip* unreachable for testing (ADR-008); no live-hardware effect.
 
