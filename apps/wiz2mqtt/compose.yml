@@ -20,6 +20,9 @@ services:
       # Broker terminates plaintext MQTT; see monorepo
       # ../../docs/adr/ADR-006-mqtt-transport-security-posture.md.
       WIZ2MQTT_MQTT__TLS: ${WIZ2MQTT_MQTT__TLS:-false}
+      # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+      # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+      WIZ2MQTT_MQTT__PROTOCOL_VERSION: ${WIZ2MQTT_MQTT__PROTOCOL_VERSION:-5}
       WIZ2MQTT_STORE_PATH: /app/data/store.json
     depends_on:
       - mosquitto

@@ -115,3 +115,27 @@ Evidence: all three ship the same `mosquitto.conf` and `eclipse-mosquitto:2` as 
 - jeelink2mqtt, suncast and velux2mqtt republish every retained topic with an unchanged payload every 8 hours, which a consumer that triggers on message receipt sees as a duplicate.
 - A velux2mqtt calibration result that is not copied into the cover configuration is lost within 24 hours of a restart.
 - The real-broker check for these three apps drove the cosalette `MqttClient` directly against `eclipse-mosquitto:2`; CI still exercises the broker double, not a broker.
+
+## Amendment (2026-09-18) — Additive
+
+**Rationale:** cap-pnjx.9, .10 and .11 apply the same posture to vito2mqtt, wallpanel-control and wiz2mqtt, the last three apps of the epic. wallpanel-control differs from every earlier app: its state topics exist only after a command, so the record needs the consequence for a restart.
+
+### Additional Sub-Decision: Extension to vito2mqtt, wallpanel-control and wiz2mqtt
+
+Declare MQTT 5 per deployment for vito2mqtt, wallpanel-control and wiz2mqtt (cap-pnjx.9, .10, .11) exactly as for the first six apps: the code default stays MQTT 3.1.1, and each shipped `compose.yml` and `.env.example` defaults `<PREFIX>_MQTT__PROTOCOL_VERSION` to `5` for the bundled mosquitto 2 broker. The cross-app test `test_mqtt5_expiry_defaults.py` and a per-app `test_mqtt5_expiry.py` built on `mqtt5_broker` and `mqtt5_contract` guard the declaration and the wire behaviour. With these three, all nine apps of the epic follow this posture.
+
+Evidence: all three ship the same `mosquitto.conf` and `eclipse-mosquitto:2` as the first six apps. Against that image (mosquitto 2.1.2), run once per app with that app's own `mosquitto.conf`, a retained MQTT 5 message with a 3 s expiry that nothing refreshed was gone after 8 s, a topic published through the real cosalette `MqttClient` with the same expiry was still retained, and an MQTT 3.1.1 client connected and retained normally on the same listener. In the tested wiring the apps publish 41 (vito2mqtt), 9 (wallpanel-control, after one display command and one system action) and 12 (wiz2mqtt, one bulb and one power source) retained topics, far below the ledger limits of 1 000 topics and 16 MiB; wiz2mqtt adds five or fewer per bulb. None of the three sets `force_update` on its Home Assistant entities, so a repeat does not change an entity state. The shared broker double gains `deliver`, which queues an inbound message, so a test can send a command through the real client.
+
+### Additional Sub-Decision: Consumer-visible differences of the three apps
+
+**vito2mqtt:** every group publishes with `OnChange()`, so a stable group was silent for hours and now repeats once per refresh, while an expired retained topic would otherwise have been lost after 24 h of stable values. The refresh also keeps the group topics alive across a long stable period. A repeat never drives the boiler: vito2mqtt writes only on the `{group}/set` topics, which are neither retained nor refreshed. After a restart every group publishes again at startup.
+
+**wallpanel-control:** `display/state` and `system/action/state` are published only as the answer to a command; nothing polls the panel. The refresh replays the last answer while the process runs, and it never re-reads the panel. After a restart nothing refreshes the old answers, so they expire within 24 h and a subscriber that connects later gets no state until the next command. A deployment that needs the Home Assistant light to keep its last known state across restarts sets `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1`; this is the one place where the posture removes state that MQTT 3.1.1 kept. A repeat of `system/action/state` never runs an action, because the app acts only on the `/set` topics.
+
+**wiz2mqtt:** bulb and power source state use `OnChange()` and push wakes, so the refresh is a real repeat. A repeat never moves a bulb: wiz2mqtt sends to a bulb only on the `set` topics, and it restores the desired state when a bulb returns to reachability, not on an MQTT message. The desired state and the capability cache live in the store file, so expiry never touches them. The power source `signal_topic` is reserved and unsubscribed; when it is subscribed, the relay that owns it publishes it, so it stays outside the ledger.
+
+### Additional Negative Consequences
+
+- vito2mqtt, wallpanel-control and wiz2mqtt republish every retained topic with an unchanged payload every 8 hours, which a consumer that triggers on message receipt sees as a duplicate.
+- After a restart, wallpanel-control's display and system action answers expire within 24 hours unless a command replaces them, so a subscriber that connects later has no state.
+- The real-broker check for these three apps drove the cosalette `MqttClient` directly against `eclipse-mosquitto:2`; CI still exercises the broker double, not a broker.

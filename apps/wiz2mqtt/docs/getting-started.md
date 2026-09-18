@@ -49,6 +49,15 @@ If your broker requires TLS, opt in explicitly:
 export WIZ2MQTT_MQTT__TLS=true
 ```
 
+The shipped `compose.yml` connects with MQTT 5 so that retained topics expire when
+nothing refreshes them. For a broker without MQTT 5, set:
+
+```bash
+export WIZ2MQTT_MQTT__PROTOCOL_VERSION=3.1.1
+```
+
+See [MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry).
+
 ## 3. Start the bridge
 
 From the repo root:

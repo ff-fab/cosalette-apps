@@ -29,6 +29,8 @@ you need.
 | TLS CA file  | `WALLPANEL_CONTROL_MQTT__TLS_CA_FILE`   | --                  | CA bundle for broker certificate verification |
 | TLS cert     | `WALLPANEL_CONTROL_MQTT__TLS_CERT_FILE` | --                  | Client certificate for mutual TLS |
 | TLS key      | `WALLPANEL_CONTROL_MQTT__TLS_KEY_FILE`  | --                  | Client private key for mutual TLS |
+| Protocol version | `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
+| Message expiry | `WALLPANEL_CONTROL_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
 
 !!! tip "Secure broker connections"
     Set `WALLPANEL_CONTROL_MQTT__TLS=true` when connecting to a broker outside
@@ -51,6 +53,49 @@ you need.
 
     This is a [pydantic-settings convention](https://docs.pydantic.dev/latest/concepts/pydantic_settings/#parsing-environment-variable-values)
     for nested models.
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects wallpanel-control with MQTT 5. Every retained message
+it publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours): the display and system action state, availability, Home
+Assistant discovery, `status`, `_meta/*` and the last will. While wallpanel-control
+runs, it re-publishes each retained topic every third of that interval (default 8
+hours), so the topics stay alive. A topic that nothing refreshes any more, such as a
+stopped process, disappears from the broker by itself.
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, wallpanel-control
+  logs `does the broker support MQTT 5?` and retries the connection. Set
+  `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish.
+- **State lives only as long as the last command.** `display/state` and
+  `system/action/state` are published only as the answer to a command, never on a timer.
+  wallpanel-control refreshes the last answer while it runs. After a restart nothing
+  refreshes it, so it expires within the expiry interval and a subscriber that connects
+  later gets no state until the next command. A stopped process also lets the answers
+  expire after the same interval. Use `3.1.1` if the Home Assistant light must keep
+  showing its last known state across restarts.
+- **Consumers see one repeat per refresh.** The repeat has the same payload as the last
+  publish, and the broker forwards it to live subscribers without the retain flag, so it
+  looks like a normal message. The repeat is not a new reading: it does not read the
+  panel again. An automation that triggers on receipt of `system/action/state` runs once
+  more per refresh; trigger on the command instead.
+- **A repeat never runs an action.** wallpanel-control acts only on the `display/set`
+  and `system/action/set` topics, which are never retained and never refreshed.
+- **A long outage lets topics expire.** If wallpanel-control is down or disconnected for
+  longer than the expiry interval, the broker drops its retained topics until the next
+  publish.
 
 ### Logging
 

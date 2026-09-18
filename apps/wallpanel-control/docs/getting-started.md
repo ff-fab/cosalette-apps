@@ -77,6 +77,9 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
         environment:
           WALLPANEL_CONTROL_MQTT__HOST: mosquitto
           WALLPANEL_CONTROL_MQTT__TLS: ${WALLPANEL_CONTROL_MQTT__TLS:-false}
+          # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+          # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+          WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION: ${WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION:-5}
           WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
           WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
         volumes:

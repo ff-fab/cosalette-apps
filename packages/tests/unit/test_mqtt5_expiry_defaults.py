@@ -33,6 +33,9 @@ _MQTT5_APP_DIRS = {
     "jeelink2mqtt",
     "suncast",
     "velux2mqtt",
+    "vito2mqtt",
+    "wallpanel-control",
+    "wiz2mqtt",
 }
 _SPECS = [
     pytest.param(spec.values[0], id=spec.id)
