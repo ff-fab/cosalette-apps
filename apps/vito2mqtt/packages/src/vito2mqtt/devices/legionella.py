@@ -39,7 +39,7 @@ from datetime import datetime, time, timedelta
 from cosalette import DeviceContext, DeviceStore
 
 from vito2mqtt.config import Vito2MqttSettings
-from vito2mqtt.optolink.codec import CycleTimeSchedule
+from vito2mqtt.optolink.codec import CycleTimePair, CycleTimeSchedule
 from vito2mqtt.ports import OptolinkPort
 
 logger = logging.getLogger(__name__)
@@ -102,45 +102,61 @@ def is_within_heating_window(
     if safety_margin_minutes < 0:
         msg = f"safety_margin_minutes must be non-negative, got {safety_margin_minutes}"
         raise ValueError(msg)
-    for pair in schedule:
-        start_slot, end_slot = pair
+    return any(_slot_matches(pair, now, safety_margin_minutes) for pair in schedule)
 
-        # Skip inactive ("not set") slots
-        if None in start_slot or None in end_slot:
-            continue
 
-        # At this point all values are confirmed int — narrow for mypy
-        start_h: int = start_slot[0]  # type: ignore
-        start_m: int = start_slot[1]  # type: ignore
-        end_h: int = end_slot[0]  # type: ignore
-        end_m: int = end_slot[1]  # type: ignore
+def _slot_matches(pair: CycleTimePair, now: time, safety_margin_minutes: int) -> bool:
+    """Whether *now* lies in the slot, with the safety margin still remaining."""
+    start_slot, end_slot = pair
 
-        slot_start = time(start_h, start_m)
+    # Skip inactive ("not set") slots
+    if None in start_slot or None in end_slot:
+        return False
 
-        # Compute the effective end by subtracting the safety margin.
-        # We use timedelta arithmetic through a datetime anchor to avoid
-        # negative-time edge cases.
-        _anchor = timedelta(hours=end_h, minutes=end_m)
-        _margin = timedelta(minutes=safety_margin_minutes)
-        effective_end_td = _anchor - _margin
+    # At this point all values are confirmed int — narrow for mypy
+    start_h: int = start_slot[0]  # type: ignore
+    start_m: int = start_slot[1]  # type: ignore
+    end_h: int = end_slot[0]  # type: ignore
+    end_m: int = end_slot[1]  # type: ignore
 
-        # If the margin exceeds the end time the effective end wraps
-        # negative — no useful window remains.
-        if effective_end_td.total_seconds() < 0:
-            continue
+    # Compute the effective end by subtracting the safety margin.
+    # We use timedelta arithmetic through a datetime anchor to avoid
+    # negative-time edge cases.
+    effective_end_td = timedelta(hours=end_h, minutes=end_m) - timedelta(
+        minutes=safety_margin_minutes
+    )
 
-        total_seconds = int(effective_end_td.total_seconds())
-        effective_end = time(total_seconds // 3600, (total_seconds % 3600) // 60)
+    # If the margin exceeds the end time the effective end wraps
+    # negative — no useful window remains.
+    if effective_end_td.total_seconds() < 0:
+        return False
 
-        if slot_start <= now < effective_end:
-            return True
-
-    return False
+    total_seconds = int(effective_end_td.total_seconds())
+    effective_end = time(total_seconds // 3600, (total_seconds % 3600) // 60)
+    return time(start_h, start_m) <= now < effective_end
 
 
 # ---------------------------------------------------------------------------
 # Async device state machine
 # ---------------------------------------------------------------------------
+
+
+async def _recover_interrupted_treatment(
+    ctx: DeviceContext, store: DeviceStore, port: OptolinkPort
+) -> None:
+    """Restore the original setpoint if a previous run died mid-treatment."""
+    if not store.get(_STORE_KEY_ACTIVE):
+        return
+    original = store.get(_STORE_KEY_ORIGINAL_SETPOINT)
+    logger.info(
+        "Recovering from interrupted treatment — restoring setpoint to %s",
+        original,
+    )
+    if original is not None:
+        await port.write_signal(LEGIONELLA_SETPOINT_SIGNAL, original)
+    store.update({_STORE_KEY_ACTIVE: False, _STORE_KEY_ORIGINAL_SETPOINT: None})
+    store.save()
+    await ctx.publish_state({"status": "recovered", "original_setpoint": original})
 
 
 async def legionella_device(
@@ -172,18 +188,7 @@ async def legionella_device(
 
     # -- Command handling (replaces queue + callback) ----------------------
 
-    # -- Startup recovery ---------------------------------------------------
-    if store.get(_STORE_KEY_ACTIVE):
-        original = store.get(_STORE_KEY_ORIGINAL_SETPOINT)
-        logger.info(
-            "Recovering from interrupted treatment — restoring setpoint to %s",
-            original,
-        )
-        if original is not None:
-            await port.write_signal(LEGIONELLA_SETPOINT_SIGNAL, original)
-        store.update({_STORE_KEY_ACTIVE: False, _STORE_KEY_ORIGINAL_SETPOINT: None})
-        store.save()
-        await ctx.publish_state({"status": "recovered", "original_setpoint": original})
+    await _recover_interrupted_treatment(ctx, store, port)
 
     # -- Publish initial idle state -----------------------------------------
     await ctx.publish_state({"status": "idle"})

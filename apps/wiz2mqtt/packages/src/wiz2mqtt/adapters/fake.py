@@ -12,28 +12,17 @@ event-driven publication rather than falling back to the heartbeat.
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from types import TracebackType
-from typing import Annotated, Self, TypedDict
+from typing import Annotated, Self
 
 from cosalette import EntityNotifier, Optional
 
+from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import WizTimeoutError
-from wiz2mqtt.models import BulbCapabilities, BulbState
+from wiz2mqtt.models import EMPTY_BULB_STATE, BulbCapabilities, BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
-
-
-class SetStateKwargs(TypedDict, total=False):
-    """The keyword arguments a ``set_state`` call was made with."""
-
-    state: bool | None
-    brightness: int | None
-    hue: float | None
-    saturation: float | None
-    color_temp_kelvin: int | None
-    scene: int | None
-    speed: int | None
-
 
 _DEFAULT_CAPABILITIES = BulbCapabilities(
     bulb_class="RGB",
@@ -45,16 +34,7 @@ _DEFAULT_CAPABILITIES = BulbCapabilities(
     kelvin_max=6500,
 )
 
-_DEFAULT_STATE = BulbState(
-    state=False,
-    brightness=None,
-    hue=None,
-    saturation=None,
-    color_temp_kelvin=None,
-    scene=None,
-    effect_speed=None,
-    power_draw_w=None,
-)
+_DEFAULT_STATE = dataclasses.replace(EMPTY_BULB_STATE, state=False)
 
 
 class FakeWizBulbAdapter:
@@ -137,20 +117,16 @@ class FakeWizBulbAdapter:
         confirmed value still reads back via ``get_state`` after the write,
         which ``refuse_writes`` below deliberately leaves stale on a refusal).
         """
-        self.set_state_calls.append(
-            (
-                ip,
-                SetStateKwargs(
-                    state=state,
-                    brightness=brightness,
-                    hue=hue,
-                    saturation=saturation,
-                    color_temp_kelvin=color_temp_kelvin,
-                    scene=scene,
-                    speed=speed,
-                ),
-            )
+        kwargs = SetStateKwargs(
+            state=state,
+            brightness=brightness,
+            hue=hue,
+            saturation=saturation,
+            color_temp_kelvin=color_temp_kelvin,
+            scene=scene,
+            speed=speed,
         )
+        self.set_state_calls.append((ip, kwargs))
         self._raise_if_unreachable(ip)
         self._raise_if_primed(ip)
 
@@ -160,18 +136,7 @@ class FakeWizBulbAdapter:
             return  # succeeds on the wire; cached state deliberately unchanged
 
         current = self._state.setdefault(ip, _DEFAULT_STATE)
-        if state is False:
-            self._state[ip] = current.apply_command(state=False)
-        else:
-            self._state[ip] = current.apply_command(
-                state=state,
-                brightness=brightness,
-                hue=hue,
-                saturation=saturation,
-                color_temp_kelvin=color_temp_kelvin,
-                scene=scene,
-                effect_speed=speed,
-            )
+        self._state[ip] = current.apply_set_state(kwargs)
 
     async def health_check(self) -> bool:
         """Always healthy — the fake has no connection to break."""

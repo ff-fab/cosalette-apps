@@ -412,6 +412,33 @@ class TestApplyCommand:
         assert updated.brightness == 100
 
 
+class TestApplySetState:
+    """apply_set_state merges a ``set_state`` call's kwargs (speed -> effect_speed)."""
+
+    def test_off_merges_only_the_state_field(self) -> None:
+        """Technique: Specification-based — turn_off() carries no appearance."""
+        current = _state(state=True, brightness=200)
+
+        updated = current.apply_set_state({"state": False, "brightness": 50})
+
+        assert updated.state is False
+        assert updated.brightness == 200
+
+    def test_speed_maps_onto_effect_speed(self) -> None:
+        updated = _state(state=True).apply_set_state({"speed": 120, "brightness": 90})
+
+        assert updated.effect_speed == 120
+        assert updated.brightness == 90
+
+    def test_none_values_leave_fields_untouched(self) -> None:
+        """Technique: Equivalence Partitioning — unset kwargs are the None class."""
+        current = _state(state=True, brightness=200)
+
+        updated = current.apply_set_state({"state": None, "brightness": None})
+
+        assert updated == current
+
+
 # ---------------------------------------------------------------------------
 # Home Assistant discovery metadata
 # ---------------------------------------------------------------------------

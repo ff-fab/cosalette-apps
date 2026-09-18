@@ -61,27 +61,8 @@ def apply_north_rotation(azimuth: float, north_rotation: float) -> float:
     return (azimuth - north_rotation) % 360
 
 
-def compute_shadow_polygon(
-    vertices: list[tuple[float, float]],
-    sun_azimuth: float,
-    sun_elevation: float,
-    canvas_size: int,
-) -> tuple[Polygon, Polygon]:
-    """Compute the shadow polygon for a building footprint via silhouette detection.
-
-    Uses angle extrema from a distant sun reference point to identify the
-    silhouette edges of the polygon. Projects the silhouette boundary vertices
-    outward to form the shadow polygon.
-
-    Returns a tuple of (shadow_polygon, sun_facing_edges).
-    """
-    empty: tuple[Polygon, Polygon] = ((), ())
-    if sun_elevation <= 0 or sun_elevation >= 90:
-        return empty
-    if len(vertices) < 3:
-        return empty
-
-    pts = [Point(vx, vy) for vx, vy in vertices]
+def _silhouette_extremes(pts: list[Point], sun_azimuth: float) -> tuple[int, int]:
+    """Indices of the min- and max-angle vertices seen from a distant sun."""
     n = len(pts)
 
     # 1. Project the sun to a distant reference point along the sun azimuth.
@@ -100,34 +81,50 @@ def compute_shadow_polygon(
     # 3. Find min-angle and max-angle vertex indices (silhouette extremes).
     min_idx = min(range(n), key=lambda i: angles[i])
     max_idx = max(range(n), key=lambda i: angles[i])
+    return min_idx, max_idx
+
+
+def _trace_chain(pts: list[Point], start: int, end: int) -> list[Point] | None:
+    """Vertices walked forward from *start* to *end*; ``None`` if unreachable."""
+    n = len(pts)
+    chain: list[Point] = []
+    idx = start
+    for _ in range(n + 2):
+        chain.append(pts[idx])
+        if idx == end:
+            return chain
+        idx = (idx + 1) % n
+    return None
+
+
+def compute_shadow_polygon(
+    vertices: list[tuple[float, float]],
+    sun_azimuth: float,
+    sun_elevation: float,
+    canvas_size: int,
+) -> tuple[Polygon, Polygon]:
+    """Compute the shadow polygon for a building footprint via silhouette detection.
+
+    Uses angle extrema from a distant sun reference point to identify the
+    silhouette edges of the polygon. Projects the silhouette boundary vertices
+    outward to form the shadow polygon.
+
+    Returns a tuple of (shadow_polygon, sun_facing_edges).
+    """
+    empty: tuple[Polygon, Polygon] = ((), ())
+    if sun_elevation <= 0 or sun_elevation >= 90 or len(vertices) < 3:
+        return empty
+
+    pts = [Point(vx, vy) for vx, vy in vertices]
+    min_idx, max_idx = _silhouette_extremes(pts, sun_azimuth)
 
     # 4. Trace forward from min-angle vertex to max-angle vertex → side1 (sun-facing).
-    side1: list[Point] = []
-    idx = min_idx
-    max_iterations = n + 1
-    iterations = 0
-    while True:
-        side1.append(pts[idx])
-        if idx == max_idx:
-            break
-        idx = (idx + 1) % n
-        iterations += 1
-        if iterations > max_iterations:
-            return empty
-
     # 5. Continue from max-angle vertex back to min-angle vertex → side2
     #    (shadow-casting).
-    side2: list[Point] = []
-    idx = max_idx
-    iterations = 0
-    while True:
-        side2.append(pts[idx])
-        if idx == min_idx:
-            break
-        idx = (idx + 1) % n
-        iterations += 1
-        if iterations > max_iterations:
-            return empty
+    side1 = _trace_chain(pts, min_idx, max_idx)
+    side2 = _trace_chain(pts, max_idx, min_idx)
+    if side1 is None or side2 is None:
+        return empty
 
     # 6. Project silhouette vertices using parallel projection.
     # All shadow edges share the same direction vector (opposite sun azimuth),

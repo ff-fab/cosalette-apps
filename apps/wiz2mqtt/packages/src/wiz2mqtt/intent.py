@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
-from wiz2mqtt.models import BulbState
+from wiz2mqtt.models import EMPTY_BULB_STATE, BulbState
 
 if TYPE_CHECKING:
     from cosalette import DeviceStore
@@ -148,6 +148,37 @@ def _optional_finite_number(value: object, field: str) -> float | None:
     return None if value is None else _require_finite_number(value, field)
 
 
+def _optional_int(value: object, field: str) -> int | None:
+    """*value* as an int, or ``None`` when it is ``None``."""
+    return None if value is None else _require_int(value, field)
+
+
+def _appearance_from_dict(raw: Any) -> Appearance:
+    """Validate and rebuild the stored appearance sub-record."""
+    if not isinstance(raw, dict):
+        raise TypeError("appearance must be a dict")
+    if set(raw) != set(_APPEARANCE_FIELDS):
+        raise ValueError("appearance has an invalid shape")
+
+    brightness = _optional_int(raw["brightness"], "appearance.brightness")
+    if brightness is not None and not 1 <= brightness <= 255:
+        raise ValueError("appearance.brightness must be between 1 and 255")
+    color_temp_kelvin = _optional_int(
+        raw["color_temp_kelvin"], "appearance.color_temp_kelvin"
+    )
+    if color_temp_kelvin is not None and color_temp_kelvin <= 0:
+        raise ValueError("appearance.color_temp_kelvin must be positive")
+
+    return Appearance(
+        brightness=brightness,
+        hue=_optional_finite_number(raw["hue"], "appearance.hue"),
+        saturation=_optional_finite_number(raw["saturation"], "appearance.saturation"),
+        color_temp_kelvin=color_temp_kelvin,
+        scene=_optional_int(raw["scene"], "appearance.scene"),
+        speed=_optional_int(raw["speed"], "appearance.speed"),
+    )
+
+
 def desired_state_from_dict(raw: dict[Any, Any]) -> DesiredState:
     """Rebuild a desired state from a stored dict.
 
@@ -160,46 +191,9 @@ def desired_state_from_dict(raw: dict[Any, Any]) -> DesiredState:
     writer = raw["writer"]
     if writer not in ("observation", "command"):
         raise ValueError("writer must be observation or command")
-    appearance_raw = raw["appearance"]
-    if not isinstance(appearance_raw, dict):
-        raise TypeError("appearance must be a dict")
-    if set(appearance_raw) != set(_APPEARANCE_FIELDS):
-        raise ValueError("appearance has an invalid shape")
-
-    brightness = appearance_raw["brightness"]
-    if brightness is not None:
-        brightness = _require_int(brightness, "appearance.brightness")
-        if not 1 <= brightness <= 255:
-            raise ValueError("appearance.brightness must be between 1 and 255")
-    color_temp_kelvin = appearance_raw["color_temp_kelvin"]
-    if color_temp_kelvin is not None:
-        color_temp_kelvin = _require_int(
-            color_temp_kelvin, "appearance.color_temp_kelvin"
-        )
-        if color_temp_kelvin <= 0:
-            raise ValueError("appearance.color_temp_kelvin must be positive")
-
-    appearance = Appearance(
-        brightness=brightness,
-        hue=_optional_finite_number(appearance_raw["hue"], "appearance.hue"),
-        saturation=_optional_finite_number(
-            appearance_raw["saturation"], "appearance.saturation"
-        ),
-        color_temp_kelvin=color_temp_kelvin,
-        scene=(
-            None
-            if appearance_raw["scene"] is None
-            else _require_int(appearance_raw["scene"], "appearance.scene")
-        ),
-        speed=(
-            None
-            if appearance_raw["speed"] is None
-            else _require_int(appearance_raw["speed"], "appearance.speed")
-        ),
-    )
     return DesiredState(
         state=cast(Literal["ON", "OFF"], stored_state),
-        appearance=appearance,
+        appearance=_appearance_from_dict(raw["appearance"]),
         writer=cast(Literal["observation", "command"], writer),
         written_at=_require_finite_number(raw["written_at"], "written_at"),
     )
@@ -298,7 +292,7 @@ def record_command(
         state.desired_state_generation.get(name, 0) + 1
     )
     current = resolve_desired_state(state, store, name)
-    base = current.as_bulb_state() if current is not None else _EMPTY_BULB_STATE
+    base = current.as_bulb_state() if current is not None else EMPTY_BULB_STATE
     merged = base.apply_command(
         state=kwargs.get("state"),
         brightness=kwargs.get("brightness"),
@@ -318,18 +312,6 @@ def record_command(
     if store is not None:
         _save(store, desired)
     return desired
-
-
-_EMPTY_BULB_STATE = BulbState(
-    state=None,
-    brightness=None,
-    hue=None,
-    saturation=None,
-    color_temp_kelvin=None,
-    scene=None,
-    effect_speed=None,
-    power_draw_w=None,
-)
 
 
 # ---------------------------------------------------------------------------

@@ -87,6 +87,33 @@ def _parse_polygon_points(points_attr: str) -> list[tuple[float, float]]:
     return [(nums[i], nums[i + 1]) for i in range(0, len(nums) - 1, 2)]
 
 
+def _flush_path_command(
+    cmd: str, nums: list[float], cx: float, cy: float
+) -> tuple[list[tuple[float, float]], float, float]:
+    """Vertices for one path command's accumulated numbers, and the new point.
+
+    ``M``/``L`` (and lowercase relative forms) consume coordinate pairs, ``H``
+    and ``V`` single values; ``Z`` and anything else yield no vertices.
+    """
+    vertices: list[tuple[float, float]] = []
+    if cmd in ("M", "m", "L", "l"):
+        for i in range(0, len(nums) - 1, 2):
+            if cmd.islower():
+                cx, cy = cx + nums[i], cy + nums[i + 1]
+            else:
+                cx, cy = nums[i], nums[i + 1]
+            vertices.append((cx, cy))
+    elif cmd in ("H", "h"):
+        for value in nums:
+            cx = cx + value if cmd == "h" else value
+            vertices.append((cx, cy))
+    elif cmd in ("V", "v"):
+        for value in nums:
+            cy = cy + value if cmd == "v" else value
+            vertices.append((cx, cy))
+    return vertices, cx, cy
+
+
 def _parse_path_d(d_attr: str) -> list[tuple[float, float]] | None:
     """Parse an SVG path 'd' attribute supporting only straight-line commands.
 
@@ -94,76 +121,25 @@ def _parse_path_d(d_attr: str) -> list[tuple[float, float]] | None:
     found (the caller should skip the element).
     """
     # Reject early if any curve command is present.
-    for ch in d_attr:
-        if ch in _CURVE_COMMANDS:
-            return None
-
-    tokens = _PATH_TOKEN_RE.findall(d_attr)
+    if _CURVE_COMMANDS.intersection(d_attr):
+        return None
 
     vertices: list[tuple[float, float]] = []
     cx, cy = 0.0, 0.0  # current point
     cmd = ""
-
     nums: list[float] = []
 
-    def _flush() -> None:
-        """Process accumulated numbers for the current command."""
-        nonlocal cx, cy
-
-        if not cmd or cmd in ("Z", "z"):
-            return
-
-        i = 0
-        while i < len(nums):
-            if cmd in ("M", "m", "L", "l") and i + 1 >= len(nums):
-                break
-            if cmd == "M":
-                cx, cy = nums[i], nums[i + 1]
-                vertices.append((cx, cy))
-                i += 2
-            elif cmd == "m":
-                cx += nums[i]
-                cy += nums[i + 1]
-                vertices.append((cx, cy))
-                i += 2
-            elif cmd == "L":
-                cx, cy = nums[i], nums[i + 1]
-                vertices.append((cx, cy))
-                i += 2
-            elif cmd == "l":
-                cx += nums[i]
-                cy += nums[i + 1]
-                vertices.append((cx, cy))
-                i += 2
-            elif cmd == "H":
-                cx = nums[i]
-                vertices.append((cx, cy))
-                i += 1
-            elif cmd == "h":
-                cx += nums[i]
-                vertices.append((cx, cy))
-                i += 1
-            elif cmd == "V":
-                cy = nums[i]
-                vertices.append((cx, cy))
-                i += 1
-            elif cmd == "v":
-                cy += nums[i]
-                vertices.append((cx, cy))
-                i += 1
-            else:
-                break  # safety — should not happen
-
-    for cmd_match, num_match in tokens:
+    for cmd_match, num_match in _PATH_TOKEN_RE.findall(d_attr):
         if cmd_match:
-            _flush()
+            flushed, cx, cy = _flush_path_command(cmd, nums, cx, cy)
+            vertices.extend(flushed)
             nums = []
             cmd = cmd_match
         elif num_match:
             nums.append(float(num_match))
 
-    _flush()
-
+    flushed, cx, cy = _flush_path_command(cmd, nums, cx, cy)
+    vertices.extend(flushed)
     return vertices
 
 
@@ -250,6 +226,57 @@ def _load_sidecar(path: Path | None) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
+def _parse_svg_file(svg_path: Path) -> ET.Element:
+    """Parse *svg_path* and return its root element."""
+    if not svg_path.exists():
+        msg = f"SVG file not found: {svg_path}"
+        raise FileNotFoundError(msg)
+    try:
+        tree = ET.parse(svg_path)  # noqa: S314 — trusted local files only
+    except ET.ParseError as e:
+        msg = f"Invalid SVG file '{svg_path}': {e}"
+        raise ValueError(msg) from e
+    return tree.getroot()
+
+
+def _unique_shape_elements(root: ET.Element) -> list[ET.Element]:
+    """Polygon and path elements of *root*, each listed once."""
+    elements: list[ET.Element] = []
+    elements.extend(root.iter(f"{{{_NS_SVG}}}polygon"))
+    elements.extend(root.iter("polygon"))
+    elements.extend(root.iter(f"{{{_NS_SVG}}}path"))
+    elements.extend(root.iter("path"))
+
+    # Deduplicate (an element may match both namespaced and bare queries).
+    seen_ids: set[int] = set()
+    unique_elements: list[ET.Element] = []
+    for el in elements:
+        if id(el) not in seen_ids:
+            seen_ids.add(id(el))
+            unique_elements.append(el)
+    return unique_elements
+
+
+def _element_vertices(el: ET.Element, name: str) -> list[tuple[float, float]] | None:
+    """Vertices of a polygon or straight-line path, or ``None`` if unusable."""
+    tag_local = el.tag.split("}")[-1] if "}" in el.tag else el.tag
+    if tag_local == "polygon":
+        points = el.get("points", "")
+        return _parse_polygon_points(points) if points else None
+    if tag_local == "path":
+        d = el.get("d", "")
+        if not d:
+            return None
+        verts = _parse_path_d(d)
+        if verts is None:
+            logger.warning(
+                "Skipping path '%s': contains unsupported curve commands",
+                name,
+            )
+        return verts
+    return None
+
+
 def load_svg_geometry(
     svg_path: Path,
     sidecar_path: Path | None = None,
@@ -268,16 +295,7 @@ def load_svg_geometry(
         FileNotFoundError: If *svg_path* does not exist.
         ValueError: If the SVG contains no usable shapes or validation fails.
     """
-    if not svg_path.exists():
-        msg = f"SVG file not found: {svg_path}"
-        raise FileNotFoundError(msg)
-
-    try:
-        tree = ET.parse(svg_path)  # noqa: S314 — trusted local files only
-    except ET.ParseError as e:
-        msg = f"Invalid SVG file '{svg_path}': {e}"
-        raise ValueError(msg) from e
-    root = tree.getroot()
+    root = _parse_svg_file(svg_path)
 
     sidecar = _load_sidecar(sidecar_path)
     shape_roles: dict[str, dict[str, Any]] = sidecar.get("shape_roles") or {}
@@ -294,72 +312,30 @@ def load_svg_geometry(
     # Extract shapes ---------------------------------------------------
     buildings: list[BuildingConfig] = []
     highlights: list[HighlightedRegion] = []
-    shape_counter = 1
 
-    elements: list[ET.Element] = []
-    elements.extend(root.iter(f"{{{_NS_SVG}}}polygon"))
-    elements.extend(root.iter("polygon"))
-    elements.extend(root.iter(f"{{{_NS_SVG}}}path"))
-    elements.extend(root.iter("path"))
-
-    # Deduplicate (an element may match both namespaced and bare queries).
-    seen_ids: set[int] = set()
-    unique_elements: list[ET.Element] = []
-    for el in elements:
-        eid = id(el)
-        if eid not in seen_ids:
-            seen_ids.add(eid)
-            unique_elements.append(el)
-
-    for el in unique_elements:
-        tag_local = el.tag.split("}")[-1] if "}" in el.tag else el.tag
-        name = _shape_name(el, shape_counter)
-
-        # Parse vertices depending on element type.
-        verts: list[tuple[float, float]] | None = None
-        if tag_local == "polygon":
-            points = el.get("points", "")
-            verts = _parse_polygon_points(points) if points else None
-        elif tag_local == "path":
-            d = el.get("d", "")
-            if d:
-                verts = _parse_path_d(d)
-                if verts is None:
-                    logger.warning(
-                        "Skipping path '%s': contains unsupported curve commands",
-                        name,
-                    )
-                    shape_counter += 1
-                    continue
-
+    for counter, el in enumerate(_unique_shape_elements(root), start=1):
+        name = _shape_name(el, counter)
+        verts = _element_vertices(el, name)
         if not verts or len(verts) < 3:
-            shape_counter += 1
             continue
-
         verts = _transform_vertices(verts, viewbox, canvas_size)
 
         # Determine role from sidecar.
         role = shape_roles.get(name, {})
-        is_highlighted = role.get("highlighted", False)
-
-        if is_highlighted:
+        if role.get("highlighted", False):
             color = str(role.get("color", "#ffff00"))
             highlights.append(
                 HighlightedRegion(name=name, vertices=verts, color=color),
             )
         else:
-            casts_shadow = bool(role.get("casts_shadow", True))
-            style = role.get("style", "default")
             buildings.append(
                 BuildingConfig(
                     name=name,
                     vertices=verts,
-                    casts_shadow=casts_shadow,
-                    style=style,
+                    casts_shadow=bool(role.get("casts_shadow", True)),
+                    style=role.get("style", "default"),
                 ),
             )
-
-        shape_counter += 1
 
     if not buildings:
         msg = (

@@ -163,6 +163,33 @@ def _validate_payload(raw: str, group: str) -> dict[str, Any]:
     return data
 
 
+async def _read_current_values(
+    port: OptolinkPort, data: dict[str, Any]
+) -> dict[str, object]:
+    """Batch-read current values for comparison (READ_WRITE signals only)."""
+    readable_names = [
+        n for n in data if COMMANDS[n].access_mode == AccessMode.READ_WRITE
+    ]
+    return await port.read_signals(readable_names) if readable_names else {}
+
+
+def _changed_writes(
+    data: dict[str, Any], current_values: dict[str, object], force: bool
+) -> dict[str, Any]:
+    """Deserialize *data*, dropping values that already match the device."""
+    writes: dict[str, Any] = {}
+    for name, value in data.items():
+        type_code = COMMANDS[name].type_code
+        if (
+            not force
+            and name in current_values
+            and serialize_value(current_values[name], type_code) == value
+        ):
+            continue  # Skip write — value unchanged
+        writes[name] = deserialize_value(value, type_code)
+    return writes
+
+
 def make_command_handler(
     group: str,
 ) -> Callable[..., Awaitable[None]]:
@@ -186,26 +213,8 @@ def make_command_handler(
         if not data:
             return None
 
-        # Batch-read current values for comparison (READ_WRITE signals only)
-        current_values: dict[str, object] = {}
-        if not force:
-            readable_names = [
-                n for n in data if COMMANDS[n].access_mode == AccessMode.READ_WRITE
-            ]
-            if readable_names:
-                current_values = await port.read_signals(readable_names)
-
-        writes: dict[str, Any] = {}
-        for name, value in data.items():
-            type_code = COMMANDS[name].type_code
-            deserialized = deserialize_value(value, type_code)
-
-            if not force and name in current_values:
-                current_serialized = serialize_value(current_values[name], type_code)
-                if current_serialized == value:
-                    continue  # Skip write — value unchanged
-
-            writes[name] = deserialized
+        current_values = {} if force else await _read_current_values(port, data)
+        writes = _changed_writes(data, current_values, force)
 
         if writes:
             # Batch all writes into a single serial session — avoids

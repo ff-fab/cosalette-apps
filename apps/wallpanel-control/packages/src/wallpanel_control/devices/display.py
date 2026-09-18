@@ -223,51 +223,67 @@ async def _execute_display_command(
         DisplayState after executing the command, or unavailable if unreachable.
     """
     try:
-        if cmd.state == "off":
-            await wallpanel.screen_off()
-            return await _poll_display_state(wallpanel, state)
-
-        # From here: state is "on" or None; brightness_percent may be set.
-        if cmd.state == "on":
-            await wallpanel.screen_on()
-            if cmd.brightness_percent is None:
-                # Turn on only — read current brightness; skip redundant screen read.
-                pct = await _read_brightness_percent(wallpanel, state)
-                if pct is None:
-                    return _UNAVAILABLE
-                return DisplayState(available=True, state="on", brightness_percent=pct)
-
-        # brightness_percent is set (state="on"+bp or bp-only).
-        if cmd.state is None:
-            # brightness-only: turn screen on if it is currently off
-            screen_state = await wallpanel.get_screen_state()
-            if screen_state is None:
-                return _UNAVAILABLE
-            if not screen_state:
-                await wallpanel.screen_on()
-
-        brightness_percent = cmd.brightness_percent
-        if brightness_percent is None:
-            raise ValueError("brightness_percent must be set for brightness commands")
-        if state.max_brightness is None:
-            state.max_brightness = await wallpanel.get_max_brightness()
-        if state.max_brightness == 0:
-            logger.warning(
-                "Wallpanel max_brightness is 0; brightness command suppressed"
-            )
-            return _UNAVAILABLE
-
-        raw = round(state.max_brightness * brightness_percent / 100)
-        await wallpanel.set_brightness(raw)
-        # Compute output brightness from raw and cached max — no read-back needed.
-        brightness_pct = round(raw / state.max_brightness * 100)
-        return DisplayState(
-            available=True, state="on", brightness_percent=brightness_pct
-        )
-
+        return await _apply_display_command(cmd, wallpanel, state)
     except WallpanelUnreachableError:
         logger.warning("Wallpanel unreachable during display command")
         return _UNAVAILABLE
+
+
+async def _apply_display_command(
+    cmd: DisplayCommand,
+    wallpanel: WallpanelPort,
+    state: _DisplayHandlerState,
+) -> DisplayState:
+    """Run *cmd*; ``WallpanelUnreachableError`` propagates to the caller."""
+    if cmd.state == "off":
+        await wallpanel.screen_off()
+        return await _poll_display_state(wallpanel, state)
+
+    # From here: state is "on" or None; brightness_percent may be set.
+    if cmd.state == "on":
+        await wallpanel.screen_on()
+        if cmd.brightness_percent is None:
+            # Turn on only — read current brightness; skip redundant screen read.
+            pct = await _read_brightness_percent(wallpanel, state)
+            if pct is None:
+                return _UNAVAILABLE
+            return DisplayState(available=True, state="on", brightness_percent=pct)
+
+    # brightness_percent is set (state="on"+bp or bp-only).
+    if cmd.state is None and not await _ensure_screen_on(wallpanel):
+        return _UNAVAILABLE
+    return await _set_brightness_percent(cmd.brightness_percent, wallpanel, state)
+
+
+async def _ensure_screen_on(wallpanel: WallpanelPort) -> bool:
+    """Turn the screen on if it is off; ``False`` if its state is unreadable."""
+    screen_state = await wallpanel.get_screen_state()
+    if screen_state is None:
+        return False
+    if not screen_state:
+        await wallpanel.screen_on()
+    return True
+
+
+async def _set_brightness_percent(
+    brightness_percent: int | None,
+    wallpanel: WallpanelPort,
+    state: _DisplayHandlerState,
+) -> DisplayState:
+    """Write *brightness_percent* scaled to the panel's raw range."""
+    if brightness_percent is None:
+        raise ValueError("brightness_percent must be set for brightness commands")
+    if state.max_brightness is None:
+        state.max_brightness = await wallpanel.get_max_brightness()
+    if state.max_brightness == 0:
+        logger.warning("Wallpanel max_brightness is 0; brightness command suppressed")
+        return _UNAVAILABLE
+
+    raw = round(state.max_brightness * brightness_percent / 100)
+    await wallpanel.set_brightness(raw)
+    # Compute output brightness from raw and cached max — no read-back needed.
+    brightness_pct = round(raw / state.max_brightness * 100)
+    return DisplayState(available=True, state="on", brightness_percent=brightness_pct)
 
 
 @router.command(

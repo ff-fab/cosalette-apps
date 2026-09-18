@@ -97,6 +97,21 @@ or "land it".
 - Every line should earn its place — remove dead code, redundant comments, unnecessary
   indirection.
 
+## Boy Scout Rule: Fix Bugs You Find
+
+Leave the code better than you found it. When a task turns up an existing bug (a failing
+gate, a broken task, a defect in code you read), **fix it in the same task and the same
+PR.** Do not merely report it.
+
+- **Too complex for the task?** File it as a bug in beads (`bd create`) with the
+  reproduction, then say so in the PR description. "Too complex" means a separate design
+  decision, a risky behaviour change, or work that would bury the main diff. It does not
+  mean "unrelated to the task".
+- **Never close a task with an "oh, by the way" note** that lists problems you saw and
+  left alone. Every finding ends as a fix or a beads issue, never as a remark.
+- Keep the fix visible: a separate commit or a clearly labelled section of the PR
+  description, so the reviewer can tell it apart from the main change.
+
 ## Library & API Documentation
 
 This project has **Context7 MCP** configured. When you need documentation for any
