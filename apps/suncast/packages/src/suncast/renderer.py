@@ -215,6 +215,7 @@ def _hour_bar(
     inner_radius: float,
     outer_radius: float,
 ) -> str:
+    """A radial bar at the given hour, between *inner_radius* and *outer_radius*."""
     azimuth = frame.rotate(frame.sun.hourly_azimuths[hour_index])
     inner = degrees_to_cartesian(azimuth, inner_radius, frame.center)
     outer = degrees_to_cartesian(azimuth, outer_radius, frame.center)

@@ -149,6 +149,7 @@ def _optional_finite_number(value: object, field: str) -> float | None:
 
 
 def _optional_int(value: object, field: str) -> int | None:
+    """*value* as an int, or ``None`` when it is ``None``."""
     return None if value is None else _require_int(value, field)
 
 

@@ -371,8 +371,6 @@ async def _execute_step(
     if target == tracker.position_int and not step.is_recalibration:
         return  # Already at target
 
-    opening = target > current
-    pin = cover_cfg.pin_up if opening else cover_cfg.pin_down
     travel_time = _travel_time(cover_cfg, tracker, current, target)
 
     started = await _start_move(
@@ -383,7 +381,6 @@ async def _execute_step(
         tracker=tracker,
         step=step,
         logger=logger,
-        pin=pin,
         travel_time=travel_time,
     )
     if not started:
@@ -440,7 +437,6 @@ async def _start_move(
     tracker: PositionTracker,
     step: MoveStep,
     logger: logging.Logger,
-    pin: int,
     travel_time: float,
 ) -> bool:
     """Press the direction button and start the tracker.
@@ -452,6 +448,7 @@ async def _start_move(
     current = tracker.position
     target = step.target
     opening = target > current
+    pin = cover_cfg.pin_up if opening else cover_cfg.pin_down
     db_time = _dead_band_time(cover_cfg, "up")
 
     if opening and tracker.position_int == 0 and db_time > 0:

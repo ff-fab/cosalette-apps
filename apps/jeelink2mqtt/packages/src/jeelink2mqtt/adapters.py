@@ -146,8 +146,8 @@ class PyLaCrosseAdapter:
             msg = "Async infrastructure not ready — call open() first"
             raise RuntimeError(msg)
 
-        _wrapper = self._make_scan_callback(self._framework_callback)
-        self._lacrosse.register_all(_wrapper)
+        callback = self._make_scan_callback(self._framework_callback)
+        self._lacrosse.register_all(callback)
         self._lacrosse.start_scan()
 
     def _make_scan_callback(
