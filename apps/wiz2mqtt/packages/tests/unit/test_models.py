@@ -614,7 +614,9 @@ class TestPowerSourceStateModel:
         entities = extra["x-cosalette-ha-discovery"]["entities"]
         belief = next(e for e in entities if e["name"] == "powered")
 
-        template = jinja2.Template(belief["extra"]["value_template"])
+        template = jinja2.Environment(autoescape=True).from_string(
+            belief["extra"]["value_template"]
+        )
 
         assert template.render(value_json={"powered": powered}) == rendered
 
