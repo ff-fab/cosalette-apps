@@ -109,6 +109,9 @@ class FakeWizBulbAdapter:
         self._raise_if_primed(ip)
         return self._state.setdefault(ip, _DEFAULT_STATE)
 
+    def invalidate_cache(self, ip: str) -> None:  # noqa: ARG002
+        """No-op -- the fake stores authoritative state, not an optimistic cache."""
+
     async def set_state(
         self,
         ip: str,

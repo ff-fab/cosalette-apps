@@ -20,9 +20,10 @@ import cosalette
 from cosalette import DeviceStore, EntityNotifier, Optional
 
 from wiz2mqtt import intent, power
+from wiz2mqtt.colour import clamp_kelvin
 from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import WizBridgeError, WizIdentityError
-from wiz2mqtt.models import BulbState
+from wiz2mqtt.models import BulbCapabilities, BulbState
 from wiz2mqtt.payload import build_state_payload
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
@@ -115,13 +116,28 @@ async def bulb_entity_tick(
             state.last_availability[name] = "offline"
         return _desired_state_payload(state, store, name, belief)
 
+    was_unreachable = state.bulb_answered.get(name) is False
     state.consecutive_failures[name] = 0
     state.bulb_answered[name] = True
     await _mark_online_once(ctx, state, name)
+    # Arm reconnect on slow polling recovery: the boot callback handles the
+    # fast path, but a successful read after the failure threshold (without a
+    # boot event) also needs to run the return path when a desired state exists.
+    if (
+        was_unreachable
+        and state.phase.get(name) == "steady"
+        and intent.resolve_desired_state(state, store, name) is not None
+    ):
+        state.phase[name] = "reconnect"
     if state.phase.get(name, "steady") == "reconnect":
-        return await _run_return_path(
-            ctx, config, port, state, store, settings, notify, name, bulb_state
-        )
+        try:
+            return await _run_return_path(
+                ctx, config, port, state, store, settings, notify, name, bulb_state
+            )
+        except WizBridgeError:
+            state.phase[name] = "steady"
+            belief = _recompute_and_notify(settings, state, notify, name)
+            return build_state_payload(bulb_state, belief)
     if state.desired_state_generation.get(name, 0) == observation_generation:
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
@@ -191,13 +207,15 @@ async def _run_return_path(
     observed state becomes the new desired state), and the phase still
     settles to steady — ADR-008 does not retry a return path across ticks.
 
-    cap-sxul is fixed (mode-aware colour-mode clearing in
-    ``BulbState.apply_command``), so the read-back here reads through the
-    same optimistic cache ``get_state`` always uses rather than bypassing
-    it: a successful write's merge is now trustworthy, and a refused write
-    (production ``refuse_writes``/the fake's mirror) already skips the
-    merge and leaves the cache at its prior value, which is exactly the
-    mismatch this retry loop needs to see.
+    The write-and-verify loop invalidates the adapter's cache before each
+    read-back so the comparison is always against an authoritative poll,
+    never the optimistic merge ``set_state`` applied. Transport errors
+    during the loop count as failed attempts; on exhaustion the fallback
+    (the state that triggered this return) is used for the error publish.
+
+    If a new pending command arrived during the loop (a command enqueued
+    while the bulb was being written to), the phase stays ``"reconnect"``
+    so the next tick processes it instead of settling to steady.
     """
     now = time.time()
     kwargs = intent.pop_valid(
@@ -212,7 +230,9 @@ async def _run_return_path(
         observed = bulb_state
         intent.record_observation(state, store, name, observed, now)
     else:
-        observed, attempts, confirmed = await _write_and_verify(port, config.ip, kwargs)
+        observed, attempts, confirmed = await _write_and_verify(
+            port, config.ip, kwargs, bulb_state
+        )
         if not confirmed:
             logger.warning(
                 "Bulb %s: return-path restore unconfirmed after %d attempts; "
@@ -228,44 +248,70 @@ async def _run_return_path(
             )
             intent.record_observation(state, store, name, observed, now)
 
-    state.phase[name] = "steady"
+    if name not in state.pending_commands:
+        state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return build_state_payload(observed, belief)
 
 
 async def _write_and_verify(
-    port: WizBulbPort, ip: str, kwargs: SetStateKwargs
+    port: WizBulbPort, ip: str, kwargs: SetStateKwargs, fallback: BulbState
 ) -> tuple[BulbState, int, bool]:
     """Write *kwargs*, read back, retry until it matches or attempts run out.
 
     Returns the last-observed state, the attempt count used (1-3), and
-    whether that last read-back confirmed the write.
+    whether that last read-back confirmed the write. Transport errors
+    (``WizBridgeError``) count as failed attempts; on exhaustion the
+    *fallback* state is returned so the caller's error handler has
+    something to publish.  The adapter's cache is invalidated before each
+    read-back so the comparison sees an authoritative poll, not the
+    optimistic merge ``set_state`` applied.
     """
+    caps = await port.get_capabilities(ip)
+    last_observed = fallback
     for attempt in range(1, _MAX_WRITE_ATTEMPTS + 1):
-        await port.set_state(ip, **kwargs)
-        observed = await port.get_state(ip)
-        confirmed = _kwargs_match_observed(kwargs, observed)
+        try:
+            await port.set_state(ip, **kwargs)
+            port.invalidate_cache(ip)
+            observed = await port.get_state(ip)
+        except WizBridgeError:
+            if attempt == _MAX_WRITE_ATTEMPTS:
+                return last_observed, attempt, False
+            continue
+        last_observed = observed
+        confirmed = _kwargs_match_observed(kwargs, observed, caps)
         if confirmed or attempt == _MAX_WRITE_ATTEMPTS:
             return observed, attempt, confirmed
     raise AssertionError("unreachable: _MAX_WRITE_ATTEMPTS >= 1")
 
 
-def _kwargs_match_observed(kwargs: SetStateKwargs, observed: BulbState) -> bool:
+def _kwargs_match_observed(
+    kwargs: SetStateKwargs,
+    observed: BulbState,
+    caps: BulbCapabilities | None = None,
+) -> bool:
     """Whether *observed* confirms the write *kwargs* described.
 
     Desired OFF only checks the on/off bit, since no appearance was sent.
     Desired ON checks on/off plus every appearance field the write actually
     carried — a field the caller left ``None`` (a partial pending command
-    that never touched it) is not checked. Hue/saturation tolerate the RGB
-    round-trip rounding :mod:`wiz2mqtt.colour` documents.
+    that never touched it) is not checked. Hue uses circular distance
+    (0..360 wraps), and colour temperature is clamped to the bulb's range
+    before comparison, matching the adapter's own clamping in ``set_state``.
     """
     if kwargs.get("state") is False:
         return observed.state is False
     if kwargs.get("state") is True and observed.state is not True:
         return False
-    for field in ("brightness", "color_temp_kelvin", "scene"):
+    for field in ("brightness", "scene"):
         expected = kwargs.get(field)
         if expected is not None and getattr(observed, field) != expected:
+            return False
+    expected_ct = kwargs.get("color_temp_kelvin")
+    if expected_ct is not None:
+        if caps is not None:
+            expected_ct = clamp_kelvin(expected_ct, caps)
+        if observed.color_temp_kelvin != expected_ct:
             return False
     speed = kwargs.get("speed")
     if speed is not None and observed.effect_speed != speed:

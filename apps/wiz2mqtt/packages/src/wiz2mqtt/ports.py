@@ -51,6 +51,16 @@ class WizBulbPort(HealthCheckable, Protocol):
         """
         ...
 
+    def invalidate_cache(self, ip: str) -> None:
+        """Discard any cached state for *ip*, forcing the next ``get_state``
+        to perform an authoritative read.
+
+        Called by the return-path's write-and-verify loop so each
+        read-back reflects the bulb's real state, not the optimistic merge
+        ``set_state`` applied (ADR-008 review fix).
+        """
+        ...
+
     async def set_state(
         self,
         ip: str,
