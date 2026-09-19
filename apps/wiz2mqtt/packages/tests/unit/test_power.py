@@ -131,6 +131,23 @@ class TestBeliefForBulb:
 
         assert belief_for_bulb(settings, state, "desk") == "off"
 
+    def test_stale_answer_does_not_outrank_a_newer_off_signal(self) -> None:
+        """Technique: Decision Table — rule 1 counts only answers after the signal."""
+        settings = Wiz2MqttSettings(
+            bulbs=[{"name": "desk", "ip": "10.0.0.1"}],
+            power_sources=[{"name": "p", "members": ["desk"]}],
+            **_UNCONFIGURED,
+        )
+        state = SharedState()
+        state.bulb_answered["desk"] = True
+        record_signal(settings, state, "p", "off")
+
+        assert belief_for_bulb(settings, state, "desk") == "off"
+
+        state.stale_answers.discard("desk")  # the next read answers
+
+        assert belief_for_bulb(settings, state, "desk") == "on"
+
 
 class TestSourcePayload:
     """The retained ``wiz2mqtt/{source}/state`` payload (ADR-007 amendment)."""
@@ -255,27 +272,59 @@ class TestSourceForSignalTopic:
 class TestRecordSignal:
     """The stored signal changes only when the new one differs."""
 
+    @staticmethod
+    def _settings() -> Wiz2MqttSettings:
+        return build_settings(
+            [
+                {"name": "a", "ip": "10.0.0.1"},
+                {"name": "b", "ip": "10.0.0.2"},
+                {"name": "c", "ip": "10.0.0.3"},
+            ],
+            [{"name": "up", "members": ["a", "b"]}, {"name": "down", "members": ["c"]}],
+        )
+
     def test_first_signal_is_stored_as_a_change(self) -> None:
         """Technique: State Transition — no signal to on."""
         state = SharedState()
 
-        assert record_signal(state, "up", "on") is True
+        assert record_signal(self._settings(), state, "up", "on") is True
         assert state.source_signal == {"up": "on"}
 
     def test_repeated_signal_is_not_a_change(self) -> None:
         """Technique: State Transition — on to on."""
+        settings = self._settings()
         state = SharedState()
-        record_signal(state, "up", "on")
+        record_signal(settings, state, "up", "on")
 
-        assert record_signal(state, "up", "on") is False
+        assert record_signal(settings, state, "up", "on") is False
 
     def test_opposite_signal_replaces_the_stored_one(self) -> None:
         """Technique: State Transition — on to off."""
+        settings = self._settings()
         state = SharedState()
-        record_signal(state, "up", "on")
+        record_signal(settings, state, "up", "on")
 
-        assert record_signal(state, "up", "off") is True
+        assert record_signal(settings, state, "up", "off") is True
         assert state.source_signal == {"up": "off"}
+
+    def test_change_makes_the_answers_of_its_own_members_stale(self) -> None:
+        """Technique: Specification-based — ADR-007 amendment 2026-09-19."""
+        state = SharedState()
+
+        record_signal(self._settings(), state, "up", "off")
+
+        assert state.stale_answers == {"a", "b"}
+
+    def test_repeat_does_not_make_a_newer_answer_stale(self) -> None:
+        """Technique: State Transition — off to off is no new information."""
+        settings = self._settings()
+        state = SharedState()
+        record_signal(settings, state, "up", "off")
+        state.stale_answers.discard("a")  # "a" answered after the signal
+
+        record_signal(settings, state, "up", "off")
+
+        assert state.stale_answers == {"b"}
 
 
 def test_signal_wake_targets_lists_the_source_then_its_sorted_bulbs() -> None:

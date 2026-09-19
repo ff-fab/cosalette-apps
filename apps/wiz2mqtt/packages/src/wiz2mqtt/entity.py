@@ -102,6 +102,11 @@ async def bulb_entity_tick(
         await _mark_online_once(ctx, state, name)
         return _desired_state_payload(state, store, name, belief)
 
+    # A push cached before the last signal change is not an answer after it
+    # (ADR-007 amendment 2026-09-19): only a poll of the bulb itself clears
+    # the stale mark.
+    if name in state.stale_answers:
+        port.invalidate_cache(config.ip)
     observation_generation = state.desired_state_generation.get(name, 0)
     try:
         bulb_state = await port.get_state(config.ip)
@@ -124,7 +129,11 @@ async def _handle_read_failure(
     exc: WizBridgeError,
 ) -> dict[str, object] | None:
     """Advance the failure count and settle availability after a failed read."""
-    failures = min(state.consecutive_failures.get(name, 0) + 1, _FAILURE_THRESHOLD)
+    failures = (
+        _FAILURE_THRESHOLD
+        if _signal_decides_off(settings, state, name)
+        else min(state.consecutive_failures.get(name, 0) + 1, _FAILURE_THRESHOLD)
+    )
     state.consecutive_failures[name] = failures
     if failures >= _FAILURE_THRESHOLD:
         state.bulb_answered[name] = False
@@ -159,6 +168,7 @@ async def _handle_read_success(
     was_unreachable = state.bulb_answered.get(name) is False
     state.consecutive_failures[name] = 0
     state.bulb_answered[name] = True
+    state.stale_answers.discard(name)
     await _mark_online_once(ctx, state, name)
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a
@@ -184,6 +194,23 @@ async def _handle_read_success(
     return build_state_payload(bulb_state, belief)
 
 
+def _signal_decides_off(
+    settings: Wiz2MqttSettings, state: SharedState, name: str
+) -> bool:
+    """Whether a relay signal ``off`` currently decides *name*'s belief.
+
+    Then a failed read is firm evidence and counts as the full threshold
+    (ADR-007 amendment 2026-09-19): the circuit is reported dark and no
+    member answered since, so there is no transient timeout to debounce.
+    """
+    source = settings.power_source_of(name)
+    return (
+        source is not None
+        and state.source_signal.get(source.name) == "off"
+        and power.belief_for_source(settings, state, source) == "off"
+    )
+
+
 def _should_skip_read(
     state: SharedState, name: str, belief: power.Belief | None
 ) -> bool:
@@ -194,7 +221,8 @@ def _should_skip_read(
     the threshold", so a single transient timeout on a live bulb (which
     already yields the tie-break belief ``"off"`` on a ``no_power`` source,
     see ``power.compute_belief``) does not latch the bulb dark: it keeps
-    being read until the evidence is firm.
+    being read until the evidence is firm. A signal ``off`` makes the first
+    failure firm (see ``_signal_decides_off``).
 
     The "reconnect" phase bypasses the skip too — set by the boot callback
     (``_make_boot_handler``) reacting to the bulb's own firstBeat broadcast,

@@ -64,6 +64,11 @@ class SharedState:
     """Whether the most recent poll/push for a bulb succeeded — the raw
     evidence :mod:`wiz2mqtt.power` aggregates into a source's belief."""
 
+    stale_answers: set[str] = field(default_factory=set)
+    """Bulbs whose last answer came before the last change of their source's
+    signal (ADR-007 amendment 2026-09-19). Rule 1 of the belief ignores such
+    an answer; the bulb's next successful read removes it again."""
+
     pending_commands: dict[str, PendingCommand] = field(default_factory=dict)
     """At most one queued command per bulb, set while the bulb cannot be
     reached (ADR-008 feature D); the newest command replaces the older one."""

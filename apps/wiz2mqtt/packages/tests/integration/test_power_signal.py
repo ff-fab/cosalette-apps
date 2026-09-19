@@ -39,7 +39,7 @@ from .conftest import (
 SIGNAL_TOPIC = "openhab/relay/downstairs/state"
 SOURCE_STATE_TOPIC = f"{TOPIC_PREFIX}/downstairs/state"
 BULB_STATE_TOPIC = f"{TOPIC_PREFIX}/office/state"
-_FAILED_READS_TO_LOSE_EVIDENCE = 3
+_TICKS_AFTER_THE_SIGNAL = 3
 _TICK = 0.01
 
 
@@ -89,13 +89,19 @@ async def _run_with_signals(
         await asyncio.gather(task, return_exceptions=True)
 
 
-async def _signal_while_bulb_answers_then_silent(
-    harness: AppHarness, fake_adapter: FakeWizBulbAdapter
-) -> None:
-    """Deliver ``off`` while the bulb answers, then let the bulb go silent.
+async def _signal_off_after_an_answer(
+    harness: AppHarness,
+    fake_adapter: FakeWizBulbAdapter,
+    *,
+    bulb_keeps_answering: bool,
+    expect_source_publishes: int,
+) -> int:
+    """Deliver ``off`` after the bulb answered, with no heartbeat tick after it.
 
-    A bulb only loses its ``answered`` mark after the third failed read, so
-    three ticks run before the signal decides the belief.
+    The signal arms the source and its bulb at once (ADR-007 amendment
+    2026-09-19), so the clock stays still until the expected publishes
+    arrive: each of them comes from the signal, not from a scheduled read.
+    Return the count of reads in the heartbeat ticks after that.
     """
     fake_adapter.inject_push(
         "10.0.0.5",
@@ -113,16 +119,20 @@ async def _signal_while_bulb_answers_then_silent(
         await wait_until_subscribed(harness, SIGNAL_TOPIC)
         await harness.advance_time(0)
         await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 1)
+        fake_adapter.always_fail = not bulb_keeps_answering
         await harness.mqtt.deliver(SIGNAL_TOPIC, "off")
-        fake_adapter.always_fail = True
-        for _ in range(_FAILED_READS_TO_LOSE_EVIDENCE):
+        await harness.wait_for_publish_count(
+            SOURCE_STATE_TOPIC, expect_source_publishes
+        )
+        reads = fake_adapter.get_state_call_count
+        for _ in range(_TICKS_AFTER_THE_SIGNAL):
             await harness.advance_time(_TICK)
-        await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 2)
     finally:
         harness.shutdown_event.set()
         if not task.done():
             task.cancel()
         await asyncio.gather(task, return_exceptions=True)
+    return fake_adapter.get_state_call_count - reads
 
 
 def _powered_values(
@@ -173,20 +183,35 @@ class TestPowerSignalInbound:
 
         assert _powered_values(harness) == ["unknown", "on"]
 
-    async def test_answering_bulb_outranks_an_off_signal(
+    async def test_off_signal_newer_than_the_last_answer_decides_at_once(
         self, fake_adapter: FakeWizBulbAdapter
     ) -> None:
-        """Technique: Decision Table — rule 1, evidence outranks the signal.
+        """Technique: Decision Table — rule 2 over a stale answer (cap-hfro).
 
-        While the bulb answers, the ``off`` signal changes nothing. When the
-        bulb then goes silent, the stored signal decides. That second step
-        proves the signal was delivered and kept.
+        The bulb answered before the signal and fails the one read that the
+        signal arms. The belief goes ``off`` with no heartbeat tick, and the
+        failed read is firm, so the later ticks skip the read.
         """
         harness = _harness(fake_adapter)
 
-        await _signal_while_bulb_answers_then_silent(harness, fake_adapter)
+        reads = await _signal_off_after_an_answer(
+            harness, fake_adapter, bulb_keeps_answering=False, expect_source_publishes=2
+        )
 
         assert _powered_values(harness) == ["on", "off"]
+        assert reads == 0
+
+    async def test_answer_after_an_off_signal_outranks_it(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Decision Table — rule 1, newer evidence outranks the signal."""
+        harness = _harness(fake_adapter)
+
+        await _signal_off_after_an_answer(
+            harness, fake_adapter, bulb_keeps_answering=True, expect_source_publishes=3
+        )
+
+        assert _powered_values(harness) == ["on", "off", "on"]
 
     @pytest.mark.parametrize("payload", ["ON", "true", "1", "", '{"state": "on"}'])
     async def test_invalid_payload_leaves_the_belief_unchanged(
@@ -211,7 +236,9 @@ class TestPowerSignalInbound:
         """Technique: Specification-based — the signal also decides the bulb payload."""
         harness = _harness(fake_adapter)
 
-        await _signal_while_bulb_answers_then_silent(harness, fake_adapter)
+        await _signal_off_after_an_answer(
+            harness, fake_adapter, bulb_keeps_answering=False, expect_source_publishes=2
+        )
 
         assert _powered_values(harness, BULB_STATE_TOPIC) == [True, False]
 

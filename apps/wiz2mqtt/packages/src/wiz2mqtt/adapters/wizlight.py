@@ -115,6 +115,8 @@ class WizBulbAdapter:
         # whose registration failed (cap-4rbg).
         self._push_retry_at: dict[str, float] = {}
         self._warned_stale: set[str] = set()
+        # ips whose next get_state must go to the wire (invalidate_cache).
+        self._authoritative_next: set[str] = set()
         # Test-support controls mirroring FakeWizBulbAdapter (ADR-008,
         # cap-bjw9.2) — no live-hardware effect, just protocol conformance.
         self._forced_unreachable: set[str] = set()
@@ -341,13 +343,38 @@ class WizBulbAdapter:
         bulb = await self._get_bulb(ip)
         await self._maybe_retry_push_registration(ip, bulb)
         now = time.monotonic()
-        if ip not in self._state_cache or (
+        if ip in self._authoritative_next:
+            await self._poll_authoritatively(ip, bulb)
+        elif ip not in self._state_cache or (
             (now - bulb.last_push) > self._push_staleness_threshold
         ):
             await self._poll_state(ip)
         return self._state_cache[ip]
 
-    async def _poll_state(self, ip: str) -> None:
+    async def _poll_authoritatively(self, ip: str, bulb: Any) -> None:
+        """Poll *ip* on the wire, even while pywizlight holds a fresh push.
+
+        ``updateState()`` answers from its own parser until ``last_push`` is
+        older than ``MAX_TIME_BETWEEN_PUSH`` (33 s), and that parser can
+        predate the caller's reason to distrust it: a write to read back, or
+        a relay signal newer than the last answer (ADR-007 amendment
+        2026-09-19). Aging ``last_push`` opens that gate for this one call; a
+        push that lands during the poll keeps its own stamp. The mark stays
+        until a poll succeeds, so a failed poll cannot fall back to the
+        pre-invalidation parser on the next read.
+        """
+        from pywizlight.bulb import NEVER_TIME  # noqa: PLC0415 — lazy import by design
+
+        last_push = bulb.last_push
+        bulb.last_push = NEVER_TIME
+        try:
+            await self._poll_state(ip, warn_if_silent=False)
+        finally:
+            if bulb.last_push == NEVER_TIME:
+                bulb.last_push = last_push
+        self._authoritative_next.discard(ip)
+
+    async def _poll_state(self, ip: str, *, warn_if_silent: bool = True) -> None:
         from pywizlight.exceptions import (  # noqa: PLC0415 — lazy import by design
             WizLightConnectionError,
             WizLightError,
@@ -372,7 +399,8 @@ class WizBulbAdapter:
         # the initial cache-seeding poll is normal, not a health failure.
         registered_at = self._push_registered_at.get(ip)
         if (
-            registered_at is not None
+            warn_if_silent
+            and registered_at is not None
             and (time.monotonic() - registered_at) > self._push_staleness_threshold
             and ip not in self._warned_stale
         ):
@@ -481,8 +509,13 @@ class WizBulbAdapter:
                 await bulb.turn_on(pilot)
 
     def invalidate_cache(self, ip: str) -> None:
-        """Discard the cached state for *ip*, forcing a fresh poll on the next read."""
+        """Discard the cached state for *ip*; the next read polls the bulb itself.
+
+        Both push caches are bypassed: this adapter's and pywizlight's own
+        (see :meth:`_poll_authoritatively`).
+        """
         self._state_cache.pop(ip, None)
+        self._authoritative_next.add(ip)
 
     def set_unreachable(self, ip: str, unreachable: bool) -> None:
         """Force *ip* unreachable for testing (ADR-008); no live-hardware effect.
@@ -554,6 +587,7 @@ class WizBulbAdapter:
         self._push_registered_at.clear()
         self._push_retry_at.clear()
         self._warned_stale.clear()
+        self._authoritative_next.clear()
 
 
 @contextlib.contextmanager

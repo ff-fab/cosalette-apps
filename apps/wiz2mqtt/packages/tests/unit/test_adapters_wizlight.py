@@ -772,6 +772,61 @@ class TestGetState:
         assert len(warnings) == 1
         assert "recent push" in warnings[0].message.lower()
 
+    async def test_wizlight_invalidate_cache_polls_past_a_fresh_push(
+        self, ctx: _Ctx, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The read after ``invalidate_cache`` goes to the wire, not to either cache.
+
+        pywizlight's ``updateState()`` would return its own pre-invalidation
+        parser inside its 33 s gate. The adapter opens the gate for that one
+        poll only, keeps the real ``last_push`` and does not warn about a
+        silent bulb (ADR-007 amendment 2026-09-19).
+
+        Technique: State Transition Testing — fresh push, invalidate, read.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        ctx.adapter._push_registered_at[_IP] = (  # noqa: SLF001
+            time.monotonic() - ctx.adapter._push_staleness_threshold - 1  # noqa: SLF001
+        )
+        fake.start_push_calls[0]([_FakeParser(brightness=77)])
+        pushed_at = fake.last_push
+        fake.update_state_result = [_FakeParser(brightness=99)]
+
+        ctx.adapter.invalidate_cache(_IP)
+        with caplog.at_level(logging.WARNING):
+            first = await ctx.adapter.get_state(_IP)
+            second = await ctx.adapter.get_state(_IP)
+
+        assert (first.brightness, second.brightness) == (99, 99)
+        assert fake.real_send_calls == 1
+        assert fake.last_push == pushed_at
+        assert [r for r in caplog.records if r.levelno >= logging.WARNING] == []
+
+    async def test_wizlight_failed_authoritative_poll_keeps_the_mark(
+        self, ctx: _Ctx
+    ) -> None:
+        """A timeout does not let the next read fall back to the old parser.
+
+        Technique: Error Guessing — the forced poll fails once.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.start_push_calls[0]([_FakeParser(brightness=77)])
+        ctx.adapter.invalidate_cache(_IP)
+        fake.update_state_exc = WizLightTimeOutError("boom")
+
+        with pytest.raises(WizTimeoutError):
+            await ctx.adapter.get_state(_IP)
+        fake.update_state_exc = None
+        fake.update_state_result = [_FakeParser(brightness=99)]
+        state = await ctx.adapter.get_state(_IP)
+
+        assert fake.real_send_calls == 2
+        assert state.brightness == 99
+
 
 # ---------------------------------------------------------------------------
 # get_state — staleness measured against bulb.last_push (cap-dc5y)
