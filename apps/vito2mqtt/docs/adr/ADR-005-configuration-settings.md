@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-02-27
+Accepted **Date:** 2026-02-27 | Amended **Date:** 2026-09-19
 
 ## Context
 
@@ -105,4 +105,10 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Users accustomed to YAML/TOML configuration files may find environment-variable-only
   configuration less intuitive for complex settings
 
-_2026-02-27_
+## Amendment (2026-09-19) — Minor
+
+!!! note "Editorial note (2026-09-19)"
+    The Context section lists device identity for MQTT topics as a configuration category. The `device_id` setting is reserved: no topic code reads it and topics have the form `vito2mqtt/{group}/state`. The settings table shows it as reserved.
+
+!!! note "Editorial note (2026-09-19)"
+    See ADR-002 for the topic layout. Beads issue cap-ohpx tracks the decision to remove the setting or wire it in.

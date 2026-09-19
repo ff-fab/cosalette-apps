@@ -186,7 +186,7 @@ VITO2MQTT_MQTT__PASSWORD=secret
 # ---------------------------------------------------------------------------
 # Device
 # ---------------------------------------------------------------------------
-VITO2MQTT_DEVICE_ID=vitodens200w
+# VITO2MQTT_DEVICE_ID is reserved and not used in MQTT topics
 VITO2MQTT_SIGNAL_LANGUAGE=en
 VITO2MQTT_LOGGING__LEVEL=INFO
 

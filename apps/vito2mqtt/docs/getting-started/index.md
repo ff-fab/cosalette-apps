@@ -105,7 +105,9 @@ Subscribe to the telemetry topics to see data flowing:
 mosquitto_sub -h localhost -t 'vito2mqtt/+/state' -v
 ```
 
-You should see JSON payloads for each signal group:
+You should see JSON payloads for each signal group. The wildcard also matches
+`vito2mqtt/legionella/state`, the state of the legionella prevention cycle.
+That topic is not a signal group.
 
 ```json title="vito2mqtt/outdoor/state"
 {

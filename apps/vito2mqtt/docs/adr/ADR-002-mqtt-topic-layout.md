@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-02-27
+Accepted **Date:** 2026-02-27 | Amended **Date:** 2026-09-19
 
 ## Context
 
@@ -38,10 +38,6 @@ Assistant device/entity concepts, and keeps JSON payloads focused and reasonably
 - `vito2mqtt/diagnosis/state` — error states and status registers
 
 All payloads are JSON objects with English keys.
-
-_Correction (2026-09-19): this ADR first listed a `{device_id}` segment after the app
-prefix. The app never published it, so the topics above are the real layout. The
-`device_id` setting is reserved and does not affect topics._
 
 ## Decision Drivers
 
@@ -99,4 +95,13 @@ _Scale: 1 (poor) to 5 (excellent)_
 - English key names require a translation layer for users expecting manufacturer-specific
   German parameter names
 
-_2026-02-27_
+## Amendment (2026-09-19) — Minor
+
+!!! note "Editorial note (2026-09-19)"
+    This ADR first listed a `{device_id}` segment after the app prefix, for example `vito2mqtt/{device_id}/outdoor/state`. The app never published that segment. The topic list in the Decision section now shows the real layout: `vito2mqtt/{group}/state` and `vito2mqtt/{group}/set`.
+
+!!! note "Editorial note (2026-09-19)"
+    The `device_id` setting is reserved. No topic code reads it, so it does not affect topics. The `{device}` segment in the examples of Option 2 and Option 3 was illustrative and is not part of any layout that the app publishes.
+
+!!! note "Editorial note (2026-09-19)"
+    The `device_id` setting does not separate two instances on one broker: both publish to the same topics. To separate them, set a different `VITO2MQTT_MQTT__TOPIC_PREFIX` for each instance. Beads issue cap-ohpx tracks the decision to remove `device_id` or wire it in.
