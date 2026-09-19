@@ -9,7 +9,7 @@ tags: [mqtt, configuration, devices, telemetry, architecture]
 
 ## Status
 
-Accepted **Date:** 2026-09-13
+Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-19
 
 ## Context
 
@@ -147,3 +147,31 @@ _2026-09-13_
 **Signal contract.** `signal_topic` is a retained status input, never a command surface. Accept only UTF-8 `on` or `off` (lowercase, whitespace trimmed once); ignore and warn on every other payload without echoing it, leaving belief unchanged. A topic is unique per source. Broker ACLs permit only the configured controller to publish it; wiz2mqtt subscribes and never publishes there.
 
 **Source contract.** Each source is one retained `wiz2mqtt/{source}/state` device payload: `{\"powered\": \"on\" | \"off\" | \"unknown\", \"power_request\": \"on\" | \"off\" | null, \"members\": [...]}`. It exposes the first field as the power binary sensor and the second as the diagnostic desired-power binary sensor. Source names must not collide with bulb or group names.
+
+## Amendment (2026-09-19) — Corrective
+
+**Rationale:** Rule 1 counted every answer of a member bulb, also an answer that came before the signal. A member that answered once stays 'answering' until it fails three reads in a row (`_FAILURE_THRESHOLD`). Thus a relay signal `off` changed the belief only 13 + 60 + 13 + 60 + 13 = 159 s after the signal. Without a signal the time is 159 s to 219 s, so the signal removed only the first wait. The power requests (ADR-009) and the skip of reads (Traffic) waited the same 159 s (cap-hfro).
+
+> **Justification for amendment (not supersession):** The belief rules are not in a release yet: the last release of wiz2mqtt is 0.2.4 (2026-09-16), and the power sources came after it. The change is confined to the belief computation in `power.py` and the failure count in `entity.py`. No wire format, configuration key or consumer contract changes. Only the time until the belief changes becomes shorter.
+
+### Revised Decision
+
+The belief follows three rules in order. Only rule 1 changes:
+
+1. If a minimum of one member bulb answered **after the last change of the signal**, the belief is `on`. New evidence outranks the signal.
+2. If no bulb answered after the last change of the signal and a signal exists, the belief is the signal.
+3. If no bulb answers and no signal exists, the belief is `unknown` (`fault`) or `off` (`no_power`).
+
+A change of the signal makes each older answer of a member stale. A repeat of the same signal is not a change. Thus a signal `off` sets the belief `off` at once, and a member that answers after the signal sets the belief `on` again.
+
+**A failed read is firm while the signal decides.** If a read of a member fails while the signal is `off` and the belief is `off`, the failure counts as three failures. wiz2mqtt skips the reads of that bulb from the next tick (Traffic). A member that answered after the signal keeps the three-failure debounce, because its belief is `on`. The `no_power` tie-break of rule 3 also keeps the debounce: without a signal, one lost read is not firm evidence.
+
+### Additional Positive Consequences
+
+- A signal `off` sets the belief `off` at once. The skip of reads starts after one failed read (about 13 s), and a power request reacts at once
+- Evidence still outranks the signal: a member that answers after the signal sets the belief `on` again
+
+### Additional Negative Consequences
+
+- A wrong signal `off` on a live circuit shows `powered = false` until the next read of a member, a maximum of one telemetry cycle
+- If one read fails transiently while a wrong signal `off` is active, wiz2mqtt skips the reads of that bulb until the belief changes or the bulb boots
