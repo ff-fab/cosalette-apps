@@ -32,6 +32,14 @@ bulb gets its own retained state topic, command topic, and availability signal.
 
     [:octicons-arrow-right-24: Configure](configuration.md)
 
+-   :material-power-plug:{ .lg .middle } **Mains Power Awareness**
+
+    ---
+
+    Power sources, the restore after a power cut, and consumer recipes.
+
+    [:octicons-arrow-right-24: Power awareness](power-awareness.md)
+
 -   :material-access-point:{ .lg .middle } **MQTT Topics**
 
     ---
@@ -52,6 +60,8 @@ bulb gets its own retained state topic, command topic, and availability signal.
 - Runtime Home Assistant MQTT discovery (`app.discovery()`) — one device per bulb
     with `light`, effect-speed `number`, and power `sensor` entities
 - Offline openHAB Generic MQTT Thing + Items generation (`cosalette schema openhab`)
+- Mains power awareness: power sources tell an unpowered bulb from a faulty one,
+    and a bulb gets its desired state back after a power cut
 - Optional bare-hex MAC verification on first successful bulb contact
 - Config-file bulb inventory (`wiz2mqtt.toml`) with environment overrides
 

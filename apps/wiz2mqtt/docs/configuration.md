@@ -49,8 +49,10 @@ migrated automatically at startup, with a warning logged for each bulb:
 - Any other value still raises a validation error.
 
 Update `wiz2mqtt.toml` to remove the bulb-level key and declare the
-equivalent `[[power_sources]]` entry directly; the migration is a
-compatibility shim, not a long-term feature.
+equivalent `[[power_sources]]` entry directly. The next release removes the
+migration. [Migrate a bulb-level
+`when_unreachable`](power-awareness.md#migrate-a-bulb-level-when_unreachable)
+shows the warning text and the replacement block.
 
 ## Groups
 
@@ -80,6 +82,9 @@ state, not a pulse: a consumer that missed a message reads the current
 request on its next subscribe. wiz2mqtt never operates the relay itself, so
 a consumer needs a rule that maps `power_request` to its relay command.
 
+[Mains Power Awareness](power-awareness.md) explains the belief, the restore,
+and the consumer recipes. This section is the key reference.
+
 ```toml
 [[power_sources]]
 name = "lamp-power"
@@ -103,7 +108,7 @@ wiz_bulbs_only = true
 | `group` | one of `group`/`members` | Name of an existing `[[groups]]` entry this source powers |
 | `members` | one of `group`/`members` | Bulb names powered by this source directly |
 | `signal_topic` | no | Retained MQTT relay-signal topic. wiz2mqtt subscribes to it and accepts only the lowercase payloads `on` and `off`, trimmed once; it ignores and warns on any other payload. A topic is unique per source and must not equal the topic prefix or lie below it. Grant write access to the topic only to the relay publisher, and give wiz2mqtt read access only (see the note below the table) |
-| `when_unreachable` | no | What an unreachable member bulb means with no better evidence: `fault` (default, availability = offline) or `no_power` (bulb stays available, publishes `{"state": "OFF"}`) |
+| `when_unreachable` | no | What an unreachable member bulb means with no better evidence: `fault` (default: belief `unknown`, availability `offline` after three failed reads) or `no_power` (belief `off`: the bulb stays `online` and publishes its desired state with `powered: false`) |
 | `enable_power_on_request` | no | Publish `power_request = "on"` when a command wants light on this circuit while the belief is `off`. The request stays until the belief becomes `on`, or until no member wants light any more (default `false`) |
 | `enable_power_off_request` | no | Publish `power_request = "off"` once every member bulb has been desired `OFF` for `power_off_idle_delay`. The request stays until the belief becomes `off`. Requires `wiz_bulbs_only = true` (default `false`) |
 | `power_off_idle_delay` | no | Seconds every member bulb must be desired `OFF` before a power-off request. Must be greater than zero: the timer starts on a tick, so wiz2mqtt always spends the full delay in the current process before it asks for a circuit to be cut (default `600`) |
@@ -208,6 +213,18 @@ the broker by itself.
 | ------- | --------------------- | ------- | ----------- |
 | `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | How long a command queued for an unreachable bulb stays valid (ADR-008). The TTL applies when the bulb returns and the queued command is replayed; an older command is dropped with a log line. |
 
+## Store File
+
+| Setting | Environment Variable | Default |
+| ------- | -------------------- | ------- |
+| Store path | `WIZ2MQTT_STORE_PATH` | `$XDG_STATE_HOME/wiz2mqtt/store.json` (`~/.local/state/wiz2mqtt/store.json` if `XDG_STATE_HOME` is unset) |
+
+The store file keeps the desired state of each bulb and the detected bulb
+capabilities. Queued commands are in memory only, so a restart drops them. In a
+container, set the path inside a mounted volume. Otherwise a container restart
+loses every desired state. The shipped `compose.yml` sets `/app/data/store.json`
+on the `wiz2mqtt-data` volume.
+
 ## Config-file and environment interplay
 
 The TOML file owns the bulb inventory, while environment variables are the
@@ -250,7 +267,9 @@ Consumer wiring is derived from the bulb inventory and optional group membership
 publishes retained `homeassistant/<component>/wiz2mqtt/.../config` payloads built
 from its live registry. Each `[[bulbs]]` entry becomes one HA device with a
 `light` (`schema: json`), an effect-speed `number`, and a power `sensor`; one
-`binary_sensor` bridge entity is published for the app. Dropping a bulb from
+`binary_sensor` bridge entity is published for the app. Each `[[power_sources]]`
+entry becomes one more HA device with two read-only `binary_sensor` entities:
+`powered` and the diagnostic `power_request`. Dropping a bulb from
 `wiz2mqtt.toml` clears its retained discovery topics on the next start. Nothing in
 Home Assistant needs configuring.
 
@@ -289,6 +308,11 @@ Effect and color-temperature commands are not added to these groups. See
 [openHAB Items](https://www.openhab.org/docs/configuration/items) for group semantics.
 Regenerate both files after inventory or membership changes. Names that collapse
 to the same openHAB identifier are rejected by the deployment generator.
+
+Each power source becomes one more Thing with two read-only Switch Items,
+`Powered` and `PowerRequest`. Each bulb in a power source also gets a read-only
+`Powered` Item. See the [openHAB recipe](power-awareness.md#openhab) for the
+rules and for the openHAB 5.1 requirement.
 
 `task wiz2mqtt:schema:openhab` renders a Generic MQTT Thing and matching Items
 file from the checked-in sample `docs/schema.yaml`; it does not use deployment
