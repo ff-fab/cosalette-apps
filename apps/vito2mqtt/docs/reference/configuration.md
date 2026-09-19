@@ -82,11 +82,10 @@ These settings are specific to vito2mqtt and defined in `Vito2MqttSettings`:
 | `serial_port` | `VITO2MQTT_SERIAL_PORT` | `str` | **Required** | Serial device path (e.g., `/dev/ttyUSB0`) |
 | `serial_baud_rate` | `VITO2MQTT_SERIAL_BAUD_RATE` | `int` | `4800` | Baud rate for Optolink connection |
 
-### Device Identification
+### Signal Language
 
 | Setting | Environment Variable | Type | Default | Description |
 |---------|---------------------|------|---------|-------------|
-| `device_id` | `VITO2MQTT_DEVICE_ID` | `str` | `vitodens200w` | Reserved. Not used in topics or discovery; topics are `vito2mqtt/{group}/state` and `vito2mqtt/{group}/set` |
 | `signal_language` | `VITO2MQTT_SIGNAL_LANGUAGE` | `"de"` \| `"en"` | `"en"` | Language for signal names |
 
 ### Polling Intervals
@@ -186,7 +185,6 @@ VITO2MQTT_MQTT__PASSWORD=secret
 # ---------------------------------------------------------------------------
 # Device
 # ---------------------------------------------------------------------------
-# VITO2MQTT_DEVICE_ID is reserved and not used in MQTT topics
 VITO2MQTT_SIGNAL_LANGUAGE=en
 VITO2MQTT_LOGGING__LEVEL=INFO
 
