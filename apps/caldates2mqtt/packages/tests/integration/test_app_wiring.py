@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+from collections.abc import Callable
 
 import pytest
 from cosalette.testing import AppHarness, ManualClock
@@ -39,6 +40,19 @@ def _first_state_events(harness: AppHarness, device_key: str) -> list[dict]:
     messages = harness.mqtt.get_messages_for(state_topic)
     assert messages, f"No state messages on {state_topic}"
     return json.loads(messages[0][0])["events"]
+
+
+async def _wait_until(predicate: Callable[[], bool], timeout: float = 5.0) -> None:
+    """Wait until *predicate* holds, polling the real event loop.
+
+    ``ManualClock.settle(until=...)`` counts loop rounds, not wall time, so it
+    gives up early when the awaited work hops through a worker thread and the
+    runner is starved of CPU. The timeout only bounds a hang; it never delays
+    a passing run.
+    """
+    async with asyncio.timeout(timeout):
+        while not predicate():
+            await asyncio.sleep(0.005)
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +199,12 @@ class TestAvailability:
 
     @pytest.mark.integration
     async def test_retry_exhaustion_marks_calendar_offline_then_recovers(self) -> None:
-        """Terminal CalDAV transport failure drives offline -> online lifecycle."""
+        """Terminal CalDAV failure transitions offline, then recovers online.
+
+        Techniques: State Transition and Boundary Value Analysis -- four failed
+        reads cross the three-retry exhaustion boundary before a successful retry.
+        """
+        # Arrange
         reader = FakeCalDavReader()
         reader.fail_next_reads(CalDavConnectionError("CalDAV unavailable"), count=4)
         clock = ManualClock()
@@ -195,21 +214,31 @@ class TestAvailability:
         availability_topic = f"{TOPIC_PREFIX}/garbage/availability"
         task = asyncio.create_task(harness.run())
         try:
+            # Act
             await clock.settle()
             await harness.inject_command(
                 "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
             )
-            await asyncio.sleep(0.3)
-            for _ in range(4):
+            # Each retry backoff sleeps on the manual clock. Wait until the
+            # failed read is consumed, let the backoff register, then release it.
+            for remaining in (3, 2, 1):
+                await _wait_until(lambda r=remaining: len(reader.failure_sequence) <= r)
+                await clock.settle()
                 await harness.advance_time(10)
-            assert not reader.failure_sequence
+            await _wait_until(lambda: not reader.failure_sequence)
             await harness.wait_for_publish_count(availability_topic, 2)
-            assert harness.messages_for(availability_topic)[-1] == ("offline", True, 1)
+
+            # Assert
+            assert harness.messages_for(availability_topic) == [
+                ("online", True, 1),
+                ("offline", True, 1),
+            ]
 
             await harness.inject_command(
                 "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
             )
             await harness.wait_for_publish_count(availability_topic, 3)
+            # Assert
             assert harness.messages_for(availability_topic)[-1] == ("online", True, 1)
         finally:
             harness.shutdown_event.set()

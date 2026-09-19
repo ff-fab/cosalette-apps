@@ -211,9 +211,24 @@ async def run_app_briefly(
                 timeout=wait,
             )
     finally:
+        availability_publish_counts = {
+            f"{TOPIC_PREFIX}/{cal.key}/availability": len(
+                harness.messages_for(f"{TOPIC_PREFIX}/{cal.key}/availability")
+            )
+            for cal in harness.settings.calendars
+        }
         harness.shutdown_event.set()
         try:
-            await asyncio.wait_for(task, timeout=wait * 5)
+            await asyncio.wait_for(
+                asyncio.gather(
+                    task,
+                    *(
+                        harness.wait_for_publish_count(topic, count + 1)
+                        for topic, count in availability_publish_counts.items()
+                    ),
+                ),
+                timeout=wait * 5,
+            )
         finally:
             if not task.done():
                 task.cancel()
