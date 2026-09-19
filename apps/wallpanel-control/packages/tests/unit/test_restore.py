@@ -3,7 +3,7 @@
 Test Techniques Used:
 - State Transition: LastAnswers before and after ``attach``.
 - Branch/Condition Coverage: a pending answer replaces a saved one; a save failure.
-- Specification-based Testing: the saved payload is the wire payload (no nulls).
+- Specification-based Testing: the saved payload equals the live wire payload.
 """
 
 from __future__ import annotations
@@ -47,8 +47,8 @@ class TestLastAnswers:
             }
         }
 
-    def test_saved_payload_omits_null_fields(self) -> None:
-        """The wire payload of an unavailable display has no null values."""
+    def test_saved_payload_keeps_null_fields(self) -> None:
+        """The saved payload of an unavailable display matches its live payload."""
         backend = MemoryStore()
         answers = LastAnswers()
         answers.attach(_attached(backend))
@@ -58,7 +58,11 @@ class TestLastAnswers:
         )
 
         assert backend.load("restore_answers") == {
-            "display/state": {"available": False}
+            "display/state": {
+                "available": False,
+                "state": None,
+                "brightness_percent": None,
+            }
         }
 
     def test_answer_recorded_before_attach_replaces_the_saved_one(self) -> None:

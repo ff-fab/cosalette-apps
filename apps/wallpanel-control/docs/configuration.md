@@ -105,9 +105,9 @@ stopped process, disappears from the broker by itself.
 
 ### State store
 
-| Setting    | Environment Variable               | Default                                | Description                                          |
-| ---------- | ---------------------------------- | -------------------------------------- | ---------------------------------------------------- |
-| Store path | `WALLPANEL_CONTROL_STORE_PATH`     | `$XDG_STATE_HOME/wallpanel-control/store.json` | File that holds the last display and system action answers |
+| Setting    | Environment Variable           | Default                                        | Description                                                |
+| ---------- | ------------------------------ | ---------------------------------------------- | ---------------------------------------------------------- |
+| Store path | `WALLPANEL_CONTROL_STORE_PATH` | `$XDG_STATE_HOME/wallpanel-control/store.json` | File that holds the last display and system action answers |
 
 The shipped `compose.yml` sets it to `/app/data/store.json` on the
 `wallpanel_control-data` volume. See

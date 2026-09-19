@@ -624,6 +624,40 @@ class TestStateRestoredAfterRestart:
             "action": "wake",
         }
 
+    async def test_restored_unavailable_answer_equals_the_live_answer(
+        self, fake_wallpanel: FakeWallpanel, fake_wol: FakeWol
+    ) -> None:
+        """The replay of an unavailable display keeps its null fields, as live."""
+        fake_wallpanel.set_reachable(False)
+        store = MemoryStore()
+        first = _harness(build_integration_app(fake_wallpanel, fake_wol, store))
+        await run_with_commands(first, [(DISPLAY_SET, {"state": "on"})])
+        live = json.loads(first.mqtt.get_messages_for(DISPLAY_STATE)[-1][0])
+
+        second = _harness(build_integration_app(fake_wallpanel, fake_wol, store))
+        task = asyncio.create_task(second.run())
+        try:
+            await wait_for_condition(
+                lambda: second.mqtt.get_messages_for(DISPLAY_STATE),
+                timeout=2.0,
+                description="restored display answer published",
+            )
+        finally:
+            second.shutdown_event.set()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        restored = json.loads(second.mqtt.get_messages_for(DISPLAY_STATE)[0][0])
+        assert (
+            restored
+            == live
+            == {
+                "available": False,
+                "state": None,
+                "brightness_percent": None,
+            }
+        )
+
     async def test_nothing_is_published_without_a_saved_answer(
         self, fake_wallpanel: FakeWallpanel, fake_wol: FakeWol
     ) -> None:

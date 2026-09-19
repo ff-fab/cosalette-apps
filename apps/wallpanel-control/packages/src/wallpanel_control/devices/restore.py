@@ -32,7 +32,7 @@ class LastAnswers:
 
     def record(self, topic: str, answer: BaseModel) -> None:
         """Save *answer*, the payload that a command just published to *topic*."""
-        wire = answer.model_dump(mode="json", exclude_none=True)
+        wire = answer.model_dump(mode="json")
         if self._store is None:
             self._pending[topic] = wire
             return
