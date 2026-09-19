@@ -107,7 +107,4 @@ _Scale: 1 (poor) to 5 (excellent)_
 ## Amendment (2026-09-19) — Minor
 
 !!! note "Editorial note (2026-09-19)"
-    The Context section lists device identity for MQTT topics as a configuration category. The unused `device_id` setting is removed (cap-ohpx). Topics have the form `vito2mqtt/{group}/state`.
-
-!!! note "Editorial note (2026-09-19)"
-    See ADR-002 for the topic layout.
+    The unused `device_id` setting is removed (cap-ohpx). Topics have the form `vito2mqtt/{group}/state`; see ADR-002 for the topic layout.
