@@ -141,6 +141,31 @@ class TestPowerOnRequestPublication:
 
         assert _requests(harness) == [None, "on"]
 
+    async def test_off_command_promptly_clears_the_retained_request(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition — ON then OFF publishes the clear."""
+        harness = _harness(fake_adapter, enable_power_on_request=True)
+        task = asyncio.create_task(harness.run())
+        try:
+            await wait_until_subscribed(harness)
+            await harness.advance_time(0)
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 1)
+
+            await harness.inject_command("office", {"state": "ON"})
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 2)
+
+            await harness.inject_command("office", {"state": "OFF"})
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 3)
+            await harness.clock.settle(stable_rounds=20)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        assert _requests(harness) == [None, "on", None]
+
     async def test_opt_out_publishes_no_request(
         self, fake_adapter: FakeWizBulbAdapter
     ) -> None:

@@ -353,14 +353,14 @@ class TestPowerOnRequest:
 
         assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
 
-    def test_command_wanting_darkness_raises_nothing(self) -> None:
-        """Technique: Decision Table — only a command for light asks for power."""
+    def test_command_wanting_darkness_wakes_its_source(self) -> None:
+        """Technique: Decision Table — OFF can clear a retained request promptly."""
         settings = _request_settings(
             when_unreachable="no_power", enable_power_on_request=True
         )
         state = SharedState()
 
-        assert note_command(settings, state, "desk", desired_on=False) is None
+        assert note_command(settings, state, "desk", desired_on=False) == "p"
         assert state.source_power_on_requested == set()
 
     def test_command_for_a_bulb_without_a_source_arms_nothing(self) -> None:
@@ -396,14 +396,13 @@ class TestPowerOnRequest:
         assert _request(settings, state, 86400.0) == "on"
 
     def test_request_clears_when_no_member_wants_light_any_more(self) -> None:
-        """Technique: State Transition — the request becomes inapplicable."""
+        """Technique: State Transition — an unknown peer does not retain it."""
         settings = _request_settings(
             when_unreachable="no_power", enable_power_on_request=True
         )
         state = SharedState()
         note_command(settings, state, "desk", desired_on=True)
         _desire(state, "desk", "OFF")
-        _desire(state, "lamp", "OFF")
 
         assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
 

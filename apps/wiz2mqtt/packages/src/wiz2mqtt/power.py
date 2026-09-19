@@ -158,8 +158,9 @@ def note_command(
 
     A command that wants light cancels the idle timer of the source, and,
     on a dark circuit whose operator enabled power-on requests, latches a
-    power-on request. A command that wants darkness changes no request now:
-    the idle timer of :func:`power_request` decides that on a later tick.
+    power-on request. A command that wants darkness changes no request now,
+    but still returns its source so the caller promptly republishes any
+    retained request that the new intent clears.
 
     "Dark" is the belief ``"off"`` alone, never ``"unknown"`` (ADR-009
     amendment 2026-09-14). An ``"unknown"`` source is a ``fault`` source
@@ -167,8 +168,10 @@ def note_command(
     would act on an absence of evidence.
     """
     source = settings.power_source_of(bulb_name)
-    if source is None or not desired_on:
+    if source is None:
         return None
+    if not desired_on:
+        return source.name
     state.source_idle_since.pop(source.name, None)
     if (
         source.enable_power_on_request
@@ -199,12 +202,14 @@ def power_request(
     takes a minute to react must still see it.
 
     A power-off request needs both operator opt-ins and a member list, and
-    it is released as soon as the belief becomes ``"off"``. Membership of
-    the idle set is read from the desired state (ADR-009 amendment), which
-    in the steady phase is the last observation.
+    it is released as soon as the belief becomes ``"off"``. Power-on latch
+    clearing only needs to know whether any member still wants light;
+    power-off eligibility deliberately requires every member's known intent
+    to be ``OFF``.
     """
+    any_member_desired_on = _any_member_desired_on(settings, state, config.name)
     idle = _all_members_desired_off(settings, state, config.name)
-    if belief == "on" or idle:
+    if belief == "on" or not any_member_desired_on:
         state.source_power_on_requested.discard(config.name)
     if config.name in state.source_power_on_requested:
         return "on"
@@ -229,6 +234,17 @@ def _all_members_desired_off(
         (desired := state.desired_state.get(member)) is not None
         and desired.state == "OFF"
         for member in members
+    )
+
+
+def _any_member_desired_on(
+    settings: Wiz2MqttSettings, state: SharedState, source_name: str
+) -> bool:
+    """Whether at least one member of *source_name* currently wants ``ON``."""
+    return any(
+        (desired := state.desired_state.get(member)) is not None
+        and desired.state == "ON"
+        for member in settings.bulbs_for_power_source(source_name)
     )
 
 
