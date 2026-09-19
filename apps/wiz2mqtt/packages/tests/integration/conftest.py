@@ -21,9 +21,11 @@ from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.main import (
     _bulb_map,
     _power_source_map,
+    _signal_source_map,
+    _signal_topic,
     bulb_set,
+    power_signal,
     power_source_entity,
-    register_power_signals,
     shared_state,
 )
 from wiz2mqtt.ports import WizBulbPort
@@ -110,7 +112,13 @@ def build_integration_app(
         triggerable="local",
         publish=OnChange(),
     )
-    register_power_signals(app)
+    app.add_inbound(
+        _signal_source_map,
+        power_signal,
+        topic=_signal_topic,
+        maxsize=8,
+        backpressure="drop_oldest",
+    )
     return app
 
 

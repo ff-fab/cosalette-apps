@@ -237,6 +237,32 @@ async def power_source_entity(
     )
 
 
+def _signal_source_map(settings: cosalette.Settings) -> dict[str, PowerSourceConfig]:
+    """Map power sources that declare a ``signal_topic`` to one inbound each."""
+    return {
+        name: source
+        for name, source in _power_source_map(settings).items()
+        if source.signal_topic is not None
+    }
+
+
+def _signal_topic(config: PowerSourceConfig) -> str:
+    """Return the ``signal_topic`` of a source that ``_signal_source_map`` kept."""
+    return cast(str, config.signal_topic)
+
+
+# Only the newest relay state matters, so a small queue drops the oldest entry:
+# a publisher that floods the topic cannot grow memory or make the belief
+# follow stale data.
+@app.inbound(
+    name=_signal_source_map,
+    topic=_signal_topic,
+    maxsize=_SIGNAL_QUEUE_SIZE,
+    backpressure="drop_oldest",
+    summary="Raw relay signal ('on'/'off') of a power source",
+    behavior=["ignores any payload other than 'on' or 'off'"],
+    effects=["updates the power source belief and member bulb payloads"],
+)
 async def power_signal(
     payload: Annotated[str, Payload(raw=True)],
     topic: Annotated[str, Topic()],
@@ -260,43 +286,6 @@ async def power_signal(
         return
     for name in power.signal_wake_targets(settings, source.name):
         notify(name)
-
-
-def add_power_signal_inbounds(app: cosalette.App, settings: Wiz2MqttSettings) -> None:
-    """Subscribe ``power_signal`` to the ``signal_topic`` of every power source.
-
-    A configure hook registers one concrete inbound per source instead of one
-    callable ``name=``/``topic=`` registration: cosalette 0.10.1 and 0.10.2 expand
-    the callable form at runtime only, so the offline schema and ACL output would
-    lack the receive channels (cap-22u6).
-
-    Only the newest relay state matters, so a small queue drops the oldest
-    entry: a publisher that floods the topic cannot grow memory or make the
-    belief follow stale data.
-    """
-    for source in settings.power_sources:
-        if source.signal_topic is not None:
-            app.add_inbound(
-                source.name,
-                power_signal,
-                topic=source.signal_topic,
-                maxsize=_SIGNAL_QUEUE_SIZE,
-                backpressure="drop_oldest",
-                summary=f"Raw relay signal ('on'/'off') of power source {source.name}",
-                behavior=["ignores any payload other than 'on' or 'off'"],
-                effects=["updates the power source belief and member bulb payloads"],
-            )
-
-
-def register_power_signals(app: cosalette.App) -> None:
-    """Register the configure hook that adds the signal inbounds to *app*."""
-
-    @app.on_configure
-    def _configure_power_signals(settings: Wiz2MqttSettings) -> None:
-        add_power_signal_inbounds(app, settings)
-
-
-register_power_signals(app)
 
 
 def main() -> None:

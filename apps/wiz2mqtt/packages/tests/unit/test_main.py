@@ -21,7 +21,8 @@ from wiz2mqtt.errors import (
 )
 from wiz2mqtt.main import (
     _bulb_map,
-    add_power_signal_inbounds,
+    _signal_source_map,
+    _signal_topic,
     bulb_set,
     power_signal,
 )
@@ -355,21 +356,10 @@ class TestPowerSignal:
         assert notify.armed == ["down", "b"]
 
 
-class _RecordingApp:
-    """Records ``add_inbound`` calls in place of a real ``cosalette.App``."""
-
-    def __init__(self) -> None:
-        self.inbounds: list[tuple[object, dict[str, object]]] = []
-
-    def add_inbound(self, name: object, func: object, **kwargs: object) -> None:
-        assert func is power_signal
-        self.inbounds.append((name, kwargs))
-
-
-class TestAddPowerSignalInbounds:
+class TestSignalInbound:
     """One bounded inbound per source that declares a ``signal_topic``."""
 
-    def test_registers_one_inbound_per_declared_topic_verbatim(self) -> None:
+    def test_signal_source_map_keeps_only_sources_with_a_topic(self) -> None:
         """Technique: Specification-based — two sources with, one without a topic."""
         settings = build_settings(
             [
@@ -383,32 +373,26 @@ class TestAddPowerSignalInbounds:
                 {"name": "quiet", "members": ["c"]},
             ],
         )
-        app = _RecordingApp()
 
-        add_power_signal_inbounds(app, settings)  # type: ignore[arg-type]
+        result = _signal_source_map(settings)
 
-        assert [(name, kw["topic"]) for name, kw in app.inbounds] == [
-            ("up", "relay/up"),
-            ("down", "relay/down"),
-        ]
+        assert {name: _signal_topic(config) for name, config in result.items()} == {
+            "up": "relay/up",
+            "down": "relay/down",
+        }
+
+    def test_signal_source_map_is_empty_without_power_sources(self) -> None:
+        """Technique: Boundary Value Analysis — zero sources."""
+        assert _signal_source_map(_settings_with_bulbs()) == {}
 
     def test_inbound_queue_is_bounded_and_drops_the_oldest(self) -> None:
         """Technique: Specification-based — a flooded topic cannot grow memory."""
-        app = _RecordingApp()
+        from wiz2mqtt.main import app  # noqa: PLC0415 — module-level app singleton
 
-        add_power_signal_inbounds(app, _signal_settings())  # type: ignore[arg-type]
+        [reg] = app._inbounds  # noqa: SLF001
 
-        [(_, kwargs)] = app.inbounds
-        assert kwargs["maxsize"] == 8
-        assert kwargs["backpressure"] == "drop_oldest"
-
-    def test_registers_nothing_without_power_sources(self) -> None:
-        """Technique: Boundary Value Analysis — zero sources."""
-        app = _RecordingApp()
-
-        add_power_signal_inbounds(app, _settings_with_bulbs())  # type: ignore[arg-type]
-
-        assert app.inbounds == []
+        assert reg.maxsize == 8
+        assert reg.backpressure == "drop_oldest"
 
 
 class TestInboundWiring:
@@ -436,11 +420,3 @@ class TestInboundWiring:
 
         assert SharedState not in adapters
         assert EntityNotifier not in adapters
-
-    def test_one_configure_hook_registers_the_signal_inbounds(self) -> None:
-        """Technique: Specification-based — the hook is what feeds schema and ACL."""
-        hooks = self._app()._configure_hooks  # noqa: SLF001
-
-        assert [hook.__name__ for hook in hooks] == [  # ty: ignore[unresolved-attribute]
-            "_configure_power_signals"
-        ]
