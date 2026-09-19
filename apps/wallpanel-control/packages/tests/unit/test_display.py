@@ -34,6 +34,7 @@ from wallpanel_control.devices.display import (
     handle_display,
     router,
 )
+from wallpanel_control.devices.restore import LastAnswers
 from wallpanel_control.ports import WallpanelUnreachableError
 
 # ---------------------------------------------------------------------------
@@ -773,6 +774,7 @@ class TestHandleDisplay:
             cmd=DisplayCommand(state="on"),
             wallpanel=fake_wallpanel,
             state=state,
+            answers=LastAnswers(),
         )
 
         assert isinstance(result, DisplayState)
@@ -790,6 +792,7 @@ class TestHandleDisplay:
             cmd=DisplayCommand(state="off"),
             wallpanel=fake_wallpanel,
             state=state,
+            answers=LastAnswers(),
         )
 
         assert isinstance(result, DisplayState)
@@ -807,6 +810,7 @@ class TestHandleDisplay:
             cmd=DisplayCommand(brightness_percent=75),
             wallpanel=fake_wallpanel,
             state=state,
+            answers=LastAnswers(),
         )
 
         assert isinstance(result, DisplayState)

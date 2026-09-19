@@ -14,7 +14,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient
+from cosalette import App, MemoryStore, MockMqttClient
 from cosalette.testing import AppHarness, ManualClock
 
 from async_utils import wait_for_condition
@@ -22,7 +22,7 @@ from mqtt5_broker import FakeMqtt5Broker, Observation, run_against_broker
 from mqtt5_contract import EXPIRY_SECONDS, WINDOWS, Mqtt5Contract, Mqtt311Contract
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
-from wallpanel_control.devices import display, system
+from wallpanel_control.devices import display, restore, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 
 from .conftest import (
@@ -39,11 +39,14 @@ def _build_app() -> App:
         name="wallpanel-control",
         version="0.0.0",
         settings_class=type(make_wallpanel_control_settings()),
+        store=MemoryStore(),
         adapters={WallpanelPort: lambda: FakeWallpanel(), WolPort: lambda: FakeWol()},
     )
     app.discovery()
+    app.state(restore.create_last_answers)
     app.include_router(display.router)
     app.include_router(system.router)
+    app.include_router(restore.router)
     return app
 
 
