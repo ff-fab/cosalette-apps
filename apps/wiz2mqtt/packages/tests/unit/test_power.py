@@ -12,10 +12,15 @@ from __future__ import annotations
 import pytest
 
 from tests.fixtures.settings import build_settings
+from wiz2mqtt.intent import Appearance, DesiredState
+from wiz2mqtt.models import POWER_REQUEST_INACTIVE
 from wiz2mqtt.power import (
     belief_for_bulb,
+    belief_for_source,
     compute_belief,
+    note_command,
     parse_signal,
+    power_request,
     record_signal,
     signal_wake_targets,
     source_for_signal_topic,
@@ -142,7 +147,7 @@ class TestSourcePayload:
         state = SharedState()
         state.bulb_answered["desk"] = True
 
-        payload = source_payload(settings, settings.power_sources[0], state)
+        payload = source_payload(settings, settings.power_sources[0], state, 0.0)
 
         assert payload == {
             "powered": "on",
@@ -159,7 +164,7 @@ class TestSourcePayload:
         )
         state = SharedState()
 
-        source_payload(settings, settings.power_sources[0], state)
+        source_payload(settings, settings.power_sources[0], state, 0.0)
 
         assert state.source_belief["p"] == "unknown"
 
@@ -281,3 +286,258 @@ def test_signal_wake_targets_lists_the_source_then_its_sorted_bulbs() -> None:
     )
 
     assert signal_wake_targets(settings, "up") == ["up", "a", "b"]
+
+
+# ---------------------------------------------------------------------------
+# Power requests (ADR-009, cap-bjw9.12)
+# ---------------------------------------------------------------------------
+
+_IDLE_DELAY = 600.0
+
+
+def _request_settings(**source_keys: object) -> Wiz2MqttSettings:
+    """Two bulbs on one power source carrying *source_keys*."""
+    return build_settings(
+        [{"name": "desk", "ip": "10.0.0.1"}, {"name": "lamp", "ip": "10.0.0.2"}],
+        [{"name": "p", "members": ["desk", "lamp"], **source_keys}],
+    )
+
+
+def _desire(state: SharedState, name: str, value: str) -> None:
+    """Record *name*'s desired state without going through a command."""
+    state.desired_state[name] = DesiredState(
+        state="ON" if value == "ON" else "OFF",
+        appearance=Appearance(
+            brightness=None,
+            hue=None,
+            saturation=None,
+            color_temp_kelvin=None,
+            scene=None,
+            speed=None,
+        ),
+        writer="command",
+        written_at=0.0,
+    )
+
+
+def _request(settings: Wiz2MqttSettings, state: SharedState, now: float) -> object:
+    """The request of the single source of *settings* at *now*."""
+    source = settings.power_sources[0]
+    return power_request(
+        settings, source, state, belief_for_source(settings, state, source), now
+    )
+
+
+class TestPowerOnRequest:
+    """A command for a dark circuit asks for power (ADR-009, feature C)."""
+
+    def test_command_on_a_dark_circuit_raises_the_request(self) -> None:
+        """Technique: Decision Table — belief off x opt-in x desired ON."""
+        settings = _request_settings(
+            when_unreachable="no_power", enable_power_on_request=True
+        )
+        state = SharedState()
+
+        assert note_command(settings, state, "desk", desired_on=True) == "p"
+        _desire(state, "desk", "ON")
+
+        assert _request(settings, state, 0.0) == "on"
+
+    def test_opt_out_publishes_no_request(self) -> None:
+        """Technique: Decision Table — the same command without the opt-in."""
+        settings = _request_settings(when_unreachable="no_power")
+        state = SharedState()
+
+        note_command(settings, state, "desk", desired_on=True)
+        _desire(state, "desk", "ON")
+
+        assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
+
+    def test_command_wanting_darkness_wakes_its_source(self) -> None:
+        """Technique: Decision Table — OFF can clear a retained request promptly."""
+        settings = _request_settings(
+            when_unreachable="no_power", enable_power_on_request=True
+        )
+        state = SharedState()
+
+        assert note_command(settings, state, "desk", desired_on=False) == "p"
+        assert state.source_power_on_requested == set()
+
+    def test_command_for_a_bulb_without_a_source_arms_nothing(self) -> None:
+        """Technique: Equivalence Partitioning — a bulb outside every source."""
+        settings = build_settings([{"name": "desk", "ip": "10.0.0.1"}])
+        state = SharedState()
+
+        assert note_command(settings, state, "desk", desired_on=True) is None
+
+    def test_request_clears_when_the_belief_becomes_on(self) -> None:
+        """Technique: State Transition — observed convergence releases the latch."""
+        settings = _request_settings(
+            when_unreachable="no_power", enable_power_on_request=True
+        )
+        state = SharedState()
+        note_command(settings, state, "desk", desired_on=True)
+        _desire(state, "desk", "ON")
+
+        state.bulb_answered["desk"] = True
+
+        assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
+        assert state.source_power_on_requested == set()
+
+    def test_request_survives_a_circuit_that_stays_dark(self) -> None:
+        """Technique: Specification-based — never cleared on a timeout."""
+        settings = _request_settings(
+            when_unreachable="no_power", enable_power_on_request=True
+        )
+        state = SharedState()
+        note_command(settings, state, "desk", desired_on=True)
+        _desire(state, "desk", "ON")
+
+        assert _request(settings, state, 86400.0) == "on"
+
+    def test_request_clears_when_no_member_wants_light_any_more(self) -> None:
+        """Technique: State Transition — an unknown peer does not retain it."""
+        settings = _request_settings(
+            when_unreachable="no_power", enable_power_on_request=True
+        )
+        state = SharedState()
+        note_command(settings, state, "desk", desired_on=True)
+        _desire(state, "desk", "OFF")
+
+        assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
+
+
+class TestPowerOffRequest:
+    """An idle wiz_bulbs_only circuit may be cut (ADR-009, feature C)."""
+
+    @staticmethod
+    def _idle_settings(**overrides: object) -> Wiz2MqttSettings:
+        return _request_settings(
+            signal_topic="relay/state",
+            enable_power_off_request=True,
+            wiz_bulbs_only=True,
+            power_off_idle_delay=_IDLE_DELAY,
+            **overrides,
+        )
+
+    @staticmethod
+    def _all_off(settings: Wiz2MqttSettings) -> SharedState:
+        """Both members desired OFF on a circuit the signal reports powered."""
+        state = SharedState()
+        state.source_signal["p"] = "on"
+        _desire(state, "desk", "OFF")
+        _desire(state, "lamp", "OFF")
+        return state
+
+    def test_no_request_before_the_delay_elapses(self) -> None:
+        """Technique: Boundary Value Analysis — one second short of the delay."""
+        settings = self._idle_settings()
+        state = self._all_off(settings)
+
+        assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
+        assert _request(settings, state, _IDLE_DELAY - 1.0) == POWER_REQUEST_INACTIVE
+
+    def test_request_fires_once_the_delay_elapses(self) -> None:
+        """Technique: Boundary Value Analysis — exactly at the delay."""
+        settings = self._idle_settings()
+        state = self._all_off(settings)
+        _request(settings, state, 0.0)
+
+        assert _request(settings, state, _IDLE_DELAY) == "off"
+
+    def test_one_member_on_cancels_the_timer(self) -> None:
+        """Technique: State Transition — a command for light restarts the wait."""
+        settings = self._idle_settings()
+        state = self._all_off(settings)
+        _request(settings, state, 0.0)
+
+        _desire(state, "lamp", "ON")
+        assert _request(settings, state, _IDLE_DELAY) == POWER_REQUEST_INACTIVE
+
+        _desire(state, "lamp", "OFF")
+        assert _request(settings, state, _IDLE_DELAY) == POWER_REQUEST_INACTIVE
+        assert _request(settings, state, 2 * _IDLE_DELAY) == "off"
+
+    def test_a_command_for_light_cancels_the_timer_and_asks_for_power(self) -> None:
+        """Technique: Decision Table — both directions enabled on one source."""
+        settings = self._idle_settings(
+            enable_power_on_request=True, when_unreachable="no_power"
+        )
+        state = self._all_off(settings)
+        state.source_signal["p"] = "off"
+        _request(settings, state, 0.0)
+
+        assert note_command(settings, state, "lamp", desired_on=True) == "p"
+        _desire(state, "lamp", "ON")
+
+        assert "p" not in state.source_idle_since
+        assert _request(settings, state, _IDLE_DELAY) == "on"
+
+    def test_request_clears_when_the_belief_becomes_off(self) -> None:
+        """Technique: State Transition — observed convergence ends the request."""
+        settings = self._idle_settings()
+        state = self._all_off(settings)
+        _request(settings, state, 0.0)
+        assert _request(settings, state, _IDLE_DELAY) == "off"
+
+        state.source_signal["p"] = "off"
+
+        assert _request(settings, state, _IDLE_DELAY) == POWER_REQUEST_INACTIVE
+
+    def test_opt_out_publishes_no_request(self) -> None:
+        """Technique: Decision Table — the same idle circuit without the opt-in."""
+        settings = _request_settings(signal_topic="relay/state")
+        state = self._all_off(settings)
+        _request(settings, state, 0.0)
+
+        assert _request(settings, state, 2 * _IDLE_DELAY) == POWER_REQUEST_INACTIVE
+
+    def test_a_member_with_no_known_intent_is_never_idle(self) -> None:
+        """Technique: Error Guessing — silence is not evidence a circuit may be cut."""
+        settings = self._idle_settings()
+        state = SharedState()
+        state.source_signal["p"] = "on"
+        _desire(state, "desk", "OFF")
+
+        assert _request(settings, state, 0.0) == POWER_REQUEST_INACTIVE
+        assert _request(settings, state, 2 * _IDLE_DELAY) == POWER_REQUEST_INACTIVE
+
+    def test_a_restart_never_cuts_a_circuit_on_the_first_tick(self) -> None:
+        """Technique: Specification-based — the timer starts in this process.
+
+        A restart reloads a desired ``OFF`` that is hours old, and the wall
+        clock is far past any previous timer. The first tick must still
+        publish nothing.
+        """
+        settings = self._idle_settings()
+        state = self._all_off(settings)
+
+        assert _request(settings, state, 1.0e9) == POWER_REQUEST_INACTIVE
+
+    def test_a_source_with_no_member_is_never_idle(self) -> None:
+        """Technique: Boundary Value Analysis — an empty member list."""
+        settings = build_settings(
+            [{"name": "desk", "ip": "10.0.0.1", "power_source": "other"}],
+            [
+                {"name": "other", "members": ["desk"]},
+                {
+                    "name": "p",
+                    "members": ["desk"],
+                    "signal_topic": "relay/state",
+                    "enable_power_off_request": True,
+                    "wiz_bulbs_only": True,
+                },
+            ],
+        )
+        state = SharedState()
+        state.source_signal["p"] = "on"
+        _desire(state, "desk", "OFF")
+        source = settings.power_sources[1]
+
+        assert settings.bulbs_for_power_source("p") == []
+        assert power_request(settings, source, state, "on", 0.0) == (
+            POWER_REQUEST_INACTIVE
+        )
+        assert power_request(settings, source, state, "on", 2 * _IDLE_DELAY) == (
+            POWER_REQUEST_INACTIVE
+        )

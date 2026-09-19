@@ -74,8 +74,11 @@ discovery. They are rendered only for openHAB; HA groups remain HA configuration
 Optional `[[power_sources]]` entries model a mains circuit (ADR-007) that one
 or more bulbs sit behind, e.g. a smart relay or wall switch feeding several
 WiZ bulbs. wiz2mqtt derives a `powered` belief per source and subscribes to
-its optional `signal_topic`. Sending power requests is reserved configuration
-only until the separately tracked ADR-009 runtime work lands.
+its optional `signal_topic`. It also publishes a retained `power_request`
+per source (ADR-009), opt-in per direction. The request is a desired power
+state, not a pulse: a consumer that missed a message reads the current
+request on its next subscribe. wiz2mqtt never operates the relay itself, so
+a consumer needs a rule that maps `power_request` to its relay command.
 
 ```toml
 [[power_sources]]
@@ -101,10 +104,23 @@ wiz_bulbs_only = true
 | `members` | one of `group`/`members` | Bulb names powered by this source directly |
 | `signal_topic` | no | Retained MQTT relay-signal topic. wiz2mqtt subscribes to it and accepts only the lowercase payloads `on` and `off`, trimmed once; it ignores and warns on any other payload. A topic is unique per source and must not equal the topic prefix or lie below it. Grant write access to the topic only to the relay publisher, and give wiz2mqtt read access only (see the note below the table) |
 | `when_unreachable` | no | What an unreachable member bulb means with no better evidence: `fault` (default, availability = offline) or `no_power` (bulb stays available, publishes `{"state": "OFF"}`) |
-| `enable_power_on_request` | no | Reserve future power-on requests; runtime support is deferred (default `false`) |
-| `enable_power_off_request` | no | Reserve future power-off requests; runtime support is deferred and requires `wiz_bulbs_only = true` (default `false`) |
-| `power_off_idle_delay` | no | Reserved seconds every member bulb must be idle before a future power-off request; runtime support is deferred (default `600`) |
+| `enable_power_on_request` | no | Publish `power_request = "on"` when a command wants light on this circuit while the belief is `off`. The request stays until the belief becomes `on`, or until no member wants light any more (default `false`) |
+| `enable_power_off_request` | no | Publish `power_request = "off"` once every member bulb has been desired `OFF` for `power_off_idle_delay`. The request stays until the belief becomes `off`. Requires `wiz_bulbs_only = true` (default `false`) |
+| `power_off_idle_delay` | no | Seconds every member bulb must be desired `OFF` before a power-off request. Must be greater than zero: the timer starts on a tick, so wiz2mqtt always spends the full delay in the current process before it asks for a circuit to be cut (default `600`) |
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
+
+Read `power_request` as a request, never as a state. wiz2mqtt announces it as
+a read-only diagnostic `binary_sensor` and never as a switch, because a
+switch invites a user to operate the relay against the request (ADR-009).
+
+Warning: do not set `enable_power_off_request` on a circuit that carries any
+other load. While it is set, wiz2mqtt owns the relay, and a user who flips
+the relay by hand fights the idle timer. `wiz_bulbs_only` is your declaration
+that no fan, socket or non-WiZ lamp sits on the circuit.
+
+The retained request outlives a wiz2mqtt restart, and that is intended. It is
+not a stale value: on start wiz2mqtt republishes `null` and recomputes from
+the belief, so a restart alone can never cut a circuit.
 
 The signal topic is a control input: MQTT cannot prove who published a message,
 and a stale retained `off` decides the belief while no member bulb has
@@ -190,7 +206,7 @@ the broker by itself.
 
 | Setting | Environment Variable | Default | Description |
 | ------- | --------------------- | ------- | ----------- |
-| `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | Reserved command-queue TTL (ADR-008); queue runtime support is deferred, so this currently has no effect. |
+| `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | How long a command queued for an unreachable bulb stays valid (ADR-008). The TTL applies when the bulb returns and the queued command is replayed; an older command is dropped with a log line. |
 
 ## Config-file and environment interplay
 
