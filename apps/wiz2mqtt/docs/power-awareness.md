@@ -255,10 +255,10 @@ and a bulb-level `when_unreachable` then stops wiz2mqtt at startup.
 
 ### Keep the store on a volume
 
-The desired state and the queued commands are in the store file. Set
-`WIZ2MQTT_STORE_PATH` to a path inside a mounted volume. If the file is in the container
-layer, a container restart loses every desired state, and `restore_previous_state` has
-nothing to restore. The shipped `compose.yml` sets
+The desired state is in the store file; queued commands are in memory only and
+are lost on restart. Set `WIZ2MQTT_STORE_PATH` to a path inside a mounted volume.
+If the file is in the container layer, a container restart loses every desired
+state, and `restore_previous_state` has nothing to restore. The shipped `compose.yml` sets
 `WIZ2MQTT_STORE_PATH=/app/data/store.json` on the `wiz2mqtt-data` volume.
 
 ## Consumer recipes

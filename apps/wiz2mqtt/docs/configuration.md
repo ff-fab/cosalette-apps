@@ -219,10 +219,11 @@ the broker by itself.
 | ------- | -------------------- | ------- |
 | Store path | `WIZ2MQTT_STORE_PATH` | `$XDG_STATE_HOME/wiz2mqtt/store.json` (`~/.local/state/wiz2mqtt/store.json` if `XDG_STATE_HOME` is unset) |
 
-The store file keeps the desired state of each bulb, the queued commands, and
-the detected bulb capabilities. In a container, set the path inside a mounted
-volume. Otherwise a container restart loses every desired state. The shipped
-`compose.yml` sets `/app/data/store.json` on the `wiz2mqtt-data` volume.
+The store file keeps the desired state of each bulb and the detected bulb
+capabilities. Queued commands are in memory only, so a restart drops them. In a
+container, set the path inside a mounted volume. Otherwise a container restart
+loses every desired state. The shipped `compose.yml` sets `/app/data/store.json`
+on the `wiz2mqtt-data` volume.
 
 ## Config-file and environment interplay
 
