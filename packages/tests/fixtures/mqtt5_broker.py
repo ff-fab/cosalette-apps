@@ -9,7 +9,8 @@ against something that behaves like a broker.
 :class:`FakeMqtt5Broker` replaces ``aiomqtt.Client`` and records what a broker
 would see: the connect arguments, every publish with its expiry property, and
 the retained store. It never sleeps: ages come from the injected clock, so a
-``ManualClock`` moves a whole expiry window in one ``advance``.
+``ManualClock`` moves a whole expiry window in one ``advance``. ``deliver``
+queues an inbound message for an app that publishes only after a command.
 
 Apps reach this module through ``pythonpath = ["../../packages/tests/fixtures"]``
 in their ``[tool.pytest.ini_options]``.
@@ -20,6 +21,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Any
 
 import aiomqtt
@@ -48,6 +50,7 @@ class FakeMqtt5Broker:
     connects: list[dict[str, Any]] = field(default_factory=list)
     publishes: list[BrokerPublish] = field(default_factory=list)
     retained: dict[str, BrokerPublish] = field(default_factory=dict)
+    inbox: asyncio.Queue[Any] = field(default_factory=asyncio.Queue)
 
     def install(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Route ``aiomqtt.Client`` (imported lazily by cosalette) to this broker."""
@@ -67,6 +70,10 @@ class FakeMqtt5Broker:
         else:
             self.retained[topic] = publish
 
+    def deliver(self, topic: str, payload: str) -> None:
+        """Queue an inbound message, as if a client had published it to the app."""
+        self.inbox.put_nowait(SimpleNamespace(topic=topic, payload=payload.encode()))
+
     def publishes_to(self, topic: str) -> list[BrokerPublish]:
         return [p for p in self.publishes if p.topic == topic]
 
@@ -81,7 +88,7 @@ class FakeMqtt5Broker:
 
 
 class _BrokerConnection:
-    """Stand-in for ``aiomqtt.Client``: connects instantly, never delivers."""
+    """Stand-in for ``aiomqtt.Client``: connects instantly, delivers on request."""
 
     def __init__(self, broker: FakeMqtt5Broker, kwargs: dict[str, Any]) -> None:
         self._broker = broker
@@ -110,12 +117,11 @@ class _BrokerConnection:
 
     @property
     def messages(self) -> AsyncIterator[Any]:
-        return self._never()
+        return self._inbound()
 
-    @staticmethod
-    async def _never() -> AsyncIterator[Any]:
-        await asyncio.Event().wait()
-        yield  # pragma: no cover - makes this an async generator
+    async def _inbound(self) -> AsyncIterator[Any]:
+        while True:
+            yield await self._broker.inbox.get()
 
 
 @dataclass

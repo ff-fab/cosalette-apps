@@ -107,6 +107,16 @@ payload uses `min` 10, `max` 200, `step` 1, `command_template`
 `{"effect_speed": {{ value }}}`. The `sensor` payload is `device_class: power`,
 `unit_of_measurement: W`, `state_class: measurement`.
 
+## Retention and Expiry
+
+With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained topic in
+this reference expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
+unless wiz2mqtt refreshes it. wiz2mqtt re-publishes each retained topic with an
+unchanged payload every third of that interval (8 hours by default). Non-retained
+topics, such as the `error` topics and the `set` topics, carry no expiry. See
+[MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
+operator contract and the MQTT 3.1.1 fallback.
+
 ## openHAB Generic MQTT Thing
 
 `task wiz2mqtt:schema:openhab` renders — offline, from `docs/schema.yaml` — a

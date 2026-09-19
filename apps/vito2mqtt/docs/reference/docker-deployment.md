@@ -98,6 +98,9 @@ VITO2MQTT_SERIAL_BAUD_RATE=4800
 # Docker-hosted (docker-compose)
 VITO2MQTT_MQTT__HOST=mosquitto
 VITO2MQTT_MQTT__PORT=1883
+# MQTT 5 retained-message expiry (bundled mosquitto:2). Use 3.1.1 for a broker
+# without MQTT 5.
+VITO2MQTT_MQTT__PROTOCOL_VERSION=5
 
 # External broker
 VITO2MQTT_MQTT__HOST=192.168.1.100
@@ -400,6 +403,14 @@ For secure MQTT over TLS:
 3. Update vito2mqtt config: `VITO2MQTT_MQTT__TLS=true`
 
 See [Mosquitto TLS documentation](https://mosquitto.org/documentation/authentication-methods/).
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` defaults `VITO2MQTT_MQTT__PROTOCOL_VERSION` to `5`, which the
+bundled `eclipse-mosquitto:2` supports. An external broker without MQTT 5 needs
+`VITO2MQTT_MQTT__PROTOCOL_VERSION=3.1.1`. See
+[MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
+operator contract.
 
 ## Updating the Application
 

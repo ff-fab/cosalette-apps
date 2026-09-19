@@ -129,11 +129,57 @@ model. Common environment variables are:
 | Password | `WIZ2MQTT_MQTT__PASSWORD` | unset |
 | Topic prefix | `WIZ2MQTT_MQTT__TOPIC_PREFIX` | `wiz2mqtt` |
 | TLS | `WIZ2MQTT_MQTT__TLS` | `true` (set to `false` by the shipped deployment) |
+| Protocol version | `WIZ2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose |
+| Message expiry | `WIZ2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` (seconds, valid only with protocol `5`) |
 
 Transport security is a per-deployment setting. cosalette defaults `tls` to
 `true`; the shipped `compose.yml` defaults `WIZ2MQTT_MQTT__TLS` to `false` for
 its bundled plaintext broker. Set `WIZ2MQTT_MQTT__TLS=true` in `.env` or a
 Compose override when your broker expects TLS.
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects wiz2mqtt with MQTT 5. Every retained message it
+publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours, at least `3`): bulb and power source state, availability,
+Home Assistant discovery, `status`, `_meta/*` and the last will. While wiz2mqtt runs, it
+re-publishes each retained topic every third of that interval (default 8 hours), so the
+topics stay alive. Bulb state is published only when it changes, so without the refresh
+a bulb that stays unchanged for a day would lose its retained state. A topic that
+nothing refreshes any more, such as a removed bulb or a stopped process, disappears from
+the broker by itself.
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, wiz2mqtt logs
+  `does the broker support MQTT 5?` and retries the connection. Set
+  `WIZ2MQTT_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish, for example the
+  topics of a bulb that you removed from the inventory.
+- **A long outage lets topics expire.** If wiz2mqtt is down or disconnected for longer
+  than the expiry interval, the broker drops its retained topics. wiz2mqtt publishes
+  every bulb and power source again at startup.
+- **Consumers see one repeat per refresh.** The repeat has the same payload as the last
+  publish, and the broker forwards it to live subscribers without the retain flag, so it
+  looks like a normal message. Home Assistant lights and sensors do not change state on
+  a repeat. An openHAB rule or a Home Assistant automation that triggers on receipt of
+  a `{bulb}/state` message runs once more per refresh; trigger on a change instead.
+- **A repeat never moves a bulb.** wiz2mqtt sends to a bulb only on the `set` topics,
+  which are never retained and never refreshed. Restoring the desired state follows a
+  bulb's return to reachability, not an MQTT message. The desired state and the
+  capability cache live in the store file, not on the broker, so expiry never touches
+  them.
+- **A power source `signal_topic` is not affected.** It is reserved and unsubscribed.
+  The relay that owns it publishes it, so wiz2mqtt neither stamps nor refreshes it.
 
 ## Command Queueing
 

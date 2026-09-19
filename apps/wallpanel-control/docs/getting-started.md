@@ -11,7 +11,7 @@ sending your first MQTT commands.
 | **GNOME session**  | Required for screen on/off (D-Bus/Mutter); brightness uses sysfs and works without GNOME |
 | **SSH access**     | Public-key login enabled on the wall panel                      |
 | **WoL-capable NIC**| Required only for the `wake` system action                     |
-| **MQTT broker**    | Mosquitto, EMQX, or any MQTT 3.1.1+ broker                     |
+| **MQTT broker**    | Mosquitto 2 (bundled), or any MQTT 5 broker; MQTT 3.1.1 brokers need `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1` |
 | **Python**         | 3.14+ (Docker image includes this)                             |
 
 ---
@@ -77,6 +77,9 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
         environment:
           WALLPANEL_CONTROL_MQTT__HOST: mosquitto
           WALLPANEL_CONTROL_MQTT__TLS: ${WALLPANEL_CONTROL_MQTT__TLS:-false}
+          # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+          # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+          WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION: ${WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION:-5}
           WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
           WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
         volumes:
@@ -126,6 +129,13 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
     !!! note "Pin to a specific version"
         Replace `latest` with a release tag (e.g. `0.2.0`) in the `image:` line to pin
         the deployment and avoid surprises on restart.
+
+    !!! warning "Panel state expires after a restart"
+        The compose file uses MQTT 5. After a restart, the display and system action
+        state expire within 24 hours until the next command. Set
+        `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1` if the Home Assistant light must
+        keep its last state. See
+        [MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry).
 
     !!! note "SSH key and known-hosts location"
         Export `HOST_WALLPANEL_SSH_KEY_PATH` and/or `HOST_WALLPANEL_KNOWN_HOSTS_PATH`

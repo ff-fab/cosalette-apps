@@ -172,6 +172,20 @@ this topic -- it is never retained.
 
 ---
 
+## Retention and Expiry
+
+With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained topic in
+the tables above expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
+unless wallpanel-control refreshes it. wallpanel-control re-publishes each retained
+topic with an unchanged payload every third of that interval (8 hours by default). The
+`display/state` and `system/action/state` answers exist only after a command, so after a
+restart they expire unless a new command replaces them. Non-retained topics, such as the
+`error` topic and the `/set` topics, carry no expiry. See
+[MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
+operator contract and the MQTT 3.1.1 fallback.
+
+---
+
 ## Unavailable Behavior
 
 When the wall panel is unreachable, accepted display commands still publish a state

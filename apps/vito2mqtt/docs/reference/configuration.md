@@ -21,6 +21,8 @@ These settings are inherited from the cosalette `Settings` base class:
 | `VITO2MQTT_MQTT__PORT` | MQTT broker port | `1883` |
 | `VITO2MQTT_MQTT__USERNAME` | MQTT username (optional) | — |
 | `VITO2MQTT_MQTT__PASSWORD` | MQTT password (optional) | — |
+| `VITO2MQTT_MQTT__PROTOCOL_VERSION` | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below | `3.1.1` in code, `5` in compose |
+| `VITO2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` | `86400` |
 | `VITO2MQTT_LOGGING__LEVEL` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) | `INFO` |
 
 !!! note "Nested delimiter"
@@ -28,6 +30,44 @@ These settings are inherited from the cosalette `Settings` base class:
     `VITO2MQTT_MQTT__HOST` maps to the `mqtt.host` field in the settings model.
     This is the standard
     [pydantic-settings nested model convention](https://docs.pydantic.dev/latest/concepts/pydantic_settings/#parsing-environment-variable-values).
+
+### MQTT 5 retained-message expiry
+
+The shipped `compose.yml` connects vito2mqtt with MQTT 5. Every retained message it
+publishes carries a _Message Expiry Interval_ of `MESSAGE_EXPIRY_INTERVAL` seconds
+(default `86400`, 24 hours): the group state topics, availability, the legionella
+status, Home Assistant discovery, `status`, `_meta/*` and the last will. While
+vito2mqtt runs, it re-publishes each retained topic every third of that interval
+(default 8 hours), so the topics stay alive. A topic that nothing refreshes any more,
+such as a renamed entity or a stopped process, disappears from the broker by itself.
+
+**Operator contract**
+
+- **The broker must support MQTT 5.** The bundled `eclipse-mosquitto:2` does. To check
+  another broker, publish a retained message that expires and confirm it disappears:
+
+  ```bash
+  mosquitto_pub -V mqttv5 -r -t check/expiry -m hello -D publish message-expiry-interval 3
+  sleep 5 && mosquitto_sub -V mqttv5 -t check/expiry -W 2   # prints nothing
+  ```
+
+- **There is no automatic fallback.** If the broker refuses MQTT 5, vito2mqtt logs
+  `does the broker support MQTT 5?` and retries the connection. Set
+  `VITO2MQTT_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
+- **Expiry applies to new messages only.** Retained topics published before the switch
+  never expire. Clear them by hand with an empty retained publish.
+- **A long outage lets topics expire.** If vito2mqtt is down or disconnected for longer
+  than the expiry interval, the broker drops its retained topics. vito2mqtt publishes
+  every group again at startup, so the state topics return with the restart.
+- **Consumers see one repeat per refresh.** Group state is published only when a value
+  changes, so a stable group stays silent for hours. With MQTT 5 the broker also gets the
+  last payload of each group again every 8 hours. The repeat has the same payload, and
+  the broker forwards it to live subscribers without the retain flag, so it looks like a
+  normal message. Home Assistant sensors do not change state on a repeat. An automation
+  that triggers on receipt of a `{group}/state` message runs once more per refresh;
+  trigger on a value change instead.
+- **A repeat never drives the boiler.** vito2mqtt writes to the boiler only on the
+  `{group}/set` topics, which are never retained and never refreshed.
 
 ---
 

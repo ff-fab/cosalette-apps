@@ -47,6 +47,18 @@ vito2mqtt/vitodens200w/diagnosis/state
 
 ---
 
+## Retention and Expiry
+
+With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained topic in
+this reference expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
+unless vito2mqtt refreshes it. vito2mqtt re-publishes each retained topic with an
+unchanged payload every third of that interval (8 hours by default). Non-retained
+topics, such as the `error` topics and the `/set` command topics, carry no expiry. See
+[MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
+operator contract and the MQTT 3.1.1 fallback.
+
+---
+
 ## Framework Topics
 
 Alongside the device topics above, cosalette itself publishes two framework-owned

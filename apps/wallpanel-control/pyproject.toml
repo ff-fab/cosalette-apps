@@ -88,4 +88,10 @@ extend = "../../pyproject.toml"
 [tool.ruff.lint.isort]
 # ``async_utils`` and ``ha_discovery`` are the repo-root shared test helpers
 # reached via ``pythonpath`` above, not PyPI packages.
-known-first-party = ["wallpanel_control", "async_utils", "ha_discovery"]
+known-first-party = [
+    "wallpanel_control",
+    "async_utils",
+    "ha_discovery",
+    "mqtt5_broker",
+    "mqtt5_contract",
+]
