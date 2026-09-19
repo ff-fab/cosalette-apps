@@ -9,7 +9,7 @@ from __future__ import annotations
 import dataclasses
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from cosalette.schema import consumer, ha_entities, ha_entity, merge, openhab
 from pydantic import (
@@ -210,6 +210,43 @@ machine fight over it (ADR-009)."""
 # bypassing ``formatBeforePublish``.
 _OPENHAB_ON = '{"state": "ON"}'
 _OPENHAB_OFF = '{"state": "OFF"}'
+
+
+def openhab_nullable_switch_params(
+    key: str, *, on: str, off: str, null_value: str = "NULL"
+) -> dict[str, str]:
+    """openHAB channel parameters for a Switch on a nullable JSON ``key``.
+
+    A plain ``JSONPATH:$.key`` returns Java ``null`` for a JSON ``null``, and
+    the binding then discards the message, so the Item keeps a stale value.
+    The filter form returns an empty list instead, which the JSONPATH service
+    renders as ``NULL``. ``nullValue`` maps ``null_value`` to ``NULL``, the
+    only undefined state that the MQTT binding can set. A switch channel
+    honours ``nullValue`` from openHAB 5.1 on; an older release logs a warning
+    and keeps the last value.
+    """
+    return {
+        "transformationPattern": f"JSONPATH:$[?(@.{key} != null)].{key}",
+        "on": on,
+        "off": off,
+        "nullValue": null_value,
+    }
+
+
+def _openhab_nullable_switch(
+    key: str, *, on: str, off: str, null_value: str = "NULL"
+) -> dict[str, Any]:
+    """Read-only openHAB Switch metadata for :func:`openhab_nullable_switch_params`."""
+    return merge(
+        consumer(display_name=key.replace("_", " ").capitalize(), read_only=True),
+        openhab(
+            item_type="Switch",
+            channel_type="switch",
+            channel_params=openhab_nullable_switch_params(
+                key, on=on, off=off, null_value=null_value
+            ),
+        ),
+    )
 
 
 @dataclass(frozen=True)
@@ -462,9 +499,22 @@ class PowerSourceStateModel(BaseModel):
         ),
     )
 
-    powered: Literal["on", "off", "unknown"]
+    powered: Annotated[
+        Literal["on", "off", "unknown"],
+        Field(
+            json_schema_extra=_openhab_nullable_switch(
+                "powered", on="on", off="off", null_value="unknown"
+            )
+        ),
+    ]
     power_request: Annotated[
-        PowerRequestWire, PlainSerializer(_serialize_power_request)
+        PowerRequestWire,
+        PlainSerializer(_serialize_power_request),
+        Field(
+            json_schema_extra=_openhab_nullable_switch(
+                "power_request", on="on", off="off"
+            )
+        ),
     ] = POWER_REQUEST_INACTIVE
     """The desired power of the circuit (ADR-009): ``"on"`` while wiz2mqtt
     asks for the circuit, ``"off"`` while it asks for the circuit to be cut,

@@ -11,6 +11,7 @@ from typing import Annotated, Literal
 
 import typer
 
+from wiz2mqtt.models import openhab_nullable_switch_params
 from wiz2mqtt.settings import Wiz2MqttSettings
 
 cli = typer.Typer()
@@ -84,6 +85,46 @@ def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
     return "\n".join(definitions) + "\n\n" + items
 
 
+def _powered_channel(match: re.Match[str]) -> str:
+    """Append a read-only Powered channel on the state topic of *match*."""
+    params = {"stateTopic": match[1]} | openhab_nullable_switch_params(
+        "powered", on="true", off="false"
+    )
+    lines = ",\n".join(f'            {key}="{value}"' for key, value in params.items())
+    return f'{match[0]}        Type switch : powered "Powered" [\n{lines}\n        ]\n'
+
+
+def add_powered(things: str, items: str, settings: Wiz2MqttSettings) -> tuple[str, str]:
+    """Add a Powered channel and Item to each bulb that has a power source.
+
+    Every bulb payload carries ``powered``, but it stays ``null`` for a bulb
+    outside a source, so only a bulb in a source gets the Item (ADR-007). A
+    rule then computes "lit" as ``State == ON && Powered == ON``.
+    """
+    segments = _bulb_segments(settings)
+    for bulb in settings.bulbs:
+        if settings.power_source_of(bulb.name) is None:
+            continue
+        channel = (
+            r' {8}Type switch : state "State" \[\n {12}stateTopic='
+            rf'"([^"]*/{re.escape(bulb.name)}/state)",\n.*?\n {{8}}\]\n'
+        )
+        things, count = re.subn(channel, _powered_channel, things, flags=re.DOTALL)
+        segment = segments[bulb.name]
+        item = (
+            rf'^Switch\s+Wiz2Mqtt_{segment}_State\s+"State \[%s\]"\s+'
+            r'(\([^)]*\))\s+\{ channel="([^"]+):state" \}$'
+        )
+        powered = (
+            rf'\g<0>\nSwitch  Wiz2Mqtt_{segment}_Powered  "Powered [%s]"  '
+            r'\1  { channel="\2:powered" }'
+        )
+        items, item_count = re.subn(item, powered, items, flags=re.MULTILINE)
+        if (count, item_count) != (1, 1):
+            raise ValueError(f"Expected one State channel and Item for {bulb.name}")
+    return things, items
+
+
 @cli.command()
 def generate(
     config_file: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
@@ -108,8 +149,11 @@ def generate(
                 )
             )
             args = ("openhab", str(schema), "--broker-uid", broker_uid)
-            items = add_groups(_schema_cli(*args, "--output", "items"), settings)
-            things = _schema_cli(*args, "--output", "things")
+            things, items = add_powered(
+                _schema_cli(*args, "--output", "things"),
+                add_groups(_schema_cli(*args, "--output", "items"), settings),
+                settings,
+            )
         if output in ("things", "both"):
             typer.echo(things)
         if output == "both":

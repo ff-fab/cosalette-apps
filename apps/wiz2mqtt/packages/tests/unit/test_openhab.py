@@ -8,6 +8,8 @@ Test Techniques Used:
   schema CLI failure propagation surface as a failing exit
 - Round-trip Testing: overlapping groups resolve end-to-end via the real
   schema CLI with a custom broker uid and topic prefix
+- Equivalence Partitioning: a bulb in a power source gets a Powered channel
+  and Item; a bulb outside every source keeps the output unchanged
 """
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from wiz2mqtt.openhab import add_groups, cli
+from wiz2mqtt.openhab import add_groups, add_powered, cli
 from wiz2mqtt.settings import Wiz2MqttSettings
 
 
@@ -110,3 +112,60 @@ def test_real_inventory_generation(tmp_path: Path, output: str) -> None:
         assert 'commandTopic="house/wiz/desk/set"' in result.output
         assert "house/wiz/all/" not in result.output
         assert "house/wiz/office/" not in result.output
+
+
+def test_missing_state_channel_fails() -> None:
+    """Framework output drift cannot silently drop a bulb's Powered Item."""
+    settings = Wiz2MqttSettings(
+        _env_file=None,
+        _config_file=None,
+        bulbs=[{"name": "desk", "ip": "10.0.0.1", "power_source": "circuit"}],
+        power_sources=[{"name": "circuit", "members": ["desk"]}],
+    )
+    with pytest.raises(ValueError, match="Expected one State channel"):
+        add_powered("", "", settings)
+
+
+def _generate(tmp_path: Path, toml: str) -> str:
+    config = tmp_path / "wiz2mqtt.toml"
+    config.write_text(toml)
+    result = CliRunner().invoke(cli, ["--config-file", str(config)])
+    assert result.exit_code == 0, result.output
+    return result.output
+
+
+_BULBS = (
+    '[[bulbs]]\nname="desk"\nip="10.0.0.1"\n'
+    '[[bulbs]]\nname="living-room"\nip="10.0.0.2"\n'
+    '[[bulbs]]\nname="hall"\nip="10.0.0.3"\n'
+)
+
+
+def test_power_source_generation(tmp_path: Path) -> None:
+    """One source with two members: belief, desired power and two Powered Items."""
+    output = _generate(
+        tmp_path,
+        _BULBS + '[[power_sources]]\nname="circuit"\nmembers=["desk", "living-room"]\n',
+    )
+    items = [line for line in output.splitlines() if line.startswith("Switch")]
+    for item, channel in [
+        ("Wiz2Mqtt_Circuit_Powered", "wiz2mqtt_circuit:powered"),
+        ("Wiz2Mqtt_Circuit_PowerRequest", "wiz2mqtt_circuit:power_request"),
+        ("Wiz2Mqtt_Desk_Powered", "wiz2mqtt_desk:powered"),
+        ("Wiz2Mqtt_LivingRoom_Powered", "wiz2mqtt_living_room:powered"),
+    ]:
+        assert any(f" {item} " in i and f':{channel}"' in i for i in items), item
+    assert "Wiz2Mqtt_Hall_Powered" not in output
+    # The belief's "unknown" and a JSON null both reach openHAB as NULL.
+    assert output.count('nullValue="unknown"') == 1
+    assert output.count('nullValue="NULL"') == 3
+    assert "JSONPATH:$[?(@.power_request != null)].power_request" in output
+    # Read-only: no command channel on the source, so no relay mapping.
+    assert 'commandTopic="wiz2mqtt/circuit/' not in output
+
+
+def test_no_power_source_generates_no_powered_output(tmp_path: Path) -> None:
+    """Without a source the output is the one from before power awareness."""
+    output = _generate(tmp_path, _BULBS)
+    assert "powered" not in output.lower()
+    assert "nullValue" not in output
