@@ -102,12 +102,14 @@ Subscribe to the telemetry topics to see data flowing:
 
 ```bash
 # Subscribe to all state topics
-mosquitto_sub -h localhost -t 'vito2mqtt/vitodens200w/+/state' -v
+mosquitto_sub -h localhost -t 'vito2mqtt/+/state' -v
 ```
 
-You should see JSON payloads for each signal group:
+You should see JSON payloads for each signal group. The wildcard also matches
+`vito2mqtt/legionella/state`, the state of the legionella prevention cycle.
+That topic is not a signal group.
 
-```json title="vito2mqtt/vitodens200w/outdoor/state"
+```json title="vito2mqtt/outdoor/state"
 {
   "outdoor_temperature": 8.5,
   "outdoor_temperature_lowpass": 8.3,
@@ -115,7 +117,7 @@ You should see JSON payloads for each signal group:
 }
 ```
 
-```json title="vito2mqtt/vitodens200w/burner/state"
+```json title="vito2mqtt/burner/state"
 {
   "boiler_temperature": 42.1,
   "boiler_temperature_lowpass": 41.8,
@@ -128,7 +130,7 @@ You should see JSON payloads for each signal group:
 }
 ```
 
-```json title="vito2mqtt/vitodens200w/diagnosis/state"
+```json title="vito2mqtt/diagnosis/state"
 {
   "error_status": 0,
   "error_history_1": { "error": "Flame failure", "timestamp": "2026-01-15T14:30:00" },

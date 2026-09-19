@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted **Date:** 2026-02-27
+Accepted **Date:** 2026-02-27 | Amended **Date:** 2026-09-19
 
 ## Context
 
@@ -25,17 +25,17 @@ Assistant device/entity concepts, and keeps JSON payloads focused and reasonably
 
 **Topic structure:**
 
-- `vito2mqtt/{device_id}/outdoor/state` — outdoor sensors (temperature)
-- `vito2mqtt/{device_id}/hot_water/state` — DHW telemetry (temperatures, flow)
-- `vito2mqtt/{device_id}/hot_water/set` — DHW writable parameters (target temp)
-- `vito2mqtt/{device_id}/burner/state` — burner telemetry (hours, starts, modulation)
-- `vito2mqtt/{device_id}/heating_radiator/state` — M1 heating circuit telemetry
-- `vito2mqtt/{device_id}/heating_radiator/set` — M1 writable parameters
-- `vito2mqtt/{device_id}/heating_floor/state` — M2 heating circuit (floor) telemetry
-- `vito2mqtt/{device_id}/heating_floor/set` — M2 writable parameters
-- `vito2mqtt/{device_id}/system/state` — system-level readings (firmware, time)
-- `vito2mqtt/{device_id}/system/set` — system writable parameters (time sync)
-- `vito2mqtt/{device_id}/diagnosis/state` — error states and status registers
+- `vito2mqtt/outdoor/state` — outdoor sensors (temperature)
+- `vito2mqtt/hot_water/state` — DHW telemetry (temperatures, flow)
+- `vito2mqtt/hot_water/set` — DHW writable parameters (target temp)
+- `vito2mqtt/burner/state` — burner telemetry (hours, starts, modulation)
+- `vito2mqtt/heating_radiator/state` — M1 heating circuit telemetry
+- `vito2mqtt/heating_radiator/set` — M1 writable parameters
+- `vito2mqtt/heating_floor/state` — M2 heating circuit (floor) telemetry
+- `vito2mqtt/heating_floor/set` — M2 writable parameters
+- `vito2mqtt/system/state` — system-level readings (firmware, time)
+- `vito2mqtt/system/set` — system writable parameters (time sync)
+- `vito2mqtt/diagnosis/state` — error states and status registers
 
 All payloads are JSON objects with English keys.
 
@@ -87,7 +87,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Negative
 
 - Subscribers interested in all data must subscribe to multiple topics or use a wildcard
-  (`vito2mqtt/{device_id}/#`)
+  (`vito2mqtt/#`)
 - Domain boundaries require upfront design decisions about which signals belong to which
   group — some signals may not fit neatly
 - More topics than a single-aggregated approach means slightly more MQTT overhead
@@ -95,4 +95,13 @@ _Scale: 1 (poor) to 5 (excellent)_
 - English key names require a translation layer for users expecting manufacturer-specific
   German parameter names
 
-_2026-02-27_
+## Amendment (2026-09-19) — Minor
+
+!!! note "Editorial note (2026-09-19)"
+    This ADR first listed a `{device_id}` segment after the app prefix, for example `vito2mqtt/{device_id}/outdoor/state`. The app never published that segment. The topic list in the Decision section now shows the real layout: `vito2mqtt/{group}/state` and `vito2mqtt/{group}/set`.
+
+!!! note "Editorial note (2026-09-19)"
+    The `device_id` setting is reserved. No topic code reads it, so it does not affect topics. The `{device}` segment in the examples of Option 2 and Option 3 was illustrative and is not part of any layout that the app publishes.
+
+!!! note "Editorial note (2026-09-19)"
+    The `device_id` setting does not separate two instances on one broker: both publish to the same topics. To separate them, set a different `VITO2MQTT_MQTT__TOPIC_PREFIX` for each instance. Beads issue cap-ohpx tracks the decision to remove `device_id` or wire it in.

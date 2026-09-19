@@ -25,24 +25,24 @@ registry but is not exposed via these topics.
 Topics follow the domain-grouped layout:
 
 ```
-vito2mqtt/{device_id}/{group}/state    # Telemetry (read-only, JSON)
-vito2mqtt/{device_id}/{group}/set      # Commands (writable, JSON)
+vito2mqtt/{group}/state    # Telemetry (read-only, JSON)
+vito2mqtt/{group}/set      # Commands (writable, JSON)
 ```
 
-With the default `device_id` of `vitodens200w`, example topics:
+Example topics:
 
 ```
-vito2mqtt/vitodens200w/outdoor/state
-vito2mqtt/vitodens200w/hot_water/state
-vito2mqtt/vitodens200w/hot_water/set
-vito2mqtt/vitodens200w/burner/state
-vito2mqtt/vitodens200w/heating_radiator/state
-vito2mqtt/vitodens200w/heating_radiator/set
-vito2mqtt/vitodens200w/heating_floor/state
-vito2mqtt/vitodens200w/heating_floor/set
-vito2mqtt/vitodens200w/system/state
-vito2mqtt/vitodens200w/system/set
-vito2mqtt/vitodens200w/diagnosis/state
+vito2mqtt/outdoor/state
+vito2mqtt/hot_water/state
+vito2mqtt/hot_water/set
+vito2mqtt/burner/state
+vito2mqtt/heating_radiator/state
+vito2mqtt/heating_radiator/set
+vito2mqtt/heating_floor/state
+vito2mqtt/heating_floor/set
+vito2mqtt/system/state
+vito2mqtt/system/set
+vito2mqtt/diagnosis/state
 ```
 
 ---
@@ -62,7 +62,7 @@ operator contract and the MQTT 3.1.1 fallback.
 ## Framework Topics
 
 Alongside the device topics above, cosalette itself publishes two framework-owned
-topics under the `vito2mqtt/` app prefix (not the `device_id` segment). Both are
+topics under the `vito2mqtt/` app prefix. Both are
 always on — no setting disables them — retained, QoS 1, and republished
 byte-identically on every broker connect.
 
@@ -128,7 +128,7 @@ in-repo — this note only applies if you deploy your own broker ACLs.
 
 ### Outdoor (3 telemetry signals)
 
-Topic: `vito2mqtt/{device_id}/outdoor/state`
+Topic: `vito2mqtt/outdoor/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -140,14 +140,14 @@ Topic: `vito2mqtt/{device_id}/outdoor/state`
 
 ### Hot Water (2 telemetry + 9 command signals)
 
-Telemetry topic: `vito2mqtt/{device_id}/hot_water/state`
+Telemetry topic: `vito2mqtt/hot_water/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
 | `hot_water_temperature` | `0x0804` | IS10 | READ | Current hot water temperature (°C) |
 | `hot_water_outlet_temperature` | `0x0814` | IS10 | READ | Hot water outlet temperature (°C) |
 
-Command topic: `vito2mqtt/{device_id}/hot_water/set`
+Command topic: `vito2mqtt/hot_water/set`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -165,7 +165,7 @@ Command topic: `vito2mqtt/{device_id}/hot_water/set`
 
 ### Burner (8 telemetry signals)
 
-Topic: `vito2mqtt/{device_id}/burner/state`
+Topic: `vito2mqtt/burner/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -184,7 +184,7 @@ Topic: `vito2mqtt/{device_id}/burner/state`
 
 The M1 heating circuit controls traditional radiators.
 
-Telemetry topic: `vito2mqtt/{device_id}/heating_radiator/state`
+Telemetry topic: `vito2mqtt/heating_radiator/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -196,7 +196,7 @@ Telemetry topic: `vito2mqtt/{device_id}/heating_radiator/state`
 | `operating_mode_m1` | `0x2301` | BA | READ | Operating mode, radiator circuit |
 | `operating_mode_economy_m1` | `0x2302` | BA | READ | Economy mode, radiator circuit |
 
-Command topic: `vito2mqtt/{device_id}/heating_radiator/set`
+Command topic: `vito2mqtt/heating_radiator/set`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -220,7 +220,7 @@ Command topic: `vito2mqtt/{device_id}/heating_radiator/set`
 
 The M2 heating circuit controls underfloor heating.
 
-Telemetry topic: `vito2mqtt/{device_id}/heating_floor/state`
+Telemetry topic: `vito2mqtt/heating_floor/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -233,7 +233,7 @@ Telemetry topic: `vito2mqtt/{device_id}/heating_floor/state`
 | `operating_mode_m2` | `0x3301` | BA | READ | Operating mode, floor heating circuit |
 | `operating_mode_economy_m2` | `0x3302` | BA | READ | Economy mode, floor heating circuit |
 
-Command topic: `vito2mqtt/{device_id}/heating_floor/set`
+Command topic: `vito2mqtt/heating_floor/set`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -255,7 +255,7 @@ Command topic: `vito2mqtt/{device_id}/heating_floor/set`
 
 ### System (7 telemetry + 7 command signals)
 
-Telemetry topic: `vito2mqtt/{device_id}/system/state`
+Telemetry topic: `vito2mqtt/system/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -267,7 +267,7 @@ Telemetry topic: `vito2mqtt/{device_id}/system/state`
 | `switch_valve_status` | `0x0A10` | USV | READ | Switch valve position |
 | `flow_temperature_setpoint_m3` | `0x4544` | IS10 | READ | Flow temperature setpoint, M3 circuit (°C) |
 
-Command topic: `vito2mqtt/{device_id}/system/set`
+Command topic: `vito2mqtt/system/set`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -283,7 +283,7 @@ Command topic: `vito2mqtt/{device_id}/system/set`
 
 ### Diagnosis (11 telemetry signals)
 
-Topic: `vito2mqtt/{device_id}/diagnosis/state`
+Topic: `vito2mqtt/diagnosis/state`
 
 | Signal Name | Address | Type | Access | Description |
 |-------------|---------|------|--------|-------------|
@@ -348,7 +348,7 @@ To write values, publish a JSON object to the group's `/set` topic:
 ```bash
 # Set hot water target temperature to 55°C
 mosquitto_pub -h localhost \
-  -t 'vito2mqtt/vitodens200w/hot_water/set' \
+  -t 'vito2mqtt/hot_water/set' \
   -m '{"hot_water_setpoint": 55}'
 ```
 
@@ -357,7 +357,7 @@ Multiple signals can be set in a single message:
 ```bash
 # Set both room setpoint and economy setpoint for the radiator circuit
 mosquitto_pub -h localhost \
-  -t 'vito2mqtt/vitodens200w/heating_radiator/set' \
+  -t 'vito2mqtt/heating_radiator/set' \
   -m '{"room_temperature_setpoint_m1": 21, "room_temperature_setpoint_economy_m1": 18}'
 ```
 

@@ -19,10 +19,10 @@ ADRs follow the format described by Michael Nygard in
 | ADR | Title | Status | Date |
 |-----|-------|--------|------|
 | [ADR-001](ADR-001-framework-choice.md) | Framework Choice — cosalette | Accepted | 2026-02-27 |
-| [ADR-002](ADR-002-mqtt-topic-layout.md) | MQTT Topic Layout — Domain-Grouped | Accepted | 2026-02-27 |
+| [ADR-002](ADR-002-mqtt-topic-layout.md) | MQTT Topic Layout — Domain-Grouped | Accepted (amended 2026-09-19) | 2026-02-27 |
 | [ADR-003](ADR-003-hardware-abstraction.md) | Hardware Abstraction — Hexagonal Architecture | Accepted | 2026-02-27 |
 | [ADR-004](ADR-004-optolink-protocol-design.md) | Optolink Protocol Design | Accepted | 2026-02-27 |
-| [ADR-005](ADR-005-configuration-settings.md) | Configuration and Settings | Accepted | 2026-02-27 |
+| [ADR-005](ADR-005-configuration-settings.md) | Configuration and Settings | Accepted (amended 2026-09-19) | 2026-02-27 |
 | [ADR-006](ADR-006-configurable-signal-language.md) | Configurable Signal Language (DE/EN) | Accepted | 2026-02-28 |
 | [ADR-007](ADR-007-telemetry-coalescing-groups.md) | Telemetry Coalescing Groups | Accepted (amended 2026-09-02) | 2026-03-03 |
 
@@ -40,8 +40,8 @@ Optolink protocol and device logic.
 ### ADR-002: MQTT Topic Layout — Domain-Grouped
 
 Topics use a domain-grouped structure:
-`vito2mqtt/{device_id}/{group}/state` for telemetry and
-`vito2mqtt/{device_id}/{group}/set` for commands. Groups are semantic domains
+`vito2mqtt/{group}/state` for telemetry and
+`vito2mqtt/{group}/set` for commands. Groups are semantic domains
 (outdoor, hot_water, burner, etc.) rather than flat signal lists or deep hierarchies.
 
 ### ADR-003: Hardware Abstraction — Hexagonal Architecture
