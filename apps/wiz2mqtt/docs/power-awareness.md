@@ -46,15 +46,20 @@ A power source publishes what wiz2mqtt **believes** about the circuit, not the r
 signal. The belief has three values: `on`, `off` and `unknown`. wiz2mqtt applies three
 rules, in this order:
 
-1. If one or more member bulbs answer, the belief is `on`. Evidence from a bulb
-   outranks the signal.
-2. If no member answers and the source has a signal, the belief is the signal.
+1. If one or more member bulbs answered after the last change of the signal, the
+   belief is `on`. New evidence from a bulb outranks the signal.
+2. If no member answered after the last change of the signal and the source has a
+   signal, the belief is the signal.
 3. If no member answers and there is no signal, `when_unreachable` decides: `unknown`
    for `fault` (the default), `off` for `no_power`.
 
 Rule 1 makes the feature work on a circuit without a relay signal. A member counts as
 "not answering" only after three failed reads in a row. One lost read does not change
 the belief.
+
+A change of the signal makes each earlier answer old. Thus a signal `off` sets the
+belief `off` at once. If a member answers after the signal, the belief is `on` again. A
+repeat of the same signal is not a change.
 
 ### Availability means a fault
 
@@ -63,7 +68,7 @@ not answer. That is a real fault.
 
 - If the belief is `off`, the bulb stays `online` with `powered: false`. wiz2mqtt also
   stops reading the bulb after the third failed read, until the belief changes or the
-  bulb boots.
+  bulb boots. While a signal `off` decides the belief, one failed read is sufficient.
 - If the belief is `on` or `unknown`, three failed reads in a row set the bulb
   `offline`.
 
@@ -366,9 +371,9 @@ be on and has power, and unknown if the belief is unknown.
 | Power returns, `firstBeat` reaches the host             | The restore starts less than 1 s after the bulb boots.                         |
 | Power returns, no `firstBeat` (for example, no host networking) | The restore starts on the next heartbeat read, a maximum of 60 s later. |
 | Circuit goes dark, no signal                            | 159 s to 219 s until the belief changes; 192 s to 252 s on a host that receives idle pushes from the bulbs. |
-| Circuit goes dark, signal `off` arrives                 | About 159 s after the signal (up to about 220 s with idle pushes). Rule 1 keeps the belief `on` until each member fails three reads. |
+| Circuit goes dark, signal `off` arrives                 | At once: the belief becomes `off`. wiz2mqtt stops reading a member after its first failed read, about 13 s after the signal. |
 | Signal `on` arrives while no member answers             | At once: the belief becomes `on`.                                              |
 
 A failed read takes 13 s (the pywizlight timeout), and the heartbeat waits 60 s after
-each read. Three failed reads in a row are necessary before a bulb counts as not
-answering.
+each read. Without a signal, three failed reads in a row are necessary before a bulb
+counts as not answering.

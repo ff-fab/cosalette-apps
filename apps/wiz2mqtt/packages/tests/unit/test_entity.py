@@ -32,6 +32,7 @@ from wiz2mqtt.intent import (
     record_command,
 )
 from wiz2mqtt.models import POWERED_UNKNOWN, BulbState
+from wiz2mqtt.power import record_signal
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -885,6 +886,74 @@ class TestWhenUnreachableOff:
 
         assert ctx.availability_calls == ["unavailable"]
         assert state.last_availability["office"] == "offline"
+
+
+class TestSignalOff:
+    """A relay signal ``off`` newer than the last answer decides at once
+    (ADR-007 amendment 2026-09-19, cap-hfro)."""
+
+    @staticmethod
+    async def _answered_then_signal_off(
+        adapter: FakeWizBulbAdapter, ctx: FakeDeviceContext, state: SharedState
+    ) -> None:
+        await _tick(ctx, _config(), adapter, state)
+        assert state.bulb_answered["office"] is True
+        record_signal(ctx.settings, state, "office-power", "off")
+
+    async def test_first_failed_read_after_the_signal_is_firm(self) -> None:
+        """Technique: Boundary Value Analysis — one failure reaches the threshold.
+
+        The bulb stays online with ``powered: false``, and the next tick
+        skips the read instead of waiting for two more 13 s timeouts.
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        await self._answered_then_signal_off(adapter, ctx, state)
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        result = await _tick(ctx, _config(), adapter, state)
+        await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": False}
+        assert state.consecutive_failures["office"] == _FAILURE_THRESHOLD
+        assert adapter.get_state_call_count == 2
+        assert ctx.availability_calls == ["available"]
+
+    async def test_answer_after_the_signal_outranks_it(self) -> None:
+        """Technique: Decision Table — rule 1 with evidence newer than the signal.
+
+        The answer clears the stale mark and does not arm the return path:
+        a wrong signal is not a return to reachability.
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        await self._answered_then_signal_off(adapter, ctx, state)
+
+        result = await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": True}
+        assert "office" not in state.stale_answers
+        assert state.phase["office"] == "steady"
+
+    async def test_failure_after_a_newer_answer_keeps_the_debounce(self) -> None:
+        """Technique: State Transition — signal, answer, then one lost read.
+
+        The answer after the signal holds the belief ``on``, so one timeout
+        is transient again and the bulb keeps its answer evidence.
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        await self._answered_then_signal_off(adapter, ctx, state)
+        await _tick(ctx, _config(), adapter, state)
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        result = await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": True}
+        assert state.consecutive_failures["office"] == 1
 
 
 class TestBootCallback:

@@ -291,7 +291,7 @@ async def power_signal(
     if signal is None:
         logger.warning("Ignoring invalid signal for power source %s", source.name)
         return
-    if not power.record_signal(state, source.name, signal):
+    if not power.record_signal(settings, state, source.name, signal):
         return
     for name in power.signal_wake_targets(settings, source.name):
         notify(name)

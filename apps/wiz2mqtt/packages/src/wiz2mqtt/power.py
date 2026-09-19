@@ -29,8 +29,9 @@ def compute_belief(
 ) -> Belief:
     """Derive the belief of one power source (ADR-007, three rules in order).
 
-    1. If a minimum of one member bulb answers, the belief is ``"on"``.
-       Evidence outranks the signal.
+    1. If a minimum of one member bulb answered after the last change of
+       the signal, the belief is ``"on"``. New evidence outranks the signal
+       (amendment 2026-09-19); the caller filters out stale answers.
     2. If no bulb answers and a signal exists, the belief is the signal.
     3. If no bulb answers and no signal exists, the belief is ``"unknown"``
        for a ``"fault"`` source, ``"off"`` for a ``"no_power"`` source —
@@ -71,15 +72,20 @@ def source_for_signal_topic(
     )
 
 
-def record_signal(state: SharedState, source_name: str, signal: Signal) -> bool:
+def record_signal(
+    settings: Wiz2MqttSettings, state: SharedState, source_name: str, signal: Signal
+) -> bool:
     """Store *signal* for *source_name*; return whether it differs from the last.
 
-    A repeat of the stored signal changes no belief, so the caller can skip
-    waking the source and its bulbs.
+    A change makes every earlier member answer stale (ADR-007 amendment
+    2026-09-19), so a signal ``off`` turns the belief off at once instead of
+    after three failed reads per member. A repeat of the stored signal
+    changes no belief, so the caller can skip waking the source and its bulbs.
     """
     if state.source_signal.get(source_name) == signal:
         return False
     state.source_signal[source_name] = signal
+    state.stale_answers.update(settings.bulbs_for_power_source(source_name))
     return True
 
 
@@ -134,7 +140,10 @@ def belief_for_source(
     source" case to represent as ``None``.
     """
     members = settings.bulbs_for_power_source(source.name)
-    any_member_answered = any(state.bulb_answered.get(m, False) for m in members)
+    any_member_answered = any(
+        state.bulb_answered.get(m, False) and m not in state.stale_answers
+        for m in members
+    )
     signal = state.source_signal.get(source.name)
     return compute_belief(
         any_member_answered=any_member_answered,
