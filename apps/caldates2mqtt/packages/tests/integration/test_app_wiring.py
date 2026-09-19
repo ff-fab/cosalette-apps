@@ -199,7 +199,12 @@ class TestAvailability:
 
     @pytest.mark.integration
     async def test_retry_exhaustion_marks_calendar_offline_then_recovers(self) -> None:
-        """Terminal CalDAV transport failure drives offline -> online lifecycle."""
+        """Terminal CalDAV failure transitions offline, then recovers online.
+
+        Techniques: State Transition and Boundary Value Analysis -- four failed
+        reads cross the three-retry exhaustion boundary before a successful retry.
+        """
+        # Arrange
         reader = FakeCalDavReader()
         reader.fail_next_reads(CalDavConnectionError("CalDAV unavailable"), count=4)
         clock = ManualClock()
@@ -209,6 +214,7 @@ class TestAvailability:
         availability_topic = f"{TOPIC_PREFIX}/garbage/availability"
         task = asyncio.create_task(harness.run())
         try:
+            # Act
             await clock.settle()
             await harness.inject_command(
                 "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
@@ -221,6 +227,8 @@ class TestAvailability:
                 await harness.advance_time(10)
             await _wait_until(lambda: not reader.failure_sequence)
             await harness.wait_for_publish_count(availability_topic, 2)
+
+            # Assert
             assert harness.messages_for(availability_topic) == [
                 ("online", True, 1),
                 ("offline", True, 1),
@@ -230,6 +238,7 @@ class TestAvailability:
                 "garbage", "", topic=f"{TOPIC_PREFIX}/garbage/set"
             )
             await harness.wait_for_publish_count(availability_topic, 3)
+            # Assert
             assert harness.messages_for(availability_topic)[-1] == ("online", True, 1)
         finally:
             harness.shutdown_event.set()
