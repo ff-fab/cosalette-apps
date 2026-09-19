@@ -73,9 +73,8 @@ class SharedState:
     telemetry tick (:mod:`wiz2mqtt.power`)."""
 
     source_signal: dict[str, Signal | None] = field(default_factory=dict)
-    """Each power source's last-known raw relay signal. Always ``None`` in
-    this PR — cap-bjw9.11 will populate it from the subscribed
-    ``signal_topic``."""
+    """Each power source's last-known raw relay signal, set by the
+    ``power_signal`` inbound handler from the subscribed ``signal_topic``."""
 
     boot_callback_registered: bool = False
     """Guards :meth:`wiz2mqtt.ports.WizBulbPort.register_boot_callback` being

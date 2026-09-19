@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 Belief = Literal["on", "off", "unknown"]
 Signal = Literal["on", "off"]
 
+_SIGNALS: tuple[Signal, ...] = ("on", "off")
+
 
 def compute_belief(
     *,
@@ -40,6 +42,29 @@ def compute_belief(
     if signal is not None:
         return signal
     return "unknown" if when_unreachable == "fault" else "off"
+
+
+def parse_signal(payload: str) -> Signal | None:
+    """Parse a relay ``signal_topic`` payload (ADR-007 signal contract).
+
+    Accepts only lowercase ``on`` or ``off`` after one whitespace trim. Any
+    other payload returns ``None``, so the belief stays unchanged.
+    """
+    value = payload.strip()
+    return next((signal for signal in _SIGNALS if signal == value), None)
+
+
+def source_for_signal_topic(
+    settings: Wiz2MqttSettings, topic: str
+) -> PowerSourceConfig | None:
+    """Return the power source that subscribes to *topic*, if any.
+
+    ``signal_topic`` is unique per source (validated by the settings).
+    """
+    return next(
+        (source for source in settings.power_sources if source.signal_topic == topic),
+        None,
+    )
 
 
 def belief_for_bulb(

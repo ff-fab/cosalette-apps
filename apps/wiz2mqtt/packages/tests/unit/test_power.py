@@ -11,7 +11,13 @@ from __future__ import annotations
 
 import pytest
 
-from wiz2mqtt.power import belief_for_bulb, compute_belief, source_payload
+from wiz2mqtt.power import (
+    belief_for_bulb,
+    compute_belief,
+    parse_signal,
+    source_for_signal_topic,
+    source_payload,
+)
 from wiz2mqtt.settings import Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -181,3 +187,58 @@ def test_belief_truth_table(
         )
         == expected
     )
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ("on", "on"),
+        ("off", "off"),
+        ("  on\n", "on"),
+        ("\toff ", "off"),
+        ("ON", None),
+        ("Off", None),
+        ("true", None),
+        ("1", None),
+        ("", None),
+        ("   ", None),
+        ("on off", None),
+        ('{"state": "on"}', None),
+    ],
+)
+def test_parse_signal(payload: str, expected: str | None) -> None:
+    """Technique: Equivalence Partitioning — accepted, whitespace-padded, rejected.
+
+    ADR-007: only lowercase ``on``/``off`` after one trim is a signal.
+    """
+    assert parse_signal(payload) == expected
+
+
+class TestSourceForSignalTopic:
+    """A signal topic resolves to the one source that subscribes to it."""
+
+    @staticmethod
+    def _settings() -> Wiz2MqttSettings:
+        return Wiz2MqttSettings(
+            bulbs=[  # type: ignore[arg-type]
+                {"name": "a", "ip": "10.0.0.1"},
+                {"name": "b", "ip": "10.0.0.2"},
+            ],
+            power_sources=[  # type: ignore[arg-type]
+                {"name": "up", "members": ["a"], "signal_topic": "relay/up"},
+                {"name": "down", "members": ["b"]},
+            ],
+            **_UNCONFIGURED,  # type: ignore[arg-type]
+        )
+
+    def test_returns_the_source_that_declares_the_topic(self) -> None:
+        source = source_for_signal_topic(self._settings(), "relay/up")
+
+        assert source is not None
+        assert source.name == "up"
+
+    def test_returns_none_for_an_unknown_topic(self) -> None:
+        assert source_for_signal_topic(self._settings(), "relay/other") is None
+
+    def test_returns_none_for_a_source_without_a_signal_topic(self) -> None:
+        assert source_for_signal_topic(self._settings(), "down") is None

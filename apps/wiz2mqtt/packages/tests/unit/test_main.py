@@ -17,7 +17,7 @@ from wiz2mqtt.errors import (
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
-from wiz2mqtt.main import _bulb_map, bulb_set
+from wiz2mqtt.main import _bulb_map, bulb_set, power_signal
 from wiz2mqtt.models import BulbSetCommand
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -218,4 +218,76 @@ class TestBulbSet:
 
         assert state.pending_commands == {}
         assert state.last_availability == {}
+        assert notify.armed == []
+
+
+_SIGNAL_TOPIC = "openhab/relay/downstairs/state"
+
+
+def _signal_settings() -> Wiz2MqttSettings:
+    return Wiz2MqttSettings(
+        bulbs=[  # type: ignore[arg-type]
+            {"name": "office", "ip": "10.0.0.1"},
+            {"name": "hall", "ip": "10.0.0.2"},
+        ],
+        power_sources=[  # type: ignore[arg-type]
+            {
+                "name": "downstairs",
+                "members": ["office", "hall"],
+                "signal_topic": _SIGNAL_TOPIC,
+            }
+        ],
+        _env_file=None,  # type: ignore[call-arg]
+        _config_file=None,  # type: ignore[call-arg]
+    )
+
+
+class TestPowerSignal:
+    """``power_signal`` feeds a relay signal into the belief of its source."""
+
+    @pytest.mark.parametrize("signal", ["on", "off"])
+    async def test_valid_signal_is_stored_and_arms_source_and_members(
+        self, signal: str
+    ) -> None:
+        """Technique: Specification-based — state updated, source and members armed."""
+        state, notify = SharedState(), RecordingNotifier()
+
+        await power_signal(signal, _SIGNAL_TOPIC, _signal_settings(), state, notify)
+
+        assert state.source_signal == {"downstairs": signal}
+        assert notify.armed == ["downstairs", "hall", "office"]
+
+    async def test_invalid_signal_changes_nothing_and_never_echoes_the_payload(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Technique: Error Guessing — a broker-supplied payload stays out of logs."""
+        state, notify = SharedState(), RecordingNotifier()
+
+        with caplog.at_level("WARNING", logger="wiz2mqtt.main"):
+            await power_signal(
+                "SECRET-TOKEN", _SIGNAL_TOPIC, _signal_settings(), state, notify
+            )
+
+        assert state.source_signal == {}
+        assert notify.armed == []
+        assert "downstairs" in caplog.text
+        assert "SECRET-TOKEN" not in caplog.text
+
+    async def test_invalid_signal_keeps_the_previous_signal(self) -> None:
+        """Technique: State Transition — a bad payload does not clear the belief."""
+        state, notify = SharedState(), RecordingNotifier()
+        settings = _signal_settings()
+        await power_signal("off", _SIGNAL_TOPIC, settings, state, notify)
+
+        await power_signal("garbage", _SIGNAL_TOPIC, settings, state, notify)
+
+        assert state.source_signal == {"downstairs": "off"}
+
+    async def test_unknown_topic_is_ignored(self) -> None:
+        """Technique: Error Guessing — a topic no source declares is a no-op."""
+        state, notify = SharedState(), RecordingNotifier()
+
+        await power_signal("on", "other/topic", _signal_settings(), state, notify)
+
+        assert state.source_signal == {}
         assert notify.armed == []

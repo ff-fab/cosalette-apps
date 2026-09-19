@@ -132,9 +132,9 @@ class PowerSourceConfig(BaseModel):
     signal_topic: str | None = Field(
         default=None,
         description=(
-            "Reserved retained MQTT topic carrying the raw relay signal "
-            "('on' or 'off') for this circuit. Subscription is deferred to "
-            "the ADR-007 runtime work."
+            "Retained MQTT topic carrying the raw relay signal "
+            "('on' or 'off') for this circuit. wiz2mqtt subscribes to it "
+            "and never publishes there."
         ),
     )
     when_unreachable: Literal["fault", "no_power"] = Field(
