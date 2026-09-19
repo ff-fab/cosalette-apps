@@ -76,6 +76,23 @@ class SharedState:
     """Each power source's last-known raw relay signal, set by the
     ``power_signal`` inbound handler from the subscribed ``signal_topic``."""
 
+    source_power_on_requested: set[str] = field(default_factory=set)
+    """Power sources with an outstanding power-on request (ADR-009).
+
+    Latched by :func:`wiz2mqtt.power.note_command` when a command wants a
+    dark circuit lit, and released by :func:`wiz2mqtt.power.power_request`
+    once the belief becomes ``"on"`` or no member wants to be on any more.
+    Empty at startup, so a retained ``on`` from a previous run is replaced
+    by ``null`` on the source's first tick."""
+
+    source_idle_since: dict[str, float] = field(default_factory=dict)
+    """Monotonic reading at which every member of a power source became
+    desired ``OFF`` (ADR-009), absent while a member wants to be on.
+
+    The start of the ``power_off_idle_delay`` timer. It is set on a tick,
+    never at startup, so a restart cannot cut a circuit before the delay
+    has run once in this process."""
+
     boot_callback_registered: bool = False
     """Guards :meth:`wiz2mqtt.ports.WizBulbPort.register_boot_callback` being
     called exactly once app-wide, from whichever bulb ticks first."""

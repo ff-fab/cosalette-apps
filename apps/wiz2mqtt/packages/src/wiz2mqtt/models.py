@@ -466,7 +466,9 @@ class PowerSourceStateModel(BaseModel):
     power_request: Annotated[
         PowerRequestWire, PlainSerializer(_serialize_power_request)
     ] = POWER_REQUEST_INACTIVE
-    """Inactive requests serialize as ``null``; cap-bjw9.12 gives them meaning."""
+    """The desired power of the circuit (ADR-009): ``"on"`` while wiz2mqtt
+    asks for the circuit, ``"off"`` while it asks for the circuit to be cut,
+    and inactive (serialized as ``null``) when it asks for nothing."""
     members: list[str]
 
 

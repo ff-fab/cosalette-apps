@@ -106,8 +106,8 @@ class PowerSourceConfig(BaseModel):
     """A mains circuit (ADR-007) that one or more bulbs sit behind.
 
     Claims member bulbs through exactly one of ``group`` or ``members``.
-    The inventory shape is available now; deriving and publishing a source
-    power belief is deferred to the ADR-007 runtime work.
+    The belief (ADR-007) and the power request (ADR-009) of the source are
+    published on its own retained ``{prefix}/{source}/state`` topic.
     """
 
     name: Annotated[
@@ -148,20 +148,27 @@ class PowerSourceConfig(BaseModel):
     )
     enable_power_on_request: bool = Field(
         default=False,
-        description="Reserve future power-on requests; runtime support is deferred.",
+        description=(
+            "Publish power_request = 'on' when a command wants light on this "
+            "circuit while the belief is 'off' (ADR-009)."
+        ),
     )
     enable_power_off_request: bool = Field(
         default=False,
         description=(
-            "Reserve future power-off requests; runtime support is deferred. "
-            "Requires wiz_bulbs_only = true."
+            "Publish power_request = 'off' once every member bulb has been "
+            "desired OFF for power_off_idle_delay (ADR-009). Requires "
+            "wiz_bulbs_only = true."
         ),
     )
     power_off_idle_delay: float = Field(
         default=600.0,
+        gt=0,
         description=(
-            "Reserved seconds every member bulb must be idle before a future "
-            "power-off request; runtime support is deferred."
+            "Seconds every member bulb must be desired OFF before a "
+            "power-off request. Must be positive: the timer starts on a "
+            "tick, so a zero delay would let a restart cut a circuit "
+            "before it has run once (ADR-009)."
         ),
     )
     wiz_bulbs_only: bool = Field(

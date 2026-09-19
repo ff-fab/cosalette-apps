@@ -131,7 +131,14 @@ async def bulb_set(
     if all(value is None for value in kwargs.values()):
         return
     now = time.time()
-    intent.record_command(state, store, config.name, kwargs, now)
+    desired = intent.record_command(state, store, config.name, kwargs, now)
+    # ADR-009: only an accepted command raises a power-on request, and only
+    # one that wants light. The source entity publishes it.
+    source_name = power.note_command(
+        settings, state, config.name, desired_on=desired.state == "ON"
+    )
+    if source_name is not None:
+        notify(source_name)
 
     belief = power.belief_for_bulb(settings, state, config.name)
     unreachable = (
@@ -230,10 +237,12 @@ async def bulb_entity(
 async def power_source_entity(
     ctx: cosalette.DeviceContext, config: PowerSourceConfig, state: SharedState
 ) -> PowerSourceStateModel:
-    """Per-configured-power-source telemetry: publish the belief (ADR-007)."""
+    """Per-source telemetry: the belief (ADR-007) and the request (ADR-009)."""
     settings = cast(Wiz2MqttSettings, ctx.settings)
     return PowerSourceStateModel.model_validate(
-        power.source_payload(settings, config, state)
+        # A monotonic reading: the idle timer is in-process only, so a wall
+        # clock step must never shorten or extend it (ADR-009).
+        power.source_payload(settings, config, state, time.monotonic())
     )
 
 
