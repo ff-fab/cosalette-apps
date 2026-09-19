@@ -115,8 +115,6 @@ VITO2MQTT_MQTT__PASSWORD=secret123
 VITO2MQTT_SIGNAL_LANGUAGE=en
 ```
 
-`VITO2MQTT_DEVICE_ID` is reserved and does not affect MQTT topics. Leave it unset.
-
 #### Polling (seconds)
 
 ```env
@@ -556,7 +554,7 @@ VITO2MQTT_MQTT__CLIENT_ID=vito2mqtt-boiler1
 ```
 
 !!! warning
-    Do not rely on `VITO2MQTT_DEVICE_ID` to separate instances. The setting is reserved and does not appear in topics. Two instances with the same topic prefix publish to the same topics and overwrite each other's retained messages.
+    Two instances with the same topic prefix publish to the same topics and overwrite each other's retained messages.
 
 ### External MQTT Broker
 

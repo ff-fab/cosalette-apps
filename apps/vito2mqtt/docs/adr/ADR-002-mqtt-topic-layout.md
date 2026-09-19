@@ -98,10 +98,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 ## Amendment (2026-09-19) — Minor
 
 !!! note "Editorial note (2026-09-19)"
-    This ADR first listed a `{device_id}` segment after the app prefix, for example `vito2mqtt/{device_id}/outdoor/state`. The app never published that segment. The topic list in the Decision section now shows the real layout: `vito2mqtt/{group}/state` and `vito2mqtt/{group}/set`.
+    The app never published a `{device_id}` topic segment. The unused `device_id` setting is removed (cap-ohpx); the `{device}` segment in the illustrative Option 2 and Option 3 examples is not part of a published layout.
 
 !!! note "Editorial note (2026-09-19)"
-    The `device_id` setting is reserved. No topic code reads it, so it does not affect topics. The `{device}` segment in the examples of Option 2 and Option 3 was illustrative and is not part of any layout that the app publishes.
-
-!!! note "Editorial note (2026-09-19)"
-    The `device_id` setting does not separate two instances on one broker: both publish to the same topics. To separate them, set a different `VITO2MQTT_MQTT__TOPIC_PREFIX` for each instance. Beads issue cap-ohpx tracks the decision to remove `device_id` or wire it in.
+    Two instances on one broker must use distinct `VITO2MQTT_MQTT__TOPIC_PREFIX` values because they otherwise publish to the same topics.
