@@ -80,6 +80,8 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
           # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
           # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
           WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION: ${WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION:-5}
+          # Last display and system action answers; a restart re-publishes them.
+          WALLPANEL_CONTROL_STORE_PATH: /app/data/store.json
           WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
           WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
         volumes:
@@ -130,11 +132,11 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
         Replace `latest` with a release tag (e.g. `0.2.0`) in the `image:` line to pin
         the deployment and avoid surprises on restart.
 
-    !!! warning "Panel state expires after a restart"
-        The compose file uses MQTT 5. After a restart, the display and system action
-        state expire within 24 hours until the next command. Set
-        `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1` if the Home Assistant light must
-        keep its last state. See
+    !!! note "Panel state survives a restart"
+        wallpanel-control saves its last display and system action answers in
+        `WALLPANEL_CONTROL_STORE_PATH` on the `wallpanel_control-data` volume and
+        publishes them again at startup. Keep the volume, or a restart under MQTT 5 loses
+        the state. See
         [MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry).
 
     !!! note "SSH key and known-hosts location"

@@ -21,11 +21,15 @@ Test Techniques Used:
 from __future__ import annotations
 
 import asyncio
+import json
 
+import cosalette
 import pytest
-from cosalette.testing import AppHarness
+from cosalette import MemoryStore, MockMqttClient
+from cosalette.testing import AppHarness, FakeClock
 
 from async_utils import wait_for_condition
+from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 
 from .conftest import (
@@ -33,7 +37,9 @@ from .conftest import (
     DISPLAY_STATE,
     SYSTEM_ACTION_SET,
     SYSTEM_ACTION_STATE,
+    build_integration_app,
     run_with_commands,
+    wait_for_subscriptions,
 )
 
 # ---------------------------------------------------------------------------
@@ -556,3 +562,114 @@ class TestSystemAction:
             SYSTEM_ACTION_STATE,
             {"accepted": True, "action": "wake"},
         )
+
+
+def _harness(app: cosalette.App) -> AppHarness:
+    """Wrap *app* in a fresh harness; two of them model two runs of one deployment."""
+    return AppHarness(
+        app=app,
+        mqtt=MockMqttClient(),
+        clock=FakeClock(),
+        settings=make_wallpanel_control_settings(),
+        shutdown_event=asyncio.Event(),
+    )
+
+
+@pytest.mark.integration
+class TestStateRestoredAfterRestart:
+    """A restart re-publishes the last answers so retained state does not expire.
+
+    Technique: State Transition — two apps share one store, the way two runs of the
+    same deployment share ``store.json``.
+    """
+
+    async def test_last_answers_are_published_again_at_startup(
+        self, fake_wallpanel: FakeWallpanel, fake_wol: FakeWol
+    ) -> None:
+        store = MemoryStore()
+        first = _harness(build_integration_app(fake_wallpanel, fake_wol, store))
+        await run_with_commands(
+            first,
+            [
+                (DISPLAY_SET, {"state": "on", "brightness_percent": 40}),
+                (SYSTEM_ACTION_SET, {"action": "wake"}),
+            ],
+        )
+
+        second = _harness(build_integration_app(fake_wallpanel, fake_wol, store))
+        task = asyncio.create_task(second.run())
+        try:
+            await wait_for_condition(
+                lambda: (
+                    second.mqtt.get_messages_for(DISPLAY_STATE)
+                    and second.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
+                ),
+                timeout=2.0,
+                description="restored answers published",
+            )
+        finally:
+            second.shutdown_event.set()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        display_msg = second.mqtt.get_messages_for(DISPLAY_STATE)[0]
+        assert json.loads(display_msg[0]) == {
+            "available": True,
+            "state": "on",
+            "brightness_percent": 40,
+        }
+        assert display_msg[1:] == (True, 1)
+        assert json.loads(second.mqtt.get_messages_for(SYSTEM_ACTION_STATE)[0][0]) == {
+            "accepted": True,
+            "action": "wake",
+        }
+
+    async def test_restored_unavailable_answer_equals_the_live_answer(
+        self, fake_wallpanel: FakeWallpanel, fake_wol: FakeWol
+    ) -> None:
+        """The replay of an unavailable display keeps its null fields, as live."""
+        fake_wallpanel.set_reachable(False)
+        store = MemoryStore()
+        first = _harness(build_integration_app(fake_wallpanel, fake_wol, store))
+        await run_with_commands(first, [(DISPLAY_SET, {"state": "on"})])
+        live = json.loads(first.mqtt.get_messages_for(DISPLAY_STATE)[-1][0])
+
+        second = _harness(build_integration_app(fake_wallpanel, fake_wol, store))
+        task = asyncio.create_task(second.run())
+        try:
+            await wait_for_condition(
+                lambda: second.mqtt.get_messages_for(DISPLAY_STATE),
+                timeout=2.0,
+                description="restored display answer published",
+            )
+        finally:
+            second.shutdown_event.set()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        restored = json.loads(second.mqtt.get_messages_for(DISPLAY_STATE)[0][0])
+        assert (
+            restored
+            == live
+            == {
+                "available": False,
+                "state": None,
+                "brightness_percent": None,
+            }
+        )
+
+    async def test_nothing_is_published_without_a_saved_answer(
+        self, fake_wallpanel: FakeWallpanel, fake_wol: FakeWol
+    ) -> None:
+        harness = _harness(build_integration_app(fake_wallpanel, fake_wol))
+        task = asyncio.create_task(harness.run())
+        try:
+            await wait_for_subscriptions(harness)
+            await asyncio.sleep(0.05)
+        finally:
+            harness.shutdown_event.set()
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        assert harness.mqtt.get_messages_for(DISPLAY_STATE) == []
+        assert harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE) == []

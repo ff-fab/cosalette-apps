@@ -16,6 +16,7 @@ import pytest
 from pydantic import ValidationError
 
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
+from wallpanel_control.devices.restore import LastAnswers
 from wallpanel_control.devices.system import (
     SystemActionCommand,
     SystemActionState,
@@ -131,6 +132,7 @@ class TestHandleSystemActionWake:
             fake_wallpanel,
             fake_wol,
             wallpanel_settings,
+            LastAnswers(),
         )
 
         assert fake_wol.calls == [
@@ -153,6 +155,7 @@ class TestHandleSystemActionWake:
             fake_wallpanel,
             fake_wol,
             wallpanel_settings,
+            LastAnswers(),
         )
 
         assert result.accepted is True
@@ -182,6 +185,7 @@ class TestHandleSystemActionSuspend:
             fake_wallpanel,
             fake_wol,
             wallpanel_settings,
+            LastAnswers(),
         )
 
         assert fake_wallpanel.power_state == "suspended"
@@ -205,6 +209,7 @@ class TestHandleSystemActionSuspend:
             fake_wallpanel,
             fake_wol,
             wallpanel_settings,
+            LastAnswers(),
         )
 
         assert result.accepted is False
@@ -235,6 +240,7 @@ class TestHandleSystemActionHibernate:
             fake_wallpanel,
             fake_wol,
             wallpanel_settings,
+            LastAnswers(),
         )
 
         assert fake_wallpanel.power_state == "hibernating"
@@ -258,6 +264,7 @@ class TestHandleSystemActionHibernate:
             fake_wallpanel,
             fake_wol,
             wallpanel_settings,
+            LastAnswers(),
         )
 
         assert result.accepted is False

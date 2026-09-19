@@ -26,6 +26,7 @@ import cosalette
 from cosalette.mqtt import Payload
 from pydantic import BaseModel, ConfigDict
 
+from wallpanel_control.devices.restore import LastAnswers
 from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
 
@@ -76,6 +77,7 @@ async def handle_system_action(
     wallpanel: WallpanelPort,
     wol: WolPort,
     settings: WallpanelControlSettings,
+    answers: LastAnswers,
 ) -> SystemActionState:
     """Handle system action command.
 
@@ -84,11 +86,24 @@ async def handle_system_action(
         wallpanel: Hardware adapter injected by cosalette.
         wol: Wake-on-LAN adapter injected by cosalette.
         settings: Application settings injected by cosalette.
+        answers: Last-answer record that a restart re-publishes.
 
     Returns:
         SystemActionState with accepted=True on success, accepted=False when
         the wallpanel is unreachable (suspend/hibernate only).
     """
+    result = await _run_action(cmd, wallpanel, wol, settings)
+    answers.record("system/action/state", result)
+    return result
+
+
+async def _run_action(
+    cmd: SystemActionCommand,
+    wallpanel: WallpanelPort,
+    wol: WolPort,
+    settings: WallpanelControlSettings,
+) -> SystemActionState:
+    """Run *cmd* and return its acknowledgement."""
     if cmd.action == "wake":
         await wol.wake(settings.wol_mac, settings.wol_broadcast)
         return SystemActionState(accepted=True, action="wake")

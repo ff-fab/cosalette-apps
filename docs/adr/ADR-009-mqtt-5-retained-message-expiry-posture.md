@@ -9,7 +9,7 @@ tags: [mqtt, configuration, testing, documentation]
 
 ## Status
 
-Accepted **Date:** 2026-09-18 | Amended **Date:** 2026-09-18
+Accepted **Date:** 2026-09-18 | Amended **Date:** 2026-09-18 | Amended **Date:** 2026-09-19
 
 ## Context
 
@@ -139,3 +139,16 @@ Evidence: all three ship the same `mosquitto.conf` and `eclipse-mosquitto:2` as 
 - vito2mqtt, wallpanel-control and wiz2mqtt republish every retained topic with an unchanged payload every 8 hours, which a consumer that triggers on message receipt sees as a duplicate.
 - After a restart, wallpanel-control's display and system action answers expire within 24 hours unless a command replaces them, so a subscriber that connects later has no state.
 - The real-broker check for these three apps drove the cosalette `MqttClient` directly against `eclipse-mosquitto:2`; CI still exercises the broker double, not a broker.
+
+## Amendment (2026-09-19) — Additive
+
+**Rationale:** cap-rj7j removes the one place where the posture lost state that MQTT 3.1.1 kept: wallpanel-control now re-publishes its last command answers at startup.
+
+### Additional Sub-Decision: wallpanel-control restores its last command answers at startup
+
+This supersedes the wallpanel-control restart consequence of the 2026-09-18 amendment. Each command handler records its answer (`display/state`, `system/action/state`) in a `LastAnswers` object, which saves the wire payload in the cosalette store. A root device, `restore_answers`, publishes the saved answers once, retained, after each start. Then the refresh of the MQTT client keeps them alive, as for any other retained topic. A command that runs before the device attaches wins over the saved answer. cosalette 0.10 has no startup hook for a command handler, so the device publishes with `ctx.publish`, which skips `state_model` validation; the saved payload is therefore the already validated wire payload. The shipped `compose.yml` sets `WALLPANEL_CONTROL_STORE_PATH=/app/data/store.json` on the existing `wallpanel_control-data` volume, because the default store path is not persistent in a container. The restored answer is the last answer, not a new reading: the app does not read the panel again, so the panel state can differ if someone changed it by hand while the app was down. `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1` is no longer needed to keep the state across restarts.
+
+### Additional Negative Consequences
+
+- wallpanel-control publishes through `ctx.publish` at startup, which skips `state_model` validation, until cosalette offers a startup hook for command handlers.
+- A wallpanel-control deployment that does not persist `WALLPANEL_CONTROL_STORE_PATH` still loses its answers on a restart, as before.

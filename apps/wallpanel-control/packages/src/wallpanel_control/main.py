@@ -11,7 +11,8 @@ Topic layout::
         ← {"state": "on", "brightness_percent": <1-100>}
 
     wallpanel-control/display/state
-        → published once after each accepted display command
+        → published once after each accepted display command, and once at startup
+          from the last saved answer
         ← {"available": true, "state": "on"|"off", "brightness_percent": <int>}
         ← {"available": false, "state": null, "brightness_percent": null}
 
@@ -30,7 +31,7 @@ from wallpanel_control import __version__
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.adapters.ssh_adapter import SshWallpanel
 from wallpanel_control.adapters.wol_adapter import UdpWol
-from wallpanel_control.devices import display, system
+from wallpanel_control.devices import display, restore, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
 
@@ -58,8 +59,10 @@ app = cosalette.App(
 # ADR-004: runtime HA discovery
 app.discovery()
 
+app.state(restore.create_last_answers)
 app.include_router(display.router)
 app.include_router(system.router)
+app.include_router(restore.router)
 
 
 def main() -> None:

@@ -93,16 +93,16 @@ class TestAdapterRegistry:
 
 @pytest.mark.unit
 class TestDeviceRegistration:
-    """Verify no device handlers are registered (display is now a command)."""
+    """Verify only the startup restore device is registered."""
 
-    def test_no_devices_registered(self) -> None:
-        """No devices registered; display is handled as a command.
+    def test_only_restore_device_registered(self) -> None:
+        """Display is a command; the sole device re-publishes saved answers.
 
         Technique: Structural — display/set is served by a typed command handler.
         """
         from wallpanel_control.main import app
 
-        assert len(app.devices) == 0
+        assert [r.name for r in app.devices] == ["restore_answers"]
 
 
 @pytest.mark.unit

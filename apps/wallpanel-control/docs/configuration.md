@@ -64,14 +64,13 @@ runs, it re-publishes each retained topic every third of that interval (default 
 hours), so the topics stay alive. A topic that nothing refreshes any more, such as a
 stopped process, disappears from the broker by itself.
 
-!!! warning "State does not survive a restart"
-    wallpanel-control keeps MQTT 5 as its shipped default. It publishes `display/state`
-    and `system/action/state` only as the answer to a command, and nothing polls the
-    panel. After a restart nothing refreshes these answers, so they expire within the
-    expiry interval (24 hours by default). Until the next command, a subscriber that
-    connects later gets no state, and the Home Assistant light shows no known state.
-    If the light must keep its last state across restarts, set
-    `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1`.
+!!! note "State survives a restart"
+    wallpanel-control publishes `display/state` and `system/action/state` only as the
+    answer to a command, and nothing polls the panel. It saves each answer in the store
+    and publishes the saved answers again, retained, at every startup. A subscriber that
+    connects later, and the Home Assistant light, keep the last known state. The saved
+    answer is not a new reading: it does not show a change that someone made at the panel
+    while wallpanel-control was down.
 
 **Operator contract**
 
@@ -88,13 +87,11 @@ stopped process, disappears from the broker by itself.
   `WALLPANEL_CONTROL_MQTT__PROTOCOL_VERSION=3.1.1` to return to MQTT 3.1.1.
 - **Expiry applies to new messages only.** Retained topics published before the switch
   never expire. Clear them by hand with an empty retained publish.
-- **State lives only as long as the last command.** `display/state` and
-  `system/action/state` are published only as the answer to a command, never on a timer.
-  wallpanel-control refreshes the last answer while it runs. After a restart nothing
-  refreshes it, so it expires within the expiry interval and a subscriber that connects
-  later gets no state until the next command. A stopped process also lets the answers
-  expire after the same interval. Use `3.1.1` if the Home Assistant light must keep
-  showing its last known state across restarts.
+- **Keep the store on a volume.** The saved answers live in the file that
+  `WALLPANEL_CONTROL_STORE_PATH` names (`/app/data/store.json` in the shipped
+  `compose.yml`, on the `wallpanel_control-data` volume). Without a persistent store, a
+  restart loses the answers and they expire after the expiry interval, until the next
+  command.
 - **Consumers see one repeat per refresh.** The repeat has the same payload as the last
   publish, and the broker forwards it to live subscribers without the retain flag, so it
   looks like a normal message. The repeat is not a new reading: it does not read the
@@ -105,6 +102,16 @@ stopped process, disappears from the broker by itself.
 - **A long outage lets topics expire.** If wallpanel-control is down or disconnected for
   longer than the expiry interval, the broker drops its retained topics until the next
   publish.
+
+### State store
+
+| Setting    | Environment Variable           | Default                                        | Description                                                |
+| ---------- | ------------------------------ | ---------------------------------------------- | ---------------------------------------------------------- |
+| Store path | `WALLPANEL_CONTROL_STORE_PATH` | `$XDG_STATE_HOME/wallpanel-control/store.json` | File that holds the last display and system action answers |
+
+The shipped `compose.yml` sets it to `/app/data/store.json` on the
+`wallpanel_control-data` volume. See
+[MQTT 5 retained-message expiry](#mqtt-5-retained-message-expiry) for why the file matters.
 
 ### Logging
 

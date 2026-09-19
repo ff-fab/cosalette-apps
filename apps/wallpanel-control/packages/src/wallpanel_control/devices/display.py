@@ -41,6 +41,7 @@ from cosalette.mqtt import Payload
 from cosalette.schema import ha_entities, ha_entity
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from wallpanel_control.devices.restore import LastAnswers
 from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError
 
 logger = logging.getLogger(__name__)
@@ -304,6 +305,7 @@ async def handle_display(
     cmd: Annotated[DisplayCommand, Payload()],
     wallpanel: WallpanelPort,
     state: _DisplayHandlerState,
+    answers: LastAnswers,
 ) -> DisplayState:
     """Handle display command.
 
@@ -311,8 +313,11 @@ async def handle_display(
         cmd: Parsed display command injected by cosalette.
         wallpanel: Hardware adapter injected by cosalette.
         state: Mutable display handler state injected by cosalette.
+        answers: Last-answer record that a restart re-publishes.
 
     Returns:
         DisplayState after executing the command, or unavailable if unreachable.
     """
-    return await _execute_display_command(cmd, wallpanel, state)
+    result = await _execute_display_command(cmd, wallpanel, state)
+    answers.record("display/state", result)
+    return result

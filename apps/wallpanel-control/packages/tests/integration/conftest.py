@@ -11,13 +11,13 @@ import asyncio
 
 import cosalette
 import pytest
-from cosalette import MockMqttClient
+from cosalette import MemoryStore, MockMqttClient, Store
 from cosalette.testing import AppHarness, FakeClock
 
 from async_utils import wait_for_condition
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
-from wallpanel_control.devices import display, system
+from wallpanel_control.devices import display, restore, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
 
@@ -47,13 +47,15 @@ def _state_topic_for(command_topic: str) -> str:
 def build_integration_app(
     fake_wallpanel: FakeWallpanel,
     fake_wol: FakeWol,
+    store: Store | None = None,
 ) -> cosalette.App:
     """Construct a fully-wired App backed by in-memory test doubles.
 
     Mirrors ``wallpanel_control.main`` but replaces production adapters
     with fakes so tests run without SSH or WoL network access.
     Heartbeat and health-check timers are disabled so command tests are
-    not affected by background publishes.
+    not affected by background publishes.  Pass *store* to share saved answers
+    between two apps that model a restart; the default is a fresh in-memory store.
     """
     app = cosalette.App(
         name="wallpanel-control",
@@ -61,13 +63,16 @@ def build_integration_app(
         settings_class=WallpanelControlSettings,
         heartbeat_interval=None,
         health_check_interval=None,
+        store=store if store is not None else MemoryStore(),
         adapters={
             WallpanelPort: lambda: fake_wallpanel,
             WolPort: lambda: fake_wol,
         },
     )
+    app.state(restore.create_last_answers)
     app.include_router(display.router)
     app.include_router(system.router)
+    app.include_router(restore.router)
     return app
 
 
