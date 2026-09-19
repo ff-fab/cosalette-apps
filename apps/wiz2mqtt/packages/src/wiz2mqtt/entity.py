@@ -102,6 +102,11 @@ async def bulb_entity_tick(
         await _mark_online_once(ctx, state, name)
         return _desired_state_payload(state, store, name, belief)
 
+    # A push cached before the last signal change is not an answer after it
+    # (ADR-007 amendment 2026-09-19): only a poll of the bulb itself clears
+    # the stale mark.
+    if name in state.stale_answers:
+        port.invalidate_cache(config.ip)
     observation_generation = state.desired_state_generation.get(name, 0)
     try:
         bulb_state = await port.get_state(config.ip)

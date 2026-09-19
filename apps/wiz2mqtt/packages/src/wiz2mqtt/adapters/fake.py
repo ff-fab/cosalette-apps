@@ -67,6 +67,7 @@ class FakeWizBulbAdapter:
         self._refuse_writes: dict[str, int] = {}
         self._boot_callback: Callable[[str], None] | None = None
         self.set_state_calls: list[tuple[str, SetStateKwargs]] = []
+        self.invalidate_cache_calls: list[str] = []
 
     def _raise_if_primed(self, ip: str) -> None:
         exc = self._fail_next.pop(ip, None)
@@ -89,8 +90,9 @@ class FakeWizBulbAdapter:
         self._raise_if_primed(ip)
         return self._state.setdefault(ip, _DEFAULT_STATE)
 
-    def invalidate_cache(self, ip: str) -> None:  # noqa: ARG002
-        """No-op -- the fake stores authoritative state, not an optimistic cache."""
+    def invalidate_cache(self, ip: str) -> None:
+        """Record the call; the fake stores authoritative state, not a cache."""
+        self.invalidate_cache_calls.append(ip)
 
     async def set_state(
         self,

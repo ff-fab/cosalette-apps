@@ -923,8 +923,10 @@ class TestSignalOff:
     async def test_answer_after_the_signal_outranks_it(self) -> None:
         """Technique: Decision Table — rule 1 with evidence newer than the signal.
 
-        The answer clears the stale mark and does not arm the return path:
-        a wrong signal is not a return to reachability.
+        The read after the signal bypasses the push cache (a push from before
+        the signal is not newer evidence, cap-hfro review). Its answer clears
+        the stale mark and does not arm the return path: a wrong signal is
+        not a return to reachability.
         """
         adapter = FakeWizBulbAdapter()
         state = SharedState()
@@ -932,8 +934,10 @@ class TestSignalOff:
         await self._answered_then_signal_off(adapter, ctx, state)
 
         result = await _tick(ctx, _config(), adapter, state)
+        await _tick(ctx, _config(), adapter, state)
 
         assert result == {"state": "OFF", "powered": True}
+        assert adapter.invalidate_cache_calls == [_IP]
         assert "office" not in state.stale_answers
         assert state.phase["office"] == "steady"
 

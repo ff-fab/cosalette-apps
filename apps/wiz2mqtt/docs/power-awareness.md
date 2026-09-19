@@ -61,6 +61,10 @@ A change of the signal makes each earlier answer old. Thus a signal `off` sets t
 belief `off` at once. If a member answers after the signal, the belief is `on` again. A
 repeat of the same signal is not a change.
 
+The signal also starts one read of each member. That read polls the bulb and does not
+use a push that arrived before the signal. On a live circuit, a wrong signal `off` thus
+shows `powered: false` normally for less than 1 s.
+
 ### Availability means a fault
 
 `wiz2mqtt/{bulb}/availability` is `offline` only when the bulb must answer and does

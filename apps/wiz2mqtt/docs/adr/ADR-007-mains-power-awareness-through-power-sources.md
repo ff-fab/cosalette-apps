@@ -152,7 +152,7 @@ _2026-09-13_
 
 **Rationale:** Rule 1 counted every answer of a member bulb, also an answer that came before the signal. A member that answered once stays 'answering' until it fails three reads in a row (`_FAILURE_THRESHOLD`). Thus a relay signal `off` changed the belief only 13 + 60 + 13 + 60 + 13 = 159 s after the signal. Without a signal the time is 159 s to 219 s, so the signal removed only the first wait. The power requests (ADR-009) and the skip of reads (Traffic) waited the same 159 s (cap-hfro).
 
-> **Justification for amendment (not supersession):** The belief rules are not in a release yet: the last release of wiz2mqtt is 0.2.4 (2026-09-16), and the power sources came after it. The change is confined to the belief computation in `power.py` and the failure count in `entity.py`. No wire format, configuration key or consumer contract changes. Only the time until the belief changes becomes shorter.
+> **Justification for amendment (not supersession):** The belief rules are not in a release yet: the last release of wiz2mqtt is 0.2.4 (2026-09-16), and the power sources came after it. The change is confined to the belief computation in `power.py`, the failure count and the first read after a signal change in `entity.py`, and the cache bypass of that read in the adapter. No wire format, configuration key or consumer contract changes. Only the time until the belief changes becomes shorter.
 
 ### Revised Decision
 
@@ -164,6 +164,8 @@ The belief follows three rules in order. Only rule 1 changes:
 
 A change of the signal makes each older answer of a member stale. A repeat of the same signal is not a change. Thus a signal `off` sets the belief `off` at once, and a member that answers after the signal sets the belief `on` again.
 
+**Only a poll clears a stale answer.** A bulb with power pushes its state every few seconds, and the adapter answers from that push cache for up to 60 s. A cached push from before the signal is not an answer after it. Thus the first read of a member with a stale answer bypasses both push caches (the adapter's and pywizlight's) and polls the bulb itself.
+
 **A failed read is firm while the signal decides.** If a read of a member fails while the signal is `off` and the belief is `off`, the failure counts as three failures. wiz2mqtt skips the reads of that bulb from the next tick (Traffic). A member that answered after the signal keeps the three-failure debounce, because its belief is `on`. The `no_power` tie-break of rule 3 also keeps the debounce: without a signal, one lost read is not firm evidence.
 
 ### Additional Positive Consequences
@@ -173,5 +175,6 @@ A change of the signal makes each older answer of a member stale. A repeat of th
 
 ### Additional Negative Consequences
 
-- A wrong signal `off` on a live circuit shows `powered = false` until the next read of a member, a maximum of one telemetry cycle
+- A wrong signal `off` on a live circuit shows `powered = false` until the poll that the signal starts answers, normally in less than 1 s
+- Each change of the signal costs one poll per member, also on a host that receives pushes
 - If one read fails transiently while a wrong signal `off` is active, wiz2mqtt skips the reads of that bulb until the belief changes or the bulb boots
