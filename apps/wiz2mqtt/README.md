@@ -6,7 +6,7 @@ WiZ smart bulb control over MQTT for openHAB and Home Assistant
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.10.0 release.
+on the 0.10.3 release.
 
 ## Home Assistant Discovery
 
@@ -28,7 +28,9 @@ the one retained `wiz2mqtt/{name}/state` payload:
 | Power        | `sensor`                | `device_class: power`, `unit_of_measurement: W`, `state_class: measurement`                                                      | state `wiz2mqtt/{name}/state` (read-only)                    |
 
 One bridge-level `binary_sensor` (`device_class: connectivity`, state topic
-`wiz2mqtt/status`) is published once for the whole app.
+`wiz2mqtt/status`) is published once for the whole app. Each `[[power_sources]]` entry
+becomes one more device with two read-only `binary_sensor` entities, `powered` and the
+diagnostic `power_request`, on `wiz2mqtt/{source}/state`.
 
 The `light` discovery metadata is refined from capabilities detected and cached after
 first contact with each bulb; capabilities are never declared in configuration. A
@@ -41,6 +43,23 @@ Because `app.discovery()` reads the runtime registry rather than the checked-in
 profile. `docs/schema.yaml` and `task wiz2mqtt:schema:check` stay as the openHAB
 (`cosalette schema openhab`) and drift-gate path. See
 `packages/tests/integration/test_schema_discovery.py`.
+
+## Mains Power Awareness
+
+Bulbs behind a smart relay or a wall switch can share a `[[power_sources]]` entry. Then
+wiz2mqtt tells an unpowered bulb from a faulty bulb, keeps the desired state of a dark
+bulb, restores it when the bulb boots, and can ask the relay for power. Each bulb state
+payload carries a `powered` key, so a consumer calculates "lit" as `state == "ON"` and
+`powered == true` from one message.
+
+- Concepts, operator guide, consumer recipes and timing:
+  [docs/power-awareness.md](docs/power-awareness.md)
+- [ADR-007](docs/adr/ADR-007-mains-power-awareness-through-power-sources.md): power
+  sources and the belief
+- [ADR-008](docs/adr/ADR-008-desired-state-with-restore-on-return-to-reachability.md):
+  the desired state and the restore
+- [ADR-009](docs/adr/ADR-009-power-requests-as-a-retained-desired-power-state.md): power
+  requests
 
 ## Onboarding
 

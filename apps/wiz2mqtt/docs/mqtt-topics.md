@@ -66,11 +66,19 @@ Example color-temperature payload:
 Optional state keys include `brightness`, `effect`, `effect_speed`, and
 `power_draw_w`.
 
+`powered` is always present. It is the belief of the bulb's power source:
+`true`, `false`, or `null` when the belief is `unknown` or the bulb has no power
+source. While wiz2mqtt cannot see the bulb, the payload carries the desired
+state, not `"OFF"`. A bulb is lit when `state` is `"ON"` and `powered` is
+`true`. See [Mains Power Awareness](power-awareness.md).
+
 ## Availability Topic
 
 **Topic:** `wiz2mqtt/<bulb>/availability`
 
-Payload values are `online` and `offline`.
+Payload values are `online` and `offline`. `offline` means a fault: the bulb
+must answer and does not. A bulb whose power source is believed `off` stays
+`online`.
 
 wiz2mqtt publishes immediately when a bulb push update arrives, and it also runs
 a 60-second heartbeat tick so a bulb that has gone silent still gets a
@@ -81,6 +89,23 @@ each power source (see [Power Source Signal Topic](#power-source-signal-topic)).
 The push wake is in-process, so there is no trigger topic to publish to; see
 [configuration.md](configuration.md) for the heartbeat and push-staleness
 values.
+
+## Power Source State Topic
+
+**Topic:** `wiz2mqtt/<source>/state` (retained), one per `[[power_sources]]` entry.
+
+```json
+{"powered": "off", "power_request": "on", "members": ["kitchen", "living-room"]}
+```
+
+| Key | Values | Meaning |
+| --- | ------ | ------- |
+| `powered` | `"on"`, `"off"`, `"unknown"` | The belief about the circuit (ADR-007) |
+| `power_request` | `"on"`, `"off"`, `null` | The desired power of the circuit; `null` means no request (ADR-009) |
+| `members` | list of bulb names | The member bulbs, sorted |
+
+wiz2mqtt accepts no command on this topic. A consumer maps `power_request` to
+its relay.
 
 ## Power Source Signal Topic
 
@@ -109,6 +134,8 @@ topics above.
 | `homeassistant/light/wiz2mqtt/{bulb}_light/config` | `light` (`schema: json`) | `wiz2mqtt/{bulb}/state` | `wiz2mqtt/{bulb}/set` |
 | `homeassistant/number/wiz2mqtt/{bulb}_effect_speed/config` | `number` | `wiz2mqtt/{bulb}/state` | `wiz2mqtt/{bulb}/set` |
 | `homeassistant/sensor/wiz2mqtt/{bulb}_power/config` | `sensor` | `wiz2mqtt/{bulb}/state` | — (read-only) |
+| `homeassistant/binary_sensor/wiz2mqtt/{source}_powered/config` | `binary_sensor` (`device_class: power`) | `wiz2mqtt/{source}/state` | — (read-only) |
+| `homeassistant/binary_sensor/wiz2mqtt/{source}_power_request/config` | `binary_sensor` (`entity_category: diagnostic`) | `wiz2mqtt/{source}/state` | — (read-only) |
 | `homeassistant/binary_sensor/wiz2mqtt/bridge/config` | `binary_sensor` | `wiz2mqtt/status` | — |
 
 The `light` payload carries `brightness: true` plus the colour metadata for the
@@ -144,6 +171,20 @@ sets are emitted per bulb:
 | `brightness` / `brightness_cmd` | `dimmer`, `min` 1 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
 | `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%s"}` |
 | `effect` / `effect_cmd` | `string` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
+
+The deployment generator (`wiz2mqtt-openhab`, see
+[openHAB generation](configuration.md#openhab-generation)) adds read-only
+channels for power sources:
+
+| Thing | Channel | Wiring |
+| ----- | ----- | ------ |
+| Power source | `powered` | `JSONPATH:$[?(@.powered != null)].powered`, `on="on"`, `off="off"`, `nullValue="unknown"` |
+| Power source | `power_request` | `JSONPATH:$[?(@.power_request != null)].power_request`, `on="on"`, `off="off"`, `nullValue="NULL"` |
+| Bulb in a power source | `powered` | `JSONPATH:$[?(@.powered != null)].powered`, `on="true"`, `off="false"`, `nullValue="NULL"` |
+
+The filter form of the JSONPATH turns a JSON `null` into the string `NULL`. A
+plain `$.powered` would make openHAB discard the message and keep a stale value.
+`nullValue` on a switch channel needs openHAB 5.1 or later.
 
 The `*_cmd` channels wrap the outbound scalar back into JSON with
 `formatBeforePublish` (full Java `String.format`) so a single `.../set` payload

@@ -33,6 +33,7 @@ nav = [
     { "Home" = "index.md" },
     { "Getting Started" = "getting-started.md" },
     { "Configuration" = "configuration.md" },
+    { "Power Awareness" = "power-awareness.md" },
     { "MQTT Topics" = "mqtt-topics.md" },
 ]
 
