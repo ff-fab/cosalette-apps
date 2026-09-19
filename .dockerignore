@@ -7,3 +7,6 @@ taskfiles/
 **/__pycache__/
 *.md
 !apps/*/README.md
+**/.env
+**/.env.*
+.envrc
