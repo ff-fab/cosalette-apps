@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.4](https://github.com/ff-fab/cosalette-apps/compare/jeelink2mqtt-v0.2.3...jeelink2mqtt-v0.2.4) (2026-09-19)
+
+
+### Features
+
+* **jeelink2mqtt,suncast,velux2mqtt:** opt in to MQTT 5 retained-message expiry ([#283](https://github.com/ff-fab/cosalette-apps/issues/283)) ([d28e035](https://github.com/ff-fab/cosalette-apps/commit/d28e035b3a36cd3f8ff66b9b251e979ba7dcfca2))
+
+
+### Bug Fixes
+
+* **deps:** adopt cosalette 0.10.2 across the workspace ([#287](https://github.com/ff-fab/cosalette-apps/issues/287)) ([6f86628](https://github.com/ff-fab/cosalette-apps/commit/6f8662889b1a1218c6a0f1041b007f41deb45b7a))
+* **deps:** adopt cosalette 0.10.3 across the workspace ([#292](https://github.com/ff-fab/cosalette-apps/issues/292)) ([6e31553](https://github.com/ff-fab/cosalette-apps/commit/6e315530510650e6f1ffbc4e02ec552ce4d262ee))
+* **deps:** resolve and validate cosalette 0.10.1 across the workspace ([#277](https://github.com/ff-fab/cosalette-apps/issues/277)) ([9968187](https://github.com/ff-fab/cosalette-apps/commit/996818747a41699d8221bb7bd34dec2c568beb2e))
+* persist state across container recreation for jeelink2mqtt and gas2mqtt ([#274](https://github.com/ff-fab/cosalette-apps/issues/274)) ([8fc24ec](https://github.com/ff-fab/cosalette-apps/commit/8fc24ec78122ce99f6f1830c89fb72ad79e63bbf))
+
 ## [0.2.3](https://github.com/ff-fab/cosalette-apps/compare/jeelink2mqtt-v0.2.2...jeelink2mqtt-v0.2.3) (2026-09-13)
 
 

@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.2.4](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.3...vito2mqtt-v0.2.4) (2026-09-19)
+
+
+### Features
+
+* **vito2mqtt,wallpanel-control,wiz2mqtt:** opt in to MQTT 5 retained-message expiry ([#284](https://github.com/ff-fab/cosalette-apps/issues/284)) ([be74719](https://github.com/ff-fab/cosalette-apps/commit/be7471967ef5310a254782fc61026a8d3a3ade48))
+
+
+### Bug Fixes
+
+* **deps:** adopt cosalette 0.10.2 across the workspace ([#287](https://github.com/ff-fab/cosalette-apps/issues/287)) ([6f86628](https://github.com/ff-fab/cosalette-apps/commit/6f8662889b1a1218c6a0f1041b007f41deb45b7a))
+* **deps:** adopt cosalette 0.10.3 across the workspace ([#292](https://github.com/ff-fab/cosalette-apps/issues/292)) ([6e31553](https://github.com/ff-fab/cosalette-apps/commit/6e315530510650e6f1ffbc4e02ec552ce4d262ee))
+* **deps:** resolve and validate cosalette 0.10.1 across the workspace ([#277](https://github.com/ff-fab/cosalette-apps/issues/277)) ([9968187](https://github.com/ff-fab/cosalette-apps/commit/996818747a41699d8221bb7bd34dec2c568beb2e))
+* ignore .env.* files and correct vito2mqtt topic docs ([#285](https://github.com/ff-fab/cosalette-apps/issues/285)) ([7fcc572](https://github.com/ff-fab/cosalette-apps/commit/7fcc5720320d045a9510bdc8580f1a26b9ebcc06))
+* **vito2mqtt:** remove unused device_id setting ([#290](https://github.com/ff-fab/cosalette-apps/issues/290)) ([13b7025](https://github.com/ff-fab/cosalette-apps/commit/13b70252496bba308fe141df94d010d217015897))
+
 ## [0.2.3](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.2...vito2mqtt-v0.2.3) (2026-09-13)
 
 

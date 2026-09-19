@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.2.5](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.4...wiz2mqtt-v0.2.5) (2026-09-19)
+
+
+### Features
+
+* **vito2mqtt,wallpanel-control,wiz2mqtt:** opt in to MQTT 5 retained-message expiry ([#284](https://github.com/ff-fab/cosalette-apps/issues/284)) ([be74719](https://github.com/ff-fab/cosalette-apps/commit/be7471967ef5310a254782fc61026a8d3a3ade48))
+* **wiz2mqtt:** add power-source settings and fake adapter test controls ([#276](https://github.com/ff-fab/cosalette-apps/issues/276)) ([75bc3ee](https://github.com/ff-fab/cosalette-apps/commit/75bc3eea0fe8c9e8b941e9e55cd2709456a61358))
+* **wiz2mqtt:** boot signal, desired state, command queue, power belief ([#278](https://github.com/ff-fab/cosalette-apps/issues/278)) ([7f8abe1](https://github.com/ff-fab/cosalette-apps/commit/7f8abe1f8ad4071523f902b4efbf0938cb2be5c9))
+* **wiz2mqtt:** generate openHAB power source items and per-bulb powered ([#296](https://github.com/ff-fab/cosalette-apps/issues/296)) ([1887436](https://github.com/ff-fab/cosalette-apps/commit/1887436ebccc2ac58e6e80f4be96d8a479541af0))
+* **wiz2mqtt:** publish retained power requests per source ([#295](https://github.com/ff-fab/cosalette-apps/issues/295)) ([613883f](https://github.com/ff-fab/cosalette-apps/commit/613883fdcb6c1211d25a82e26ddabd3ea2c2a440))
+* **wiz2mqtt:** restore desired state on return to reachability ([#279](https://github.com/ff-fab/cosalette-apps/issues/279)) ([31498f5](https://github.com/ff-fab/cosalette-apps/commit/31498f5423404f80a766c2c20d98e74ebbf5413b))
+* **wiz2mqtt:** skip reads on a known-off power source, announce it in HA discovery ([#280](https://github.com/ff-fab/cosalette-apps/issues/280)) ([41d0366](https://github.com/ff-fab/cosalette-apps/commit/41d0366280feda56173efb7125dee13e7920326d))
+* **wiz2mqtt:** subscribe to power-source signals with cosalette inbound (closes cap-pnjx) ([#286](https://github.com/ff-fab/cosalette-apps/issues/286)) ([cf07555](https://github.com/ff-fab/cosalette-apps/commit/cf0755568be10a2572115361e2e0e676f3bb449e))
+
+
+### Bug Fixes
+
+* **deps:** adopt cosalette 0.10.2 across the workspace ([#287](https://github.com/ff-fab/cosalette-apps/issues/287)) ([6f86628](https://github.com/ff-fab/cosalette-apps/commit/6f8662889b1a1218c6a0f1041b007f41deb45b7a))
+* **deps:** adopt cosalette 0.10.2 across the workspace ([#288](https://github.com/ff-fab/cosalette-apps/issues/288)) ([f40153d](https://github.com/ff-fab/cosalette-apps/commit/f40153d26633c6b4fdc9b704a002169dcceebbf8))
+* **deps:** adopt cosalette 0.10.3 across the workspace ([#292](https://github.com/ff-fab/cosalette-apps/issues/292)) ([6e31553](https://github.com/ff-fab/cosalette-apps/commit/6e315530510650e6f1ffbc4e02ec552ce4d262ee))
+* **deps:** resolve and validate cosalette 0.10.1 across the workspace ([#277](https://github.com/ff-fab/cosalette-apps/issues/277)) ([9968187](https://github.com/ff-fab/cosalette-apps/commit/996818747a41699d8221bb7bd34dec2c568beb2e))
+* **wiz2mqtt:** turn the belief off at once on a relay signal 'off' ([#298](https://github.com/ff-fab/cosalette-apps/issues/298)) ([3912f43](https://github.com/ff-fab/cosalette-apps/commit/3912f43c9ebcd033b6a476c14dd27e0b4fa73c93))
+
+
+### Documentation
+
+* **wiz2mqtt:** document mains power awareness for operators and consumers ([#297](https://github.com/ff-fab/cosalette-apps/issues/297)) ([f10db18](https://github.com/ff-fab/cosalette-apps/commit/f10db18cc01452c9295570f47331eff32223afcf))
+
 ## [0.2.4](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.3...wiz2mqtt-v0.2.4) (2026-09-16)
 
 
