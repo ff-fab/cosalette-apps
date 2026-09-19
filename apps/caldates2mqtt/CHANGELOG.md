@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.4](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.3...caldates2mqtt-v0.2.4) (2026-09-19)
+
+
+### Features
+
+* **airthings2mqtt,caldates2mqtt,gas2mqtt:** opt in to MQTT 5 retained-message expiry ([#282](https://github.com/ff-fab/cosalette-apps/issues/282)) ([d3e07da](https://github.com/ff-fab/cosalette-apps/commit/d3e07da88145058433b0f88fc5a40a87a1b3ceb0))
+
+
+### Bug Fixes
+
+* **deps:** adopt cosalette 0.10.2 across the workspace ([#287](https://github.com/ff-fab/cosalette-apps/issues/287)) ([6f86628](https://github.com/ff-fab/cosalette-apps/commit/6f8662889b1a1218c6a0f1041b007f41deb45b7a))
+* **deps:** adopt cosalette 0.10.3 across the workspace ([#292](https://github.com/ff-fab/cosalette-apps/issues/292)) ([6e31553](https://github.com/ff-fab/cosalette-apps/commit/6e315530510650e6f1ffbc4e02ec552ce4d262ee))
+* **deps:** resolve and validate cosalette 0.10.1 across the workspace ([#277](https://github.com/ff-fab/cosalette-apps/issues/277)) ([9968187](https://github.com/ff-fab/cosalette-apps/commit/996818747a41699d8221bb7bd34dec2c568beb2e))
+
 ## [0.2.3](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.2...caldates2mqtt-v0.2.3) (2026-09-13)
 
 
