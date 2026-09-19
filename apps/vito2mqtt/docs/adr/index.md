@@ -40,8 +40,8 @@ Optolink protocol and device logic.
 ### ADR-002: MQTT Topic Layout — Domain-Grouped
 
 Topics use a domain-grouped structure:
-`vito2mqtt/{device_id}/{group}/state` for telemetry and
-`vito2mqtt/{device_id}/{group}/set` for commands. Groups are semantic domains
+`vito2mqtt/{group}/state` for telemetry and
+`vito2mqtt/{group}/set` for commands. Groups are semantic domains
 (outdoor, hot_water, burner, etc.) rather than flat signal lists or deep hierarchies.
 
 ### ADR-003: Hardware Abstraction — Hexagonal Architecture

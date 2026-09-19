@@ -17,7 +17,7 @@
 
 Exposes :func:`make_command_handler` factory and :data:`COMMAND_SUMMARIES`
 consumed by the composition root.  Each handler listens on
-``{prefix}/{device_id}/{group}/set`` for incoming JSON payloads, validates
+``{prefix}/{group}/set`` for incoming JSON payloads, validates
 the signal names, deserializes values, and dispatches ``write_signal()``
 calls to the Optolink port.
 

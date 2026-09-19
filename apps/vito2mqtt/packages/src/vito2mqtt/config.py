@@ -53,7 +53,7 @@ class Vito2MqttSettings(Settings):
 
     # Device identification
     device_id: str = "vitodens200w"
-    """Device identifier used in MQTT topic hierarchy."""
+    """Reserved device identifier. Not used in MQTT topic construction."""
 
     # Internationalisation
     signal_language: Literal["de", "en"] = "en"

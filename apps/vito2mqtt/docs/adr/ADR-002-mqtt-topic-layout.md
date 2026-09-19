@@ -25,19 +25,23 @@ Assistant device/entity concepts, and keeps JSON payloads focused and reasonably
 
 **Topic structure:**
 
-- `vito2mqtt/{device_id}/outdoor/state` — outdoor sensors (temperature)
-- `vito2mqtt/{device_id}/hot_water/state` — DHW telemetry (temperatures, flow)
-- `vito2mqtt/{device_id}/hot_water/set` — DHW writable parameters (target temp)
-- `vito2mqtt/{device_id}/burner/state` — burner telemetry (hours, starts, modulation)
-- `vito2mqtt/{device_id}/heating_radiator/state` — M1 heating circuit telemetry
-- `vito2mqtt/{device_id}/heating_radiator/set` — M1 writable parameters
-- `vito2mqtt/{device_id}/heating_floor/state` — M2 heating circuit (floor) telemetry
-- `vito2mqtt/{device_id}/heating_floor/set` — M2 writable parameters
-- `vito2mqtt/{device_id}/system/state` — system-level readings (firmware, time)
-- `vito2mqtt/{device_id}/system/set` — system writable parameters (time sync)
-- `vito2mqtt/{device_id}/diagnosis/state` — error states and status registers
+- `vito2mqtt/outdoor/state` — outdoor sensors (temperature)
+- `vito2mqtt/hot_water/state` — DHW telemetry (temperatures, flow)
+- `vito2mqtt/hot_water/set` — DHW writable parameters (target temp)
+- `vito2mqtt/burner/state` — burner telemetry (hours, starts, modulation)
+- `vito2mqtt/heating_radiator/state` — M1 heating circuit telemetry
+- `vito2mqtt/heating_radiator/set` — M1 writable parameters
+- `vito2mqtt/heating_floor/state` — M2 heating circuit (floor) telemetry
+- `vito2mqtt/heating_floor/set` — M2 writable parameters
+- `vito2mqtt/system/state` — system-level readings (firmware, time)
+- `vito2mqtt/system/set` — system writable parameters (time sync)
+- `vito2mqtt/diagnosis/state` — error states and status registers
 
 All payloads are JSON objects with English keys.
+
+_Correction (2026-09-19): this ADR first listed a `{device_id}` segment after the app
+prefix. The app never published it, so the topics above are the real layout. The
+`device_id` setting is reserved and does not affect topics._
 
 ## Decision Drivers
 
@@ -87,7 +91,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Negative
 
 - Subscribers interested in all data must subscribe to multiple topics or use a wildcard
-  (`vito2mqtt/{device_id}/#`)
+  (`vito2mqtt/#`)
 - Domain boundaries require upfront design decisions about which signals belong to which
   group — some signals may not fit neatly
 - More topics than a single-aggregated approach means slightly more MQTT overhead

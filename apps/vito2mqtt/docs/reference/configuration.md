@@ -86,7 +86,7 @@ These settings are specific to vito2mqtt and defined in `Vito2MqttSettings`:
 
 | Setting | Environment Variable | Type | Default | Description |
 |---------|---------------------|------|---------|-------------|
-| `device_id` | `VITO2MQTT_DEVICE_ID` | `str` | `vitodens200w` | Device identifier in MQTT topic hierarchy |
+| `device_id` | `VITO2MQTT_DEVICE_ID` | `str` | `vitodens200w` | Reserved. Not used in topics or discovery; topics are `vito2mqtt/{group}/state` and `vito2mqtt/{group}/set` |
 | `signal_language` | `VITO2MQTT_SIGNAL_LANGUAGE` | `"de"` \| `"en"` | `"en"` | Language for signal names |
 
 ### Polling Intervals

@@ -44,7 +44,7 @@ prefix, `.env` file support, and aligns with the framework's configuration conve
 | ------------------ | ---- | ---------------- | --------------------------------- |
 | `serial_port`      | str  | _(required)_     | e.g., `/dev/ttyUSB0`              |
 | `serial_baud_rate` | int  | 4800             | P300 protocol standard baud rate  |
-| `device_id`        | str  | `vitodens200w`   | Used in MQTT topic construction   |
+| `device_id`        | str  | `vitodens200w`   | Reserved, not used in topics      |
 
 MQTT settings (broker host, port, credentials, TLS) are inherited from the
 `cosalette.Settings` base class.

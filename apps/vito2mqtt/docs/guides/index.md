@@ -19,28 +19,28 @@ directly via the [MQTT integration](https://www.home-assistant.io/integrations/m
 mqtt:
   sensor:
     - name: "Outdoor Temperature"
-      state_topic: "vito2mqtt/vitodens200w/outdoor/state"
+      state_topic: "vito2mqtt/outdoor/state"
       value_template: "{{ value_json.outdoor_temperature }}"
       unit_of_measurement: "°C"
       device_class: temperature
       state_class: measurement
 
     - name: "Hot Water Temperature"
-      state_topic: "vito2mqtt/vitodens200w/hot_water/state"
+      state_topic: "vito2mqtt/hot_water/state"
       value_template: "{{ value_json.hot_water_temperature }}"
       unit_of_measurement: "°C"
       device_class: temperature
       state_class: measurement
 
     - name: "Boiler Temperature"
-      state_topic: "vito2mqtt/vitodens200w/burner/state"
+      state_topic: "vito2mqtt/burner/state"
       value_template: "{{ value_json.boiler_temperature }}"
       unit_of_measurement: "°C"
       device_class: temperature
       state_class: measurement
 
     - name: "Exhaust Temperature"
-      state_topic: "vito2mqtt/vitodens200w/burner/state"
+      state_topic: "vito2mqtt/burner/state"
       value_template: "{{ value_json.exhaust_temperature }}"
       unit_of_measurement: "°C"
       device_class: temperature
@@ -53,23 +53,23 @@ mqtt:
 mqtt:
   sensor:
     - name: "Burner Starts"
-      state_topic: "vito2mqtt/vitodens200w/burner/state"
+      state_topic: "vito2mqtt/burner/state"
       value_template: "{{ value_json.burner_starts }}"
       state_class: total_increasing
 
     - name: "Burner Hours"
-      state_topic: "vito2mqtt/vitodens200w/burner/state"
+      state_topic: "vito2mqtt/burner/state"
       value_template: "{{ value_json.burner_hours_stage1 }}"
       unit_of_measurement: "h"
       state_class: total_increasing
 
     - name: "Burner Modulation"
-      state_topic: "vito2mqtt/vitodens200w/burner/state"
+      state_topic: "vito2mqtt/burner/state"
       value_template: "{{ value_json.burner_modulation }}"
       unit_of_measurement: "%"
 
     - name: "Plant Power Output"
-      state_topic: "vito2mqtt/vitodens200w/burner/state"
+      state_topic: "vito2mqtt/burner/state"
       value_template: "{{ value_json.plant_power_output }}"
       unit_of_measurement: "%"
 ```
@@ -80,7 +80,7 @@ mqtt:
 mqtt:
   number:
     - name: "Hot Water Setpoint"
-      command_topic: "vito2mqtt/vitodens200w/hot_water/set"
+      command_topic: "vito2mqtt/hot_water/set"
       command_template: '{"hot_water_setpoint": {{ value }}}'
       min: 30
       max: 60
@@ -104,7 +104,7 @@ mqtt:
 mqtt:
   binary_sensor:
     - name: "Boiler Error"
-      state_topic: "vito2mqtt/vitodens200w/diagnosis/state"
+      state_topic: "vito2mqtt/diagnosis/state"
       value_template: "{{ value_json.error_status }}"
       payload_on: 1
       payload_off: 0
@@ -176,7 +176,7 @@ Publish a JSON payload to the hot water command topic:
 ```bash
 # Set hot water target to 55°C
 mosquitto_pub -h localhost \
-  -t 'vito2mqtt/vitodens200w/hot_water/set' \
+  -t 'vito2mqtt/hot_water/set' \
   -m '{"hot_water_setpoint": 55}'
 ```
 
@@ -190,7 +190,7 @@ Timer signals use the CycleTime (CT) format — 4 on/off slot pairs per day:
 ```bash
 # Set Monday radiator schedule: heat 06:00–08:30 and 17:00–22:00
 mosquitto_pub -h localhost \
-  -t 'vito2mqtt/vitodens200w/heating_radiator/set' \
+  -t 'vito2mqtt/heating_radiator/set' \
   -m '{
     "timer_m1_monday": [
       [[6, 0], [8, 30]],
@@ -233,7 +233,7 @@ Subscribe to the diagnosis state topic:
 
 ```bash
 mosquitto_sub -h localhost \
-  -t 'vito2mqtt/vitodens200w/diagnosis/state' -v
+  -t 'vito2mqtt/diagnosis/state' -v
 ```
 
 Error history entries (ES type) are returned as objects with `error` and `timestamp`
@@ -255,7 +255,7 @@ Track burner starts and operating hours to assess cycling behavior:
 
 ```bash
 mosquitto_sub -h localhost \
-  -t 'vito2mqtt/vitodens200w/burner/state' -v
+  -t 'vito2mqtt/burner/state' -v
 ```
 
 Key metrics:
@@ -328,8 +328,6 @@ sudo chmod 666 /dev/ttyUSB0
 **Checklist:**
 
 1. Verify vito2mqtt is running and connected (check log output)
-2. Confirm topic structure: `vito2mqtt/vitodens200w/+/state`
-3. Check `VITO2MQTT_DEVICE_ID` matches what you're subscribing to (default:
-   `vitodens200w`)
-4. Try dry-run mode to isolate serial vs. MQTT issues:
+2. Confirm topic structure: `vito2mqtt/+/state`
+3. Try dry-run mode to isolate serial vs. MQTT issues:
    `uv run vito2mqtt --dry-run`

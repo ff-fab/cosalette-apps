@@ -3,10 +3,10 @@
 ## Context
 
 The telemetry layer (read side) is complete: 7 signal groups poll the boiler via
-`OptolinkPort.read_signals()` and publish to `{prefix}/{device_id}/{group}/state`.
+`OptolinkPort.read_signals()` and publish to `{prefix}/{group}/state`.
 
 The write side needs command handlers that subscribe to
-`{prefix}/{device_id}/{group}/set` topics and dispatch `write_signal()` calls via
+`{prefix}/{group}/set` topics and dispatch `write_signal()` calls via
 the same `OptolinkPort` protocol. ADR-002 defines 4 domains with writable parameters:
 
 | Domain              | Writable signals | Types             |
