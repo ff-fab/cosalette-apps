@@ -19,12 +19,12 @@ from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.main import (
-    INBOUND_ADAPTERS,
     _bulb_map,
     _power_source_map,
     bulb_set,
     power_source_entity,
     register_power_signals,
+    shared_state,
 )
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import Wiz2MqttSettings
@@ -80,9 +80,7 @@ def build_integration_app(
     app = App(
         name="wiz2mqtt",
         settings_class=Wiz2MqttSettings,
-        # The same state and notifier entries as main.py, so the inbound
-        # handler is wired exactly as in production.
-        adapters={WizBulbPort: _adapter_factory, **INBOUND_ADAPTERS},
+        adapters={WizBulbPort: _adapter_factory},
         error_type_map=error_type_map,
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across
@@ -93,6 +91,7 @@ def build_integration_app(
         store=MemoryStore(),
     )
     app.add_command(_bulb_map, bulb_set)
+    app.state(shared_state)
     app.add_telemetry(
         _bulb_map,
         bulb_entity_tick,
