@@ -48,6 +48,10 @@ class LastAnswers:
         self._save(store)
         return restored
 
+    def is_current(self, topic: str, answer: object) -> bool:
+        """Return whether *answer* remains the latest saved value for *topic*."""
+        return self._store is not None and self._store.get(topic) == answer
+
     @staticmethod
     def _save(store: DeviceStore) -> None:
         """Persist the answers; a failing store must not fail a command."""
@@ -76,5 +80,6 @@ async def restore_answers(
 ):
     """Publish each saved answer once, retained, then end."""
     for topic, answer in answers.attach(store).items():
-        await ctx.publish(topic, json.dumps(answer), retain=True)
+        if answers.is_current(topic, answer):
+            await ctx.publish(topic, json.dumps(answer), retain=True)
     yield

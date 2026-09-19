@@ -81,6 +81,27 @@ class TestLastAnswers:
             "system/action/state": {"accepted": False, "action": "suspend"}
         }
 
+    def test_saved_answer_is_not_current_after_a_newer_answer(self) -> None:
+        """A command during replay prevents an older saved answer from publishing.
+
+        Technique: State Transition -- a newer record supersedes the startup snapshot.
+        """
+        backend = MemoryStore()
+        answers = LastAnswers()
+        answers.attach(_attached(backend))
+        answers.record(
+            "display/state",
+            DisplayState(available=True, state="on", brightness_percent=40),
+        )
+        old_answer = {"available": True, "state": "on", "brightness_percent": 40}
+
+        answers.record(
+            "display/state",
+            DisplayState(available=True, state="off", brightness_percent=40),
+        )
+
+        assert not answers.is_current("display/state", old_answer)
+
     def test_save_failure_is_logged_not_raised(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
