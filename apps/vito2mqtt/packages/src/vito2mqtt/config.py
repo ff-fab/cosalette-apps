@@ -51,10 +51,6 @@ class Vito2MqttSettings(Settings):
     serial_baud_rate: int = 4800
     """Baud rate for the Optolink serial connection."""
 
-    # Device identification
-    device_id: str = "vitodens200w"
-    """Reserved device identifier. Not used in MQTT topic construction."""
-
     # Internationalisation
     signal_language: Literal["de", "en"] = "en"
     """Language for signal names (see ADR-006)."""

@@ -88,13 +88,6 @@ class TestDefaults:
         """
         assert settings.serial_baud_rate == 4800
 
-    def test_config_device_id_default(self, settings: Vito2MqttSettings) -> None:
-        """Default device_id is 'vitodens200w'.
-
-        Technique: Specification-based — project default device.
-        """
-        assert settings.device_id == "vitodens200w"
-
     def test_config_signal_language_default(self, settings: Vito2MqttSettings) -> None:
         """Default signal_language is 'en' per ADR-006.
 
@@ -218,14 +211,12 @@ class TestCustomValues:
         """
         monkeypatch.setenv("VITO2MQTT_SERIAL_PORT", "/dev/ttyS1")
         monkeypatch.setenv("VITO2MQTT_SERIAL_BAUD_RATE", "9600")
-        monkeypatch.setenv("VITO2MQTT_DEVICE_ID", "vitotronic300")
         monkeypatch.setenv("VITO2MQTT_SIGNAL_LANGUAGE", "de")
 
         settings = Vito2MqttSettings()
 
         assert settings.serial_port == "/dev/ttyS1"
         assert settings.serial_baud_rate == 9600
-        assert settings.device_id == "vitotronic300"
         assert settings.signal_language == "de"
 
     def test_config_custom_polling_intervals(

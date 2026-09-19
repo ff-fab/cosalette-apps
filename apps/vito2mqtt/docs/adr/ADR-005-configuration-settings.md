@@ -44,7 +44,6 @@ prefix, `.env` file support, and aligns with the framework's configuration conve
 | ------------------ | ---- | ---------------- | --------------------------------- |
 | `serial_port`      | str  | _(required)_     | e.g., `/dev/ttyUSB0`              |
 | `serial_baud_rate` | int  | 4800             | P300 protocol standard baud rate  |
-| `device_id`        | str  | `vitodens200w`   | Reserved, not used in topics      |
 
 MQTT settings (broker host, port, credentials, TLS) are inherited from the
 `cosalette.Settings` base class.
@@ -108,7 +107,7 @@ _Scale: 1 (poor) to 5 (excellent)_
 ## Amendment (2026-09-19) — Minor
 
 !!! note "Editorial note (2026-09-19)"
-    The Context section lists device identity for MQTT topics as a configuration category. The `device_id` setting is reserved: no topic code reads it and topics have the form `vito2mqtt/{group}/state`. The settings table shows it as reserved.
+    The Context section lists device identity for MQTT topics as a configuration category. The unused `device_id` setting is removed (cap-ohpx). Topics have the form `vito2mqtt/{group}/state`.
 
 !!! note "Editorial note (2026-09-19)"
-    See ADR-002 for the topic layout. Beads issue cap-ohpx tracks the decision to remove the setting or wire it in.
+    See ADR-002 for the topic layout.
