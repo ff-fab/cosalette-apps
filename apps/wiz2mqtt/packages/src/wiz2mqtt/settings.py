@@ -421,6 +421,37 @@ def _resolve_power_source(
     )
 
 
+def _check_power_sources(
+    settings: Wiz2MqttSettings, group_members: dict[str, set[str]]
+) -> None:
+    """Reject a colliding, misplaced or ambiguous ``[[power_sources]]`` entry."""
+    bulb_names = {bulb.name for bulb in settings.bulbs}
+    group_names = {group.name for group in settings.groups}
+    reserved_names = bulb_names | group_names
+    prefix = settings.mqtt.topic_prefix or _APP_NAME
+    source_names: set[str] = set()
+    signal_topics: dict[str, str] = {}
+    for source in settings.power_sources:
+        _check_source_names(source, source_names, signal_topics, reserved_names)
+        _check_signal_topic_outside_prefix(source, prefix)
+        _check_source_claim(source, bulb_names, group_names)
+    _check_bulb_power_sources(settings.bulbs, settings.power_sources, group_members)
+
+
+def _members_by_power_source(
+    bulbs: list[BulbConfig],
+    power_sources: list[PowerSourceConfig],
+    resolved: dict[str, PowerSourceConfig | None],
+) -> dict[str, tuple[str, ...]]:
+    """Reverse *resolved* into the sorted member names of each source."""
+    members: dict[str, list[str]] = {source.name: [] for source in power_sources}
+    for bulb in bulbs:
+        source = resolved[bulb.name]
+        if source is not None:
+            members[source.name].append(bulb.name)
+    return {name: tuple(sorted(names)) for name, names in members.items()}
+
+
 class Wiz2MqttSettings(cosalette.Settings):
     """wiz2mqtt application settings."""
 
@@ -539,35 +570,15 @@ class Wiz2MqttSettings(cosalette.Settings):
         ambiguous implicit claim (two sources, by members and/or group) is
         an error.
         """
-        bulb_names = {bulb.name for bulb in self.bulbs}
-        group_names = {group.name for group in self.groups}
         group_members = {group.name: set(group.members) for group in self.groups}
-        reserved_names = bulb_names | group_names
-
-        prefix = self.mqtt.topic_prefix or _APP_NAME
-        source_names: set[str] = set()
-        signal_topics: dict[str, str] = {}
-        for source in self.power_sources:
-            _check_source_names(source, source_names, signal_topics, reserved_names)
-            _check_signal_topic_outside_prefix(source, prefix)
-            _check_source_claim(source, bulb_names, group_names)
-        _check_bulb_power_sources(self.bulbs, self.power_sources, group_members)
-
+        _check_power_sources(self, group_members)
         self._power_sources_by_bulb = {
             bulb.name: _resolve_power_source(bulb, self.power_sources, group_members)
             for bulb in self.bulbs
         }
-        members_by_power_source: dict[str, list[str]] = {
-            source.name: [] for source in self.power_sources
-        }
-        for bulb in self.bulbs:
-            source = self._power_sources_by_bulb[bulb.name]
-            if source is not None:
-                members_by_power_source[source.name].append(bulb.name)
-        self._members_by_power_source = {
-            source_name: tuple(sorted(members))
-            for source_name, members in members_by_power_source.items()
-        }
+        self._members_by_power_source = _members_by_power_source(
+            self.bulbs, self.power_sources, self._power_sources_by_bulb
+        )
         return self
 
     def power_source_of(self, bulb_name: str) -> PowerSourceConfig | None:
