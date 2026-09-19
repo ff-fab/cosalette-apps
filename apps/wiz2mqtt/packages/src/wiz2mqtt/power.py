@@ -42,6 +42,51 @@ def compute_belief(
     return "unknown" if when_unreachable == "fault" else "off"
 
 
+def parse_signal(payload: str) -> Signal | None:
+    """Parse a relay ``signal_topic`` payload (ADR-007 signal contract).
+
+    Accepts only lowercase ``on`` or ``off`` after one whitespace trim. Any
+    other payload returns ``None``, so the belief stays unchanged.
+    """
+    match payload.strip():
+        case "on":
+            return "on"
+        case "off":
+            return "off"
+        case _:
+            return None
+
+
+def source_for_signal_topic(
+    settings: Wiz2MqttSettings, topic: str
+) -> PowerSourceConfig | None:
+    """Return the power source that subscribes to *topic*, if any.
+
+    ``signal_topic`` is unique per source (validated by the settings).
+    """
+    return next(
+        (source for source in settings.power_sources if source.signal_topic == topic),
+        None,
+    )
+
+
+def record_signal(state: SharedState, source_name: str, signal: Signal) -> bool:
+    """Store *signal* for *source_name*; return whether it differs from the last.
+
+    A repeat of the stored signal changes no belief, so the caller can skip
+    waking the source and its bulbs.
+    """
+    if state.source_signal.get(source_name) == signal:
+        return False
+    state.source_signal[source_name] = signal
+    return True
+
+
+def signal_wake_targets(settings: Wiz2MqttSettings, source_name: str) -> list[str]:
+    """Return the entities a signal change arms: the source, then its bulbs."""
+    return [source_name, *settings.bulbs_for_power_source(source_name)]
+
+
 def belief_for_bulb(
     settings: Wiz2MqttSettings, state: SharedState, bulb_name: str
 ) -> Belief | None:

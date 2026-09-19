@@ -11,7 +11,16 @@ from __future__ import annotations
 
 import pytest
 
-from wiz2mqtt.power import belief_for_bulb, compute_belief, source_payload
+from tests.fixtures.settings import build_settings
+from wiz2mqtt.power import (
+    belief_for_bulb,
+    compute_belief,
+    parse_signal,
+    record_signal,
+    signal_wake_targets,
+    source_for_signal_topic,
+    source_payload,
+)
 from wiz2mqtt.settings import Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -181,3 +190,94 @@ def test_belief_truth_table(
         )
         == expected
     )
+
+
+@pytest.mark.parametrize(
+    ("payload", "expected"),
+    [
+        ("on", "on"),
+        ("off", "off"),
+        ("  on\n", "on"),
+        ("\toff ", "off"),
+        ("ON", None),
+        ("Off", None),
+        ("true", None),
+        ("1", None),
+        ("", None),
+        ("   ", None),
+        ("on off", None),
+        ('{"state": "on"}', None),
+    ],
+)
+def test_parse_signal(payload: str, expected: str | None) -> None:
+    """Technique: Equivalence Partitioning — accepted, whitespace-padded, rejected.
+
+    ADR-007: only lowercase ``on``/``off`` after one trim is a signal.
+    """
+    assert parse_signal(payload) == expected
+
+
+class TestSourceForSignalTopic:
+    """A signal topic resolves to the one source that subscribes to it."""
+
+    @staticmethod
+    def _settings() -> Wiz2MqttSettings:
+        return build_settings(
+            [{"name": "a", "ip": "10.0.0.1"}, {"name": "b", "ip": "10.0.0.2"}],
+            [
+                {"name": "up", "members": ["a"], "signal_topic": "relay/up"},
+                {"name": "down", "members": ["b"]},
+            ],
+        )
+
+    def test_returns_the_source_that_declares_the_topic(self) -> None:
+        """Technique: Specification-based — an exact topic match."""
+        source = source_for_signal_topic(self._settings(), "relay/up")
+
+        assert source is not None
+        assert source.name == "up"
+
+    @pytest.mark.parametrize("topic", ["relay/other", "relay/up/extra", "down", ""])
+    def test_returns_none_for_a_topic_no_source_declares(self, topic: str) -> None:
+        """Technique: Equivalence Partitioning — near misses and a source name.
+
+        ``down`` has no ``signal_topic``, so neither its name nor an empty
+        topic may resolve to it.
+        """
+        assert source_for_signal_topic(self._settings(), topic) is None
+
+
+class TestRecordSignal:
+    """The stored signal changes only when the new one differs."""
+
+    def test_first_signal_is_stored_as_a_change(self) -> None:
+        """Technique: State Transition — no signal to on."""
+        state = SharedState()
+
+        assert record_signal(state, "up", "on") is True
+        assert state.source_signal == {"up": "on"}
+
+    def test_repeated_signal_is_not_a_change(self) -> None:
+        """Technique: State Transition — on to on."""
+        state = SharedState()
+        record_signal(state, "up", "on")
+
+        assert record_signal(state, "up", "on") is False
+
+    def test_opposite_signal_replaces_the_stored_one(self) -> None:
+        """Technique: State Transition — on to off."""
+        state = SharedState()
+        record_signal(state, "up", "on")
+
+        assert record_signal(state, "up", "off") is True
+        assert state.source_signal == {"up": "off"}
+
+
+def test_signal_wake_targets_lists_the_source_then_its_sorted_bulbs() -> None:
+    """Technique: Specification-based — a change arms the source and its members."""
+    settings = build_settings(
+        [{"name": "b", "ip": "10.0.0.2"}, {"name": "a", "ip": "10.0.0.1"}],
+        [{"name": "up", "members": ["b", "a"]}],
+    )
+
+    assert signal_wake_targets(settings, "up") == ["up", "a", "b"]

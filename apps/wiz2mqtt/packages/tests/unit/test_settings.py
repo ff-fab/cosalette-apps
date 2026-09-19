@@ -467,6 +467,50 @@ class TestPowerSourcesValidation:
                 ]
             )
 
+    @pytest.mark.parametrize(
+        "topic", ["wiz2mqtt", "wiz2mqtt/office/set", "/wiz2mqtt/downstairs/state"]
+    )
+    def test_rejects_signal_topic_under_the_default_prefix(self, topic: str) -> None:
+        """Technique: Error Guessing — a topic that would shadow an own topic.
+
+        cosalette routes external inbound topics before its own command
+        topics, so ``wiz2mqtt/office/set`` would silently take over the bulb.
+        """
+        with pytest.raises(ValidationError, match="topic prefix"):
+            self._settings(
+                power_sources=[
+                    {"name": "p", "members": ["desk"], "signal_topic": topic}
+                ]
+            )
+
+    def test_rejects_signal_topic_under_a_custom_multi_segment_prefix(self) -> None:
+        """Technique: Boundary Value Analysis — the prefix has two segments."""
+        with pytest.raises(ValidationError, match="topic prefix"):
+            Wiz2MqttSettings(
+                bulbs=[{"name": "desk", "ip": "10.0.0.1"}],  # type: ignore[arg-type]
+                power_sources=[  # type: ignore[arg-type]
+                    {
+                        "name": "p",
+                        "members": ["desk"],
+                        "signal_topic": "house/wiz/desk/set",
+                    }
+                ],
+                mqtt={"topic_prefix": "house/wiz"},  # type: ignore[arg-type]
+                _env_file=None,  # type: ignore[call-arg]
+                _config_file=None,  # type: ignore[call-arg]
+            )
+
+    @pytest.mark.parametrize("topic", ["wiz2mqtt-relay/state", "house/wiz2mqtt/state"])
+    def test_allows_signal_topic_that_only_resembles_the_prefix(
+        self, topic: str
+    ) -> None:
+        """Technique: Boundary Value Analysis — the check is on segment boundaries."""
+        settings = self._settings(
+            power_sources=[{"name": "p", "members": ["desk"], "signal_topic": topic}]
+        )
+
+        assert settings.power_sources[0].signal_topic == topic
+
     def test_allows_power_off_with_wiz_bulbs_only(self) -> None:
         settings = self._settings(
             power_sources=[

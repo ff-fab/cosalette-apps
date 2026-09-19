@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: wiz2mqtt
-  version: 0.2.1
+  version: 0.2.4
   x-cosalette-contract-version: '1'
 channels:
   exampleCommand:
@@ -203,7 +203,7 @@ channels:
       message:
         payload:
           additionalProperties: false
-          description: 'Retained ``{prefix}/{bulb}/state`` payload shape (cap-10u.14).
+          description: 'Retained ``{prefix}/{bulb}/state`` payload shape.
 
 
             ``prefix`` defaults to ``wiz2mqtt`` when ``mqtt.topic_prefix`` is unset.
@@ -230,7 +230,7 @@ channels:
 
             and the offline ``cosalette schema ha-discovery`` path emit them per
 
-            configured bulb (cap-10u.14, cosalette ADR-057/ADR-059).  The
+            configured bulb (cosalette ADR-057/ADR-059). The
 
             ``state``/``brightness``/``hsb``/``effect`` fields additionally carry
 
@@ -338,6 +338,14 @@ channels:
               - type: 'null'
               default: null
               title: Power Draw W
+            powered:
+              enum:
+              - true
+              - false
+              - __unknown__
+              title: Powered
+          required:
+          - powered
           title: BulbStateModel
           type: object
           x-cosalette-ha-discovery:

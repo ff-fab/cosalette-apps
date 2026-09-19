@@ -76,10 +76,25 @@ wiz2mqtt publishes immediately when a bulb push update arrives, and it also runs
 a 60-second heartbeat tick so a bulb that has gone silent still gets a
 liveness check.
 
-`set` is the only topic wiz2mqtt subscribes. The push wake is in-process, so
-there is no trigger topic to publish to; see
+wiz2mqtt subscribes to each `set` topic and to the optional `signal_topic` of
+each power source (see [Power Source Signal Topic](#power-source-signal-topic)).
+The push wake is in-process, so there is no trigger topic to publish to; see
 [configuration.md](configuration.md) for the heartbeat and push-staleness
 values.
+
+## Power Source Signal Topic
+
+**Topic:** the `signal_topic` of a `[[power_sources]]` entry (input only).
+
+The relay owns this retained topic. wiz2mqtt subscribes to it and never
+publishes to it. It accepts only the lowercase payloads `on` and `off`, after
+one whitespace trim. It ignores and logs any other payload by source name, and
+the ignored payload never appears in the log. An empty payload, for example a
+cleared retained message, keeps the last known signal.
+
+A `signal_topic` must not equal the topic prefix or lie below it. See
+[configuration.md](configuration.md#power-sources) for the belief rules and the
+broker access rules.
 
 ---
 

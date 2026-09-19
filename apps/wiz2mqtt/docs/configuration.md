@@ -73,10 +73,9 @@ discovery. They are rendered only for openHAB; HA groups remain HA configuration
 
 Optional `[[power_sources]]` entries model a mains circuit (ADR-007) that one
 or more bulbs sit behind, e.g. a smart relay or wall switch feeding several
-WiZ bulbs. This inventory and its validation are available now. Deriving or
-publishing a `powered` belief, subscribing to `signal_topic`, and sending
-power requests are reserved configuration only until their separately tracked
-ADR-007/ADR-009 runtime work lands.
+WiZ bulbs. wiz2mqtt derives a `powered` belief per source and subscribes to
+its optional `signal_topic`. Sending power requests is reserved configuration
+only until the separately tracked ADR-009 runtime work lands.
 
 ```toml
 [[power_sources]]
@@ -100,12 +99,18 @@ wiz_bulbs_only = true
 | `name` | yes | Unique name, `[A-Za-z0-9_-]+`, at most 64 characters; must not collide with a bulb or group name |
 | `group` | one of `group`/`members` | Name of an existing `[[groups]]` entry this source powers |
 | `members` | one of `group`/`members` | Bulb names powered by this source directly |
-| `signal_topic` | no | Reserved retained MQTT relay-signal topic (`on`/`off`); subscription is deferred until the ADR-007 runtime work lands |
+| `signal_topic` | no | Retained MQTT relay-signal topic. wiz2mqtt subscribes to it and accepts only the lowercase payloads `on` and `off`, trimmed once; it ignores and warns on any other payload. A topic is unique per source and must not equal the topic prefix or lie below it. Grant write access to the topic only to the relay publisher, and give wiz2mqtt read access only (see the note below the table) |
 | `when_unreachable` | no | What an unreachable member bulb means with no better evidence: `fault` (default, availability = offline) or `no_power` (bulb stays available, publishes `{"state": "OFF"}`) |
 | `enable_power_on_request` | no | Reserve future power-on requests; runtime support is deferred (default `false`) |
 | `enable_power_off_request` | no | Reserve future power-off requests; runtime support is deferred and requires `wiz_bulbs_only = true` (default `false`) |
 | `power_off_idle_delay` | no | Reserved seconds every member bulb must be idle before a future power-off request; runtime support is deferred (default `600`) |
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
+
+The signal topic is a control input: MQTT cannot prove who published a message,
+and a stale retained `off` decides the belief while no member bulb has
+answered. Restrict write access to the relay publisher at the broker. Generate
+the ACL with `cosalette schema acl`, which grants wiz2mqtt `topic read` only
+for each `signal_topic`.
 
 Exactly one of `group` or `members` must be set. A bulb resolves to at most
 one power source: its own `power_source` field (see [Bulb
@@ -178,7 +183,7 @@ the broker by itself.
   bulb's return to reachability, not an MQTT message. The desired state and the
   capability cache live in the store file, not on the broker, so expiry never touches
   them.
-- **A power source `signal_topic` is not affected.** It is reserved and unsubscribed.
+- **A power source `signal_topic` is not affected.** wiz2mqtt only subscribes to it.
   The relay that owns it publishes it, so wiz2mqtt neither stamps nor refreshes it.
 
 ## Command Queueing
