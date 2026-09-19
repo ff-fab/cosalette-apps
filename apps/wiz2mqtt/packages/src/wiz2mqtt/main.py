@@ -266,8 +266,8 @@ def add_power_signal_inbounds(app: cosalette.App, settings: Wiz2MqttSettings) ->
     """Subscribe ``power_signal`` to the ``signal_topic`` of every power source.
 
     A configure hook registers one concrete inbound per source instead of one
-    callable ``name=``/``topic=`` registration: cosalette 0.10.1 expands the
-    callable form at runtime only, so the offline schema and ACL output would
+    callable ``name=``/``topic=`` registration: cosalette 0.10.1 and 0.10.2 expand
+    the callable form at runtime only, so the offline schema and ACL output would
     lack the receive channels (cap-22u6).
 
     Only the newest relay state matters, so a small queue drops the oldest

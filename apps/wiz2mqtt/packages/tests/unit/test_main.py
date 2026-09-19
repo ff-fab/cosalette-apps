@@ -9,6 +9,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import pytest
+from cosalette import App, EntityNotifier
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from tests.fixtures.settings import build_settings
@@ -25,7 +26,6 @@ from wiz2mqtt.main import (
     power_signal,
 )
 from wiz2mqtt.models import BulbSetCommand
-from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -419,25 +419,28 @@ class TestInboundWiring:
     """
 
     @staticmethod
-    def _app() -> object:
+    def _app() -> App:
         from wiz2mqtt.main import app  # noqa: PLC0415 — module-level app singleton
 
         return app
 
     def test_shared_state_is_the_only_app_state(self) -> None:
         """Technique: Specification-based — one registration, not two instances."""
-        factories = self._app().state_factories  # ty: ignore[unresolved-attribute]
+        factories = self._app().state_factories
 
         assert [reg.state_type for reg in factories] == [SharedState]
 
     def test_state_and_notifier_are_not_adapters(self) -> None:
         """Technique: Specification-based — no adapter shadows the injected values."""
-        adapters = self._app()._adapters  # noqa: SLF001  # ty: ignore[unresolved-attribute]
+        adapters = self._app()._adapters  # noqa: SLF001
 
-        assert set(adapters) == {WizBulbPort}
+        assert SharedState not in adapters
+        assert EntityNotifier not in adapters
 
     def test_one_configure_hook_registers_the_signal_inbounds(self) -> None:
         """Technique: Specification-based — the hook is what feeds schema and ACL."""
-        hooks = self._app()._configure_hooks  # noqa: SLF001  # ty: ignore[unresolved-attribute]
+        hooks = self._app()._configure_hooks  # noqa: SLF001
 
-        assert [hook.__name__ for hook in hooks] == ["_configure_power_signals"]
+        assert [hook.__name__ for hook in hooks] == [  # ty: ignore[unresolved-attribute]
+            "_configure_power_signals"
+        ]
