@@ -19,6 +19,7 @@ from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.main import (
+    _SIGNAL_QUEUE_SIZE,
     _bulb_map,
     _power_source_map,
     _signal_source_map,
@@ -112,11 +113,12 @@ def build_integration_app(
         triggerable="local",
         publish=OnChange(),
     )
+    # Mirrors main.py's power_signal registration (minus the schema metadata).
     app.add_inbound(
         _signal_source_map,
         power_signal,
         topic=_signal_topic,
-        maxsize=8,
+        maxsize=_SIGNAL_QUEUE_SIZE,
         backpressure="drop_oldest",
     )
     return app

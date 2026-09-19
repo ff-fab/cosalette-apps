@@ -387,10 +387,13 @@ class TestSignalInbound:
 
     def test_inbound_queue_is_bounded_and_drops_the_oldest(self) -> None:
         """Technique: Specification-based — a flooded topic cannot grow memory."""
-        from wiz2mqtt.main import app  # noqa: PLC0415 — module-level app singleton
+        [reg] = (
+            reg
+            for reg in TestInboundWiring._app().inbound_registrations
+            if reg.func is power_signal
+        )
 
-        [reg] = app._inbounds  # noqa: SLF001
-
+        # The literal 8 pins the specification, not the constant it guards.
         assert reg.maxsize == 8
         assert reg.backpressure == "drop_oldest"
 
