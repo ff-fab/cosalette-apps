@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
 from typing import Annotated, cast
 
 import cosalette
@@ -52,43 +51,12 @@ verification confirms this fallback in the app ADRs.
 """
 
 
-def _new_shared_state() -> SharedState:
-    """Adapter factory for the per-bulb availability/publish debounce state."""
-    return SharedState()
-
-
-def _same_notifier(
-    notify: Annotated[EntityNotifier | None, Optional()] = None,
-) -> EntityNotifier | None:
-    """Adapter factory that makes the notifier injectable into inbound handlers.
-
-    Optional() because offline schema generation resolves adapters with no
-    notifier; no handler runs there.
-    """
-    return notify
-
-
-INBOUND_ADAPTERS: dict[type, Callable[..., object]] = {
-    SharedState: _new_shared_state,
-    EntityNotifier: _same_notifier,
-}
-"""Adapter entries that give an ``@app.inbound`` handler its state and notifier.
-
-cosalette 0.10.1 injects only settings, clock, logger and adapters into an
-inbound handler, so ``power_signal`` reaches the shared state and the notifier
-through these entries. Remove them when cap-6fem lands in cosalette. The
-integration app spreads the same dict, so the two apps cannot drift.
-"""
-
 app = cosalette.App(
     name="wiz2mqtt",
     version=__version__,
     description="WiZ smart bulb control over MQTT for openHAB and Home Assistant",
     settings_class=Wiz2MqttSettings,
-    adapters={
-        WizBulbPort: (WizBulbAdapter, FakeWizBulbAdapter),
-        **INBOUND_ADAPTERS,
-    },
+    adapters={WizBulbPort: (WizBulbAdapter, FakeWizBulbAdapter)},
     error_type_map=error_type_map,
 )
 
@@ -182,6 +150,12 @@ async def bulb_set(
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
         notify(config.name)
         raise
+
+
+@app.state
+def shared_state() -> SharedState:
+    """State factory for per-bulb availability/publish debounce."""
+    return SharedState()
 
 
 @app.telemetry(

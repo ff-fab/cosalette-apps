@@ -9,7 +9,6 @@ Test Techniques Used:
 from __future__ import annotations
 
 import pytest
-from cosalette import EntityNotifier
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from tests.fixtures.settings import build_settings
@@ -20,13 +19,13 @@ from wiz2mqtt.errors import (
     WizUnsupportedCommandError,
 )
 from wiz2mqtt.main import (
-    INBOUND_ADAPTERS,
     _bulb_map,
     add_power_signal_inbounds,
     bulb_set,
     power_signal,
 )
 from wiz2mqtt.models import BulbSetCommand
+from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -415,8 +414,8 @@ class TestAddPowerSignalInbounds:
 class TestInboundWiring:
     """The production ``app`` gives ``power_signal`` its state and notifier.
 
-    The integration app reuses ``INBOUND_ADAPTERS`` and
-    ``register_power_signals``, so these checks pin the shared registration.
+    cosalette 0.10.2 injects ``@app.state`` values and the ``EntityNotifier``
+    into inbound handlers, so no adapter entry is needed.
     """
 
     @staticmethod
@@ -425,16 +424,17 @@ class TestInboundWiring:
 
         return app
 
-    def test_state_and_notifier_are_registered_adapters(self) -> None:
-        """Technique: Specification-based — inbound handlers resolve both by type."""
+    def test_shared_state_is_the_only_app_state(self) -> None:
+        """Technique: Specification-based — one registration, not two instances."""
+        factories = self._app().state_factories  # ty: ignore[unresolved-attribute]
+
+        assert [reg.state_type for reg in factories] == [SharedState]
+
+    def test_state_and_notifier_are_not_adapters(self) -> None:
+        """Technique: Specification-based — no adapter shadows the injected values."""
         adapters = self._app()._adapters  # noqa: SLF001  # ty: ignore[unresolved-attribute]
 
-        assert adapters[SharedState].impl is INBOUND_ADAPTERS[SharedState]
-        assert adapters[EntityNotifier].impl is INBOUND_ADAPTERS[EntityNotifier]
-
-    def test_shared_state_is_not_also_an_app_state(self) -> None:
-        """Technique: Specification-based — one registration, not two instances."""
-        assert self._app()._state_factories == []  # noqa: SLF001  # ty: ignore[unresolved-attribute]
+        assert set(adapters) == {WizBulbPort}
 
     def test_one_configure_hook_registers_the_signal_inbounds(self) -> None:
         """Technique: Specification-based — the hook is what feeds schema and ACL."""
