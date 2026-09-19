@@ -9,22 +9,30 @@ Test Techniques Used:
 from __future__ import annotations
 
 import pytest
+from cosalette import EntityNotifier
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
+from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.errors import (
     WizIdentityError,
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
-from wiz2mqtt.main import _bulb_map, bulb_set, power_signal
+from wiz2mqtt.main import (
+    INBOUND_ADAPTERS,
+    _bulb_map,
+    add_power_signal_inbounds,
+    bulb_set,
+    power_signal,
+)
 from wiz2mqtt.models import BulbSetCommand
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
 
 def _settings_with_bulbs(*bulbs: dict[str, object]) -> Wiz2MqttSettings:
-    return Wiz2MqttSettings(bulbs=list(bulbs), _env_file=None, _config_file=None)  # type: ignore[arg-type,call-arg]
+    return build_settings(bulbs)
 
 
 class TestBulbMap:
@@ -225,20 +233,18 @@ _SIGNAL_TOPIC = "openhab/relay/downstairs/state"
 
 
 def _signal_settings() -> Wiz2MqttSettings:
-    return Wiz2MqttSettings(
-        bulbs=[  # type: ignore[arg-type]
+    return build_settings(
+        [
             {"name": "office", "ip": "10.0.0.1"},
             {"name": "hall", "ip": "10.0.0.2"},
         ],
-        power_sources=[  # type: ignore[arg-type]
+        [
             {
                 "name": "downstairs",
                 "members": ["office", "hall"],
                 "signal_topic": _SIGNAL_TOPIC,
             }
         ],
-        _env_file=None,  # type: ignore[call-arg]
-        _config_file=None,  # type: ignore[call-arg]
     )
 
 
@@ -257,6 +263,33 @@ class TestPowerSignal:
         assert state.source_signal == {"downstairs": signal}
         assert notify.armed == ["downstairs", "hall", "office"]
 
+    async def test_repeated_signal_does_not_arm_again(self) -> None:
+        """Technique: State Transition — a signal equal to the stored one is a no-op.
+
+        A relay that republishes its state, or a retained redelivery after a
+        reconnect, must not wake every member bulb for a read.
+        """
+        state, notify = SharedState(), RecordingNotifier()
+        settings = _signal_settings()
+        await power_signal("off", _SIGNAL_TOPIC, settings, state, notify)
+        notify.armed.clear()
+
+        await power_signal("off", _SIGNAL_TOPIC, settings, state, notify)
+
+        assert notify.armed == []
+
+    async def test_changed_signal_arms_again(self) -> None:
+        """Technique: State Transition — a real change wakes the entities again."""
+        state, notify = SharedState(), RecordingNotifier()
+        settings = _signal_settings()
+        await power_signal("off", _SIGNAL_TOPIC, settings, state, notify)
+        notify.armed.clear()
+
+        await power_signal("on", _SIGNAL_TOPIC, settings, state, notify)
+
+        assert state.source_signal == {"downstairs": "on"}
+        assert notify.armed == ["downstairs", "hall", "office"]
+
     async def test_invalid_signal_changes_nothing_and_never_echoes_the_payload(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:
@@ -273,13 +306,18 @@ class TestPowerSignal:
         assert "downstairs" in caplog.text
         assert "SECRET-TOKEN" not in caplog.text
 
-    async def test_invalid_signal_keeps_the_previous_signal(self) -> None:
-        """Technique: State Transition — a bad payload does not clear the belief."""
+    @pytest.mark.parametrize("payload", ["garbage", ""])
+    async def test_invalid_signal_keeps_the_previous_signal(self, payload: str) -> None:
+        """Technique: State Transition — a bad or empty payload does not clear it.
+
+        An empty payload is a cleared retained topic. It keeps the last known
+        signal, the same as any other payload that is not ``on`` or ``off``.
+        """
         state, notify = SharedState(), RecordingNotifier()
         settings = _signal_settings()
         await power_signal("off", _SIGNAL_TOPIC, settings, state, notify)
 
-        await power_signal("garbage", _SIGNAL_TOPIC, settings, state, notify)
+        await power_signal(payload, _SIGNAL_TOPIC, settings, state, notify)
 
         assert state.source_signal == {"downstairs": "off"}
 
@@ -291,3 +329,115 @@ class TestPowerSignal:
 
         assert state.source_signal == {}
         assert notify.armed == []
+
+    async def test_signal_updates_only_the_source_of_its_topic(self) -> None:
+        """Technique: Decision Table — two sources, one topic each, one without.
+
+        A signal on the topic of one source must not reach the other sources
+        or their bulbs.
+        """
+        settings = build_settings(
+            [
+                {"name": "a", "ip": "10.0.0.1"},
+                {"name": "b", "ip": "10.0.0.2"},
+                {"name": "c", "ip": "10.0.0.3"},
+            ],
+            [
+                {"name": "up", "members": ["a"], "signal_topic": "relay/up"},
+                {"name": "down", "members": ["b"], "signal_topic": "relay/down"},
+                {"name": "quiet", "members": ["c"]},
+            ],
+        )
+        state, notify = SharedState(), RecordingNotifier()
+
+        await power_signal("on", "relay/down", settings, state, notify)
+
+        assert state.source_signal == {"down": "on"}
+        assert notify.armed == ["down", "b"]
+
+
+class _RecordingApp:
+    """Records ``add_inbound`` calls in place of a real ``cosalette.App``."""
+
+    def __init__(self) -> None:
+        self.inbounds: list[tuple[object, dict[str, object]]] = []
+
+    def add_inbound(self, name: object, func: object, **kwargs: object) -> None:
+        assert func is power_signal
+        self.inbounds.append((name, kwargs))
+
+
+class TestAddPowerSignalInbounds:
+    """One bounded inbound per source that declares a ``signal_topic``."""
+
+    def test_registers_one_inbound_per_declared_topic_verbatim(self) -> None:
+        """Technique: Specification-based — two sources with, one without a topic."""
+        settings = build_settings(
+            [
+                {"name": "a", "ip": "10.0.0.1"},
+                {"name": "b", "ip": "10.0.0.2"},
+                {"name": "c", "ip": "10.0.0.3"},
+            ],
+            [
+                {"name": "up", "members": ["a"], "signal_topic": "relay/up"},
+                {"name": "down", "members": ["b"], "signal_topic": "relay/down"},
+                {"name": "quiet", "members": ["c"]},
+            ],
+        )
+        app = _RecordingApp()
+
+        add_power_signal_inbounds(app, settings)  # type: ignore[arg-type]
+
+        assert [(name, kw["topic"]) for name, kw in app.inbounds] == [
+            ("up", "relay/up"),
+            ("down", "relay/down"),
+        ]
+
+    def test_inbound_queue_is_bounded_and_drops_the_oldest(self) -> None:
+        """Technique: Specification-based — a flooded topic cannot grow memory."""
+        app = _RecordingApp()
+
+        add_power_signal_inbounds(app, _signal_settings())  # type: ignore[arg-type]
+
+        [(_, kwargs)] = app.inbounds
+        assert kwargs["maxsize"] == 8
+        assert kwargs["backpressure"] == "drop_oldest"
+
+    def test_registers_nothing_without_power_sources(self) -> None:
+        """Technique: Boundary Value Analysis — zero sources."""
+        app = _RecordingApp()
+
+        add_power_signal_inbounds(app, _settings_with_bulbs())  # type: ignore[arg-type]
+
+        assert app.inbounds == []
+
+
+class TestInboundWiring:
+    """The production ``app`` gives ``power_signal`` its state and notifier.
+
+    The integration app reuses ``INBOUND_ADAPTERS`` and
+    ``register_power_signals``, so these checks pin the shared registration.
+    """
+
+    @staticmethod
+    def _app() -> object:
+        from wiz2mqtt.main import app  # noqa: PLC0415 — module-level app singleton
+
+        return app
+
+    def test_state_and_notifier_are_registered_adapters(self) -> None:
+        """Technique: Specification-based — inbound handlers resolve both by type."""
+        adapters = self._app()._adapters  # noqa: SLF001  # ty: ignore[unresolved-attribute]
+
+        assert adapters[SharedState].impl is INBOUND_ADAPTERS[SharedState]
+        assert adapters[EntityNotifier].impl is INBOUND_ADAPTERS[EntityNotifier]
+
+    def test_shared_state_is_not_also_an_app_state(self) -> None:
+        """Technique: Specification-based — one registration, not two instances."""
+        assert self._app()._state_factories == []  # noqa: SLF001  # ty: ignore[unresolved-attribute]
+
+    def test_one_configure_hook_registers_the_signal_inbounds(self) -> None:
+        """Technique: Specification-based — the hook is what feeds schema and ACL."""
+        hooks = self._app()._configure_hooks  # noqa: SLF001  # ty: ignore[unresolved-attribute]
+
+        assert [hook.__name__ for hook in hooks] == ["_configure_power_signals"]

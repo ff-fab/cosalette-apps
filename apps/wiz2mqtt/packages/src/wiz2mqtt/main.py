@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Annotated, cast
 
 import cosalette
@@ -23,6 +24,9 @@ from wiz2mqtt.settings import BulbConfig, PowerSourceConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
 logger = logging.getLogger(__name__)
+
+_SIGNAL_QUEUE_SIZE = 8
+"""Bound of each ``signal_topic`` inbound queue (newest entries win)."""
 
 _TICK_INTERVAL_SECONDS = 60.0
 """Per-bulb heartbeat cadence — the *floor* on publication, not the driver.
@@ -64,6 +68,18 @@ def _same_notifier(
     return notify
 
 
+INBOUND_ADAPTERS: dict[type, Callable[..., object]] = {
+    SharedState: _new_shared_state,
+    EntityNotifier: _same_notifier,
+}
+"""Adapter entries that give an ``@app.inbound`` handler its state and notifier.
+
+cosalette 0.10.1 injects only settings, clock, logger and adapters into an
+inbound handler, so ``power_signal`` reaches the shared state and the notifier
+through these entries. Remove them when cap-6fem lands in cosalette. The
+integration app spreads the same dict, so the two apps cannot drift.
+"""
+
 app = cosalette.App(
     name="wiz2mqtt",
     version=__version__,
@@ -71,11 +87,7 @@ app = cosalette.App(
     settings_class=Wiz2MqttSettings,
     adapters={
         WizBulbPort: (WizBulbAdapter, FakeWizBulbAdapter),
-        # cosalette 0.10.1 injects only settings, clock, logger and adapters
-        # into an @app.inbound handler, so `power_signal` reaches the shared
-        # state and the notifier through these two entries.
-        SharedState: _new_shared_state,
-        EntityNotifier: _same_notifier,
+        **INBOUND_ADAPTERS,
     },
     error_type_map=error_type_map,
 )
@@ -270,10 +282,10 @@ async def power_signal(
     if signal is None:
         logger.warning("Ignoring invalid signal for power source %s", source.name)
         return
-    state.source_signal[source.name] = signal
-    notify(source.name)
-    for bulb_name in settings.bulbs_for_power_source(source.name):
-        notify(bulb_name)
+    if not power.record_signal(state, source.name, signal):
+        return
+    for name in power.signal_wake_targets(settings, source.name):
+        notify(name)
 
 
 def add_power_signal_inbounds(app: cosalette.App, settings: Wiz2MqttSettings) -> None:
@@ -282,7 +294,11 @@ def add_power_signal_inbounds(app: cosalette.App, settings: Wiz2MqttSettings) ->
     A configure hook registers one concrete inbound per source instead of one
     callable ``name=``/``topic=`` registration: cosalette 0.10.1 expands the
     callable form at runtime only, so the offline schema and ACL output would
-    lack the receive channels.
+    lack the receive channels (cap-22u6).
+
+    Only the newest relay state matters, so a small queue drops the oldest
+    entry: a publisher that floods the topic cannot grow memory or make the
+    belief follow stale data.
     """
     for source in settings.power_sources:
         if source.signal_topic is not None:
@@ -290,15 +306,23 @@ def add_power_signal_inbounds(app: cosalette.App, settings: Wiz2MqttSettings) ->
                 source.name,
                 power_signal,
                 topic=source.signal_topic,
+                maxsize=_SIGNAL_QUEUE_SIZE,
+                backpressure="drop_oldest",
                 summary=f"Raw relay signal ('on'/'off') of power source {source.name}",
                 behavior=["ignores any payload other than 'on' or 'off'"],
                 effects=["updates the power source belief and member bulb payloads"],
             )
 
 
-@app.on_configure
-def _configure_power_signals(settings: Wiz2MqttSettings) -> None:
-    add_power_signal_inbounds(app, settings)
+def register_power_signals(app: cosalette.App) -> None:
+    """Register the configure hook that adds the signal inbounds to *app*."""
+
+    @app.on_configure
+    def _configure_power_signals(settings: Wiz2MqttSettings) -> None:
+        add_power_signal_inbounds(app, settings)
+
+
+register_power_signals(app)
 
 
 def main() -> None:

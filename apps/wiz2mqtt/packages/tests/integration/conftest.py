@@ -14,21 +14,20 @@ from cosalette import App, EntityNotifier, MockMqttClient, OnChange
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, ManualClock
 
+from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.main import (
+    INBOUND_ADAPTERS,
     _bulb_map,
-    _new_shared_state,
     _power_source_map,
-    _same_notifier,
-    add_power_signal_inbounds,
     bulb_set,
     power_source_entity,
+    register_power_signals,
 )
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import Wiz2MqttSettings
-from wiz2mqtt.state import SharedState
 
 TOPIC_PREFIX = "wiz2mqtt"
 """Default MQTT topic prefix used by integration tests."""
@@ -81,13 +80,9 @@ def build_integration_app(
     app = App(
         name="wiz2mqtt",
         settings_class=Wiz2MqttSettings,
-        # Mirrors main.py: the inbound handler reaches state and notifier
-        # through adapters.
-        adapters={
-            WizBulbPort: _adapter_factory,
-            SharedState: _new_shared_state,
-            EntityNotifier: _same_notifier,
-        },
+        # The same state and notifier entries as main.py, so the inbound
+        # handler is wired exactly as in production.
+        adapters={WizBulbPort: _adapter_factory, **INBOUND_ADAPTERS},
         error_type_map=error_type_map,
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across
@@ -116,11 +111,7 @@ def build_integration_app(
         triggerable="local",
         publish=OnChange(),
     )
-
-    @app.on_configure
-    def _configure_power_signals(settings: Wiz2MqttSettings) -> None:
-        add_power_signal_inbounds(app, settings)
-
+    register_power_signals(app)
     return app
 
 
@@ -128,30 +119,29 @@ def make_settings(
     power_sources: list[dict[str, object]] | None = None, **bulb_overrides: object
 ) -> Wiz2MqttSettings:
     """Isolated settings with a single bulb, ignoring host env/files."""
-    bulb = {**_DEFAULT_BULB, **bulb_overrides}
-    return Wiz2MqttSettings(
-        bulbs=[bulb],
-        power_sources=power_sources or [],
-        _env_file=None,
-        _config_file=None,
-    )  # type: ignore[arg-type,call-arg]
+    return build_settings([{**_DEFAULT_BULB, **bulb_overrides}], power_sources or [])
 
 
-async def wait_until_subscribed(harness: AppHarness) -> None:
-    """Poll until the harness has subscribed to command topics or time out.
+async def wait_until_subscribed(harness: AppHarness, topic: str | None = None) -> None:
+    """Poll until the harness has subscribed (to *topic*, if given) or time out.
 
     Avoids a fixed-duration startup sleep — returns as soon as the MQTT
     router is listening, keeping the suite fast even on slow CI runners.
     """
     loop = asyncio.get_running_loop()
     deadline = loop.time() + _STARTUP_TIMEOUT
-    while not harness.mqtt.subscriptions:
+    while not _is_subscribed(harness, topic):
         if loop.time() >= deadline:
             raise AssertionError(
                 f"App did not subscribe within {_STARTUP_TIMEOUT}s "
                 "— router was not listening yet."
             )
         await asyncio.sleep(0.005)
+
+
+def _is_subscribed(harness: AppHarness, topic: str | None) -> bool:
+    subscriptions = harness.mqtt.subscriptions
+    return bool(subscriptions) if topic is None else topic in subscriptions
 
 
 # ---------------------------------------------------------------------------

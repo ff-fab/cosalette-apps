@@ -25,6 +25,8 @@ _MAC_RE = re.compile(r"[0-9A-Fa-f]{12}")
 # Mirrors cosalette's MqttSettings.topic_prefix check (_settings/__init__.py),
 # but non-empty: signal_topic is a specific topic, not an optional prefix.
 _SIGNAL_TOPIC_RE = re.compile(r"^[A-Za-z0-9_./:-]+$")
+_APP_NAME = "wiz2mqtt"
+"""The topic prefix cosalette falls back to when ``mqtt.topic_prefix`` is unset."""
 
 
 class BulbConfig(BaseModel):
@@ -319,6 +321,22 @@ def _check_source_names(
     signal_topics[source.signal_topic] = source.name
 
 
+def _check_signal_topic_outside_prefix(source: PowerSourceConfig, prefix: str) -> None:
+    """Reject a ``signal_topic`` equal to or under wiz2mqtt's own topic prefix.
+
+    cosalette routes external inbound topics before its own command topics, so
+    a ``signal_topic`` of ``<prefix>/<bulb>/set`` would take the command topic
+    over without any startup error. Compare on segment boundaries so that
+    ``wiz2mqtt-relay/x`` stays valid.
+    """
+    topic = source.signal_topic
+    if topic is not None and (topic == prefix or topic.startswith(f"{prefix}/")):
+        raise ValueError(
+            f"Power source {source.name!r} signal_topic {topic!r} must not be "
+            f"the topic prefix {prefix!r} or below it"
+        )
+
+
 def _check_source_members(source: PowerSourceConfig, bulb_names: set[str]) -> None:
     """Reject unknown or duplicate entries in ``source.members``."""
     if source.members is None:
@@ -526,10 +544,12 @@ class Wiz2MqttSettings(cosalette.Settings):
         group_members = {group.name: set(group.members) for group in self.groups}
         reserved_names = bulb_names | group_names
 
+        prefix = self.mqtt.topic_prefix or _APP_NAME
         source_names: set[str] = set()
         signal_topics: dict[str, str] = {}
         for source in self.power_sources:
             _check_source_names(source, source_names, signal_topics, reserved_names)
+            _check_signal_topic_outside_prefix(source, prefix)
             _check_source_claim(source, bulb_names, group_names)
         _check_bulb_power_sources(self.bulbs, self.power_sources, group_members)
 
