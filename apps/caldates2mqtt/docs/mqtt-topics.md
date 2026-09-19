@@ -64,6 +64,10 @@ maximum: 50), and only events within the `days` lookahead window are included (d
     item holds the event count and reads it with
     `JSONPATH:$.events.length()`. openHAB gets the count only, not the event list.
 
+    Each generated Thing also declares the `availabilityTopic` of its calendar. If the
+    calendar publishes `offline`, openHAB shows the Thing as OFFLINE. Regenerate your
+    Things after you upgrade to get this wiring.
+
 !!! info "Polling schedule"
     By default, calendars are polled every 2 hours (Quartz cron `"0 0 0/2 * * ?"`).
     The first reading arrives shortly after startup; subsequent reads follow the
