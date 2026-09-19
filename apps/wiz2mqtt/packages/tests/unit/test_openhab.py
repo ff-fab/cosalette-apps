@@ -126,6 +126,18 @@ def test_missing_state_channel_fails() -> None:
         add_powered("", "", settings)
 
 
+def test_cross_kind_identifier_collision_fails() -> None:
+    """A source and bulb must not render to the same openHAB Thing ID."""
+    settings = Wiz2MqttSettings(
+        _env_file=None,
+        _config_file=None,
+        bulbs=[{"name": "living-room", "ip": "10.0.0.1"}],
+        power_sources=[{"name": "living_room", "members": ["living-room"]}],
+    )
+    with pytest.raises(ValueError, match="Power-source name collides"):
+        add_powered("", "", settings)
+
+
 def _generate(tmp_path: Path, toml: str) -> str:
     config = tmp_path / "wiz2mqtt.toml"
     config.write_text(toml)
@@ -162,6 +174,8 @@ def test_power_source_generation(tmp_path: Path) -> None:
     assert "JSONPATH:$[?(@.power_request != null)].power_request" in output
     # Read-only: no command channel on the source, so no relay mapping.
     assert 'commandTopic="wiz2mqtt/circuit/' not in output
+    # Sources expose belief, not reachability; they publish no availability topic.
+    assert 'availabilityTopic="wiz2mqtt/circuit/availability"' not in output
 
 
 def test_no_power_source_generates_no_powered_output(tmp_path: Path) -> None:

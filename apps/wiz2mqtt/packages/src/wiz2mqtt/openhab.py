@@ -45,18 +45,36 @@ def _group_definitions(
     return definitions, memberships
 
 
+def _openhab_segment(name: str) -> str:
+    """Return the CamelCase openHAB identifier segment for a configured name."""
+    slug = re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_")
+    return slug.title().replace("_", "")
+
+
 def _bulb_segments(settings: Wiz2MqttSettings) -> dict[str, str]:
     """Map each bulb name to its openHAB identifier segment; reject collisions."""
     seen: set[str] = set()
     segments: dict[str, str] = {}
     for bulb in settings.bulbs:
-        slug = re.sub(r"[^a-z0-9]+", "_", bulb.name.lower()).strip("_")
-        segment = slug.title().replace("_", "")
+        segment = _openhab_segment(bulb.name)
         if not segment or segment in seen:
             raise ValueError(f"Bulb names collide or are empty in openHAB: {bulb.name}")
         seen.add(segment)
         segments[bulb.name] = segment
     return segments
+
+
+def _check_openhab_identifier_collisions(settings: Wiz2MqttSettings) -> None:
+    """Reject bulb and power-source names that render to one Thing identifier."""
+    bulb_segments = set(_bulb_segments(settings).values())
+    source_segments: set[str] = set()
+    for source in settings.power_sources:
+        segment = _openhab_segment(source.name)
+        if not segment or segment in bulb_segments or segment in source_segments:
+            raise ValueError(
+                f"Power-source name collides or is empty in openHAB: {source.name}"
+            )
+        source_segments.add(segment)
 
 
 def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
@@ -94,6 +112,22 @@ def _powered_channel(match: re.Match[str]) -> str:
     return f'{match[0]}        Type switch : powered "Powered" [\n{lines}\n        ]\n'
 
 
+def remove_power_source_availability(things: str, settings: Wiz2MqttSettings) -> str:
+    """Remove generated availability for sources, which have no such topic."""
+    prefix = settings.mqtt.topic_prefix or "wiz2mqtt"
+    for source in settings.power_sources:
+        topic = re.escape(f"{prefix}/{source.name}/availability")
+        availability = (
+            rf'^[ \t]*availabilityTopic="{topic}",\n'
+            r'^[ \t]*payloadAvailable="online",\n'
+            r'^[ \t]*payloadNotAvailable="offline"\n'
+        )
+        things, count = re.subn(availability, "", things, flags=re.MULTILINE)
+        if count != 1:
+            raise ValueError(f"Expected one availability block for {source.name}")
+    return things
+
+
 def add_powered(things: str, items: str, settings: Wiz2MqttSettings) -> tuple[str, str]:
     """Add a Powered channel and Item to each bulb that has a power source.
 
@@ -101,6 +135,9 @@ def add_powered(things: str, items: str, settings: Wiz2MqttSettings) -> tuple[st
     outside a source, so only a bulb in a source gets the Item (ADR-007). A
     rule then computes "lit" as ``State == ON && Powered == ON``.
     """
+    _check_openhab_identifier_collisions(settings)
+    if things:
+        things = remove_power_source_availability(things, settings)
     segments = _bulb_segments(settings)
     for bulb in settings.bulbs:
         if settings.power_source_of(bulb.name) is None:
