@@ -492,16 +492,34 @@ class TestOpenHabGeneration:
         item or a non-Number type fails as well as a missing one.
         """
         # Assumes: item lines start with a type token (e.g. "Number");
-        # skip comments (//), Thing blocks, indented lines, and braces.
+        # skip comments (//), Thing blocks, indented lines, braces and brackets.
         items = [
             line.split()
             for line in openhab_run.stdout.splitlines()
-            if line and not line.startswith(("//", "Thing", " ", "}"))
+            if line and not line.startswith(("//", "Thing", " ", "}", "]"))
         ]
         assert [item[0] for item in items] == ["Number"] * len(CALENDARS)
         assert {item[-2] for item in items} == {
             f'channel="mqtt:topic:broker:{TOPIC_PREFIX}_{c}:events"' for c in CALENDARS
         }
+
+    @pytest.mark.parametrize("calendar", CALENDARS)
+    def test_thing_is_wired_to_the_availability_topic(
+        self, openhab_run: subprocess.CompletedProcess[str], calendar: str
+    ) -> None:
+        """Each Thing goes offline with its calendar's availability topic.
+
+        Technique: Specification-based — cosalette 0.10.2 emits the wiring,
+        including the payloads that the app publishes on that topic.
+        """
+        thing_header = f"Thing mqtt:topic:broker:{TOPIC_PREFIX}_{calendar} "
+        assert thing_header in openhab_run.stdout, (
+            f"Thing block for {calendar!r} not found in openhab output"
+        )
+        thing = openhab_run.stdout.split(thing_header)[1].split("] {")[0]
+        assert f'availabilityTopic="{TOPIC_PREFIX}/{calendar}/availability"' in thing
+        assert 'payloadAvailable="online"' in thing
+        assert 'payloadNotAvailable="offline"' in thing
 
     @pytest.mark.parametrize("calendar", CALENDARS)
     def test_channel_counts_the_calendars_own_events(

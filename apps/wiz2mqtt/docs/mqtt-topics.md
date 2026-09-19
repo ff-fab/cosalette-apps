@@ -149,6 +149,11 @@ The `*_cmd` channels wrap the outbound scalar back into JSON with
 `formatBeforePublish` (full Java `String.format`) so a single `.../set` payload
 carries just the changed field.
 
+**Availability.** Each Thing declares the `availabilityTopic` of its bulb
+(`payloadAvailable="online"`, `payloadNotAvailable="offline"`). If the bulb publishes
+`offline`, openHAB shows the Thing as OFFLINE. Regenerate your Things after you
+upgrade to get this wiring.
+
 **On/off bypasses `formatBeforePublish`.** The `dimmer`, `color`, and `switch`
 channels also declare explicit `on`/`off` strings
 (`on="{\"state\": \"ON\"}"`, `off="{\"state\": \"OFF\"}"`). openHAB sends those
