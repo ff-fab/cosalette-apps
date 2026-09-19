@@ -209,7 +209,11 @@ class TestAvailability:
         reader.fail_next_reads(CalDavConnectionError("CalDAV unavailable"), count=4)
         clock = ManualClock()
         config = calendar_config("garbage")
-        config.schedule = "0 0 * * * ?"
+        # The runner computes the cron delay from the real wall clock, so the
+        # manual clock cannot control it. An hourly schedule fires inside the
+        # 30 s of virtual time below whenever the test starts shortly before
+        # the hour, and the extra run publishes a spurious "online".
+        config.schedule = "0 0 0 1 1 ?"
         harness = make_harness(reader, [config], clock=clock)
         availability_topic = f"{TOPIC_PREFIX}/garbage/availability"
         task = asyncio.create_task(harness.run())
