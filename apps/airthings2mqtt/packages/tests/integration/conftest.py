@@ -11,6 +11,7 @@ import asyncio
 
 import pytest
 from cosalette import App, MockMqttClient, setting_ref
+from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, ManualClock
 from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
@@ -77,6 +78,10 @@ def build_integration_app(
         settings_class=Airthings2MqttSettings,
         adapters={AirthingsReaderPort: adapter},
         error_type_map=error_type_map,
+        # An isolated, per-test in-memory store: without this the app falls
+        # back to the real on-disk default store path, which persists across
+        # every test in the session and made CI flake (cap-9mud).
+        store=MemoryStore(),
     )
     test_app.telemetry(
         lambda settings: [settings.device_name],
