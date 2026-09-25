@@ -221,6 +221,114 @@ class TestFieldValidation:
 
 
 # ---------------------------------------------------------------------------
+# Fractional floats on the integer command fields
+# ---------------------------------------------------------------------------
+
+
+class TestFractionalNumbers:
+    """A fractional float on an integer ``.../set`` field rounds, never drops.
+
+    openHAB's Dimmer channel maps a percent command onto the advertised
+    ``min``/``max`` as ``1 + pct / 100 * 254``, integral only at 0, 50 and
+    100 % — so almost every real dimmer command used to be rejected with
+    ``type=int_from_float`` and published to the error topic instead.
+    """
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [(76.47, 76), (76.0, 76), (255.4, 255), (1.4, 1), (254.5, 254)],
+    )
+    def test_models_brightness_rounds_a_fractional_float(
+        self, value: float, expected: int
+    ) -> None:
+        """A fractional brightness rounds to the nearest whole number.
+
+        Technique: Boundary Value Analysis — inside the range, with the
+        banker's-rounding tie (254.5 -> 254) pinned down.
+        """
+        cmd = BulbSetCommand.model_validate({"brightness": value})
+        assert cmd.brightness == expected
+
+    @pytest.mark.parametrize("value", [0.4, 256.4, 255.5, "76.47"])
+    def test_models_brightness_still_rejects_out_of_range_or_non_numeric(
+        self, value: object
+    ) -> None:
+        """Rounding runs before the range check and never rescues a bad value.
+
+        Technique: Boundary Value Analysis / Error Guessing — 0.4 rounds to 0
+        and 255.5 up to 256 (banker's rounding), both outside 1-255; a string
+        is not coerced at all.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"brightness": value})
+
+    def test_models_brightness_accepts_an_explicit_null(self) -> None:
+        """An explicit ``null`` still means "field not given".
+
+        Technique: Error Guessing — the regression the lenient annotation
+        must not introduce (constraints beside a ``BeforeValidator`` on the
+        ``int | None`` union raise ``TypeError`` for ``None``).
+        """
+        cmd = BulbSetCommand.model_validate({"brightness": None})
+        assert cmd.brightness is None
+
+    def test_models_color_temp_rounds_a_fractional_float(self) -> None:
+        """color_temp shares brightness's lenient coercion.
+
+        Technique: Equivalence Partitioning — the same class, other field.
+        """
+        assert BulbSetCommand.model_validate({"color_temp": 2699.6}).color_temp == 2700
+
+    def test_models_color_temp_still_rejects_a_rounded_out_of_range_value(self) -> None:
+        """A fractional color_temp above the ceiling stays rejected.
+
+        Technique: Boundary Value Analysis — 10000.6 rounds to 10001.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"color_temp": 10000.6})
+
+    def test_models_effect_speed_rounds_a_fractional_float(self) -> None:
+        """effect_speed shares brightness's lenient coercion.
+
+        Technique: Equivalence Partitioning — the same class, other field.
+        """
+        assert BulbSetCommand.model_validate({"effect_speed": 99.6}).effect_speed == 100
+
+    def test_models_effect_speed_still_rejects_a_rounded_out_of_range_value(
+        self,
+    ) -> None:
+        """A fractional effect_speed below the floor stays rejected.
+
+        Technique: Boundary Value Analysis — 9.4 rounds to 9.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({"effect_speed": 9.4})
+
+    @pytest.mark.parametrize(
+        ("field", "bounds"),
+        [
+            ("brightness", {"minimum": 1, "maximum": 255}),
+            ("color_temp", {"exclusiveMinimum": 0, "maximum": 10000}),
+            ("effect_speed", {"minimum": 10, "maximum": 200}),
+        ],
+    )
+    def test_models_lenient_field_keeps_json_schema_bounds(
+        self, field: str, bounds: dict[str, int]
+    ) -> None:
+        """The generated schema still carries the bounds on the integer branch.
+
+        Technique: Specification-based — the published AsyncAPI contract
+        (docs/schema.yaml) must not drift; a constraint declared beside the
+        ``BeforeValidator`` would emit ``ge``/``le`` at the field level instead.
+        """
+        prop = BulbSetCommand.model_json_schema()["properties"][field]
+        integer_branch = next(
+            branch for branch in prop["anyOf"] if branch.get("type") == "integer"
+        )
+        assert integer_branch == {"type": "integer", **bounds}
+
+
+# ---------------------------------------------------------------------------
 # Mutual exclusion — color / color_temp / effect
 # ---------------------------------------------------------------------------
 
