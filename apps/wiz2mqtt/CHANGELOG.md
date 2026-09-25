@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.5...wiz2mqtt-v0.2.6) (2026-09-25)
+
+
+### Bug Fixes
+
+* **wiz2mqtt:** round fractional numbers on the .../set command fields ([#299](https://github.com/ff-fab/cosalette-apps/issues/299)) ([019cb55](https://github.com/ff-fab/cosalette-apps/commit/019cb55e4cb2a40f633acbcebc1d7acf62e76621))
+
 ## [0.2.5](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.4...wiz2mqtt-v0.2.5) (2026-09-19)
 
 
