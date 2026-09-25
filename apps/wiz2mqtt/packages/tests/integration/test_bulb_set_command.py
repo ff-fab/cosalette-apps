@@ -83,6 +83,21 @@ class TestValidPartialUpdates:
         state = await fake_adapter.get_state(_BULB_IP)
         assert state.brightness == 64
 
+    async def test_fractional_brightness_is_rounded_and_applied(
+        self, harness: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """openHAB's 30 % dimmer command (1 + 30/100*254 = 77.2) applies as 77.
+
+        Technique: Integration — the real third-party wire value that used to
+        be dropped with ``type=int_from_float`` and published to the error
+        topic instead of reaching the bulb.
+        """
+        await _run_with_command(harness, "office", {"brightness": 77.2})
+
+        state = await fake_adapter.get_state(_BULB_IP)
+        assert state.brightness == 77
+        assert harness.messages_for(_ERROR_TOPIC) == []
+
     async def test_color_payload_reaches_adapter_as_hue_saturation(
         self, harness: AppHarness, fake_adapter: FakeWizBulbAdapter
     ) -> None:

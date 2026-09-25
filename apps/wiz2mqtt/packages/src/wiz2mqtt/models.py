@@ -14,6 +14,7 @@ from typing import Annotated, Any, Literal
 from cosalette.schema import consumer, ha_entities, ha_entity, merge, openhab
 from pydantic import (
     BaseModel,
+    BeforeValidator,
     ConfigDict,
     Field,
     PlainSerializer,
@@ -522,6 +523,42 @@ class PowerSourceStateModel(BaseModel):
     members: list[str]
 
 
+def _round_fractional(value: object) -> object:
+    """Round a fractional float command value to the nearest whole number.
+
+    Third-party publishers scale into a bulb's integer range and land
+    between two integers: openHAB's Dimmer channel maps a percent command
+    onto the ``min``/``max`` this model advertises as ``1 + pct / 100 * 254``,
+    which is only integral at 0, 50 and 100 %. Pydantic rejects every other
+    value outright (``type=int_from_float``) and the command is dropped.
+
+    ``round`` uses banker's rounding — ``254.5`` rounds down to ``254``,
+    ``255.5`` up to ``256`` — and the declared range still applies
+    afterwards, so ``255.5`` and ``0.4`` remain rejected.
+    """
+    return round(value) if isinstance(value, float) else value
+
+
+_LenientBrightness = Annotated[
+    int, Field(ge=1, le=255), BeforeValidator(_round_fractional)
+]
+_LenientColorTemp = Annotated[
+    int, Field(gt=0, le=10000), BeforeValidator(_round_fractional)
+]
+_LenientEffectSpeed = Annotated[
+    int,
+    Field(ge=_EFFECT_SPEED_MIN, le=_EFFECT_SPEED_MAX),
+    BeforeValidator(_round_fractional),
+]
+"""Inbound ``.../set`` integer fields, tolerant of a fractional float.
+
+The range constraints sit on the inner ``int`` rather than on the field's
+own ``Field(...)``: a constraint applied alongside a ``BeforeValidator`` on
+the ``... | None`` union raises ``TypeError`` for an explicit ``null`` and
+emits ``ge``/``le`` instead of ``minimum``/``maximum`` in the JSON schema.
+"""
+
+
 class BulbSetCommand(BaseModel):
     """Inbound ``.../set`` payload — HA's JSON light schema, every field optional.
 
@@ -565,11 +602,9 @@ class BulbSetCommand(BaseModel):
         ),
     ] = None
     brightness: Annotated[
-        int | None,
+        _LenientBrightness | None,
         Field(
             default=None,
-            ge=1,
-            le=255,
             json_schema_extra=merge(
                 consumer(display_name="Brightness"),
                 openhab(
@@ -587,7 +622,7 @@ class BulbSetCommand(BaseModel):
         ),
     ] = None
     color: BulbColor | None = None
-    color_temp: int | None = Field(default=None, gt=0, le=10000)
+    color_temp: _LenientColorTemp | None = None
     effect: Annotated[
         str | None,
         Field(
@@ -616,9 +651,7 @@ class BulbSetCommand(BaseModel):
             ),
         ),
     ] = None
-    effect_speed: int | None = Field(
-        default=None, ge=_EFFECT_SPEED_MIN, le=_EFFECT_SPEED_MAX
-    )
+    effect_speed: _LenientEffectSpeed | None = None
 
     @field_validator("effect")
     @classmethod

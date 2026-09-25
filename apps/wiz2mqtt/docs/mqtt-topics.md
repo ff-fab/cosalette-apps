@@ -25,13 +25,28 @@ Supported keys:
 | Key | Type | Notes |
 | --- | ---- | ----- |
 | `state` | `"ON"` or `"OFF"` | Power command |
-| `brightness` | integer `1..255` | Home Assistant brightness scale |
+| `brightness` | number `1..255` | Home Assistant brightness scale; a fractional value is rounded to the nearest integer |
 | `color` | object `{r,g,b}` | RGB values `0..255` |
-| `color_temp` | integer `1..10000` | Kelvin |
+| `color_temp` | number `1..10000` | Kelvin; a fractional value is rounded to the nearest integer |
 | `effect` | string | WiZ scene name (one of the advertised `effect_list`, e.g. `"Ocean"`) |
+| `effect_speed` | number `10..200` | Scene animation speed; a fractional value is rounded to the nearest integer |
+| `hsb` | string `"h,s,b"` | openHAB Color channel wire form |
 
-`color`, `color_temp`, and `effect` are mutually exclusive. Invalid combinations
+`color`, `color_temp`, `effect`, and `hsb` are mutually exclusive. Invalid combinations
 are rejected before the adapter is called.
+
+### Fractional numbers
+
+`brightness`, `color_temp` and `effect_speed` accept a JSON number with a
+fractional part and round it to the nearest integer. This exists for
+percentage-scaling publishers: openHAB's Dimmer channel converts a percent
+command onto the advertised `min`/`max` as `1 + pct / 100 * 254`, which only
+lands on a whole number at 0 %, 50 % and 100 % — a 30 % command arrives as
+`77.2` and applies as `77`.
+
+Rounding happens before the range check, so it does not widen the accepted
+range: `0.4` rounds to `0` and is still rejected, as is `256.4`. Ties round to
+the nearest even integer (Python's `round`), so `254.5` becomes `254`.
 
 ## State Topic
 
