@@ -32,7 +32,7 @@ Supported keys:
 | `effect_speed` | number `10..200` | Scene animation speed; a fractional value is rounded to the nearest integer |
 | `hsb` | string `"h,s,b"` | openHAB Color channel wire form |
 
-`color`, `color_temp`, and `effect` are mutually exclusive. Invalid combinations
+`color`, `color_temp`, `effect`, and `hsb` are mutually exclusive. Invalid combinations
 are rejected before the adapter is called.
 
 ### Fractional numbers
