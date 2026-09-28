@@ -335,6 +335,14 @@ Built-in MQTT settings include `mqtt.tls`, `mqtt.tls_ca_file`, and mutual-TLS
 > fails to connect. The durable repo-wide rule lives in `AGENTS.md`; ADR-006 records the
 > decision and rationale in `docs/adr/ADR-006-mqtt-transport-security-posture.md`.
 
+MQTT 5 retained expiry is opt-in: set `MQTT__PROTOCOL_VERSION=5` and optionally
+`MQTT__MESSAGE_EXPIRY_INTERVAL=<seconds>` (minimum `3`). It applies to retained
+publishes and the MQTT last will. Protocol and expiry are captured at client start,
+so restart after changing either; a running MQTT 3.1.1 connection never gains MQTT
+5 properties. The client refreshes up to 1,000 retained topics; publishing a new
+topic beyond that limit raises `RuntimeError` until an existing retained topic is
+cleared with an empty payload.
+
 **`mqtt.topic_prefix` is transport, `App(name=...)` is identity (ADR-072).** Every topic resolves as `settings.mqtt.topic_prefix or App(name=...)` — the app name is the fallback, never an override. Multi-segment prefixes are supported (`MQTT__TOPIC_PREFIX=house/wiz` → `house/wiz/desk/state`). The name stays the identity regardless: it is the `x-cosalette-app` tag, the HA `node_id`, and what schema enforcement filters an app's slice by. Never use one where the other belongs. Generated AsyncAPI composes addresses from the prefix and records it in `info.x-cosalette-topic-prefix` (only when it differs from the app name; readers fall back to `info.title`), so `schema acl` / `ha-discovery` / `openhab` stay correct when reading a dumped document. Device names and HA `object_id`/`unique_id` are derived *past* the prefix, so changing the prefix never orphans existing entities.
 
 See `cosalette ai help configuration`.
@@ -444,12 +452,21 @@ Topic: `{app}/{device}/availability`, values `"online"` / `"offline"` (retained,
 Availability carries no error text — *why* it failed stays in `{app}/status` and on the
 error topic.
 
+Both consumer targets wire availability automatically: Home Assistant gets dual-topic
+`availability_mode: "all"` (ADR-058); openHAB gets a single-topic `availabilityTopic` on
+the Thing's config bracket (ADR-079). Override the openHAB topic via
+`openhab(thing_params={"availabilityTopic": "..."})`.
+
 Removed entities: the framework automatically clears the retained `state`/`availability`
 topics of entities deleted from config on the first MQTT connect (prevents Home Assistant
 ghost entities). Works by default — no `store=` wiring needed. Pass `store=None` to
 opt out of persistence entirely. Use `retained_cleanup=False` to opt out of only the
 ADR-048 cleanup (keeping persistence for `persist=`), vs `store=None` which drops
 persistence too. See ADR-048, `cosalette ai help persistence`.
+
+MQTT 5 retained expiry is opt-in with `MQTT__PROTOCOL_VERSION=5`. Its retained-message
+ledger is bounded to 1,000 topics and 16 MiB of UTF-8 topic and payload data; a retained publish
+that exceeds either bound raises `RuntimeError`.
 
 See `cosalette ai help availability`.
 
@@ -524,9 +541,11 @@ with standard metadata; `temperature()` sets `device_class`, `unit`, and `state_
 
 Platform-specific overrides use the same pattern: `ha_discovery(**meta)` and
 `openhab(**meta)`, typo-checked against `HaDiscoveryMeta`/`OpenHabMeta`. Each also
-carries an open, untyped passthrough (`extra` / `channel_params`) for platform keys
-the curated fields don't reach, merged in last. Combine multiple producers on one
-field with `merge()`, since `json_schema_extra` accepts only one dict:
+carries an open, untyped passthrough (`extra` / `channel_params` / `thing_params`) for
+platform keys the curated fields don't reach, merged in last. `thing_params` (ADR-079) is
+the Thing-level counterpart to `channel_params` — it merges into the Thing's `[ ... ]`
+config bracket (e.g. to override the computed `availabilityTopic`). Combine multiple
+producers on one field with `merge()`, since `json_schema_extra` accepts only one dict:
 
 ```python
 from cosalette.schema import consumer, merge, openhab
