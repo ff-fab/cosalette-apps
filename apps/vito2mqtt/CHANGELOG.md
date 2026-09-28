@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.4...vito2mqtt-v0.2.5) (2026-09-28)
+
+
+### Bug Fixes
+
+* upgrade cosalette to 0.10.4 ([#301](https://github.com/ff-fab/cosalette-apps/issues/301)) ([f92482f](https://github.com/ff-fab/cosalette-apps/commit/f92482fe755b820601d5505f89e404c6cba27907))
+
 ## [0.2.4](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.3...vito2mqtt-v0.2.4) (2026-09-19)
 
 
