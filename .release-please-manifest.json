@@ -1,11 +1,11 @@
 {
-  "apps/gas2mqtt": "0.2.4",
-  "apps/jeelink2mqtt": "0.2.4",
-  "apps/vito2mqtt": "0.2.4",
-  "apps/velux2mqtt": "0.2.4",
-  "apps/airthings2mqtt": "0.2.4",
-  "apps/caldates2mqtt": "0.2.4",
-  "apps/suncast": "0.2.4",
-  "apps/wallpanel-control": "0.3.4",
-  "apps/wiz2mqtt": "0.2.6"
+  "apps/gas2mqtt": "0.2.5",
+  "apps/jeelink2mqtt": "0.2.5",
+  "apps/vito2mqtt": "0.2.5",
+  "apps/velux2mqtt": "0.2.5",
+  "apps/airthings2mqtt": "0.2.5",
+  "apps/caldates2mqtt": "0.2.5",
+  "apps/suncast": "0.2.5",
+  "apps/wallpanel-control": "0.3.5",
+  "apps/wiz2mqtt": "0.2.7"
 }
