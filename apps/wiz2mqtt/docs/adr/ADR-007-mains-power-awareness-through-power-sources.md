@@ -9,7 +9,7 @@ tags: [mqtt, configuration, devices, telemetry, architecture]
 
 ## Status
 
-Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-19
+Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-19 | Amended **Date:** 2026-09-30
 
 ## Context
 
@@ -178,3 +178,21 @@ A change of the signal makes each older answer of a member stale. A repeat of th
 - A wrong signal `off` on a live circuit shows `powered = false` until the poll that the signal starts answers, normally in less than 1 s
 - Each change of the signal costs one poll per member, also on a host that receives pushes
 - If one read fails transiently while a wrong signal `off` is active, wiz2mqtt skips the reads of that bulb until the belief changes or the bulb boots
+
+## Amendment (2026-09-30) — Corrective
+
+**Rationale:** A successful get_state request can begin before a relay-off signal and complete after it. Treating that in-flight result as an answer after the signal restores the on belief for the entire dark period, bypassing queued commands and boot grace.
+
+> **Justification for amendment (not supersession):** The correction is confined to the evidence timestamp in wiz2mqtt's power-belief path. It changes no configuration, MQTT topic, or payload schema, and consumers already rely on the documented post-signal evidence rule, so no migration or superseding ADR is warranted.
+
+### Revised Decision
+
+For rule 1, a member answer is newer than a signal change only when the poll was issued at or after that change. Stamp each get_state request with a monotonic time immediately before it is issued. A response from a request issued before the source's latest signal change remains stale and cannot set bulb_answered or clear stale_answers. A response from a request issued at or after the change is fresh evidence and can again make the belief on.
+
+### Additional Positive Consequences
+
+- A read racing a relay-off edge cannot erase the edge's stale marker, so commands while the circuit is dark are queued and boot grace remains available on the next power-on.
+
+### Additional Negative Consequences
+
+- A response that began just before a genuine relay-on edge is conservatively ignored as power evidence until the next poll or push-triggered observation.

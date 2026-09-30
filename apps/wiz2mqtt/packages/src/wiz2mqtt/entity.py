@@ -108,6 +108,7 @@ async def bulb_entity_tick(
     if name in state.stale_answers:
         port.invalidate_cache(config.ip)
     observation_generation = state.desired_state_generation.get(name, 0)
+    issued_at = time.monotonic()
     try:
         bulb_state = await port.get_state(config.ip)
     except WizBridgeError as exc:
@@ -115,7 +116,15 @@ async def bulb_entity_tick(
             ctx, settings, state, store, notify, name, exc
         )
     return await _handle_read_success(
-        ctx, config, port, state, store, notify, bulb_state, observation_generation
+        ctx,
+        config,
+        port,
+        state,
+        store,
+        notify,
+        bulb_state,
+        observation_generation,
+        issued_at,
     )
 
 
@@ -157,14 +166,23 @@ async def _handle_read_success(
     notify: EntityNotifier,
     bulb_state: BulbState,
     observation_generation: int,
+    issued_at: float,
 ) -> dict[str, object] | None:
-    """Record the answer, run the return path if armed, and render the payload."""
+    """Record a post-signal answer, run the return path, and render the payload."""
     name = config.name
     settings = cast(Wiz2MqttSettings, ctx.settings)
+    source = settings.power_source_of(name)
+    signal_at = (
+        state.source_signal_at.get(source.name, float("-inf"))
+        if source is not None
+        else float("-inf")
+    )
+    answered_after_signal = issued_at >= signal_at
     was_unreachable = state.bulb_answered.get(name) is False
     state.consecutive_failures[name] = 0
-    state.bulb_answered[name] = True
-    state.stale_answers.discard(name)
+    if answered_after_signal:
+        state.bulb_answered[name] = True
+        state.stale_answers.discard(name)
     await _mark_online_once(ctx, state, name)
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a

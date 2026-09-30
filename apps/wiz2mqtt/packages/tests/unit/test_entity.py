@@ -1087,6 +1087,29 @@ class TestSignalOff:
         assert "office" not in state.stale_answers
         assert state.phase["office"] == "steady"
 
+    async def test_read_issued_before_signal_off_stays_stale(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An in-flight read cannot override a later relay-off edge."""
+        clock = [10.0]
+        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(bulb_answered={"office": True})
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        original_get_state = adapter.get_state
+
+        async def read_after_signal(ip: str) -> BulbState:
+            clock[0] = 11.0
+            record_signal(ctx.settings, state, "office-power", "off", clock[0])
+            return await original_get_state(ip)
+
+        monkeypatch.setattr(adapter, "get_state", read_after_signal)
+        result = await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": False} | _idle(reachable=False)
+        assert state.bulb_answered["office"] is True
+        assert state.stale_answers == {"office"}
+
     async def test_failure_after_a_newer_answer_keeps_the_debounce(self) -> None:
         """Technique: State Transition — signal, answer, then one lost read.
 

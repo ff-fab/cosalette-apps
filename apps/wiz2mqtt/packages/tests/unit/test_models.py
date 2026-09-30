@@ -715,6 +715,13 @@ class TestHaDiscoveryMetadata:
         assert "on" not in params
         assert "off" not in params
 
+    def test_models_hsb_format_uses_all_three_color_arguments(self) -> None:
+        """Color commands publish the HSB triple, including brightness zero."""
+        assert (
+            _openhab(BulbSetCommand, "hsb")["channel_params"]["formatBeforePublish"]
+            == '{"hsb":"%1$d,%2$d,%3$d"}'
+        )
+
     def test_models_dimmer_min_matches_command_brightness_floor(self) -> None:
         """The openHAB dimmer ``min`` matches ``brightness`` ``ge=0``.
 
