@@ -11,7 +11,14 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
 
-from cosalette.schema import consumer, ha_entities, ha_entity, merge, openhab
+from cosalette.schema import (
+    ConsumerMeta,
+    consumer,
+    ha_entities,
+    ha_entity,
+    merge,
+    openhab,
+)
 from pydantic import (
     BaseModel,
     BeforeValidator,
@@ -206,11 +213,57 @@ machine fight over it (ADR-009)."""
 
 # openHAB Generic MQTT Thing channels are generated per-field from ``consumer()``
 # + ``openhab()`` annotations (the offline ``cosalette schema openhab`` path —
-# openHAB has no runtime discovery).  ON/OFF is published as an explicit JSON
-# object because openHAB emits a channel's ``on``/``off`` value *verbatim*,
-# bypassing ``formatBeforePublish``.
-_OPENHAB_ON = '{"state": "ON"}'
-_OPENHAB_OFF = '{"state": "OFF"}'
+# openHAB has no runtime discovery). The binding runs every outbound command,
+# ON/OFF included, through ``formatBeforePublish``. A Switch therefore maps to
+# plain ``ON``/``OFF``, which ``{"state":"%s"}`` wraps into ``{"state":"ON"}``.
+# Dimmer and Color channels declare no ``on``/``off``: openHAB sends OFF as 0 %
+# (``{"brightness":0}``) or as an ``"h,s,0"`` triple, which a ``/set`` command
+# reads as OFF (ADR-001 amendment 2026-09-30).
+
+
+def _openhab_field(
+    label: str,
+    item_type: str,
+    *,
+    unit: str | None = None,
+    read_only: bool = False,
+    **params: object,
+) -> dict[str, Any]:
+    """``consumer()`` + ``openhab()`` metadata for one generated openHAB channel."""
+    meta: ConsumerMeta = {"display_name": label}
+    if unit:
+        meta["unit"] = unit
+    if read_only:
+        meta["read_only"] = True
+    return merge(
+        consumer(**meta),
+        openhab(
+            item_type=item_type,
+            channel_type=item_type.lower(),
+            channel_params=params,
+        ),
+    )
+
+
+_OPENHAB_STATE = _openhab_field("State", "Switch", on="ON", off="OFF")
+_OPENHAB_BRIGHTNESS = _openhab_field("Brightness", "Dimmer", min=0, max=255, step=1)
+_OPENHAB_HSB = _openhab_field("Color", "Color", colorMode="HSB")
+_OPENHAB_EFFECT = _openhab_field("Effect", "String")
+_OPENHAB_EFFECT_CMD = _openhab_field(
+    "Effect", "String", allowedStates=",".join(WIZ_EFFECT_LIST)
+)
+_OPENHAB_COLOR_TEMP = _openhab_field(
+    "Color temperature",
+    "Number",
+    unit="K",
+    min=_KELVIN_MIN,
+    max=_KELVIN_MAX,
+    step=1,
+)
+_OPENHAB_EFFECT_SPEED = _openhab_field(
+    "Effect speed", "Number", min=_EFFECT_SPEED_MIN, max=_EFFECT_SPEED_MAX, step=1
+)
+_OPENHAB_POWER_DRAW = _openhab_field("Power", "Number", unit="W", read_only=True)
 
 
 def openhab_nullable_switch_params(
@@ -393,10 +446,9 @@ class BulbStateModel(BaseModel):
     The model carries the composite HA ``light``/``sensor``/``number``
     discovery entities (``ha_entities`` on ``model_config``); ``app.discovery()``
     and the offline ``cosalette schema ha-discovery`` path emit them per
-    configured bulb (cosalette ADR-057/ADR-059). The
-    ``state``/``brightness``/``hsb``/``effect`` fields additionally carry
-    ``consumer()`` + ``openhab()`` metadata driving the offline openHAB
-    Generic MQTT Thing generation.
+    configured bulb (cosalette ADR-057/ADR-059). The fields that an openHAB
+    Item can show additionally carry ``consumer()`` + ``openhab()`` metadata
+    driving the offline openHAB Generic MQTT Thing generation.
     """
 
     model_config = ConfigDict(
@@ -410,74 +462,32 @@ class BulbStateModel(BaseModel):
 
     state: Annotated[
         Literal["ON", "OFF"] | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="State"),
-                openhab(
-                    item_type="Switch",
-                    channel_type="switch",
-                    channel_params={"on": _OPENHAB_ON, "off": _OPENHAB_OFF},
-                ),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_STATE),
     ] = None
     brightness: Annotated[
         int | None,
-        Field(
-            default=None,
-            ge=0,
-            le=255,
-            json_schema_extra=merge(
-                consumer(display_name="Brightness"),
-                openhab(
-                    item_type="Dimmer",
-                    channel_type="dimmer",
-                    channel_params={
-                        "min": 1,
-                        "max": 255,
-                        "step": 1,
-                        "on": _OPENHAB_ON,
-                        "off": _OPENHAB_OFF,
-                    },
-                ),
-            ),
-        ),
+        Field(default=None, ge=0, le=255, json_schema_extra=_OPENHAB_BRIGHTNESS),
     ] = None
     color_mode: Literal["color_temp", "rgb"] | None = None
     color: BulbColor | None = None
-    color_temp: int | None = None
+    color_temp: Annotated[
+        int | None, Field(default=None, json_schema_extra=_OPENHAB_COLOR_TEMP)
+    ] = None
     color_temp_kelvin: bool | None = None
     hsb: Annotated[
         str | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="Color"),
-                openhab(
-                    item_type="Color",
-                    channel_type="color",
-                    channel_params={
-                        "colorMode": "HSB",
-                        "on": _OPENHAB_ON,
-                        "off": _OPENHAB_OFF,
-                    },
-                ),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_HSB),
     ] = None
     effect: Annotated[
         str | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="Effect"),
-                openhab(item_type="String", channel_type="string"),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_EFFECT),
     ] = None
-    effect_speed: int | None = None
-    power_draw_w: float | None = None
+    effect_speed: Annotated[
+        int | None, Field(default=None, json_schema_extra=_OPENHAB_EFFECT_SPEED)
+    ] = None
+    power_draw_w: Annotated[
+        float | None, Field(default=None, json_schema_extra=_OPENHAB_POWER_DRAW)
+    ] = None
     powered: Annotated[PoweredWire, PlainSerializer(_serialize_powered)]
     """The power-source belief (ADR-007): ``true``/``false``/``null``. No
     default — every publish must set it explicitly (ADR-001 amendment)."""
@@ -528,19 +538,19 @@ def _round_fractional(value: object) -> object:
 
     Third-party publishers scale into a bulb's integer range and land
     between two integers: openHAB's Dimmer channel maps a percent command
-    onto the ``min``/``max`` this model advertises as ``1 + pct / 100 * 254``,
-    which is only integral at 0, 50 and 100 %. Pydantic rejects every other
+    onto the ``min``/``max`` this model advertises as ``pct / 100 * 255``,
+    which is only integral at multiples of 20 %. Pydantic rejects every other
     value outright (``type=int_from_float``) and the command is dropped.
 
     ``round`` uses banker's rounding — ``254.5`` rounds down to ``254``,
     ``255.5`` up to ``256`` — and the declared range still applies
-    afterwards, so ``255.5`` and ``0.4`` remain rejected.
+    afterwards, so ``255.5`` and ``-0.6`` remain rejected.
     """
     return round(value) if isinstance(value, float) else value
 
 
 _LenientBrightness = Annotated[
-    int, Field(ge=1, le=255), BeforeValidator(_round_fractional)
+    int, Field(ge=0, le=255), BeforeValidator(_round_fractional)
 ]
 _LenientColorTemp = Annotated[
     int, Field(gt=0, le=10000), BeforeValidator(_round_fractional)
@@ -577,9 +587,10 @@ class BulbSetCommand(BaseModel):
     specs as :class:`BulbStateModel`; the discovery generator merges this
     receive (``/set``) channel with the send (``/state``) channel into one
     entity, contributing the ``command_topic`` half (cosalette ADR-057).
-    ``state``/``brightness``/``hsb``/``effect`` also carry ``openhab()``
-    metadata so the offline openHAB Thing gets a command channel per field
-    on the shared ``/set`` topic.
+    Every field but ``color`` also carries ``openhab()`` metadata, so the
+    offline openHAB Thing gets a command channel per field on the shared
+    ``/set`` topic. ``brightness: 0`` means OFF: it is how an openHAB Dimmer
+    or Color channel sends OFF (see :func:`wiz2mqtt.commands.to_set_state_kwargs`).
     """
 
     model_config = ConfigDict(
@@ -589,69 +600,29 @@ class BulbSetCommand(BaseModel):
 
     state: Annotated[
         Literal["ON", "OFF"] | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="State"),
-                openhab(
-                    item_type="Switch",
-                    channel_type="switch",
-                    channel_params={"on": _OPENHAB_ON, "off": _OPENHAB_OFF},
-                ),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_STATE),
     ] = None
     brightness: Annotated[
         _LenientBrightness | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="Brightness"),
-                openhab(
-                    item_type="Dimmer",
-                    channel_type="dimmer",
-                    channel_params={
-                        "min": 1,
-                        "max": 255,
-                        "step": 1,
-                        "on": _OPENHAB_ON,
-                        "off": _OPENHAB_OFF,
-                    },
-                ),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_BRIGHTNESS),
     ] = None
     color: BulbColor | None = None
-    color_temp: _LenientColorTemp | None = None
+    color_temp: Annotated[
+        _LenientColorTemp | None,
+        Field(default=None, json_schema_extra=_OPENHAB_COLOR_TEMP),
+    ] = None
     effect: Annotated[
         str | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="Effect"),
-                openhab(item_type="String", channel_type="string"),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_EFFECT_CMD),
     ] = None
     hsb: Annotated[
         str | None,
-        Field(
-            default=None,
-            json_schema_extra=merge(
-                consumer(display_name="Color"),
-                openhab(
-                    item_type="Color",
-                    channel_type="color",
-                    channel_params={
-                        "colorMode": "HSB",
-                        "on": _OPENHAB_ON,
-                        "off": _OPENHAB_OFF,
-                    },
-                ),
-            ),
-        ),
+        Field(default=None, json_schema_extra=_OPENHAB_HSB),
     ] = None
-    effect_speed: _LenientEffectSpeed | None = None
+    effect_speed: Annotated[
+        _LenientEffectSpeed | None,
+        Field(default=None, json_schema_extra=_OPENHAB_EFFECT_SPEED),
+    ] = None
 
     @field_validator("effect")
     @classmethod

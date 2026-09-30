@@ -41,6 +41,17 @@ class SetStateKwargs(TypedDict):
     """Target effect speed, or ``None``."""
 
 
+_NO_CHANGE: SetStateKwargs = {
+    "state": None,
+    "brightness": None,
+    "hue": None,
+    "saturation": None,
+    "color_temp_kelvin": None,
+    "scene": None,
+    "speed": None,
+}
+
+
 def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
     """Translate a validated set-command into ``WizBulbPort.set_state`` kwargs.
 
@@ -50,6 +61,10 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
     ``"h,s,b"`` string to canonical hue/saturation (and, for ``hsb``, its
     0-100 brightness percent to the 0-255 scale), and the HA ``effect``
     scene *name* to the numeric ``scene`` id pywizlight wants.
+
+    A resulting brightness of ``0`` is an OFF command and nothing else: an
+    openHAB Dimmer sends OFF as ``{"brightness":0}`` and a Color channel as
+    an ``"h,s,0"`` triple (ADR-001 amendment 2026-09-30).
     """
     hue = saturation = None
     brightness = cmd.brightness
@@ -59,6 +74,8 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
         hue, saturation, hsb_brightness = parse_hsb(cmd.hsb)
         if brightness is None:
             brightness = hsb_brightness
+    if brightness == 0:
+        return {**_NO_CHANGE, "state": False}
 
     scene = effect_name_to_scene_id(cmd.effect) if cmd.effect is not None else None
     return {

@@ -9,7 +9,7 @@ tags: [mqtt, serialization, architecture, telemetry]
 
 ## Status
 
-Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-13
+Accepted **Date:** 2026-09-06 | Amended **Date:** 2026-09-13 | Amended **Date:** 2026-09-30
 
 ## Context
 
@@ -134,3 +134,25 @@ A consumer computes "the lamp is lit" as `state AND powered`. While the bulb is 
 ## Amendment (2026-09-14) — Additive
 
 `powered` is required in every published state payload: serialize `true` for `on`, `false` for `off`, and the JSON literal `null` for unknown or no source. Do not use a null-excluding serializer for this field. Tests assert complete true/false/null payloads, including the presence of `"powered": null`.
+
+## Amendment (2026-09-30) — Additive
+
+**Rationale:** The openHAB MQTT binding runs a channel's `on`/`off` value through `formatBeforePublish` (`OnOffValue`), and a Dimmer or Color channel turns OFF into brightness 0 (`PercentageValue`, `ColorValue`). The generated channels carried JSON `on`/`off` values, so every openHAB OFF produced a doubly wrapped `{"state":"{"state": "OFF"}"}` or `{"brightness":"..."}` and was rejected. A Color OFF (`"h,s,0"`) only dimmed the bulb to the WiZ minimum. This amendment records how the wire format meets the openHAB OFF encodings.
+
+### Additional Sub-Decision: Brightness 0 on /set means OFF
+
+`brightness` on `wiz2mqtt/{bulb}/set` accepts `0..255`. A command whose resulting brightness is `0`, from the `brightness` key (after rounding) or the `b` of an `hsb` triple, switches the bulb off and changes nothing else, whatever other keys it carries. It records a desired state of `OFF` (ADR-008). The dimmest on level stays `1`.
+
+### Additional Sub-Decision: openHAB channels send bare on/off values
+
+The generated `state_cmd` Switch declares `on="ON"` `off="OFF"`, which `formatBeforePublish` wraps into `{"state":"ON"}`. The Dimmer and Color channels declare no `on`/`off`: openHAB sends OFF as `{"brightness":0}` or `{"hsb":"h,s,0"}`, and ON as `{"brightness":255}` or the last colour. The Dimmer advertises `min=0 max=255`, so a percent maps onto the full range.
+
+### Additional Positive Consequences
+
+- An openHAB OFF on any bulb channel, and so a group OFF through the Color command Items, switches the bulb off instead of being rejected or dimming it.
+- Channel metadata stays generated from the payload models; no Things file needs a manual edit.
+
+### Additional Negative Consequences
+
+- `brightness: 0` is no longer a validation error, so a publisher that sends it by mistake switches the bulb off.
+- Things generated before this amendment keep the broken JSON `on`/`off` values until the operator regenerates them.

@@ -10,6 +10,8 @@ Test Techniques Used:
   schema CLI with a custom broker uid and topic prefix
 - Equivalence Partitioning: a bulb in a power source gets a Powered channel
   and Item; a bulb outside every source keeps the output unchanged
+- Specification-based: every bulb exposes colour temperature, effect speed,
+  power draw and the error topic, with commands openHAB can actually send
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
-from wiz2mqtt.openhab import add_groups, add_powered, cli
+from wiz2mqtt.openhab import add_bulb_channels, add_groups, cli
 from wiz2mqtt.settings import Wiz2MqttSettings
 
 
@@ -123,7 +125,7 @@ def test_missing_state_channel_fails() -> None:
         power_sources=[{"name": "circuit", "members": ["desk"]}],
     )
     with pytest.raises(ValueError, match="Expected one State channel"):
-        add_powered("", "", settings)
+        add_bulb_channels("", "", settings)
 
 
 def test_cross_kind_identifier_collision_fails() -> None:
@@ -135,7 +137,7 @@ def test_cross_kind_identifier_collision_fails() -> None:
         power_sources=[{"name": "living_room", "members": ["living-room"]}],
     )
     with pytest.raises(ValueError, match="Power-source name collides"):
-        add_powered("", "", settings)
+        add_bulb_channels("", "", settings)
 
 
 def _generate(tmp_path: Path, toml: str) -> str:
@@ -183,3 +185,47 @@ def test_no_power_source_generates_no_powered_output(tmp_path: Path) -> None:
     output = _generate(tmp_path, _BULBS)
     assert "powered" not in output.lower()
     assert "nullValue" not in output
+
+
+def _channel(output: str, local: str) -> str:
+    """The ``Type ... : <local> "..." [ ... ]`` block of one Thing channel."""
+    start = output.index(f" : {local} ")
+    return output[start : output.index("]", start)]
+
+
+def test_bulb_channels_cover_commands_and_diagnostics(tmp_path: Path) -> None:
+    """Commands and diagnostics are generated with no manual edits."""
+    output = _generate(tmp_path, _BULBS)
+    for local, needle in [
+        ("color_temp_cmd", "min=2200"),
+        ("effect_speed_cmd", "min=10"),
+        ("effect_cmd", 'allowedStates="Alarm,'),
+        ("power_draw_w", "JSONPATH:$.power_draw_w"),
+        ("error", 'stateTopic="wiz2mqtt/desk/error"'),
+    ]:
+        assert needle in _channel(output, local), local
+    assert "commandTopic" not in _channel(output, "power_draw_w")
+    assert "commandTopic" not in _channel(output, "error")
+    assert "power_draw_w_cmd" not in output
+    assert output.count(':error"') == 3
+    for item in [
+        'Number  Wiz2Mqtt_Desk_ColorTemp_Cmd  "Color temperature [%s K]"',
+        'Number  Wiz2Mqtt_Desk_PowerDrawW  "Power [%s W]"',
+        'String  Wiz2Mqtt_Desk_Error  "Error [%s]"',
+    ]:
+        assert item in output, item
+
+
+def test_on_off_commands_are_formattable(tmp_path: Path) -> None:
+    """openHAB formats on/off through ``formatBeforePublish``, so they are bare.
+
+    Dimmer and Color carry no on/off: openHAB sends OFF as brightness 0.
+    """
+    output = _generate(tmp_path, _BULBS)
+    switch = _channel(output, "state_cmd")
+    assert 'on="ON"' in switch
+    assert 'off="OFF"' in switch
+    assert '{\\"state\\": \\"ON\\"}' not in output
+    for local in ("brightness_cmd", "hsb_cmd"):
+        assert "on=" not in _channel(output, local), local
+    assert "min=0" in _channel(output, "brightness_cmd")

@@ -103,13 +103,18 @@ def add_groups(items: str, settings: Wiz2MqttSettings) -> str:
     return "\n".join(definitions) + "\n\n" + items
 
 
-def _powered_channel(match: re.Match[str]) -> str:
-    """Append a read-only Powered channel on the state topic of *match*."""
-    params = {"stateTopic": match[1]} | openhab_nullable_switch_params(
+def _channel_block(kind: str, local: str, label: str, params: dict[str, str]) -> str:
+    """Render one ``.things`` channel entry in the framework's layout."""
+    lines = ",\n".join(f'            {key}="{value}"' for key, value in params.items())
+    return f'        Type {kind} : {local} "{label}" [\n{lines}\n        ]\n'
+
+
+def _powered_channel(state_topic: str) -> str:
+    """A read-only Powered channel on the bulb's state topic."""
+    params = {"stateTopic": state_topic} | openhab_nullable_switch_params(
         "powered", on="true", off="false"
     )
-    lines = ",\n".join(f'            {key}="{value}"' for key, value in params.items())
-    return f'{match[0]}        Type switch : powered "Powered" [\n{lines}\n        ]\n'
+    return _channel_block("switch", "powered", "Powered", params)
 
 
 def remove_power_source_availability(things: str, settings: Wiz2MqttSettings) -> str:
@@ -128,35 +133,58 @@ def remove_power_source_availability(things: str, settings: Wiz2MqttSettings) ->
     return things
 
 
-def add_powered(things: str, items: str, settings: Wiz2MqttSettings) -> tuple[str, str]:
-    """Add a Powered channel and Item to each bulb that has a power source.
+def add_bulb_channels(
+    things: str, items: str, settings: Wiz2MqttSettings
+) -> tuple[str, str]:
+    """Add the channels and Items that live outside the bulb's payload models.
 
-    Every bulb payload carries ``powered``, but it stays ``null`` for a bulb
-    outside a source, so only a bulb in a source gets the Item (ADR-007). A
-    rule then computes "lit" as ``State == ON && Powered == ON``.
+    Every bulb gets a read-only ``Error`` String with the ``error_type`` of
+    the last failure on its (unretained) ``error`` topic. Every bulb payload carries
+    ``powered``, but it stays ``null`` for a bulb outside a source, so only a
+    bulb in a source gets a ``Powered`` channel (ADR-007). A rule then
+    computes "lit" as ``State == ON && Powered == ON``.
     """
     _check_openhab_identifier_collisions(settings)
     if things:
         things = remove_power_source_availability(things, settings)
     segments = _bulb_segments(settings)
     for bulb in settings.bulbs:
-        if settings.power_source_of(bulb.name) is None:
-            continue
+        powered = settings.power_source_of(bulb.name) is not None
+
+        def extra_channels(match: re.Match[str], powered: bool = powered) -> str:
+            topic = match[1].removesuffix("/state")
+            error = {
+                "stateTopic": f"{topic}/error",
+                "transformationPattern": "JSONPATH:$.error_type",
+            }
+            return (
+                match[0]
+                + (_powered_channel(match[1]) if powered else "")
+                + _channel_block("string", "error", "Error", error)
+            )
+
         channel = (
             r' {8}Type switch : state "State" \[\n {12}stateTopic='
             rf'"([^"]*/{re.escape(bulb.name)}/state)",\n.*?\n {{8}}\]\n'
         )
-        things, count = re.subn(channel, _powered_channel, things, flags=re.DOTALL)
+        things, count = re.subn(channel, extra_channels, things, flags=re.DOTALL)
         segment = segments[bulb.name]
         item = (
             rf'^Switch\s+Wiz2Mqtt_{segment}_State\s+"State \[%s\]"\s+'
             r'(\([^)]*\))\s+\{ channel="([^"]+):state" \}$'
         )
-        powered = (
-            rf'\g<0>\nSwitch  Wiz2Mqtt_{segment}_Powered  "Powered [%s]"  '
+        extra_items = (
+            rf'\nSwitch  Wiz2Mqtt_{segment}_Powered  "Powered [%s]"  '
             r'\1  { channel="\2:powered" }'
+            if powered
+            else ""
+        ) + (
+            rf'\nString  Wiz2Mqtt_{segment}_Error  "Error [%s]"  '
+            r'\1  { channel="\2:error" }'
         )
-        items, item_count = re.subn(item, powered, items, flags=re.MULTILINE)
+        items, item_count = re.subn(
+            item, r"\g<0>" + extra_items, items, flags=re.MULTILINE
+        )
         if (count, item_count) != (1, 1):
             raise ValueError(f"Expected one State channel and Item for {bulb.name}")
     return things, items
@@ -186,7 +214,7 @@ def generate(
                 )
             )
             args = ("openhab", str(schema), "--broker-uid", broker_uid)
-            things, items = add_powered(
+            things, items = add_bulb_channels(
                 _schema_cli(*args, "--output", "things"),
                 add_groups(_schema_cli(*args, "--output", "items"), settings),
                 settings,

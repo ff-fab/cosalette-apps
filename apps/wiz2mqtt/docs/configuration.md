@@ -309,6 +309,11 @@ Effect and color-temperature commands are not added to these groups. See
 Regenerate both files after inventory or membership changes. Names that collapse
 to the same openHAB identifier are rejected by the deployment generator.
 
+Each bulb gets command and state Items for on/off, brightness, HSB colour,
+colour temperature, effect and effect speed, plus read-only `PowerDrawW` and `Error`
+Items. The [openHAB channel table](mqtt-topics.md#openhab-generic-mqtt-thing) lists
+their wiring.
+
 Each power source becomes one more Thing with two read-only Switch Items,
 `Powered` and `PowerRequest`. Each bulb in a power source also gets a read-only
 `Powered` Item. See the [openHAB recipe](power-awareness.md#openhab) for the
