@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.9](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.8...wiz2mqtt-v0.2.9) (2026-09-30)
+
+
+### Bug Fixes
+
+* **wiz2mqtt:** harden power and HSB commands ([#311](https://github.com/ff-fab/cosalette-apps/issues/311)) ([c136d42](https://github.com/ff-fab/cosalette-apps/commit/c136d42f5da614ca5872fb7480a097e59a947306))
+* **wiz2mqtt:** stabilize return-path restore ([#309](https://github.com/ff-fab/cosalette-apps/issues/309)) ([c798d7d](https://github.com/ff-fab/cosalette-apps/commit/c798d7d0d172bb0c339ba6dfb16c064df2dde8b2))
+
 ## [0.2.8](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.7...wiz2mqtt-v0.2.8) (2026-09-30)
 
 
