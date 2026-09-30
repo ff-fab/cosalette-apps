@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.2.8](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.7...wiz2mqtt-v0.2.8) (2026-09-30)
+
+
+### Features
+
+* **wiz2mqtt:** add switched-relay boot safeguards ([#308](https://github.com/ff-fab/cosalette-apps/issues/308)) ([3912e05](https://github.com/ff-fab/cosalette-apps/commit/3912e059c8f4d084201ac56cb46e3cd88180b65a))
+* **wiz2mqtt:** expose queued-command readiness state ([#307](https://github.com/ff-fab/cosalette-apps/issues/307)) ([17dd7e3](https://github.com/ff-fab/cosalette-apps/commit/17dd7e31439803c9efeee7dd851400cee7d6a95f))
+* **wiz2mqtt:** full openHAB channels, power-request contract, OFF fixes ([#306](https://github.com/ff-fab/cosalette-apps/issues/306)) ([64ece03](https://github.com/ff-fab/cosalette-apps/commit/64ece03bac3cf121c95ec9932ce8799ff76a7807))
+
+
+### Bug Fixes
+
+* upgrade cosalette to 0.10.5 and compose wiz queue ([#303](https://github.com/ff-fab/cosalette-apps/issues/303)) ([4323d8e](https://github.com/ff-fab/cosalette-apps/commit/4323d8eb9d73cb76e11c8db1dc62bcd0c1d829bb))
+
 ## [0.2.7](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.6...wiz2mqtt-v0.2.7) (2026-09-28)
 
 

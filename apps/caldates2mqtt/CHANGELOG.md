@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.6](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.5...caldates2mqtt-v0.2.6) (2026-09-30)
+
+
+### Bug Fixes
+
+* upgrade cosalette to 0.10.5 and compose wiz queue ([#303](https://github.com/ff-fab/cosalette-apps/issues/303)) ([4323d8e](https://github.com/ff-fab/cosalette-apps/commit/4323d8eb9d73cb76e11c8db1dc62bcd0c1d829bb))
+
 ## [0.2.5](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.4...caldates2mqtt-v0.2.5) (2026-09-28)
 
 
