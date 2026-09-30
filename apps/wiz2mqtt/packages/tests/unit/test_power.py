@@ -12,12 +12,13 @@ from __future__ import annotations
 import pytest
 
 from tests.fixtures.settings import build_settings
-from wiz2mqtt.intent import Appearance, DesiredState
+from wiz2mqtt.intent import Appearance, DesiredState, PendingCommand
 from wiz2mqtt.models import POWER_REQUEST_INACTIVE
 from wiz2mqtt.power import (
     belief_for_bulb,
     belief_for_source,
     compute_belief,
+    in_boot_grace,
     note_command,
     parse_signal,
     power_request,
@@ -140,7 +141,7 @@ class TestBeliefForBulb:
         )
         state = SharedState()
         state.bulb_answered["desk"] = True
-        record_signal(settings, state, "p", "off")
+        record_signal(settings, state, "p", "off", 0.0)
 
         assert belief_for_bulb(settings, state, "desk") == "off"
 
@@ -287,31 +288,31 @@ class TestRecordSignal:
         """Technique: State Transition — no signal to on."""
         state = SharedState()
 
-        assert record_signal(self._settings(), state, "up", "on") is True
+        assert record_signal(self._settings(), state, "up", "on", 0.0) is True
         assert state.source_signal == {"up": "on"}
 
     def test_repeated_signal_is_not_a_change(self) -> None:
         """Technique: State Transition — on to on."""
         settings = self._settings()
         state = SharedState()
-        record_signal(settings, state, "up", "on")
+        record_signal(settings, state, "up", "on", 0.0)
 
-        assert record_signal(settings, state, "up", "on") is False
+        assert record_signal(settings, state, "up", "on", 0.0) is False
 
     def test_opposite_signal_replaces_the_stored_one(self) -> None:
         """Technique: State Transition — on to off."""
         settings = self._settings()
         state = SharedState()
-        record_signal(settings, state, "up", "on")
+        record_signal(settings, state, "up", "on", 0.0)
 
-        assert record_signal(settings, state, "up", "off") is True
+        assert record_signal(settings, state, "up", "off", 0.0) is True
         assert state.source_signal == {"up": "off"}
 
     def test_change_makes_the_answers_of_its_own_members_stale(self) -> None:
         """Technique: Specification-based — ADR-007 amendment 2026-09-19."""
         state = SharedState()
 
-        record_signal(self._settings(), state, "up", "off")
+        record_signal(self._settings(), state, "up", "off", 0.0)
 
         assert state.stale_answers == {"a", "b"}
 
@@ -319,10 +320,10 @@ class TestRecordSignal:
         """Technique: State Transition — off to off is no new information."""
         settings = self._settings()
         state = SharedState()
-        record_signal(settings, state, "up", "off")
+        record_signal(settings, state, "up", "off", 0.0)
         state.stale_answers.discard("a")  # "a" answered after the signal
 
-        record_signal(settings, state, "up", "off")
+        record_signal(settings, state, "up", "off", 0.0)
 
         assert state.stale_answers == {"b"}
 
@@ -590,3 +591,124 @@ class TestPowerOffRequest:
         assert power_request(settings, source, state, "on", 2 * _IDLE_DELAY) == (
             POWER_REQUEST_INACTIVE
         )
+
+
+# ---------------------------------------------------------------------------
+# Switched-relay boot safeguards (ADR-008 amendment 2026-09-30, cap-ea7n.4)
+# ---------------------------------------------------------------------------
+
+
+def _relay_settings(**source: object) -> Wiz2MqttSettings:
+    return build_settings(
+        [{"name": "a", "ip": "10.0.0.1"}, {"name": "b", "ip": "10.0.0.2"}],
+        [{"name": "up", "members": ["a", "b"], **source}],
+    )
+
+
+def _queued(state: SharedState, *names: str) -> None:
+    for name in names:
+        state.pending_commands[name] = PendingCommand(
+            kwargs={"state": True}, queued_at=0.0
+        )
+
+
+class TestClearQueueOnPowerOff:
+    """Technique: Decision Table — previous signal × new signal × opt-in."""
+
+    def test_signal_change_records_its_monotonic_time(self) -> None:
+        state = SharedState()
+
+        record_signal(_relay_settings(), state, "up", "on", 42.0)
+
+        assert state.source_signal_at["up"] == 42.0
+
+    def test_repeated_signal_keeps_the_first_change_time(self) -> None:
+        state = SharedState()
+        record_signal(_relay_settings(), state, "up", "on", 1.0)
+
+        record_signal(_relay_settings(), state, "up", "on", 9.0)
+
+        assert state.source_signal_at["up"] == 1.0
+
+    def test_on_to_off_clears_member_queues_when_opted_in(self) -> None:
+        settings = _relay_settings(clear_queue_on_power_off=True)
+        state = SharedState()
+        record_signal(settings, state, "up", "on", 0.0)
+        _queued(state, "a", "b")
+
+        record_signal(settings, state, "up", "off", 1.0)
+
+        assert state.pending_commands == {}
+
+    def test_on_to_off_keeps_queues_by_default(self) -> None:
+        settings = _relay_settings()
+        state = SharedState()
+        record_signal(settings, state, "up", "on", 0.0)
+        _queued(state, "a")
+
+        record_signal(settings, state, "up", "off", 1.0)
+
+        assert set(state.pending_commands) == {"a"}
+
+    def test_first_off_signal_keeps_queues(self) -> None:
+        """A command queued before the power is switched on must survive."""
+        settings = _relay_settings(clear_queue_on_power_off=True)
+        state = SharedState()
+        _queued(state, "a")
+
+        record_signal(settings, state, "up", "off", 0.0)
+
+        assert set(state.pending_commands) == {"a"}
+
+
+class TestInBootGrace:
+    """Technique: Decision Table — source, signal, window and answer."""
+
+    @staticmethod
+    def _state_after_on(at: float = 100.0) -> SharedState:
+        state = SharedState()
+        state.source_signal["up"] = "on"
+        state.source_signal_at["up"] = at
+        return state
+
+    def test_inside_the_window_and_unanswered(self) -> None:
+        settings = _relay_settings(boot_grace=30)
+
+        assert in_boot_grace(settings, self._state_after_on(), "a", 129.9) is True
+
+    @pytest.mark.parametrize("now", [130.0, 500.0])
+    def test_window_closes_at_boot_grace(self, now: float) -> None:
+        """Technique: Boundary Value Analysis — the window is half-open."""
+        settings = _relay_settings(boot_grace=30)
+
+        assert in_boot_grace(settings, self._state_after_on(), "a", now) is False
+
+    def test_zero_grace_never_opens(self) -> None:
+        state = self._state_after_on()
+
+        assert in_boot_grace(_relay_settings(), state, "a", 100.0) is False
+
+    def test_signal_off_closes_the_window(self) -> None:
+        state = self._state_after_on()
+        state.source_signal["up"] = "off"
+
+        assert in_boot_grace(_relay_settings(boot_grace=30), state, "a", 101.0) is False
+
+    def test_fresh_answer_closes_the_window(self) -> None:
+        state = self._state_after_on()
+        state.bulb_answered["a"] = True
+
+        assert in_boot_grace(_relay_settings(boot_grace=30), state, "a", 101.0) is False
+
+    def test_stale_answer_keeps_the_window_open(self) -> None:
+        """An answer from before the power cut is no proof the bulb is up."""
+        state = self._state_after_on()
+        state.bulb_answered["a"] = True
+        state.stale_answers.add("a")
+
+        assert in_boot_grace(_relay_settings(boot_grace=30), state, "a", 101.0) is True
+
+    def test_bulb_without_a_power_source(self) -> None:
+        settings = build_settings([{"name": "solo", "ip": "10.0.0.9"}])
+
+        assert in_boot_grace(settings, SharedState(), "solo", 0.0) is False

@@ -8,6 +8,8 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from cosalette import App, EntityNotifier
 
@@ -15,7 +17,9 @@ from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.errors import (
+    WizConnectionError,
     WizIdentityError,
+    WizQueuedTimeoutError,
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
@@ -27,6 +31,7 @@ from wiz2mqtt.main import (
     power_signal,
 )
 from wiz2mqtt.models import BulbSetCommand
+from wiz2mqtt.power import record_signal
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
 
@@ -179,7 +184,7 @@ class TestBulbSet:
         ctx = self._ctx()
         adapter.fail_next("10.0.0.1", WizTimeoutError("timeout"))
 
-        with pytest.raises(WizTimeoutError):
+        with pytest.raises(WizQueuedTimeoutError) as excinfo:
             await bulb_set(
                 BulbSetCommand(brightness=50),
                 self._config(),
@@ -188,6 +193,7 @@ class TestBulbSet:
                 ctx,
                 notify,
             )
+        assert isinstance(excinfo.value.__cause__, WizTimeoutError)
         await bulb_set(
             BulbSetCommand(brightness=200),
             self._config(),
@@ -231,6 +237,48 @@ class TestBulbSet:
         assert queued["brightness"] == 179
         assert queued["scene"] is not None
         assert notify.armed == ["office", "office"]
+
+    async def test_connection_error_keeps_its_own_type(self) -> None:
+        """Only a timeout is retyped; a connection error still queues."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        adapter.fail_next("10.0.0.1", WizConnectionError("refused"))
+
+        with pytest.raises(WizConnectionError) as excinfo:
+            await bulb_set(
+                BulbSetCommand(brightness=50),
+                self._config(),
+                adapter,
+                state,
+                self._ctx(),
+                RecordingNotifier(),
+            )
+
+        assert type(excinfo.value) is WizConnectionError
+        assert "office" in state.pending_commands
+
+    async def test_boot_grace_queues_without_a_wire_attempt(self) -> None:
+        """Technique: State Transition — a command in the boot window arms
+        the return path instead of timing out (ADR-008 amendment 2026-09-30)."""
+        settings = build_settings(
+            [{"name": "office", "ip": "10.0.0.1"}],
+            [{"name": "up", "members": ["office"], "boot_grace": 3600}],
+        )
+        ctx = FakeDeviceContext(settings=settings)
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        notify = RecordingNotifier()
+        record_signal(settings, state, "up", "on", time.monotonic())
+
+        await bulb_set(
+            BulbSetCommand(brightness=50), self._config(), adapter, state, ctx, notify
+        )
+
+        assert adapter.set_state_calls == []
+        assert state.phase["office"] == "reconnect"
+        assert state.pending_commands["office"].kwargs["brightness"] == 50
+        assert ctx.availability_calls == []
+        assert "office" in notify.armed
 
     @pytest.mark.parametrize(
         "error",

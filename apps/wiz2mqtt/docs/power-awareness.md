@@ -208,7 +208,30 @@ it has no better evidence (no answering member and no signal).
 - The queue is always on. A command that arrives while the bulb is unreachable is
   applied when the bulb returns, also with `restore_previous_state = false`.
 - `queued_command_ttl` (top level, in seconds, default `86400`) is the maximum age of
-  a queued command. wiz2mqtt drops an older command and writes a log line.
+  a queued command. wiz2mqtt drops an older command and writes a log line. A bulb or
+  a power source can override it with its own `queued_command_ttl`; the bulb's value
+  wins, then the power source's, then the top-level value.
+- A `/set` that times out publishes `error_type: "timeout_queued"`. The command is
+  still in the queue. If the return path cannot confirm the write after three
+  attempts, the error carries `error_type: "restore_unconfirmed"`.
+
+### Switched relays
+
+A bulb behind a relay needs a few seconds to boot after the relay turns on. Without
+more configuration, a command in that window times out, and failed reads count
+towards `offline`. Two power-source keys make a switched circuit behave:
+
+- `boot_grace` (seconds, default `0` = off) opens a window when the signal changes to
+  `on`. Until a member bulb answers, wiz2mqtt queues a command for it without a wire
+  attempt, and a failed read does not count towards `offline`. The queued command is
+  applied as soon as the bulb answers. The window needs a `signal_topic`; set it a
+  little above the boot time of your bulbs, for example `20`.
+- `clear_queue_on_power_off = true` (default `false`) drops the members' queued
+  commands when the signal changes from `on` to `off`. Use it when switching the relay
+  off means "forget what was asked". A command queued while the signal is already
+  `off` survives, so a command followed by a power-on request still works.
+
+The defaults keep the earlier behaviour: no grace window and no clearing.
 
 ### Power requests
 
@@ -409,6 +432,7 @@ be on and has power, and unknown if the belief is unknown.
 | Circuit goes dark, no signal                            | 159 s to 219 s until the belief changes; 192 s to 252 s on a host that receives idle pushes from the bulbs. |
 | Circuit goes dark, signal `off` arrives                 | At once: the belief becomes `off`. wiz2mqtt stops reading a member after its first failed read, about 13 s after the signal. |
 | Signal `on` arrives while no member answers             | At once: the belief becomes `on`.                                              |
+| Command inside `boot_grace` after signal `on`           | At once: queued, no wire attempt; applied when the bulb answers.              |
 
 A failed read takes 13 s (the pywizlight timeout), and the heartbeat waits 60 s after
 each read. Without a signal, three failed reads in a row are necessary before a bulb

@@ -87,6 +87,10 @@ class SharedState:
     """Each power source's last-known raw relay signal, set by the
     ``power_signal`` inbound handler from the subscribed ``signal_topic``."""
 
+    source_signal_at: dict[str, float] = field(default_factory=dict)
+    """Monotonic reading of each power source's last signal change, the start
+    of its ``boot_grace`` window (:func:`wiz2mqtt.power.in_boot_grace`)."""
+
     source_power_on_requested: set[str] = field(default_factory=set)
     """Power sources with an outstanding power-on request (ADR-009).
 

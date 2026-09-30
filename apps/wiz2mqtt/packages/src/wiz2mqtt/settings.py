@@ -55,6 +55,14 @@ class BulbConfig(BaseModel):
             "reachability with no queued command (ADR-008)."
         ),
     )
+    queued_command_ttl: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Seconds a command queued for this bulb stays valid. Unset "
+            "falls back to the bulb's power source, then the top-level value (ADR-008)."
+        ),
+    )
 
     @field_validator("name")
     @classmethod
@@ -177,6 +185,31 @@ class PowerSourceConfig(BaseModel):
             "Operator declaration that every device on this circuit is a "
             "WiZ bulb wiz2mqtt controls. Must be true before "
             "enable_power_off_request may be true."
+        ),
+    )
+    boot_grace: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Seconds after the signal turns 'on' in which a member bulb that "
+            "has not answered yet is still booting: a command is queued "
+            "without a wire attempt, and a failed read is no fault. 0 "
+            "(default) disables the window (ADR-008)."
+        ),
+    )
+    clear_queue_on_power_off: bool = Field(
+        default=False,
+        description=(
+            "Drop the queued commands of every member bulb when the signal "
+            "changes from 'on' to 'off' (ADR-008)."
+        ),
+    )
+    queued_command_ttl: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Seconds a command queued for this source's member bulbs stays valid. "
+            "Unset falls back to the top-level value (ADR-008)."
         ),
     )
 
@@ -492,8 +525,9 @@ class Wiz2MqttSettings(cosalette.Settings):
     queued_command_ttl: float = Field(
         default=86400.0,
         description=(
-            "In-memory one-slot command queue TTL in seconds (ADR-008). The TTL "
-            "takes effect when later replay or restore consumes a queued command."
+            "Default TTL in seconds of the in-memory command queue (ADR-008). "
+            "A bulb or power source may override it. The TTL takes effect when "
+            "later replay or restore consumes a queued command."
         ),
     )
     _power_sources_by_bulb: dict[str, PowerSourceConfig | None] = PrivateAttr(
@@ -597,6 +631,16 @@ class Wiz2MqttSettings(cosalette.Settings):
         :meth:`_power_sources_valid` already accepted this configuration.
         """
         return self._power_sources_by_bulb.get(bulb_name)
+
+    def queued_command_ttl_for(self, bulb_name: str) -> float:
+        """The queue TTL of *bulb_name*: bulb, then power source, then global."""
+        bulb = next((b for b in self.bulbs if b.name == bulb_name), None)
+        source = self.power_source_of(bulb_name)
+        overrides = (
+            bulb.queued_command_ttl if bulb else None,
+            source.queued_command_ttl if source else None,
+        )
+        return next((t for t in overrides if t is not None), self.queued_command_ttl)
 
     def bulbs_for_power_source(self, source_name: str) -> list[str]:
         """Return the bulb names resolving to power source *source_name*.

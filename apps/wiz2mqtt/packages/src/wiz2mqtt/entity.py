@@ -22,7 +22,7 @@ from cosalette import DeviceStore, EntityNotifier, Optional
 from wiz2mqtt import intent, power
 from wiz2mqtt.colour import clamp_kelvin
 from wiz2mqtt.commands import SetStateKwargs
-from wiz2mqtt.errors import WizBridgeError, WizIdentityError
+from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizBridgeError, WizIdentityError
 from wiz2mqtt.models import BulbCapabilities, BulbState
 from wiz2mqtt.payload import build_state_payload, readiness_fields
 from wiz2mqtt.ports import WizBulbPort
@@ -129,11 +129,7 @@ async def _handle_read_failure(
     exc: WizBridgeError,
 ) -> dict[str, object] | None:
     """Advance the failure count and settle availability after a failed read."""
-    failures = (
-        _FAILURE_THRESHOLD
-        if _signal_decides_off(settings, state, name)
-        else min(state.consecutive_failures.get(name, 0) + 1, _FAILURE_THRESHOLD)
-    )
+    failures = _next_failure_count(settings, state, name)
     state.consecutive_failures[name] = failures
     if failures >= _FAILURE_THRESHOLD:
         state.bulb_answered[name] = False
@@ -192,6 +188,23 @@ async def _handle_read_success(
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, bulb_state, belief)
+
+
+def _next_failure_count(
+    settings: Wiz2MqttSettings, state: SharedState, name: str
+) -> int:
+    """*name*'s failure count after one more failed read.
+
+    A signal ``off`` makes the failure firm (the full threshold); inside the
+    ``boot_grace`` window the bulb may still be booting, so the failure does
+    not count (ADR-008 amendment 2026-09-30).
+    """
+    failures = state.consecutive_failures.get(name, 0)
+    if _signal_decides_off(settings, state, name):
+        return _FAILURE_THRESHOLD
+    if power.in_boot_grace(settings, state, name, time.monotonic()):
+        return failures
+    return min(failures + 1, _FAILURE_THRESHOLD)
 
 
 def _signal_decides_off(
@@ -266,7 +279,7 @@ def _render(
         reachable=state.bulb_answered.get(name, False)
         and name not in state.stale_answers,
         pending=state.pending_commands.get(name),
-        ttl=settings.queued_command_ttl,
+        ttl=settings.queued_command_ttl_for(name),
         last_applied=state.last_applied.get(name),
     )
 
@@ -316,9 +329,10 @@ async def _run_return_path(
     (:func:`_write_and_verify`). On success the pending command or stored
     desired state applied is already what ``state.desired_state`` holds
     (recorded when the command was issued/stored), so nothing more needs
-    writing. On exhaustion, a structured error is published to
-    ``wiz2mqtt/{bulb}/error``, authority hands back to the lamp (the last
-    observed state becomes the new desired state), and the phase still
+    writing. On exhaustion, a structured error of ``error_type``
+    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error``,
+    authority hands back to the lamp (the last observed state becomes the
+    new desired state), and the phase still
     settles to steady — ADR-008 does not retry a return path across ticks.
     Either way the outcome of a write becomes the bulb's ``last_applied``.
 
@@ -334,7 +348,7 @@ async def _run_return_path(
     """
     now = time.time()
     kwargs = intent.pop_valid(
-        state.pending_commands, name, settings.queued_command_ttl, now
+        state.pending_commands, name, settings.queued_command_ttl_for(name), now
     )
     if kwargs is None and config.restore_previous_state:
         desired = intent.resolve_desired_state(state, store, name)
@@ -361,7 +375,11 @@ async def _run_return_path(
             await ctx.publish(
                 "error",
                 json.dumps(
-                    {"attempts": attempts, "state": dataclasses.asdict(observed)}
+                    {
+                        "error_type": RESTORE_UNCONFIRMED,
+                        "attempts": attempts,
+                        "state": dataclasses.asdict(observed),
+                    }
                 ),
             )
             intent.record_observation(state, store, name, observed, now)

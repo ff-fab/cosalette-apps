@@ -22,9 +22,10 @@ from cosalette import DeviceStore
 from cosalette.stores import MemoryStore
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
+from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
-from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
+from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizIdentityError, WizTimeoutError
 from wiz2mqtt.intent import (
     Appearance,
     DesiredState,
@@ -599,6 +600,7 @@ class TestReturnPath:
         channel, payload = ctx.published[0]
         assert channel == "error"
         body = json.loads(payload)
+        assert body["error_type"] == RESTORE_UNCONFIRMED
         assert body["attempts"] == 3
         assert "state" in body
         assert state.phase["office"] == "steady"
@@ -969,7 +971,7 @@ class TestSignalOff:
     ) -> None:
         await _tick(ctx, _config(), adapter, state)
         assert state.bulb_answered["office"] is True
-        record_signal(ctx.settings, state, "office-power", "off")
+        record_signal(ctx.settings, state, "office-power", "off", 0.0)
 
     async def test_first_failed_read_after_the_signal_is_firm(self) -> None:
         """Technique: Boundary Value Analysis — one failure reaches the threshold.
@@ -1178,3 +1180,48 @@ class TestBootCallback:
         # boot event for a different, unconfigured ip.
         assert state.phase["office"] == "steady"
         assert notify.armed == []
+
+
+class TestBootSafeguards:
+    """Switched-relay boot safeguards (ADR-008 amendment 2026-09-30, cap-ea7n.4)."""
+
+    async def test_failed_reads_inside_boot_grace_do_not_count(self) -> None:
+        """Technique: State Transition — a booting bulb is not yet a fault."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}],
+            [{"name": "office-power", "members": ["office"], "boot_grace": 3600}],
+        )
+        ctx = FakeDeviceContext(settings=settings)
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        record_signal(settings, state, "office-power", "on", time.monotonic())
+
+        for _ in range(_FAILURE_THRESHOLD):
+            adapter.fail_next(_IP, WizTimeoutError("booting"))
+            await _tick(ctx, _config(), adapter, state)
+
+        assert adapter.get_state_call_count == _FAILURE_THRESHOLD
+        assert state.consecutive_failures.get("office", 0) == 0
+        assert ctx.availability_calls == []
+
+    @pytest.mark.parametrize(("bulb_ttl", "replayed"), [(60.0, False), (None, True)])
+    async def test_return_path_honours_the_bulb_ttl(
+        self, bulb_ttl: float | None, replayed: bool
+    ) -> None:
+        """Technique: Decision Table — a bulb override outranks the global TTL."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP, "queued_command_ttl": bulb_ttl}]
+        )
+        ctx = FakeDeviceContext(settings=settings)
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        enqueue(
+            state.pending_commands,
+            "office",
+            {"state": True, "brightness": 200},  # type: ignore[arg-type]
+            time.time() - 120,
+        )
+
+        await _tick(ctx, _config(), adapter, state)
+
+        assert bool(adapter.set_state_calls) is replayed

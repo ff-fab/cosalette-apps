@@ -30,6 +30,7 @@ from wiz2mqtt.models import BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
 
 from .conftest import (
+    _COMMAND_SETTLE_TIME,
     TOPIC_PREFIX,
     build_integration_app,
     make_settings,
@@ -39,6 +40,8 @@ from .conftest import (
 SIGNAL_TOPIC = "openhab/relay/downstairs/state"
 SOURCE_STATE_TOPIC = f"{TOPIC_PREFIX}/downstairs/state"
 BULB_STATE_TOPIC = f"{TOPIC_PREFIX}/office/state"
+BULB_ERROR_TOPIC = f"{TOPIC_PREFIX}/office/error"
+BULB_AVAILABILITY_TOPIC = f"{TOPIC_PREFIX}/office/availability"
 _TICKS_AFTER_THE_SIGNAL = 3
 _TICK = 0.01
 
@@ -253,6 +256,84 @@ class TestPowerSignalInbound:
 
         assert harness.messages_for(SIGNAL_TOPIC) == []
         assert not any("relay" in topic for topic, *_ in harness.published())
+
+
+@pytest.mark.integration
+class TestBootGrace:
+    """A command right after the relay turns on meets a bulb that still boots."""
+
+    @staticmethod
+    async def _command_after_signal_on(
+        fake_adapter: FakeWizBulbAdapter, boot_grace: float
+    ) -> tuple[AppHarness, list[str]]:
+        """Switch the circuit on, send one command, run three failing ticks.
+
+        Return the harness and the bulb availability published before the
+        shutdown, which always publishes ``offline``.
+        """
+        fake_adapter.set_unreachable("10.0.0.5", True)
+        harness = AppHarness(
+            app=build_integration_app(fake_adapter),
+            mqtt=MockMqttClient(),
+            clock=ManualClock(),
+            settings=make_settings(
+                power_sources=[
+                    {
+                        "name": "downstairs",
+                        "members": ["office"],
+                        "signal_topic": SIGNAL_TOPIC,
+                        "boot_grace": boot_grace,
+                    }
+                ]
+            ),
+            shutdown_event=asyncio.Event(),
+        )
+        task = asyncio.create_task(harness.run())
+        try:
+            await wait_until_subscribed(harness, SIGNAL_TOPIC)
+            await harness.advance_time(0)
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 1)
+            await harness.mqtt.deliver(SIGNAL_TOPIC, "on")
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 2)
+            await harness.inject_command("office", {"brightness": 200})
+            await asyncio.sleep(_COMMAND_SETTLE_TIME)
+            for _ in range(_TICKS_AFTER_THE_SIGNAL):
+                await harness.advance_time(_TICK)
+            messages = harness.messages_for(BULB_AVAILABILITY_TOPIC)
+            availability = [p for p, *_ in messages]
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        return harness, availability
+
+    async def test_inside_the_window_the_command_queues_quietly(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition — no wire attempt, no error, no offline."""
+        harness, availability = await self._command_after_signal_on(
+            fake_adapter, boot_grace=3600
+        )
+
+        assert fake_adapter.set_state_calls == []
+        assert harness.messages_for(BULB_ERROR_TOPIC) == []
+        assert "offline" not in availability
+        pending = json.loads(harness.messages_for(BULB_STATE_TOPIC)[-1][0])["pending"]
+        assert pending["fields"] == ["state", "brightness"]
+
+    async def test_without_a_window_the_timeout_is_typed_as_queued(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Regression — boot_grace = 0 keeps the wire attempt."""
+        harness, availability = await self._command_after_signal_on(
+            fake_adapter, boot_grace=0
+        )
+
+        assert len(fake_adapter.set_state_calls) == 1
+        errors = [json.loads(p) for p, *_ in harness.messages_for(BULB_ERROR_TOPIC)]
+        assert [e["error_type"] for e in errors] == ["timeout_queued"]
+        assert "offline" in availability
 
 
 _PROFILE = """\

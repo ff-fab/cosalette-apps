@@ -8,6 +8,8 @@ as plain Python.
 
 from __future__ import annotations
 
+import logging
+import math
 from typing import TYPE_CHECKING, Literal
 
 from wiz2mqtt.models import POWER_REQUEST_INACTIVE
@@ -16,6 +18,8 @@ if TYPE_CHECKING:
     from wiz2mqtt.models import PowerRequestWire
     from wiz2mqtt.settings import PowerSourceConfig, Wiz2MqttSettings
     from wiz2mqtt.state import SharedState
+
+logger = logging.getLogger(__name__)
 
 Belief = Literal["on", "off", "unknown"]
 Signal = Literal["on", "off"]
@@ -73,7 +77,11 @@ def source_for_signal_topic(
 
 
 def record_signal(
-    settings: Wiz2MqttSettings, state: SharedState, source_name: str, signal: Signal
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    source_name: str,
+    signal: Signal,
+    now: float,
 ) -> bool:
     """Store *signal* for *source_name*; return whether it differs from the last.
 
@@ -81,12 +89,48 @@ def record_signal(
     2026-09-19), so a signal ``off`` turns the belief off at once instead of
     after three failed reads per member. A repeat of the stored signal
     changes no belief, so the caller can skip waking the source and its bulbs.
+
+    A change also starts the source's ``boot_grace`` window at *now*, a
+    monotonic reading. An ``on`` to ``off`` change drops the members' queued
+    commands when the source sets ``clear_queue_on_power_off``; a command
+    queued while the circuit is already off survives, so "command, then
+    power on" still works (ADR-008 amendment 2026-09-30).
     """
-    if state.source_signal.get(source_name) == signal:
+    previous = state.source_signal.get(source_name)
+    if previous == signal:
         return False
     state.source_signal[source_name] = signal
-    state.stale_answers.update(settings.bulbs_for_power_source(source_name))
+    state.source_signal_at[source_name] = now
+    members = settings.bulbs_for_power_source(source_name)
+    state.stale_answers.update(members)
+    source = next(s for s in settings.power_sources if s.name == source_name)
+    if previous == "on" and signal == "off" and source.clear_queue_on_power_off:
+        for name in members:
+            if state.pending_commands.pop(name, None) is not None:
+                logger.info("Dropping pending command for bulb %s: power off", name)
     return True
+
+
+def in_boot_grace(
+    settings: Wiz2MqttSettings, state: SharedState, bulb_name: str, now: float
+) -> bool:
+    """Whether *bulb_name* may still be booting after its circuit turned on.
+
+    True while the source's signal is ``on``, less than ``boot_grace``
+    seconds (monotonic *now*) have passed since that signal changed, and
+    the bulb has not answered since. Inside the window a command is queued
+    without a wire attempt and a failed read is no fault (ADR-008
+    amendment 2026-09-30). ``boot_grace = 0`` never opens a window.
+    """
+    source = settings.power_source_of(bulb_name)
+    if source is None or state.source_signal.get(source.name) != "on":
+        return False
+    answered = (
+        state.bulb_answered.get(bulb_name, False)
+        and bulb_name not in state.stale_answers
+    )
+    since = now - state.source_signal_at.get(source.name, -math.inf)
+    return not answered and since < source.boot_grace
 
 
 def signal_wake_targets(settings: Wiz2MqttSettings, source_name: str) -> list[str]:
