@@ -119,12 +119,12 @@ async def bulb_set(
 
     ADR-008/cap-bjw9.6: the desired state is written before any wire
     attempt, so an unreachable bulb still records the intent. A bulb whose
-    power source is known off, or that has already crossed the failure
-    threshold, is not sent to the wire at all — the command is queued
-    instead and the entity is armed to republish the (now updated) desired
-    state immediately, without an error. A bulb believed reachable that
-    still times out on the wire is queued too, then the timeout still
-    surfaces on the error topic as before.
+    power source is known off, has already crossed the failure threshold,
+    or is waiting for its reconnect return path, is not sent to the wire at
+    all — the command is merged into the queue instead and the entity is
+    armed to republish the (now updated) desired state immediately, without
+    an error. A bulb believed reachable that still times out on the wire is
+    queued too, then the timeout still surfaces on the error topic as before.
     """
     settings = cast(Wiz2MqttSettings, ctx.settings)
     kwargs = to_set_state_kwargs(cmd)
@@ -141,10 +141,14 @@ async def bulb_set(
         notify(source_name)
 
     belief = power.belief_for_bulb(settings, state, config.name)
-    unreachable = (
+    queue_for_return = (
         belief == "off" or state.last_availability.get(config.name) == "offline"
     )
-    if unreachable:
+    if (
+        queue_for_return
+        or config.name in state.pending_commands
+        or state.phase.get(config.name) == "reconnect"
+    ):
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
         notify(config.name)
         return
