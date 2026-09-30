@@ -250,3 +250,6 @@ def test_on_off_commands_are_formattable(tmp_path: Path) -> None:
     for local in ("brightness_cmd", "hsb_cmd"):
         assert "on=" not in _channel(output, local), local
     assert "min=0" in _channel(output, "brightness_cmd")
+    assert 'formatBeforePublish="{\\"hsb\\":\\"%1$d,%2$d,%3$d\\"}"' in _channel(
+        output, "hsb_cmd"
+    )

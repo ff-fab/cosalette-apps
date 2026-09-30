@@ -667,5 +667,5 @@ def _hue_saturation_from_parser(
     r, g, b = rgb
     if r is None or g is None or b is None:
         return None, None
-    cold_white = parser.get_cold_white() or 0
-    return rgb_to_hue_saturation(r, g, b, cold_white)
+    white = max(parser.get_warm_white() or 0, parser.get_cold_white() or 0)
+    return rgb_to_hue_saturation(r, g, b, white)

@@ -302,7 +302,12 @@ def _openhab_field(
 
 _OPENHAB_STATE = _openhab_field("State", "Switch", on="ON", off="OFF")
 _OPENHAB_BRIGHTNESS = _openhab_field("Brightness", "Dimmer", min=0, max=255, step=1)
-_OPENHAB_HSB = _openhab_field("Color", "Color", colorMode="HSB")
+_OPENHAB_HSB = _openhab_field(
+    "Color",
+    "Color",
+    colorMode="HSB",
+    formatBeforePublish='{"hsb":"%1$d,%2$d,%3$d"}',
+)
 _OPENHAB_EFFECT = _openhab_field("Effect", "String")
 _OPENHAB_EFFECT_CMD = _openhab_field(
     "Effect", "String", allowedStates=",".join(WIZ_EFFECT_LIST)

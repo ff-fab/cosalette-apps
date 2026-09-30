@@ -348,6 +348,72 @@ class TestSuccessfulPoll:
         assert state.desired_state["office"].state == "ON"
         assert state.desired_state["office"].appearance.brightness == 200
 
+    async def test_pre_signal_read_does_not_consume_reconnect_work(self) -> None:
+        """Technique: Regression — a stale in-flight read is not return evidence."""
+
+        class AwaitingAdapter(FakeWizBulbAdapter):
+            def __init__(self) -> None:
+                super().__init__()
+                self.started = asyncio.Event()
+                self.release = asyncio.Event()
+
+            async def get_state(self, ip: str) -> BulbState:
+                self.started.set()
+                await self.release.wait()
+                return await super().get_state(ip)
+
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}],
+            [
+                {
+                    "name": "office-power",
+                    "members": ["office"],
+                    "restore_settle": 3600,
+                }
+            ],
+        )
+        adapter = AwaitingAdapter()
+        expected = BulbState(True, 100, None, None, None, None)
+        state = SharedState(
+            consecutive_failures={"office": 2},
+            phase={"office": "reconnect"},
+            desired_state={"office": _DESIRED_ON},
+            bulb_answered={"office": True},
+            restore_settle_until={"office": time.monotonic() + 3600},
+            restore_settle_state={"office": expected},
+        )
+        enqueue(state.pending_commands, "office", {"state": True}, time.time())
+        pending = state.pending_commands["office"]
+        ctx = FakeDeviceContext(settings=settings)
+        notify = RecordingNotifier()
+
+        tick = asyncio.create_task(
+            bulb_entity_tick(
+                ctx,
+                _config(restore_previous_state=True),
+                adapter,
+                state,
+                None,
+                notify,
+            )
+        )
+        await adapter.started.wait()
+        record_signal(settings, state, "office-power", "off", time.monotonic())
+        adapter.release.set()
+        await tick
+
+        assert adapter.set_state_calls == []
+        assert state.phase["office"] == "reconnect"
+        assert state.pending_commands["office"] is pending
+        assert state.restore_settle_state["office"] is expected
+        assert "office" in state.restore_settle_until
+        assert state.desired_state["office"] is _DESIRED_ON
+        assert state.consecutive_failures["office"] == 2
+        assert state.bulb_answered["office"] is True
+        assert "office" in state.stale_answers
+        assert ctx.availability_calls == ["available"]
+        assert notify.armed == ["office-power"]
+
 
 _DESIRED_OFF = DesiredState(
     state="OFF",
@@ -654,7 +720,7 @@ class TestReturnPath:
         assert ctx.published == []
         assert state.phase["office"] == "steady"
 
-    async def test_three_refused_writes_publishes_error_and_hands_back_authority(
+    async def test_three_refused_writes_publishes_error_and_keeps_intent(
         self,
     ) -> None:
         """Technique: Boundary Value Analysis — exhausts all 3 attempts."""
@@ -676,10 +742,40 @@ class TestReturnPath:
         assert body["error_type"] == RESTORE_UNCONFIRMED
         assert body["attempts"] == 3
         assert "state" in body
-        assert state.phase["office"] == "steady"
-        # Authority hands back to the lamp: desired state now matches its
-        # (unchanged, since every write was refused) actual report.
+        # A boot-state observation is not user intent. Keep the stored value
+        # and leave reconnect armed for a later retry.
+        assert state.desired_state["office"].state == "ON"
+        assert state.phase["office"] == "reconnect"
+
+    async def test_unconfirmed_off_restore_does_not_adopt_boot_state(self) -> None:
+        """A refused OFF restore retains the user intent for the next retry."""
+        adapter = FakeWizBulbAdapter()
+        adapter.inject_push(_IP, BulbState(True, None, None, None, None, None))
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        store = _store({"desired_state": desired_state_to_dict(_DESIRED_OFF)})
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
         assert state.desired_state["office"].state == "OFF"
+        assert state.phase["office"] == "reconnect"
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
+        assert len(adapter.set_state_calls) == 4
+        assert state.phase["office"] == "steady"
 
     async def test_boot_callback_alone_never_triggers_writes_or_publish(
         self,
@@ -1086,6 +1182,29 @@ class TestSignalOff:
         assert adapter.invalidate_cache_calls == [_IP]
         assert "office" not in state.stale_answers
         assert state.phase["office"] == "steady"
+
+    async def test_read_issued_before_signal_off_stays_stale(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """An in-flight read cannot override a later relay-off edge."""
+        clock = [10.0]
+        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(bulb_answered={"office": True})
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        original_get_state = adapter.get_state
+
+        async def read_after_signal(ip: str) -> BulbState:
+            clock[0] = 11.0
+            record_signal(ctx.settings, state, "office-power", "off", clock[0])
+            return await original_get_state(ip)
+
+        monkeypatch.setattr(adapter, "get_state", read_after_signal)
+        result = await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": False} | _idle(reachable=False)
+        assert state.bulb_answered["office"] is True
+        assert state.stale_answers == {"office"}
 
     async def test_failure_after_a_newer_answer_keeps_the_debounce(self) -> None:
         """Technique: State Transition — signal, answer, then one lost read.

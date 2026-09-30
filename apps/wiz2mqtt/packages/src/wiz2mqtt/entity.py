@@ -108,6 +108,7 @@ async def bulb_entity_tick(
     if name in state.stale_answers:
         port.invalidate_cache(config.ip)
     observation_generation = state.desired_state_generation.get(name, 0)
+    issued_at = time.monotonic()
     try:
         bulb_state = await port.get_state(config.ip)
     except WizBridgeError as exc:
@@ -115,7 +116,15 @@ async def bulb_entity_tick(
             ctx, settings, state, store, notify, name, exc
         )
     return await _handle_read_success(
-        ctx, config, port, state, store, notify, bulb_state, observation_generation
+        ctx,
+        config,
+        port,
+        state,
+        store,
+        notify,
+        bulb_state,
+        observation_generation,
+        issued_at,
     )
 
 
@@ -157,15 +166,33 @@ async def _handle_read_success(
     notify: EntityNotifier,
     bulb_state: BulbState,
     observation_generation: int,
+    issued_at: float,
 ) -> dict[str, object] | None:
-    """Record the answer, run the return path if armed, and render the payload."""
+    """Record a post-signal answer, run the return path, and render the payload."""
     name = config.name
     settings = cast(Wiz2MqttSettings, ctx.settings)
+    source = settings.power_source_of(name)
+    signal_at = (
+        state.source_signal_at.get(source.name, float("-inf"))
+        if source is not None
+        else float("-inf")
+    )
+    answered_after_signal = issued_at >= signal_at
     was_unreachable = state.bulb_answered.get(name) is False
-    state.consecutive_failures[name] = 0
-    state.bulb_answered[name] = True
-    state.stale_answers.discard(name)
+    if answered_after_signal:
+        state.consecutive_failures[name] = 0
+        state.bulb_answered[name] = True
+        state.stale_answers.discard(name)
     await _mark_online_once(ctx, state, name)
+    if not answered_after_signal:
+        # The read was issued before the source's latest signal, so it cannot
+        # establish post-signal reachability.  It may still be rendered, but
+        # must not consume reconnect work, settle state, or desired intent.
+        # In particular, leave the stale/evidence markers untouched until a
+        # read issued after that signal answers.
+        belief = _recompute_and_notify(settings, state, notify, name)
+        return _render(settings, state, name, bulb_state, belief)
+
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a
     # boot event) also needs to run the return path when a desired state exists.
@@ -394,10 +421,10 @@ async def _run_return_path(
     desired state applied is already what ``state.desired_state`` holds
     (recorded when the command was issued/stored), so nothing more needs
     writing. On exhaustion, a structured error of ``error_type``
-    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error``,
-    authority hands back to the lamp (the last observed state becomes the
-    new desired state), and the phase still
-    settles to steady — ADR-008 does not retry a return path across ticks.
+    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error`` and
+    the desired state remains authoritative. The reconnect phase stays armed,
+    so a later telemetry tick or boot event retries the return path instead
+    of adopting a boot-state observation.
     Either way the outcome of a write becomes the bulb's ``last_applied``.
 
     The write-and-verify loop invalidates the adapter's cache before each
@@ -430,6 +457,7 @@ async def _run_return_path(
 
     if kwargs is None:
         observed = bulb_state
+        confirmed = True
         intent.record_observation(state, store, name, observed, now)
     else:
         observed, attempts, confirmed = await _write_and_verify(
@@ -443,7 +471,7 @@ async def _run_return_path(
         if not confirmed:
             logger.warning(
                 "Bulb %s: return-path restore unconfirmed after %d attempts; "
-                "handing authority back to the lamp",
+                "retaining desired state for retry",
                 name,
                 attempts,
             )
@@ -457,9 +485,7 @@ async def _run_return_path(
                     }
                 ),
             )
-            intent.record_observation(state, store, name, observed, now)
-
-    if name not in state.pending_commands:
+    if confirmed and name not in state.pending_commands:
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, observed, belief)

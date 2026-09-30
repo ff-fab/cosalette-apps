@@ -156,3 +156,19 @@ The generated `state_cmd` Switch declares `on="ON"` `off="OFF"`, which `formatBe
 
 - `brightness: 0` is no longer a validation error, so a publisher that sends it by mistake switches the bulb off.
 - Things generated before this amendment keep the broken JSON `on`/`off` values until the operator regenerates them.
+
+## Amendment (2026-09-30) — Additive
+
+**Rationale:** The openHAB MQTT binding supplies hue, saturation and brightness as three Integer arguments to a Color channel's formatBeforePublish. The generated JSON envelope used one unindexed placeholder, which String.format filled with hue alone and wiz2mqtt correctly rejected as an invalid hsb command.
+
+### Additional Sub-Decision: openHAB Color channels format the complete HSB triple
+
+The generated hsb_cmd channel declares `formatBeforePublish="{\"hsb\":\"%1$d,%2$d,%3$d\"}"`. The indexed integer placeholders preserve hue, saturation and brightness, including brightness 0 for OFF. Things generated with wiz2mqtt 0.2.8 or earlier must be regenerated.
+
+### Additional Positive Consequences
+
+- openHAB Color commands and Color OFF publish a valid h,s,b triple without manual edits to the generated Things file.
+
+### Additional Negative Consequences
+
+- Existing generated Things keep their one-placeholder HSB format until the operator regenerates them.

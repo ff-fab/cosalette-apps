@@ -243,7 +243,7 @@ topic:
 | ------- | ---- | ------ |
 | `state` / `state_cmd` | `switch`, `on="ON"` `off="OFF"` | read `JSONPATH:$.state`; write `{"state":"%s"}` |
 | `brightness` / `brightness_cmd` | `dimmer`, `min` 0 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
-| `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%s"}` |
+| `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%1$d,%2$d,%3$d"}` |
 | `color_temp` / `color_temp_cmd` | `number`, `min` 2200 `max` 6500 `step` 1, Item label in K | read `JSONPATH:$.color_temp`; write `{"color_temp":%s}` |
 | `effect` / `effect_cmd` | `string`; the command lists the WiZ scenes as `allowedStates` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
 | `effect_speed` / `effect_speed_cmd` | `number`, `min` 10 `max` 200 `step` 1 | read `JSONPATH:$.effect_speed`; write `{"effect_speed":%s}` |
@@ -284,7 +284,7 @@ on `received update`, not on `changed`, to see a repeat of the same error.
 | `wiz_connection` | A `/set` write could not connect. The command is queued like a timeout |
 | `wiz_identity` | The bulb at the configured IP reported another MAC; nothing is queued |
 | `wiz_unsupported_command` | The bulb cannot do what the command asks; nothing is queued |
-| `restore_unconfirmed` | The return path wrote three times and no read-back confirmed it. The lamp keeps its state, which becomes the new desired state. The object also carries `attempts` and the reported `state` |
+| `restore_unconfirmed` | The return path wrote three times and no read-back confirmed it. wiz2mqtt retains the desired state and retries on a later tick or boot event. The object also carries `attempts` and the reported `state` |
 
 A direct `/set` timeout published `wiz_timeout` before the switched-relay
 safeguards; it now publishes `timeout_queued`. Update a rule that matched
@@ -307,7 +307,9 @@ declare no `on`/`off`: openHAB turns OFF into brightness 0
 [brightness 0 as OFF](#brightness-0-means-off). ON on a Dimmer is 100 %
 (`{"brightness":255}`), and on a Color channel it restores the last colour.
 Regenerate Things made before this release: their JSON `on`/`off` values were
-wrapped a second time and rejected.
+wrapped a second time and rejected. Also regenerate Things made with wiz2mqtt
+0.2.8 or earlier: their HSB command channel used only the hue and rejected every
+colour command.
 
 **Hue range.** openHAB's `Color`/HSB type uses hue `0..359`; the Home Assistant
 JSON `color` object uses `0..360`. wiz2mqtt does **no** conversion — the one-unit
