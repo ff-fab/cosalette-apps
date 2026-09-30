@@ -24,7 +24,7 @@ from wiz2mqtt.colour import clamp_kelvin
 from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import WizBridgeError, WizIdentityError
 from wiz2mqtt.models import BulbCapabilities, BulbState
-from wiz2mqtt.payload import build_state_payload
+from wiz2mqtt.payload import build_state_payload, readiness_fields
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -100,7 +100,7 @@ async def bulb_entity_tick(
     belief = power.belief_for_bulb(settings, state, name)
     if _should_skip_read(state, name, belief):
         await _mark_online_once(ctx, state, name)
-        return _desired_state_payload(state, store, name, belief)
+        return _desired_state_payload(settings, state, store, name, belief)
 
     # A push cached before the last signal change is not an answer after it
     # (ADR-007 amendment 2026-09-19): only a poll of the bulb itself clears
@@ -149,7 +149,7 @@ async def _handle_read_failure(
     ):
         await ctx.mark_unavailable()
         state.last_availability[name] = "offline"
-    return _desired_state_payload(state, store, name, belief)
+    return _desired_state_payload(settings, state, store, name, belief)
 
 
 async def _handle_read_success(
@@ -187,11 +187,11 @@ async def _handle_read_success(
         except WizBridgeError:
             state.phase[name] = "steady"
             belief = _recompute_and_notify(settings, state, notify, name)
-            return build_state_payload(bulb_state, belief)
+            return _render(settings, state, name, bulb_state, belief)
     if state.desired_state_generation.get(name, 0) == observation_generation:
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
-    return build_state_payload(bulb_state, belief)
+    return _render(settings, state, name, bulb_state, belief)
 
 
 def _signal_decides_off(
@@ -237,6 +237,7 @@ def _should_skip_read(
 
 
 def _desired_state_payload(
+    settings: Wiz2MqttSettings,
     state: SharedState,
     store: DeviceStore | None,
     name: str,
@@ -246,7 +247,28 @@ def _desired_state_payload(
     desired = intent.resolve_desired_state(state, store, name)
     if desired is None:
         return None
-    return build_state_payload(desired.as_bulb_state(), belief)
+    return _render(settings, state, name, desired.as_bulb_state(), belief)
+
+
+def _render(
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    name: str,
+    bulb_state: BulbState,
+    belief: power.Belief | None,
+) -> dict[str, object]:
+    """Render *bulb_state* plus the bulb's readiness keys.
+
+    ``reachable`` is the belief's own rule-1 evidence for this bulb: it
+    answered, and not before its source's last signal change (ADR-007).
+    """
+    return build_state_payload(bulb_state, belief) | readiness_fields(
+        reachable=state.bulb_answered.get(name, False)
+        and name not in state.stale_answers,
+        pending=state.pending_commands.get(name),
+        ttl=settings.queued_command_ttl,
+        last_applied=state.last_applied.get(name),
+    )
 
 
 def _recompute_and_notify(
@@ -298,6 +320,7 @@ async def _run_return_path(
     ``wiz2mqtt/{bulb}/error``, authority hands back to the lamp (the last
     observed state becomes the new desired state), and the phase still
     settles to steady — ADR-008 does not retry a return path across ticks.
+    Either way the outcome of a write becomes the bulb's ``last_applied``.
 
     The write-and-verify loop invalidates the adapter's cache before each
     read-back so the comparison is always against an authoritative poll,
@@ -325,6 +348,9 @@ async def _run_return_path(
         observed, attempts, confirmed = await _write_and_verify(
             port, config.ip, kwargs, bulb_state
         )
+        state.last_applied[name] = intent.AppliedCommand(
+            kwargs=kwargs, at=time.time(), attempts=attempts, confirmed=confirmed
+        )
         if not confirmed:
             logger.warning(
                 "Bulb %s: return-path restore unconfirmed after %d attempts; "
@@ -343,7 +369,7 @@ async def _run_return_path(
     if name not in state.pending_commands:
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
-    return build_state_payload(observed, belief)
+    return _render(settings, state, name, observed, belief)
 
 
 async def _write_and_verify(

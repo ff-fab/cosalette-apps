@@ -26,6 +26,8 @@ from pydantic import (
     ConfigDict,
     Field,
     PlainSerializer,
+    SerializerFunctionWrapHandler,
+    WrapSerializer,
     field_validator,
     model_validator,
 )
@@ -63,6 +65,19 @@ PowerRequestWire = Literal["on", "off", "__inactive__"]
 
 def _serialize_power_request(value: PowerRequestWire) -> str | None:
     return None if value == POWER_REQUEST_INACTIVE else value
+
+
+NULL_WIRE = "__null__"
+"""Sentinel for an always-present object key whose value is JSON ``null``.
+
+Same trick as :data:`POWERED_UNKNOWN`: ``pending``/``last_applied`` stay
+on the wire as ``null`` so an openHAB Item clears instead of keeping the
+last object (a missing key leaves the Item unchanged).
+"""
+
+
+def _serialize_null_wire(value: object, handler: SerializerFunctionWrapHandler) -> Any:
+    return None if value == NULL_WIRE else handler(value)
 
 
 _KELVIN_MIN = 2200
@@ -168,6 +183,45 @@ _HA_POWER_SENSOR_ENTITY = ha_entity(
 )
 """Composite HA ``sensor`` for live power draw — state-only, so state model only."""
 
+_HA_REACHABLE_ENTITY = ha_entity(
+    component="binary_sensor",
+    name="Reachable",
+    extra={
+        "device_class": "connectivity",
+        "entity_category": "diagnostic",
+        "value_template": "{{ 'ON' if value_json.reachable else 'OFF' }}",
+    },
+)
+"""Composite HA ``binary_sensor``: the bulb itself answered (readiness)."""
+
+_HA_PENDING_ENTITY = ha_entity(
+    component="sensor",
+    name="Pending",
+    extra={
+        "entity_category": "diagnostic",
+        "icon": "mdi:tray-full",
+        "value_template": (
+            "{{ value_json.pending.fields | join(',') "
+            "if value_json.pending else 'none' }}"
+        ),
+    },
+)
+"""Composite HA ``sensor``: the wire fields of the queued command, or ``none``."""
+
+_HA_LAST_APPLIED_ENTITY = ha_entity(
+    component="sensor",
+    name="Last applied",
+    extra={
+        "entity_category": "diagnostic",
+        "icon": "mdi:check-network",
+        "value_template": (
+            "{{ ('confirmed' if value_json.last_applied.confirmed else "
+            "'unconfirmed') if value_json.last_applied else 'none' }}"
+        ),
+    },
+)
+"""Composite HA ``sensor``: the read-back outcome of the last return-path write."""
+
 POWER_SOURCE_ENTITY_MARKER = "x-wiz2mqtt-power-source"
 """Internal ``extra`` key on a power-source composite entity (cap-bjw9.10).
 
@@ -265,6 +319,28 @@ _OPENHAB_EFFECT_SPEED = _openhab_field(
     "Effect speed", "Number", min=_EFFECT_SPEED_MIN, max=_EFFECT_SPEED_MAX, step=1
 )
 _OPENHAB_POWER_DRAW = _openhab_field("Power", "Number", unit="W", read_only=True)
+_OPENHAB_REACHABLE = _openhab_field(
+    "Reachable", "Switch", read_only=True, on="true", off="false"
+)
+
+
+def _openhab_json_string(key: str, label: str) -> dict[str, Any]:
+    """Read-only String channel carrying the raw JSON object, or ``NULL``.
+
+    The filter form renders a JSON ``null`` as ``NULL`` (see
+    :func:`openhab_nullable_switch_params`), so the Item clears.
+    """
+    return _openhab_field(
+        label,
+        "String",
+        read_only=True,
+        transformationPattern=f"JSONPATH:$[?(@.{key} != null)].{key}",
+        nullValue="NULL",
+    )
+
+
+_OPENHAB_PENDING = _openhab_json_string("pending", "Pending")
+_OPENHAB_LAST_APPLIED = _openhab_json_string("last_applied", "Last applied")
 
 
 def openhab_nullable_switch_params(
@@ -431,6 +507,32 @@ class BulbColor(BaseModel):
     b: int = Field(ge=0, le=255)
 
 
+class PendingModel(BaseModel):
+    """``pending``: the queued command a returning bulb will receive (ADR-008)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    fields: list[str]
+    """``/set`` field names the queued write carries."""
+    queued_at: int
+    """Epoch seconds of the newest merged command."""
+    expires_at: int
+    """Epoch seconds after which the return path drops the command."""
+
+
+class LastAppliedModel(BaseModel):
+    """``last_applied``: the bulb's last return-path write (ADR-008)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    at: int
+    """Epoch seconds when the write-and-verify loop finished."""
+    fields: list[str]
+    attempts: int = Field(ge=1)
+    confirmed: bool
+    """Whether the read-back matched the write."""
+
+
 class BulbStateModel(BaseModel):
     """Retained ``{prefix}/{bulb}/state`` payload shape.
 
@@ -458,6 +560,9 @@ class BulbStateModel(BaseModel):
             _HA_LIGHT_ENTITY,
             _HA_POWER_SENSOR_ENTITY,
             _HA_EFFECT_SPEED_ENTITY,
+            _HA_REACHABLE_ENTITY,
+            _HA_PENDING_ENTITY,
+            _HA_LAST_APPLIED_ENTITY,
         ),
     )
 
@@ -492,6 +597,23 @@ class BulbStateModel(BaseModel):
     powered: Annotated[PoweredWire, PlainSerializer(_serialize_powered)]
     """The power-source belief (ADR-007): ``true``/``false``/``null``. No
     default — every publish must set it explicitly (ADR-001 amendment)."""
+    reachable: Annotated[
+        bool | None, Field(default=None, json_schema_extra=_OPENHAB_REACHABLE)
+    ] = None
+    """The bulb itself answered since its source's last signal change —
+    unlike ``powered`` (the circuit) and availability (a fault)."""
+    pending: Annotated[
+        PendingModel | Literal["__null__"],
+        WrapSerializer(_serialize_null_wire),
+        Field(json_schema_extra=_OPENHAB_PENDING),
+    ] = NULL_WIRE
+    """The queued command, ``null`` when nothing is queued."""
+    last_applied: Annotated[
+        LastAppliedModel | Literal["__null__"],
+        WrapSerializer(_serialize_null_wire),
+        Field(json_schema_extra=_OPENHAB_LAST_APPLIED),
+    ] = NULL_WIRE
+    """The last return-path write, ``null`` until the first in this process."""
 
 
 class PowerSourceStateModel(BaseModel):

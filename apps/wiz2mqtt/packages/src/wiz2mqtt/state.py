@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
 if TYPE_CHECKING:
-    from wiz2mqtt.intent import DesiredState, PendingCommand
+    from wiz2mqtt.intent import AppliedCommand, DesiredState, PendingCommand
     from wiz2mqtt.power import Belief, Signal
 
 
@@ -73,6 +73,11 @@ class SharedState:
     """At most one queued command per bulb, set while the bulb cannot be
     reached (ADR-008 feature D); newer fields merge into older intent, with
     a later appearance update superseding queued OFF by turning the bulb on."""
+
+    last_applied: dict[str, AppliedCommand] = field(default_factory=dict)
+    """Each bulb's last return-path write and its read-back outcome
+    (ADR-008), published as ``last_applied``. In memory only, so it is
+    absent again after a restart."""
 
     source_belief: dict[str, Belief] = field(default_factory=dict)
     """Each power source's last-computed belief, refreshed by its own

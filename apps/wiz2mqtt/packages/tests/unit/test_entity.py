@@ -33,7 +33,7 @@ from wiz2mqtt.intent import (
     record_command,
 )
 from wiz2mqtt.main import bulb_set
-from wiz2mqtt.models import POWERED_UNKNOWN, BulbSetCommand, BulbState
+from wiz2mqtt.models import NULL_WIRE, POWERED_UNKNOWN, BulbSetCommand, BulbState
 from wiz2mqtt.power import record_signal
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -158,6 +158,11 @@ async def _tick(
     )
 
 
+def _idle(*, reachable: bool) -> dict[str, object]:
+    """Readiness keys with nothing queued and no return-path write yet."""
+    return {"reachable": reachable, "pending": NULL_WIRE, "last_applied": NULL_WIRE}
+
+
 class TestSuccessfulPoll:
     """A successful get_state() publishes state and signals recovery."""
 
@@ -176,7 +181,9 @@ class TestSuccessfulPoll:
 
         assert ctx.availability_calls == ["available"]
         assert state.last_availability["office"] == "online"
-        assert result == {"state": "OFF", "powered": POWERED_UNKNOWN}
+        assert result == {"state": "OFF", "powered": POWERED_UNKNOWN} | _idle(
+            reachable=True
+        )
 
     async def test_already_online_not_re_marked(self) -> None:
         """Technique: Equivalence Partitioning — dedup of availability calls."""
@@ -711,7 +718,7 @@ class TestFailureDebounce:
             "state": "ON",
             "brightness": 100,
             "powered": POWERED_UNKNOWN,
-        }
+        } | _idle(reachable=False)
 
     async def test_failure_still_publishes_desired_state_past_threshold(self) -> None:
         """Technique: Boundary Value Analysis — offline AND showing desired state."""
@@ -731,7 +738,7 @@ class TestFailureDebounce:
             "state": "ON",
             "brightness": 100,
             "powered": POWERED_UNKNOWN,
-        }
+        } | _idle(reachable=False)
 
 
 class TestWhenUnreachableOff:
@@ -763,7 +770,11 @@ class TestWhenUnreachableOff:
             ctx, _config(), adapter, state, store=_store_with_desired()
         )
 
-        assert result == {"state": "ON", "brightness": 100, "powered": False}
+        assert result == {
+            "state": "ON",
+            "brightness": 100,
+            "powered": False,
+        } | _idle(reachable=False)
 
     async def test_repeated_failures_never_go_offline(self) -> None:
         """Technique: Boundary Value Analysis — well past the 3-failure threshold."""
@@ -792,13 +803,13 @@ class TestWhenUnreachableOff:
 
             assert state.consecutive_failures["office"] == expected_failures
             assert state.bulb_answered["office"] is True
-            assert result == {"state": "OFF", "powered": True}
+            assert result == {"state": "OFF", "powered": True} | _idle(reachable=True)
 
         adapter.fail_next(_IP, WizTimeoutError("boom"))
         result = await _tick(ctx, config, adapter, state)
 
         assert state.bulb_answered["office"] is False
-        assert result == {"state": "OFF", "powered": False}
+        assert result == {"state": "OFF", "powered": False} | _idle(reachable=False)
 
     async def test_when_unreachable_off_already_online_does_not_remark(self) -> None:
         """Technique: Equivalence Partitioning — dedup guard on the off-policy path."""
@@ -892,7 +903,11 @@ class TestWhenUnreachableOff:
 
         result = await _tick(ctx, _config(), adapter, state)
 
-        assert result == {"state": "ON", "brightness": 100, "powered": False}
+        assert result == {
+            "state": "ON",
+            "brightness": 100,
+            "powered": False,
+        } | _idle(reachable=False)
         assert state.last_availability["office"] == "online"
         assert adapter.get_state_call_count == 0
 
@@ -971,7 +986,7 @@ class TestSignalOff:
         result = await _tick(ctx, _config(), adapter, state)
         await _tick(ctx, _config(), adapter, state)
 
-        assert result == {"state": "OFF", "powered": False}
+        assert result == {"state": "OFF", "powered": False} | _idle(reachable=False)
         assert state.consecutive_failures["office"] == _FAILURE_THRESHOLD
         assert adapter.get_state_call_count == 2
         assert ctx.availability_calls == ["available"]
@@ -992,7 +1007,7 @@ class TestSignalOff:
         result = await _tick(ctx, _config(), adapter, state)
         await _tick(ctx, _config(), adapter, state)
 
-        assert result == {"state": "OFF", "powered": True}
+        assert result == {"state": "OFF", "powered": True} | _idle(reachable=True)
         assert adapter.invalidate_cache_calls == [_IP]
         assert "office" not in state.stale_answers
         assert state.phase["office"] == "steady"
@@ -1012,8 +1027,110 @@ class TestSignalOff:
         adapter.fail_next(_IP, WizTimeoutError("boom"))
         result = await _tick(ctx, _config(), adapter, state)
 
-        assert result == {"state": "OFF", "powered": True}
+        assert result == {"state": "OFF", "powered": True} | _idle(reachable=True)
         assert state.consecutive_failures["office"] == 1
+
+
+_QUEUED_BRIGHTNESS = {
+    "state": True,
+    "brightness": 200,
+    "hue": None,
+    "saturation": None,
+    "color_temp_kelvin": None,
+    "scene": None,
+    "speed": None,
+}
+
+
+class TestReadiness:
+    """``reachable``/``pending``/``last_applied`` through a queued command's
+    life: queued while dark, applied on return, confirmed or not (cap-ea7n.3).
+    """
+
+    async def test_queued_command_is_pending_while_the_bulb_is_dark(self) -> None:
+        """Technique: State Transition — queued, not yet applied."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        enqueue(state.pending_commands, "office", _QUEUED_BRIGHTNESS, 1000.0)  # type: ignore[arg-type]
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+
+        result = await _tick(
+            FakeDeviceContext(), _config(), adapter, state, store=_store_with_desired()
+        )
+
+        assert result is not None
+        assert result["reachable"] is False
+        assert result["pending"] == {
+            "fields": ["state", "brightness"],
+            "queued_at": 1000,
+            "expires_at": 1000 + 86400,
+        }
+        assert result["last_applied"] == NULL_WIRE
+
+    async def test_confirmed_return_path_clears_pending_into_last_applied(
+        self,
+    ) -> None:
+        """Technique: State Transition — pending → applied, read back once."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        enqueue(state.pending_commands, "office", _QUEUED_BRIGHTNESS, time.time())  # type: ignore[arg-type]
+
+        result = await _tick(
+            FakeDeviceContext(), _config(), adapter, state, store=_store_with_desired()
+        )
+
+        assert result is not None
+        assert result["reachable"] is True
+        assert result["pending"] == NULL_WIRE
+        applied = result["last_applied"]
+        assert isinstance(applied, dict)
+        assert applied["fields"] == ["state", "brightness"]
+        assert (applied["attempts"], applied["confirmed"]) == (1, True)
+        assert abs(applied["at"] - time.time()) <= 1
+
+    async def test_refused_return_path_is_last_applied_unconfirmed(self) -> None:
+        """Technique: Boundary Value Analysis — all three attempts refused."""
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+
+        result = await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert result is not None
+        applied = result["last_applied"]
+        assert isinstance(applied, dict)
+        assert (applied["attempts"], applied["confirmed"]) == (3, False)
+
+    async def test_answer_older_than_the_signal_is_not_reachable(self) -> None:
+        """Technique: Branch Coverage — answered, but before the signal off.
+
+        The belief discards a stale answer (ADR-007 amendment 2026-09-19),
+        so ``reachable`` must not report it either.
+        """
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            bulb_answered={"office": True},
+            stale_answers={"office"},
+            consecutive_failures={"office": _FAILURE_THRESHOLD},
+            source_signal={"office-power": "off"},
+            phase={"office": "steady"},
+        )
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+
+        result = await _tick(
+            ctx, _config(), adapter, state, store=_store_with_desired()
+        )
+
+        assert adapter.get_state_call_count == 0
+        assert result == {"state": "ON", "brightness": 100, "powered": False} | _idle(
+            reachable=False
+        )
 
 
 class TestBootCallback:

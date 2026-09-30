@@ -5,14 +5,17 @@ Test Techniques Used:
 - Decision Table: color_mode selection (cct / rgb / plain on-off)
 - Equivalence Partitioning: optional-field presence per known/unknown value
 - Boundary Value Analysis: hsb dimming-percent rounding at brightness extremes
+- Decision Table: readiness keys for queued/applied/absent commands
 """
 
 from __future__ import annotations
 
 import dataclasses
 
-from wiz2mqtt.models import POWERED_UNKNOWN, BulbState
-from wiz2mqtt.payload import build_state_payload
+from wiz2mqtt.commands import SetStateKwargs
+from wiz2mqtt.intent import AppliedCommand, PendingCommand
+from wiz2mqtt.models import NULL_WIRE, POWERED_UNKNOWN, BulbState
+from wiz2mqtt.payload import build_state_payload, command_wire_fields, readiness_fields
 
 _EMPTY = BulbState(
     state=None,
@@ -263,3 +266,100 @@ class TestPowered:
             dumped = adapter.dump_python(validated, mode="json", exclude_none=True)
             assert "powered" in dumped
             assert dumped["powered"] == expected
+
+
+# ---------------------------------------------------------------------------
+# Readiness keys — reachable / pending / last_applied (cap-ea7n.3)
+# ---------------------------------------------------------------------------
+
+
+def _kwargs(**overrides: object) -> SetStateKwargs:
+    base: SetStateKwargs = {
+        "state": None,
+        "brightness": None,
+        "hue": None,
+        "saturation": None,
+        "color_temp_kelvin": None,
+        "scene": None,
+        "speed": None,
+    }
+    return base | overrides  # type: ignore[return-value]
+
+
+class TestCommandWireFields:
+    """``set_state`` kwargs map to the ``/set`` field names a consumer sends."""
+
+    def test_hue_and_saturation_collapse_into_hsb(self) -> None:
+        """Technique: Specification-based — one wire field per kwarg pair."""
+        kwargs = _kwargs(state=True, hue=120.0, saturation=50.0, brightness=10)
+        assert command_wire_fields(kwargs) == ["state", "brightness", "hsb"]
+
+    def test_renames_kelvin_scene_and_speed(self) -> None:
+        """Technique: Equivalence Partitioning — the renamed kwargs."""
+        kwargs = _kwargs(color_temp_kelvin=3000, scene=6, speed=100)
+        assert command_wire_fields(kwargs) == ["color_temp", "effect", "effect_speed"]
+
+    def test_all_none_is_empty(self) -> None:
+        """Technique: Boundary Value Analysis — nothing to write."""
+        assert command_wire_fields(_kwargs()) == []
+
+
+class TestReadinessFields:
+    """``readiness_fields`` — always three keys, ``null`` when nothing to say."""
+
+    def test_idle_bulb_renders_null_pending_and_last_applied(self) -> None:
+        """Technique: Specification-based — keys present, values null."""
+        fields = readiness_fields(
+            reachable=True, pending=None, ttl=300.0, last_applied=None
+        )
+        assert fields == {
+            "reachable": True,
+            "pending": NULL_WIRE,
+            "last_applied": NULL_WIRE,
+        }
+
+    def test_pending_lists_fields_and_expiry(self) -> None:
+        """Technique: Boundary Value Analysis — expiry is queue time plus TTL."""
+        pending = PendingCommand(
+            kwargs=_kwargs(state=True, brightness=40), queued_at=1000.4
+        )
+        fields = readiness_fields(
+            reachable=False, pending=pending, ttl=300.0, last_applied=None
+        )
+        assert fields["pending"] == {
+            "fields": ["state", "brightness"],
+            "queued_at": 1000,
+            "expires_at": 1300,
+        }
+
+    def test_queued_off_lists_only_state(self) -> None:
+        """A queued OFF keeps its appearance for a later ON but writes only state.
+
+        Technique: Error Guessing — listing the kept appearance would promise
+        a write the return path never makes.
+        """
+        pending = PendingCommand(
+            kwargs=_kwargs(state=False, brightness=40, scene=6), queued_at=0.0
+        )
+        fields = readiness_fields(
+            reachable=False, pending=pending, ttl=60.0, last_applied=None
+        )
+        assert fields["pending"]["fields"] == ["state"]  # type: ignore[index]
+
+    def test_last_applied_carries_outcome(self) -> None:
+        """Technique: Specification-based — the return-path write's result."""
+        applied = AppliedCommand(
+            kwargs=_kwargs(state=True, color_temp_kelvin=2700),
+            at=2000.6,
+            attempts=2,
+            confirmed=False,
+        )
+        fields = readiness_fields(
+            reachable=True, pending=None, ttl=300.0, last_applied=applied
+        )
+        assert fields["last_applied"] == {
+            "at": 2001,
+            "fields": ["state", "color_temp"],
+            "attempts": 2,
+            "confirmed": False,
+        }

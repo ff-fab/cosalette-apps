@@ -179,9 +179,10 @@ def test_power_source_generation(tmp_path: Path) -> None:
     # Error comes on every bulb, beside Powered or without it.
     for bulb in ("Desk", "LivingRoom", "Hall"):
         assert f"String  Wiz2Mqtt_{bulb}_Error " in output, bulb
-    # The belief's "unknown" and a JSON null both reach openHAB as NULL.
+    # The belief's "unknown" and a JSON null both reach openHAB as NULL:
+    # two Powered bulbs and power_request, plus pending/last_applied per bulb.
     assert output.count('nullValue="unknown"') == 1
-    assert output.count('nullValue="NULL"') == 3
+    assert output.count('nullValue="NULL"') == 3 + 2 * _BULBS.count("[[bulbs]]")
     assert "JSONPATH:$[?(@.power_request != null)].power_request" in output
     # Read-only: no command channel on the source, so no relay mapping.
     assert 'commandTopic="wiz2mqtt/circuit/' not in output
@@ -190,10 +191,14 @@ def test_power_source_generation(tmp_path: Path) -> None:
 
 
 def test_no_power_source_generates_no_powered_output(tmp_path: Path) -> None:
-    """Without a source no bulb gets a Powered channel, Item or null mapping."""
+    """Without a source no bulb gets a Powered channel, Item or null mapping.
+
+    The only null mappings left are each bulb's pending and last_applied.
+    """
     output = _generate(tmp_path, _BULBS)
     assert "powered" not in output.lower()
-    assert "nullValue" not in output
+    assert 'nullValue="unknown"' not in output
+    assert output.count("nullValue=") == 2 * _BULBS.count("[[bulbs]]")
 
 
 def _channel(output: str, local: str) -> str:
@@ -212,16 +217,22 @@ def test_bulb_channels_cover_commands_and_diagnostics(tmp_path: Path) -> None:
         ("effect_cmd", 'allowedStates="Alarm,'),
         ("power_draw_w", "JSONPATH:$.power_draw_w"),
         ("error", 'stateTopic="wiz2mqtt/desk/error"'),
+        ("reachable", 'on="true"'),
+        ("pending", "JSONPATH:$[?(@.pending != null)"),
+        ("last_applied", "JSONPATH:$[?(@.last_applied != null)"),
     ]:
         assert needle in _channel(output, local), local
-    assert "commandTopic" not in _channel(output, "power_draw_w")
-    assert "commandTopic" not in _channel(output, "error")
-    assert "power_draw_w_cmd" not in output
+    for read_only in ("power_draw_w", "error", "reachable", "pending", "last_applied"):
+        assert "commandTopic" not in _channel(output, read_only), read_only
+        assert f"{read_only}_cmd" not in output, read_only
     assert output.count(':error"') == _BULBS.count("[[bulbs]]")
     for item in [
         'Number  Wiz2Mqtt_Desk_ColorTemp_Cmd  "Color temperature [%s K]"',
         'Number  Wiz2Mqtt_Desk_PowerDrawW  "Power [%s W]"',
         'String  Wiz2Mqtt_Desk_Error  "Error [%s]"',
+        'Switch  Wiz2Mqtt_Desk_Reachable  "Reachable [%s]"',
+        'String  Wiz2Mqtt_Desk_Pending  "Pending [%s]"',
+        'String  Wiz2Mqtt_Desk_LastApplied  "Last applied [%s]"',
     ]:
         assert item in output, item
 

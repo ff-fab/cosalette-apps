@@ -20,6 +20,7 @@ import pytest
 from pydantic import ValidationError
 
 from wiz2mqtt.models import (
+    NULL_WIRE,
     POWER_REQUEST_INACTIVE,
     WIZ_EFFECT_LIST,
     BulbSetCommand,
@@ -597,14 +598,21 @@ class TestHaDiscoveryMetadata:
     generator (and ``app.discovery()``) turn into per-bulb HA entities.
     """
 
-    def test_models_state_model_declares_light_sensor_number(self) -> None:
-        """The state payload spans a light plus a power sensor and speed number.
+    def test_models_state_model_declares_light_and_diagnostics(self) -> None:
+        """The state payload spans a light, power sensor, speed and readiness.
 
-        Technique: Specification-based — the three per-bulb components the
-        state topic feeds .
+        Technique: Specification-based — the per-bulb components the state
+        topic feeds: light, power, speed, then reachable/pending/last_applied.
         """
         components = [e["component"] for e in _ha_entities(BulbStateModel)]
-        assert components == ["light", "sensor", "number"]
+        assert components == [
+            "light",
+            "sensor",
+            "number",
+            "binary_sensor",
+            "sensor",
+            "sensor",
+        ]
 
     def test_models_set_command_declares_light_and_number_only(self) -> None:
         """The command payload has no read-only power sensor — light + number.
@@ -854,3 +862,74 @@ class TestPowerSourceStateModel:
             PowerSourceStateModel.model_validate(
                 {"powered": "unknown", "power_request": None, "members": []}
             )
+
+
+class TestReadinessFields:
+    """``reachable``/``pending``/``last_applied`` on the bulb state (cap-ea7n.3)."""
+
+    _PENDING = {"fields": ["state", "brightness"], "queued_at": 100, "expires_at": 400}
+    _APPLIED = {"at": 500, "fields": ["state"], "attempts": 1, "confirmed": True}
+
+    def _dump(self, **fields: object) -> dict[str, object]:
+        model = BulbStateModel.model_validate(
+            {"state": "ON", "powered": True, **fields}
+        )
+        return model.model_dump(mode="json", exclude_none=True)
+
+    def test_absent_pending_and_last_applied_serialize_as_null(self) -> None:
+        """The keys stay on the wire as ``null`` so openHAB clears its Items.
+
+        Technique: Error Guessing — ``exclude_none`` would otherwise drop the
+        keys and leave a consumer holding the previous command.
+        """
+        dumped = self._dump(pending=NULL_WIRE, last_applied=NULL_WIRE)
+        assert dumped["pending"] is None
+        assert dumped["last_applied"] is None
+
+    def test_present_readiness_round_trips(self) -> None:
+        """Technique: Round-trip Testing — objects pass through unchanged."""
+        dumped = self._dump(
+            reachable=False, pending=self._PENDING, last_applied=self._APPLIED
+        )
+        assert dumped["reachable"] is False
+        assert dumped["pending"] == self._PENDING
+        assert dumped["last_applied"] == self._APPLIED
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("pending", None),
+            ("pending", {**_PENDING, "extra": 1}),
+            ("last_applied", {**_APPLIED, "attempts": 0}),
+        ],
+    )
+    def test_rejects_malformed_readiness(self, field: str, value: object) -> None:
+        """Technique: Error Guessing — raw ``null``, unknown keys, zero attempts."""
+        with pytest.raises(ValidationError):
+            self._dump(**{field: value})
+
+    @pytest.mark.parametrize(
+        ("name", "value_json", "rendered"),
+        [
+            ("Reachable", {"reachable": True}, "ON"),
+            ("Reachable", {"reachable": False}, "OFF"),
+            ("Pending", {"pending": None}, "none"),
+            ("Pending", {"pending": _PENDING}, "state,brightness"),
+            ("Last applied", {"last_applied": None}, "none"),
+            ("Last applied", {"last_applied": _APPLIED}, "confirmed"),
+            (
+                "Last applied",
+                {"last_applied": {**_APPLIED, "confirmed": False}},
+                "unconfirmed",
+            ),
+        ],
+    )
+    def test_ha_templates_render_every_state(
+        self, name: str, value_json: dict[str, object], rendered: str
+    ) -> None:
+        """Technique: Equivalence Partitioning — one case per wire state."""
+        entity = next(e for e in _ha_entities(BulbStateModel) if e.get("name") == name)
+        template = jinja2.Environment(autoescape=True).from_string(
+            entity["extra"]["value_template"]
+        )
+        assert template.render(value_json=value_json) == rendered
