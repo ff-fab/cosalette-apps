@@ -55,6 +55,16 @@ stale, or lets stale cache entries publish unchallenged. Hardware
 verification confirms this fallback in the app ADRs.
 """
 
+_TICK_TIMEOUT_SECONDS = 180.0
+"""Per-tick backstop, above the slowest return path a tick can run.
+
+The implicit default equals the 60 s interval, which a return path can
+exceed: one 13 s pywizlight read, then three write-and-read-back attempts
+of up to 26 s each, plus up to 60 s of ``restore_retry_delays``, is 151 s.
+A timeout would cancel the tick halfway through a restore and publish a
+bare ``TimeoutError`` instead of ``restore_unconfirmed``.
+"""
+
 
 app = cosalette.App(
     name="wiz2mqtt",
@@ -194,6 +204,7 @@ def shared_state() -> SharedState:
     # bulb_entity_tick deliberately debounces reachability over three failures.
     unavailable_on=None,
     interval=_TICK_INTERVAL_SECONDS,
+    timeout=_TICK_TIMEOUT_SECONDS,
     # cosalette ADR-064: "local" subscribes no MQTT trigger topic — the only
     # arming path is WizBulbAdapter's push callback calling EntityNotifier.
     # A push therefore publishes through this same handler, with the same
