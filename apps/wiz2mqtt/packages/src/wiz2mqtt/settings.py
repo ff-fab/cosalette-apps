@@ -28,6 +28,10 @@ _SIGNAL_TOPIC_RE = re.compile(r"^[A-Za-z0-9_./:-]+$")
 _APP_NAME = "wiz2mqtt"
 """The topic prefix cosalette falls back to when ``mqtt.topic_prefix`` is unset."""
 
+RetryDelays = Annotated[list[Annotated[float, Field(ge=0, le=30)]], Field(max_length=2)]
+"""Seconds to wait before the 2nd and 3rd return-path write attempt (ADR-008);
+the last value repeats and an empty list retries immediately."""
+
 
 class BulbConfig(BaseModel):
     """Configuration for a single WiZ bulb.
@@ -219,6 +223,14 @@ class PowerSourceConfig(BaseModel):
         description=(
             "Seconds a command queued for this source's member bulbs stays valid. "
             "Unset falls back to the top-level value (ADR-008)."
+        ),
+    )
+    restore_retry_delays: RetryDelays | None = Field(
+        default=None,
+        description=(
+            "Seconds to wait before the 2nd and 3rd return-path write attempt "
+            "of this source's member bulbs. Unset falls back to the top-level "
+            "value (ADR-008)."
         ),
     )
 
@@ -549,6 +561,14 @@ class Wiz2MqttSettings(cosalette.Settings):
             "later replay or restore consumes a queued command."
         ),
     )
+    restore_retry_delays: RetryDelays = Field(
+        default=[2.0, 5.0],
+        description=(
+            "Seconds to wait before the 2nd and 3rd return-path write attempt "
+            "(ADR-008). The last value repeats; [] retries immediately. A power "
+            "source may override it."
+        ),
+    )
     _power_sources_by_bulb: dict[str, PowerSourceConfig | None] = PrivateAttr(
         default_factory=dict
     )
@@ -660,6 +680,13 @@ class Wiz2MqttSettings(cosalette.Settings):
             source.queued_command_ttl if source else None,
         )
         return next((t for t in overrides if t is not None), self.queued_command_ttl)
+
+    def restore_retry_delays_for(self, bulb_name: str) -> list[float]:
+        """The return-path retry delays of *bulb_name*: power source, then global."""
+        source = self.power_source_of(bulb_name)
+        if source is not None and source.restore_retry_delays is not None:
+            return source.restore_retry_delays
+        return self.restore_retry_delays
 
     def bulbs_for_power_source(self, source_name: str) -> list[str]:
         """Return the bulb names resolving to power source *source_name*.

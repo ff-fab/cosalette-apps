@@ -13,7 +13,7 @@ import dataclasses
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Annotated, cast
 
 import cosalette
@@ -422,12 +422,14 @@ async def _run_return_path(
     detected this return — becomes the new desired state and the phase
     settles to steady without touching the wire.
 
-    A write is read back and retried up to three attempts total
-    (:func:`_write_and_verify`). On success the pending command or stored
-    desired state applied is already what ``state.desired_state`` holds
-    (recorded when the command was issued/stored), so nothing more needs
-    writing. On exhaustion, a structured error of ``error_type``
-    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error`` and
+    A write is read back and retried up to three attempts total, spaced by
+    the bulb's ``restore_retry_delays`` (:func:`_write_and_verify`). On
+    success the pending command or stored desired state applied is already
+    what ``state.desired_state`` holds (recorded when the command was
+    issued/stored), so nothing more needs writing. On exhaustion, a
+    structured error of ``error_type`` ``restore_unconfirmed`` is published
+    to ``wiz2mqtt/{bulb}/error`` with one ``attempt_results`` entry per
+    attempt, and
     the desired state remains authoritative. The reconnect phase stays armed,
     so a later telemetry tick or boot event retries the return path instead
     of adopting a boot-state observation.
@@ -466,9 +468,15 @@ async def _run_return_path(
         confirmed = True
         intent.record_observation(state, store, name, observed, now)
     else:
-        observed, attempts, confirmed = await _write_and_verify(
-            port, config.ip, kwargs, bulb_state
+        observed, results, confirmed = await _write_and_verify(
+            port,
+            config.ip,
+            kwargs,
+            bulb_state,
+            delays=settings.restore_retry_delays_for(name),
+            sleep=ctx.sleep,
         )
+        attempts = len(results)
         state.last_applied[name] = intent.AppliedCommand(
             kwargs=kwargs, at=time.time(), attempts=attempts, confirmed=confirmed
         )
@@ -487,6 +495,7 @@ async def _run_return_path(
                     {
                         "error_type": RESTORE_UNCONFIRMED,
                         "attempts": attempts,
+                        "attempt_results": results,
                         "state": dataclasses.asdict(observed),
                     }
                 ),
@@ -528,34 +537,61 @@ def _start_restore_settle(
 
 
 async def _write_and_verify(
-    port: WizBulbPort, ip: str, kwargs: SetStateKwargs, fallback: BulbState
-) -> tuple[BulbState, int, bool]:
+    port: WizBulbPort,
+    ip: str,
+    kwargs: SetStateKwargs,
+    fallback: BulbState,
+    *,
+    delays: Sequence[float] = (),
+    sleep: Callable[[float], Awaitable[None]] | None = None,
+) -> tuple[BulbState, list[str], bool]:
     """Write *kwargs*, read back, retry until it matches or attempts run out.
 
-    Returns the last-observed state, the attempt count used (1-3), and
-    whether that last read-back confirmed the write. Transport errors
-    (``WizBridgeError``) count as failed attempts; on exhaustion the
-    *fallback* state is returned so the caller's error handler has
+    Returns the last-observed state, one result per attempt used (1-3):
+    ``"confirmed"``, ``"mismatch"`` or the transport error's class name, and
+    whether the last read-back confirmed the write. *sleep* waits
+    ``delays[i]`` before attempt ``i + 2``; the last delay repeats, so a
+    bulb still booting gets time to apply the write. Transport errors
+    (``WizBridgeError``) count as failed attempts; when none read back,
+    the *fallback* state is returned so the caller's error handler has
     something to publish.  The adapter's cache is invalidated before each
     read-back so the comparison sees an authoritative poll, not the
     optimistic merge ``set_state`` applied.
     """
     caps = await port.get_capabilities(ip)
-    last_observed = fallback
+    observed = fallback
+    results: list[str] = []
     for attempt in range(1, _MAX_WRITE_ATTEMPTS + 1):
+        if attempt > 1 and delays and sleep is not None:
+            await sleep(delays[min(attempt - 2, len(delays) - 1)])
         try:
             await port.set_state(ip, **kwargs)
             port.invalidate_cache(ip)
             observed = await port.get_state(ip)
-        except WizBridgeError:
-            if attempt == _MAX_WRITE_ATTEMPTS:
-                return last_observed, attempt, False
+        except WizBridgeError as exc:
+            results.append(type(exc).__name__)
+            logger.info(
+                "Bulb at %s: write attempt %d/%d failed: %s",
+                ip,
+                attempt,
+                _MAX_WRITE_ATTEMPTS,
+                results[-1],
+            )
             continue
-        last_observed = observed
-        confirmed = _kwargs_match_observed(kwargs, observed, caps)
-        if confirmed or attempt == _MAX_WRITE_ATTEMPTS:
-            return observed, attempt, confirmed
-    raise AssertionError("unreachable: _MAX_WRITE_ATTEMPTS >= 1")
+        if _kwargs_match_observed(kwargs, observed, caps):
+            results.append("confirmed")
+            logger.debug("Bulb at %s: write attempt %d confirmed", ip, attempt)
+            return observed, results, True
+        results.append("mismatch")
+        logger.info(
+            "Bulb at %s: write attempt %d/%d not confirmed: wrote %s, read %s",
+            ip,
+            attempt,
+            _MAX_WRITE_ATTEMPTS,
+            kwargs,
+            observed,
+        )
+    return observed, results, False
 
 
 def _kwargs_match_observed(

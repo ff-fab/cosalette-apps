@@ -50,6 +50,8 @@ class FakeDeviceContext:
     ADR-008 return-path error published to the ``"error"`` sub-channel."""
     settings: Wiz2MqttSettings = field(default_factory=_default_settings)
     """Backs ``ctx.settings`` — override to exercise power-source resolution."""
+    slept: list[float] = field(default_factory=list)
+    """Seconds passed to :meth:`sleep`, in call order; no real time passes."""
 
     async def publish_state(
         self, payload: dict[str, object], *, retain: bool = True
@@ -62,6 +64,10 @@ class FakeDeviceContext:
     ) -> None:  # noqa: ARG002 — retain/qos unused, mirrors DeviceContext signature
         """Record a publish to an arbitrary sub-channel."""
         self.published.append((channel, payload))
+
+    async def sleep(self, seconds: float) -> None:
+        """Record a shutdown-aware sleep without waiting."""
+        self.slept.append(seconds)
 
     async def mark_unavailable(self) -> None:
         """Record an unavailable marker."""

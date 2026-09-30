@@ -217,6 +217,9 @@ it has no better evidence (no answering member and no signal).
 - A `/set` that times out publishes `error_type: "timeout_queued"`. The command is
   still in the queue. If the return path cannot confirm the write after three
   attempts, the error carries `error_type: "restore_unconfirmed"`.
+- `restore_retry_delays` (top level or per power source, default `[2.0, 5.0]`) spaces
+  the three attempts, so a bulb that answers before its firmware applies writes still
+  confirms on the second or third attempt.
 
 ### Switched relays
 

@@ -116,6 +116,7 @@ wiz_bulbs_only = true
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
 | `boot_grace` | no | Seconds after the signal turns `on` in which a member bulb is expected to still be booting. Until the bulb answers, a command is queued without a wire attempt and a failed read does not count towards `offline`. Needs a `signal_topic`; `0` switches the window off (default `0`) |
 | `restore_settle` | no | Seconds after a confirmed return-path restore in which a conflicting bulb observation is restored again instead of becoming the new desired state. Use `0` to permit immediate adoption (default `15`) |
+| `restore_retry_delays` | no | Seconds to wait before the second and third return-path write to a member bulb. Wins over the top-level value (see [Command Queueing](#command-queueing)) |
 | `clear_queue_on_power_off` | no | Drop the members' queued commands when the signal changes from `on` to `off`. A command queued while the signal is already `off` survives, so "command, then power on" still works (default `false`) |
 | `queued_command_ttl` | no | Seconds a command queued for a member bulb stays valid. Wins over the top-level value; a bulb's own value wins over it (see [Command Queueing](#command-queueing)) |
 
@@ -225,6 +226,8 @@ the broker by itself.
 | ------- | --------------------- | ------- | ----------- |
 | `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | How long a command queued for an unreachable bulb stays valid (ADR-008). The TTL applies when the bulb returns and the queued command is replayed; an older command is dropped with a log line. |
 
+| `restore_retry_delays` | `WIZ2MQTT_RESTORE_RETRY_DELAYS` | `[2.0, 5.0]` (seconds) | How long the return path waits before its second and third write attempt, so a bulb that is still booting gets time to apply the write (ADR-008). At most two values from `0` to `30`; the last value repeats, and `[]` retries at once. |
+
 A bulb's TTL resolves in order: the bulb's own `queued_command_ttl`, then its
 power source's, then this top-level value. Only the top-level value has an
 environment variable. Set a short override on a switched circuit whose
@@ -246,6 +249,13 @@ boot_grace = 20
 clear_queue_on_power_off = true
 queued_command_ttl = 600
 ```
+
+A power source's own `restore_retry_delays` wins over the top-level value.
+The environment variable takes a JSON list, for example
+`WIZ2MQTT_RESTORE_RETRY_DELAYS='[2, 5]'`. A delay holds only that bulb's
+tick, and a command that arrives meanwhile is queued. Each attempt logs one
+line: `INFO` with the exception class or the written and read-back values
+when it fails, `DEBUG` when it confirms.
 
 A `/set` that times out on the wire publishes `error_type` `timeout_queued`
 on `wiz2mqtt/{bulb}/error`: the command is not lost, it waits in the queue

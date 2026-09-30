@@ -794,6 +794,104 @@ class TestReturnPath:
         assert ctx.published == []
 
 
+class _TimeoutOnFirstWrite(FakeWizBulbAdapter):
+    """Fake whose first ``set_state`` raises a transport error."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.failed = False
+
+    async def set_state(self, ip: str, **kwargs: object) -> None:  # type: ignore[override]
+        if not self.failed:
+            self.failed = True
+            raise WizTimeoutError("write lost")
+        await super().set_state(ip, **kwargs)  # type: ignore[arg-type]
+
+
+class TestRestoreRetrySpacing:
+    """ADR-008 return-path retries wait ``restore_retry_delays`` between
+    attempts and account for every attempt.
+
+    Technique: Boundary Value Analysis — 0, 1 and 3 failed attempts;
+    Equivalence Partitioning — mismatch vs. transport error results.
+    """
+
+    async def _restore(
+        self,
+        adapter: FakeWizBulbAdapter,
+        settings: Wiz2MqttSettings | None = None,
+    ) -> FakeDeviceContext:
+        ctx = FakeDeviceContext(settings=settings or _settings_with_office())
+        state = SharedState(phase={"office": "reconnect"})
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+        return ctx
+
+    async def test_first_attempt_confirmed_never_sleeps(self) -> None:
+        ctx = await self._restore(FakeWizBulbAdapter())
+
+        assert ctx.slept == []
+
+    async def test_one_refused_write_waits_first_delay_then_confirms(self) -> None:
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 1)
+
+        ctx = await self._restore(adapter)
+
+        assert ctx.slept == [2.0]
+        assert len(adapter.set_state_calls) == 2
+        assert ctx.published == []
+
+    async def test_exhausted_restore_reports_each_attempt(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+
+        with caplog.at_level("INFO", logger="wiz2mqtt.entity"):
+            ctx = await self._restore(adapter)
+
+        assert ctx.slept == [2.0, 5.0]
+        body = json.loads(ctx.published[0][1])
+        assert body["attempt_results"] == ["mismatch"] * 3
+        assert len(body["attempt_results"]) == body["attempts"]
+        assert caplog.text.count("not confirmed: wrote") == 3
+
+    async def test_transport_error_is_logged_and_reported(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Technique: Error Guessing — a lost write was silent before."""
+        adapter = _TimeoutOnFirstWrite()
+
+        with caplog.at_level("INFO", logger="wiz2mqtt.entity"):
+            ctx = await self._restore(adapter)
+
+        assert "write attempt 1/3 failed: WizTimeoutError" in caplog.text
+        assert ctx.slept == [2.0]
+        assert ctx.published == []
+
+    @pytest.mark.parametrize(("delays", "expected"), [([], []), ([3.0], [3.0, 3.0])])
+    async def test_empty_list_retries_at_once_and_last_delay_repeats(
+        self, delays: list[float], expected: list[float]
+    ) -> None:
+        """Technique: Boundary Value Analysis — list lengths 0 and 1."""
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}], restore_retry_delays=delays
+        )
+
+        ctx = await self._restore(adapter, settings)
+
+        assert ctx.slept == expected
+        assert len(adapter.set_state_calls) == 3
+
+
 class TestFailureDebounce:
     """Failures accumulate; only the 3rd consecutive failure goes offline."""
 

@@ -856,3 +856,39 @@ class TestQueuedCommandTtlFor:
 
     def test_bulb_outside_the_source_uses_the_global(self) -> None:
         assert self._settings(None, 120.0).queued_command_ttl_for("b") == 86400.0
+
+
+class TestRestoreRetryDelays:
+    """Technique: Boundary Value Analysis and Decision Table — the retry
+    delay list's bounds, then power source before global."""
+
+    def test_defaults_to_two_and_five_seconds(self) -> None:
+        settings = build_settings([{"name": "a", "ip": "10.0.0.1"}])
+
+        assert settings.restore_retry_delays_for("a") == [2.0, 5.0]
+
+    @pytest.mark.parametrize("delays", [[], [0.0], [30.0, 30.0]])
+    def test_accepts_bounds(self, delays: list[float]) -> None:
+        settings = build_settings(
+            [{"name": "a", "ip": "10.0.0.1"}], restore_retry_delays=delays
+        )
+
+        assert settings.restore_retry_delays == delays
+
+    @pytest.mark.parametrize("delays", [[-0.1], [30.1], [1.0, 2.0, 3.0]])
+    def test_rejects_out_of_bounds(self, delays: list[float]) -> None:
+        with pytest.raises(ValidationError):
+            build_settings(
+                [{"name": "a", "ip": "10.0.0.1"}],
+                [{"name": "up", "members": ["a"], "restore_retry_delays": delays}],
+            )
+
+    def test_power_source_overrides_global(self) -> None:
+        settings = build_settings(
+            [{"name": "a", "ip": "10.0.0.1"}, {"name": "b", "ip": "10.0.0.2"}],
+            [{"name": "up", "members": ["a"], "restore_retry_delays": [1.0]}],
+            restore_retry_delays=[],
+        )
+
+        assert settings.restore_retry_delays_for("a") == [1.0]
+        assert settings.restore_retry_delays_for("b") == []
