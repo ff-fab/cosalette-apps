@@ -654,7 +654,7 @@ class TestReturnPath:
         assert ctx.published == []
         assert state.phase["office"] == "steady"
 
-    async def test_three_refused_writes_publishes_error_and_hands_back_authority(
+    async def test_three_refused_writes_publishes_error_and_keeps_intent(
         self,
     ) -> None:
         """Technique: Boundary Value Analysis — exhausts all 3 attempts."""
@@ -676,10 +676,40 @@ class TestReturnPath:
         assert body["error_type"] == RESTORE_UNCONFIRMED
         assert body["attempts"] == 3
         assert "state" in body
-        assert state.phase["office"] == "steady"
-        # Authority hands back to the lamp: desired state now matches its
-        # (unchanged, since every write was refused) actual report.
+        # A boot-state observation is not user intent. Keep the stored value
+        # and leave reconnect armed for a later retry.
+        assert state.desired_state["office"].state == "ON"
+        assert state.phase["office"] == "reconnect"
+
+    async def test_unconfirmed_off_restore_does_not_adopt_boot_state(self) -> None:
+        """A refused OFF restore retains the user intent for the next retry."""
+        adapter = FakeWizBulbAdapter()
+        adapter.inject_push(_IP, BulbState(True, None, None, None, None, None))
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        store = _store({"desired_state": desired_state_to_dict(_DESIRED_OFF)})
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
         assert state.desired_state["office"].state == "OFF"
+        assert state.phase["office"] == "reconnect"
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
+        assert len(adapter.set_state_calls) == 4
+        assert state.phase["office"] == "steady"
 
     async def test_boot_callback_alone_never_triggers_writes_or_publish(
         self,

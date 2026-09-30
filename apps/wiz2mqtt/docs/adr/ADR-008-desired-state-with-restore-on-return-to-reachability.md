@@ -207,3 +207,22 @@ A direct `/set` timeout re-raises as `WizQueuedTimeoutError` (a `WizTimeoutError
 
 - A direct `/set` timeout now publishes `timeout_queued` instead of `wiz_timeout`; a consumer rule matching `wiz_timeout` needs an update.
 - `boot_grace` only works with a `signal_topic`: without a signal there is no moment the window can start from.
+
+## Amendment (2026-09-30) — Corrective
+
+**Rationale:** A bulb can answer before its firmware is ready to apply a return-path write. After three unconfirmed attempts, adopting that boot-state observation overwrites the user's stored intent, so a desired OFF becomes ON and a pastel colour becomes the firmware's reported state.
+
+> **Justification for amendment (not supersession):** The change is confined to wiz2mqtt's reconnect phase and pywizlight read-back interpretation. It preserves the existing configuration and MQTT error schema, and adds retry behavior behind an already documented reconnect state, so no downstream migration or superseding ADR is warranted.
+
+### Revised Decision
+
+An unconfirmed return-path write does not hand authority to the lamp. Publish restore_unconfirmed, retain the stored desired state, and keep the bulb in reconnect so a later telemetry tick or boot event retries the restore. Only a confirmed return-path write enters steady phase. For HSB read-back, derive saturation from the populated warm or cold white channel; pywizlight writes HSB's white share to warm white.
+
+### Additional Positive Consequences
+
+- A delayed firmware response cannot turn a desired OFF into a persistent ON state.
+- Pastel HSB restores compare their original saturation instead of falsely reading as 100 percent.
+
+### Additional Negative Consequences
+
+- A bulb that continually refuses a restore emits restore_unconfirmed on later retries until it confirms or receives a new command.

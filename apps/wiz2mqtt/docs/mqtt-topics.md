@@ -284,7 +284,7 @@ on `received update`, not on `changed`, to see a repeat of the same error.
 | `wiz_connection` | A `/set` write could not connect. The command is queued like a timeout |
 | `wiz_identity` | The bulb at the configured IP reported another MAC; nothing is queued |
 | `wiz_unsupported_command` | The bulb cannot do what the command asks; nothing is queued |
-| `restore_unconfirmed` | The return path wrote three times and no read-back confirmed it. The lamp keeps its state, which becomes the new desired state. The object also carries `attempts` and the reported `state` |
+| `restore_unconfirmed` | The return path wrote three times and no read-back confirmed it. wiz2mqtt retains the desired state and retries on a later tick or boot event. The object also carries `attempts` and the reported `state` |
 
 A direct `/set` timeout published `wiz_timeout` before the switched-relay
 safeguards; it now publishes `timeout_queued`. Update a rule that matched

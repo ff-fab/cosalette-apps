@@ -127,13 +127,13 @@ def effect_name_to_scene_id(name: str) -> int | None:
 def rgb_to_hue_saturation(
     r: float, g: float, b: float, cold_white: float = 0
 ) -> tuple[float, float]:
-    """Convert a 0-255 RGB triple plus cold-white channel to (hue, saturation).
+    """Convert a 0-255 RGB triple plus its white-channel share to HSB.
 
     Uses ``pywizlight``'s own ``rgbcw2hs`` — *not* ``colorsys.rgb_to_hsv``.
     The wire splits colour between the RGB channels and a separate
-    cold-white ("c") channel: a pastel colour is represented as a
-    saturated RGB vector *plus* cw, not as desaturated RGB. Ignoring
-    ``cold_white`` (as plain ``colorsys`` conversion does) silently
+    white channel: a pastel colour is represented as a saturated RGB vector
+    plus white, not as desaturated RGB. Ignoring ``cold_white`` (as plain
+    ``colorsys`` conversion does) silently
     reports full saturation for any colour mixed with white light.
     ``cold_white`` defaults to 0 for callers with no white channel to
     report (e.g. pure-RGB test fixtures).

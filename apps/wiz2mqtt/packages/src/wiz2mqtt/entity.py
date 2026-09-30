@@ -412,10 +412,10 @@ async def _run_return_path(
     desired state applied is already what ``state.desired_state`` holds
     (recorded when the command was issued/stored), so nothing more needs
     writing. On exhaustion, a structured error of ``error_type``
-    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error``,
-    authority hands back to the lamp (the last observed state becomes the
-    new desired state), and the phase still
-    settles to steady — ADR-008 does not retry a return path across ticks.
+    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error`` and
+    the desired state remains authoritative. The reconnect phase stays armed,
+    so a later telemetry tick or boot event retries the return path instead
+    of adopting a boot-state observation.
     Either way the outcome of a write becomes the bulb's ``last_applied``.
 
     The write-and-verify loop invalidates the adapter's cache before each
@@ -448,6 +448,7 @@ async def _run_return_path(
 
     if kwargs is None:
         observed = bulb_state
+        confirmed = True
         intent.record_observation(state, store, name, observed, now)
     else:
         observed, attempts, confirmed = await _write_and_verify(
@@ -461,7 +462,7 @@ async def _run_return_path(
         if not confirmed:
             logger.warning(
                 "Bulb %s: return-path restore unconfirmed after %d attempts; "
-                "handing authority back to the lamp",
+                "retaining desired state for retry",
                 name,
                 attempts,
             )
@@ -475,9 +476,7 @@ async def _run_return_path(
                     }
                 ),
             )
-            intent.record_observation(state, store, name, observed, now)
-
-    if name not in state.pending_commands:
+    if confirmed and name not in state.pending_commands:
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, observed, belief)

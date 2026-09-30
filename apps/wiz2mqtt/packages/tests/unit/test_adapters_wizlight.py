@@ -113,6 +113,7 @@ class _FakeParser:
         brightness: int | None = 200,
         rgb: tuple[float, float, float] | None = (255.0, 0.0, 0.0),
         cold_white: int | None = 0,
+        warm_white: int | None = 0,
         colortemp: int | None = None,
         scene_id: int | None = None,
         speed: int | None = None,
@@ -122,6 +123,7 @@ class _FakeParser:
         self._brightness = brightness
         self._rgb = rgb
         self._cold_white = cold_white
+        self._warm_white = warm_white
         self._colortemp = colortemp
         self._scene_id = scene_id
         self._speed = speed
@@ -138,6 +140,9 @@ class _FakeParser:
 
     def get_cold_white(self) -> int | None:
         return self._cold_white
+
+    def get_warm_white(self) -> int | None:
+        return self._warm_white
 
     def get_colortemp(self) -> int | None:
         return self._colortemp
@@ -651,6 +656,20 @@ class TestGetState:
 
         assert state.hue == pytest.approx(0.0, abs=0.01)
         assert state.saturation == pytest.approx(100.0, abs=0.01)
+
+    async def test_wizlight_get_state_uses_warm_white_for_pastel_colour(
+        self, ctx: _Ctx
+    ) -> None:
+        """pywizlight writes HSB white share to ``w``, not ``c``."""
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [
+            _FakeParser(rgb=(255.0, 72.0, 0.0), warm_white=30)
+        ]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert state.hue == pytest.approx(16.0, abs=1.0)
+        assert state.saturation == pytest.approx(88.0, abs=1.0)
 
     async def test_wizlight_get_state_ignores_stale_rgb_in_cct_mode(
         self, ctx: _Ctx
