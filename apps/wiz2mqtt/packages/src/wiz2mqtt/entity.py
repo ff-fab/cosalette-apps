@@ -184,10 +184,66 @@ async def _handle_read_success(
             state.phase[name] = "steady"
             belief = _recompute_and_notify(settings, state, notify, name)
             return _render(settings, state, name, bulb_state, belief)
+    if _conflicts_with_restore_settle(state, name, bulb_state):
+        state.phase[name] = "reconnect"
+        notify(name)
+        belief = _recompute_and_notify(settings, state, notify, name)
+        return _render(settings, state, name, bulb_state, belief)
     if state.desired_state_generation.get(name, 0) == observation_generation:
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, bulb_state, belief)
+
+
+def _conflicts_with_restore_settle(
+    state: SharedState, name: str, bulb_state: BulbState
+) -> bool:
+    """Whether a fresh observation must be re-restored instead of adopted.
+
+    A WiZ room sync or remote can report a foreign state moments after a
+    return-path read-back. During the configured window, retain authority for
+    the state that the write actually confirmed; a later tick performs the
+    re-apply, keeping this read path free of writes.
+    """
+    deadline = state.restore_settle_until.get(name)
+    expected = state.restore_settle_state.get(name)
+    if deadline is None or expected is None or time.monotonic() >= deadline:
+        state.restore_settle_until.pop(name, None)
+        state.restore_settle_state.pop(name, None)
+        return False
+    return not _bulb_states_match(expected, bulb_state)
+
+
+def _bulb_states_match(expected: BulbState, observed: BulbState) -> bool:
+    """Compare confirmed return state with an observation using wire tolerances."""
+    return (
+        expected.state == observed.state
+        and expected.brightness == observed.brightness
+        and expected.color_temp_kelvin == observed.color_temp_kelvin
+        and expected.scene == observed.scene
+        and expected.effect_speed == observed.effect_speed
+        and _optional_hue_matches(expected.hue, observed.hue)
+        and _optional_saturation_matches(expected.saturation, observed.saturation)
+    )
+
+
+def _optional_hue_matches(expected: float | None, observed: float | None) -> bool:
+    """Compare optional hue values using the write/read-back tolerance."""
+    if expected is None or observed is None:
+        return expected is observed
+    diff = abs(observed - expected)
+    return min(diff, 360.0 - diff) <= _HUE_TOLERANCE
+
+
+def _optional_saturation_matches(
+    expected: float | None, observed: float | None
+) -> bool:
+    """Compare optional saturation values using the write/read-back tolerance."""
+    return (
+        expected is observed
+        if expected is None or observed is None
+        else abs(observed - expected) <= _SATURATION_TOLERANCE
+    )
 
 
 def _next_failure_count(
@@ -365,6 +421,7 @@ async def _run_return_path(
         state.last_applied[name] = intent.AppliedCommand(
             kwargs=kwargs, at=time.time(), attempts=attempts, confirmed=confirmed
         )
+        _start_restore_settle(settings, state, name, observed, confirmed)
         if not confirmed:
             logger.warning(
                 "Bulb %s: return-path restore unconfirmed after %d attempts; "
@@ -388,6 +445,23 @@ async def _run_return_path(
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, observed, belief)
+
+
+def _start_restore_settle(
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    name: str,
+    observed: BulbState,
+    confirmed: bool,
+) -> None:
+    """Start the owning source's post-restore adoption guard when enabled."""
+    source = settings.power_source_of(name)
+    if not confirmed or source is None or source.restore_settle == 0:
+        state.restore_settle_until.pop(name, None)
+        state.restore_settle_state.pop(name, None)
+        return
+    state.restore_settle_until[name] = time.monotonic() + source.restore_settle
+    state.restore_settle_state[name] = observed
 
 
 async def _write_and_verify(
@@ -513,16 +587,35 @@ def _make_boot_handler(
         name = name_by_ip.get(ip)
         if name is None:
             return
-        # Marks the return, unconfirmed (ADR-008 reconnect phase). The
+        # Marks a real return, unconfirmed (ADR-008 reconnect phase). The
         # restore itself (cap-bjw9.8) runs from the next entity tick, never
         # from here — this only arms the entity so that tick runs without
         # the 60s wait, and resets the failure counter since the bulb has
-        # visibly returned.
+        # visibly returned. WiZ emits firstBeat repeatedly during startup;
+        # after a confirmed restore, do not turn each duplicate into another
+        # return path. A changed desired state still needs one.
+        if not _boot_should_rearm(state, name):
+            return
         state.phase[name] = "reconnect"
         state.consecutive_failures[name] = 0
         notify(name)
 
     return _on_boot
+
+
+def _boot_should_rearm(state: SharedState, name: str) -> bool:
+    """Accept firstBeat only for an unreachable bulb or pending desired change."""
+    if not state.bulb_answered.get(name, False):
+        return True
+    desired = state.desired_state.get(name)
+    applied = state.last_applied.get(name)
+    if desired is None:
+        return False
+    return (
+        applied is None
+        or not applied.confirmed
+        or intent.desired_state_to_set_state_kwargs(desired) != applied.kwargs
+    )
 
 
 async def _mark_online_once(

@@ -1232,11 +1232,98 @@ class TestBootCallback:
         notify = RecordingNotifier()
 
         await _tick(ctx, _config(), adapter, state, notify=notify)
+        state.bulb_answered["office"] = False
         adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
 
         assert state.phase["office"] == "reconnect"
         assert state.consecutive_failures["office"] == 0
         assert "office" in notify.armed
+
+    async def test_repeated_boot_event_after_confirmed_restore_is_ignored(self) -> None:
+        """Technique: Regression — repeated firstBeat must not repeat a restore."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        notify = RecordingNotifier()
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+            notify=notify,
+        )
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "steady"
+        assert len(adapter.set_state_calls) == 1
+        assert notify.armed == []
+
+    async def test_changed_desired_state_rearms_after_confirmed_restore(self) -> None:
+        """Technique: State Transition — a later desired command is not lost."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+        record_command(state, None, "office", {"state": False}, time.time())
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "reconnect"
+
+    async def test_foreign_observation_in_restore_settle_is_reapplied(self) -> None:
+        """Technique: Regression — a post-boot room sync cannot adopt itself."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}],
+            [
+                {
+                    "name": "office-power",
+                    "members": ["office"],
+                    "restore_settle": 3600,
+                }
+            ],
+        )
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=settings)
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+        adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert state.phase["office"] == "reconnect"
+        assert len(adapter.set_state_calls) == 1
+        assert state.desired_state["office"].state == "ON"
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert len(adapter.set_state_calls) == 2
+        assert adapter._state[_IP].state is True  # noqa: SLF001
 
     async def test_boot_event_for_unconfigured_ip_is_ignored(self) -> None:
         """Technique: Error Guessing — a boot event outside the inventory."""

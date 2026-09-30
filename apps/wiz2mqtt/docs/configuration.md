@@ -115,6 +115,7 @@ wiz_bulbs_only = true
 | `power_off_idle_delay` | no | Seconds every member bulb must be desired `OFF` before a power-off request. Must be greater than zero: the timer starts on a tick, so wiz2mqtt always spends the full delay in the current process before it asks for a circuit to be cut (default `600`) |
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
 | `boot_grace` | no | Seconds after the signal turns `on` in which a member bulb is expected to still be booting. Until the bulb answers, a command is queued without a wire attempt and a failed read does not count towards `offline`. Needs a `signal_topic`; `0` switches the window off (default `0`) |
+| `restore_settle` | no | Seconds after a confirmed return-path restore in which a conflicting bulb observation is restored again instead of becoming the new desired state. Use `0` to permit immediate adoption (default `15`) |
 | `clear_queue_on_power_off` | no | Drop the members' queued commands when the signal changes from `on` to `off`. A command queued while the signal is already `off` survives, so "command, then power on" still works (default `false`) |
 | `queued_command_ttl` | no | Seconds a command queued for a member bulb stays valid. Wins over the top-level value; a bulb's own value wins over it (see [Command Queueing](#command-queueing)) |
 
@@ -126,6 +127,13 @@ Warning: do not set `enable_power_off_request` on a circuit that carries any
 other load. While it is set, wiz2mqtt owns the relay, and a user who flips
 the relay by hand fights the idle timer. `wiz_bulbs_only` is your declaration
 that no fan, socket or non-WiZ lamp sits on the circuit.
+
+A power source without `signal_topic` can only infer a mains outage from failed
+bulb polls. That takes three unsuccessful polls (normally at least several
+minutes), so commands sent shortly after power-off can still be attempted on
+the wire. Use a retained relay signal when prompt outage detection or
+`boot_grace` queueing matters; wiz2mqtt warns when `boot_grace` is set without
+one.
 
 The retained request outlives a wiz2mqtt restart, and that is intended. It is
 not a stale value: on start wiz2mqtt republishes `null` and recomputes from
