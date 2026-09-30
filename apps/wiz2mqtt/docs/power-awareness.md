@@ -234,6 +234,32 @@ consumer that connects later still reads the current request. At startup, wiz2mq
 publishes `null` first and then calculates the request again from the belief. Thus a
 restart alone never cuts a circuit.
 
+#### The consumer contract
+
+A consumer that maps the power-on request to a relay can rely on these rules:
+
+1. **Opt in per source.** Without `enable_power_on_request = true` the request is
+   always `null`.
+2. **Only a command raises it.** A read, a bulb boot or a relay signal never raises a
+   request. The command is queued before the request is published, so the bulb applies
+   it as soon as it boots.
+3. **Only a dark circuit.** The belief must be `off`. A belief of `unknown` never
+   raises a request. With `when_unreachable = "fault"` and no `signal_topic`, the
+   belief is never `off`, so use `no_power` or connect a relay signal.
+4. **The command must want light.** `state: "ON"` does, and so does any command
+   without a `state` key that changes something (brightness, colour, colour
+   temperature, effect or effect speed), because the bulb switches on to apply it.
+   `state: "OFF"`, and brightness `0` (which means OFF), never do.
+5. **Release on convergence, never on a timeout.** wiz2mqtt sets the request back to
+   `null` when the belief becomes `on`, or when no member is desired `ON` any more. With
+   a `signal_topic` the release follows the relay's `on` at once. Without one, it
+   follows the first answer of a member bulb. A slow relay still sees the request, so
+   the consumer needs no retry of its own.
+6. **wiz2mqtt never actuates the relay.** It publishes nothing to the relay's topic or
+   to the `signal_topic`. One rule on `changed` of the request is all the consumer
+   needs: see the [openHAB recipe](#openhab) and the
+   [Home Assistant recipe](#home-assistant).
+
 ### Migrate a bulb-level `when_unreachable`
 
 Earlier releases had `when_unreachable` on the bulb. wiz2mqtt still starts with it,
@@ -323,6 +349,12 @@ end
 The rule triggers on `changed`, not on `received update`. Thus a repeat of the retained
 message (MQTT 5 refresh) does not send the command again. `NULL` means "no request", so
 the rule does nothing.
+
+The request follows [the consumer contract](#the-consumer-contract). In openHAB terms:
+`ON` on the `State` Item asks for power, and so does a `Brightness`, `Color`,
+`ColorTemp`, `Effect` or `EffectSpeed` command, such as a move of the brightness
+slider. `OFF` on the `State`, `Brightness` or `Color` Item never does, because openHAB
+sends it as brightness `0`.
 
 **Thing availability.** Each generated bulb Thing reads the availability topic of its
 bulb. The Thing goes `OFFLINE` when the bulb publishes `offline`, and openHAB then does

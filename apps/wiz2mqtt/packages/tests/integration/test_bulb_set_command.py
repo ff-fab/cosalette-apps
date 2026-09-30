@@ -20,6 +20,7 @@ import pytest
 from cosalette.testing import AppHarness
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.openhab import _ERROR_TOPIC_SUFFIX, _ERROR_TYPE_JSONPATH
 
 from .conftest import (
     _COMMAND_SETTLE_TIME,
@@ -86,16 +87,16 @@ class TestValidPartialUpdates:
     async def test_fractional_brightness_is_rounded_and_applied(
         self, harness: AppHarness, fake_adapter: FakeWizBulbAdapter
     ) -> None:
-        """openHAB's 30 % dimmer command (1 + 30/100*254 = 77.2) applies as 77.
+        """openHAB's 30 % dimmer command (30/100*255 = 76.5) applies as 76.
 
         Technique: Integration — the real third-party wire value that used to
         be dropped with ``type=int_from_float`` and published to the error
         topic instead of reaching the bulb.
         """
-        await _run_with_command(harness, "office", {"brightness": 77.2})
+        await _run_with_command(harness, "office", {"brightness": 76.5})
 
         state = await fake_adapter.get_state(_BULB_IP)
-        assert state.brightness == 77
+        assert state.brightness == 76
         assert harness.messages_for(_ERROR_TOPIC) == []
 
     async def test_color_payload_reaches_adapter_as_hue_saturation(
@@ -294,3 +295,26 @@ class TestQueueWhileUnreachable:
         # Only the newest command's value shows — nothing from the first.
         payload, _retain, _qos = harness_when_off.messages_for(_STATE_TOPIC)[-1]
         assert json.loads(payload)["brightness"] == 200
+
+
+@pytest.mark.integration
+@pytest.mark.slow
+class TestNonNumericBrightness:
+    """``brightness: 0`` means OFF, so a non-number must never become ``0``."""
+
+    async def test_boolean_brightness_is_rejected_and_reported(
+        self, harness: AppHarness, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """``{"brightness": false}`` reaches the error topic, not the bulb.
+
+        Technique: Error Guessing — lax ``int`` coerced ``false`` to ``0``,
+        which switched the bulb off. The error payload also carries the
+        ``error_type`` key the generated openHAB Error channel reads.
+        """
+        await _run_with_command(harness, "office", {"brightness": False})
+
+        assert fake_adapter.set_state_calls == []
+        assert _ERROR_TOPIC.endswith(_ERROR_TOPIC_SUFFIX)
+        payload, _retain, _qos = harness.messages_for(_ERROR_TOPIC)[-1]
+        key = _ERROR_TYPE_JSONPATH.removeprefix("JSONPATH:$.")
+        assert json.loads(payload)[key]

@@ -1,10 +1,12 @@
 """Unit tests for commands.py — set-command to WizBulbPort.set_state translation.
 
 Test Techniques Used:
-- Equivalence Partitioning: ON/OFF/absent state; color/hsb present/absent
+- Equivalence Partitioning: ON/OFF/absent state (absent + a change = ON);
+  color/hsb present/absent
 - Specification-based: field-by-field mapping onto set_state's kwarg names
 - Round-trip Testing: RGB in -> hue/saturation out via the colour module
 - Decision Table: hsb brightness only fills in when brightness is absent
+- Boundary Value Analysis: brightness 0 (Dimmer or hsb) is an OFF command
 """
 
 from __future__ import annotations
@@ -39,13 +41,37 @@ class TestStateMapping:
         kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"state": "OFF"}))
         assert kwargs["state"] is False
 
-    def test_commands_absent_state_maps_to_none(self) -> None:
-        """No state field in the payload stays None (partial-update passthrough).
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"brightness": 100},
+            {"color": {"r": 255, "g": 0, "b": 0}},
+            {"hsb": "120,50,40"},
+            {"color_temp": 2700},
+            {"effect": "Ocean"},
+            {"effect_speed": 100},
+        ],
+    )
+    def test_commands_absent_state_with_a_change_means_on(
+        self, payload: dict[str, object]
+    ) -> None:
+        """A command without ``state`` lights the bulb, so it says ON.
 
-        Technique: Equivalence Partitioning — state absent.
+        pywizlight sends it with ``turn_on``; the explicit ``True`` keeps the
+        desired state and the power request in step (ADR-008 amendment).
+
+        Technique: Equivalence Partitioning — state absent, one class per key.
         """
-        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"brightness": 100}))
-        assert kwargs["state"] is None
+        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate(payload))
+        assert kwargs["state"] is True
+
+    def test_commands_empty_command_stays_a_no_op(self) -> None:
+        """An empty command changes nothing, not even the state.
+
+        Technique: Boundary Value Analysis — the empty payload.
+        """
+        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({}))
+        assert all(value is None for value in kwargs.values())
 
 
 # ---------------------------------------------------------------------------
@@ -178,3 +204,50 @@ class TestHsbConversion:
         kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"state": "ON"}))
         assert kwargs["hue"] is None
         assert kwargs["saturation"] is None
+
+
+# ---------------------------------------------------------------------------
+# brightness 0 means OFF (ADR-001 amendment 2026-09-30)
+# ---------------------------------------------------------------------------
+
+_OFF_ONLY = {
+    "state": False,
+    "brightness": None,
+    "hue": None,
+    "saturation": None,
+    "color_temp_kelvin": None,
+    "scene": None,
+    "speed": None,
+}
+
+
+class TestBrightnessZeroIsOff:
+    """openHAB sends OFF to a Dimmer as brightness 0 and to a Color as "h,s,0"."""
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"brightness": 0},
+            {"brightness": 0.4},
+            {"hsb": "120,50,0"},
+            {"state": "ON", "brightness": 0, "effect_speed": 100},
+        ],
+    )
+    def test_commands_brightness_zero_switches_off_only(
+        self, payload: dict[str, object]
+    ) -> None:
+        """Brightness 0 turns the bulb off and changes nothing else.
+
+        Technique: Boundary Value Analysis — the 0 floor, direct, rounded and
+        through the hsb triple; it overrides an explicit ``state: ON``.
+        """
+        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate(payload))
+        assert kwargs == _OFF_ONLY
+
+    def test_commands_brightness_one_stays_a_dim_command(self) -> None:
+        """Brightness 1 is still the dimmest on level, not OFF.
+
+        Technique: Boundary Value Analysis — just above the OFF floor.
+        """
+        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"brightness": 1}))
+        assert (kwargs["state"], kwargs["brightness"]) == (True, 1)

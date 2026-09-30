@@ -9,7 +9,7 @@ tags: [persistence, lifecycle, devices, architecture, error-handling]
 
 ## Status
 
-Accepted **Date:** 2026-09-13
+Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-30
 
 ## Context
 
@@ -143,3 +143,36 @@ _2026-09-13_
 ## Amendment (2026-09-14) — Corrective
 
 After a successful read, run exactly one branch: apply a non-expired queued command; else apply stored desired state only when `restore_previous_state` is true **and the record exists**; otherwise accept the observation and enter steady phase. The callback never runs this logic. A restore receives three total write-and-read-back attempts, including the first—not three retries after it. Tests cover enabled restore with no stored record and both retry outcomes.
+
+## Amendment (2026-09-30) — Additive
+
+**Rationale:** A command without a `state` key (for example an openHAB brightness slider, `{"brightness":128}`) reaches the bulb through pywizlight's `turn_on`, so the bulb lights. The desired state merged only the given keys, so a bulb desired `OFF` stayed desired `OFF`: the state topic reported OFF for a lit bulb, and on a dark circuit the queued command raised no power-on request (ADR-009). The intent must describe what the command does on the wire (cap-32m6).
+
+### Additional Sub-Decision: A command without state that changes something means ON
+
+`to_set_state_kwargs` resolves the on/off state of every command once, and every consumer of the result follows it: the wire write, the optimistic cache, the desired state (`record_command`), the queue and the power request (`note_command`). `state: "ON"` gives ON and `state: "OFF"` or brightness `0` gives OFF (ADR-001 amendment 2026-09-30). Any other command that changes at least one field gives ON, because the adapter applies it with `turn_on`. An empty command changes nothing. A queued appearance command therefore also replays as ON at the return, exactly as it would have been applied directly.
+
+### Additional Considered Options
+
+**Infer ON where the intent is merged**
+
+Leave the translated command with `state = None` and let `record_command` and `apply_set_state` treat an appearance-only command as ON.
+
+- *Advantages:* The translation stays a pure unit mapping.
+- *Disadvantages:* The same rule would live in two places, and the queue and the wire would still carry an implicit state.
+
+**Keep OFF and restyle only**
+
+Keep the desired state OFF and send the appearance without switching the bulb on.
+
+- *Advantages:* A consumer could prepare a colour without lighting the lamp.
+- *Disadvantages:* pywizlight applies every appearance change through `turn_on`, which sends `state: true`; the adapter has no call that restyles a bulb while it stays off.
+
+### Additional Positive Consequences
+
+- The state topic, the stored intent and the power request agree with the device after any command.
+- An openHAB brightness slider or colour picker on an unpowered circuit raises the power-on request without a separate `ON`.
+
+### Additional Negative Consequences
+
+- A consumer can no longer stage an appearance for later on a bulb it wants off; the command switches the bulb on, as it already did on the wire.

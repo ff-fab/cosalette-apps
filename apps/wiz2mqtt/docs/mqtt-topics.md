@@ -25,7 +25,7 @@ Supported keys:
 | Key | Type | Notes |
 | --- | ---- | ----- |
 | `state` | `"ON"` or `"OFF"` | Power command |
-| `brightness` | number `1..255` | Home Assistant brightness scale; a fractional value is rounded to the nearest integer |
+| `brightness` | number `0..255` | Home Assistant brightness scale; a fractional value is rounded to the nearest integer. `0` means OFF (see below) |
 | `color` | object `{r,g,b}` | RGB values `0..255` |
 | `color_temp` | number `1..10000` | Kelvin; a fractional value is rounded to the nearest integer |
 | `effect` | string | WiZ scene name (one of the advertised `effect_list`, e.g. `"Ocean"`) |
@@ -35,18 +35,37 @@ Supported keys:
 `color`, `color_temp`, `effect`, and `hsb` are mutually exclusive. Invalid combinations
 are rejected before the adapter is called.
 
+A command without `state` that changes anything else also switches the bulb on,
+because the bulb lights to apply it. wiz2mqtt records it as `state: "ON"`, so the
+state topic, the desired state and a [power request](power-awareness.md#power-requests)
+follow what the bulb does. An empty command `{}` changes nothing.
+
 ### Fractional numbers
 
 `brightness`, `color_temp` and `effect_speed` accept a JSON number with a
 fractional part and round it to the nearest integer. This exists for
 percentage-scaling publishers: openHAB's Dimmer channel converts a percent
-command onto the advertised `min`/`max` as `1 + pct / 100 * 254`, which only
-lands on a whole number at 0 %, 50 % and 100 % — a 30 % command arrives as
-`77.2` and applies as `77`.
+command onto the advertised `min`/`max` as `pct / 100 * 255`, which only
+lands on a whole number at multiples of 20 % — a 30 % command arrives as
+`76.5` and applies as `76`.
 
 Rounding happens before the range check, so it does not widen the accepted
-range: `0.4` rounds to `0` and is still rejected, as is `256.4`. Ties round to
+range: `-0.6` rounds to `-1` and is still rejected, as is `256.4`. Ties round to
 the nearest even integer (Python's `round`), so `254.5` becomes `254`.
+
+These fields take a JSON number only. `true`/`false`, a numeric string such
+as `"128"`, and a non-finite number are rejected to the error topic. Otherwise
+`false` or `"0"` would read as brightness `0` and switch the bulb off.
+
+### Brightness 0 means OFF
+
+A command whose brightness is `0` switches the bulb off and changes nothing
+else, whatever other keys it carries. The brightness can come from the
+`brightness` key (a fractional value below `0.5` included) or from the `b` of
+an `hsb` triple. This is how openHAB sends OFF to a Dimmer
+(`{"brightness":0}`) and to a Color channel (`{"hsb":"h,s,0"}`), so a group
+OFF switches every bulb off instead of dimming it to the WiZ minimum. The
+dimmest on level is `1`.
 
 ## State Topic
 
@@ -177,22 +196,31 @@ operator contract and the MQTT 3.1.1 fallback.
 ## openHAB Generic MQTT Thing
 
 `task wiz2mqtt:schema:openhab` renders — offline, from `docs/schema.yaml` — a
-`Thing mqtt:topic:broker:wiz2mqtt_{bulb}` plus a matching Items file. Two channel
-sets are emitted per bulb:
+`Thing mqtt:topic:broker:wiz2mqtt_{bulb}` plus a matching Items file. A state
+channel reads the bulb's state topic and a `_cmd` channel writes its `/set`
+topic:
 
 | Channel | Type | Wiring |
 | ------- | ---- | ------ |
-| `state` / `state_cmd` | `switch` | read `JSONPATH:$.state`; write `{"state":"%s"}` |
-| `brightness` / `brightness_cmd` | `dimmer`, `min` 1 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
+| `state` / `state_cmd` | `switch`, `on="ON"` `off="OFF"` | read `JSONPATH:$.state`; write `{"state":"%s"}` |
+| `brightness` / `brightness_cmd` | `dimmer`, `min` 0 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
 | `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%s"}` |
-| `effect` / `effect_cmd` | `string` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
+| `color_temp` / `color_temp_cmd` | `number`, `min` 2200 `max` 6500 `step` 1, Item label in K | read `JSONPATH:$.color_temp`; write `{"color_temp":%s}` |
+| `effect` / `effect_cmd` | `string`; the command lists the WiZ scenes as `allowedStates` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
+| `effect_speed` / `effect_speed_cmd` | `number`, `min` 10 `max` 200 `step` 1 | read `JSONPATH:$.effect_speed`; write `{"effect_speed":%s}` |
+| `power_draw_w` | `number`, read-only, Item label in W | read `JSONPATH:$.power_draw_w` |
+
+`hsb`, `color_temp` and `effect` are only present in the colour mode that
+uses them, so openHAB logs a JSONPATH warning for the other two on each state
+message. The Item keeps its last value.
 
 The deployment generator (`wiz2mqtt-openhab`, see
 [openHAB generation](configuration.md#openhab-generation)) adds read-only
-channels for power sources:
+diagnostic channels:
 
 | Thing | Channel | Wiring |
 | ----- | ----- | ------ |
+| Every bulb | `error` | `string`, `wiz2mqtt/{bulb}/error`, `JSONPATH:$.error_type` |
 | Power source | `powered` | `JSONPATH:$[?(@.powered != null)].powered`, `on="on"`, `off="off"`, `nullValue="unknown"` |
 | Power source | `power_request` | `JSONPATH:$[?(@.power_request != null)].power_request`, `on="on"`, `off="off"`, `nullValue="NULL"` |
 | Bulb in a power source | `powered` | `JSONPATH:$[?(@.powered != null)].powered`, `on="true"`, `off="false"`, `nullValue="NULL"` |
@@ -200,6 +228,12 @@ channels for power sources:
 The filter form of the JSONPATH turns a JSON `null` into the string `NULL`. A
 plain `$.powered` would make openHAB discard the message and keep a stale value.
 `nullValue` on a switch channel needs openHAB 5.1 or later.
+
+cosalette publishes a JSON object on `wiz2mqtt/{bulb}/error` for each failure
+of that bulb, for example a rejected `/set` payload (`invalid_command`). The
+topic is not retained, so the `Error` Item is `NULL` after a restart and then
+holds the `error_type` of the last failure. It is never cleared. Trigger rules
+on `received update`, not on `changed`, to see a repeat of the same error.
 
 The `*_cmd` channels wrap the outbound scalar back into JSON with
 `formatBeforePublish` (full Java `String.format`) so a single `.../set` payload
@@ -210,12 +244,15 @@ carries just the changed field.
 `offline`, openHAB shows the Thing as OFFLINE. Regenerate your Things after you
 upgrade to get this wiring.
 
-**On/off bypasses `formatBeforePublish`.** The `dimmer`, `color`, and `switch`
-channels also declare explicit `on`/`off` strings
-(`on="{\"state\": \"ON\"}"`, `off="{\"state\": \"OFF\"}"`). openHAB sends those
-verbatim without running `formatBeforePublish`, so an `OFF` command on the
-brightness or colour channel emits a well-formed `{"state": "OFF"}` rather than
-`{"brightness":OFF}`.
+**On and off.** openHAB runs a channel's `on`/`off` value through
+`formatBeforePublish` too, so the `switch` declares the bare `on="ON"`
+`off="OFF"` and publishes `{"state":"OFF"}`. The `dimmer` and `color` channels
+declare no `on`/`off`: openHAB turns OFF into brightness 0
+(`{"brightness":0}`, `{"hsb":"h,s,0"}`), and wiz2mqtt treats
+[brightness 0 as OFF](#brightness-0-means-off). ON on a Dimmer is 100 %
+(`{"brightness":255}`), and on a Color channel it restores the last colour.
+Regenerate Things made before this release: their JSON `on`/`off` values were
+wrapped a second time and rejected.
 
 **Hue range.** openHAB's `Color`/HSB type uses hue `0..359`; the Home Assistant
 JSON `color` object uses `0..360`. wiz2mqtt does **no** conversion — the one-unit

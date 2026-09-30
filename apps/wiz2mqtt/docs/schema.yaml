@@ -42,11 +42,13 @@ channels:
 
             entity, contributing the ``command_topic`` half (cosalette ADR-057).
 
-            ``state``/``brightness``/``hsb``/``effect`` also carry ``openhab()``
+            Every field but ``color`` also carries ``openhab()`` metadata, so the
 
-            metadata so the offline openHAB Thing gets a command channel per field
+            offline openHAB Thing gets a command channel per field on the shared
 
-            on the shared ``/set`` topic.'
+            ``/set`` topic. ``brightness: 0`` means OFF: it is how an openHAB Dimmer
+
+            or Color channel sends OFF (see :func:`wiz2mqtt.commands.to_set_state_kwargs`).'
           properties:
             state:
               anyOf:
@@ -61,14 +63,14 @@ channels:
                 display_name: State
               x-cosalette-openhab:
                 channel_params:
-                  'off': '{"state": "OFF"}'
-                  'on': '{"state": "ON"}'
+                  'off': 'OFF'
+                  'on': 'ON'
                 channel_type: switch
                 item_type: Switch
             brightness:
               anyOf:
               - maximum: 255
-                minimum: 1
+                minimum: 0
                 type: integer
               - type: 'null'
               default: null
@@ -78,9 +80,7 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   max: 255
-                  min: 1
-                  'off': '{"state": "OFF"}'
-                  'on': '{"state": "ON"}'
+                  min: 0
                   step: 1
                 channel_type: dimmer
                 item_type: Dimmer
@@ -97,6 +97,16 @@ channels:
               - type: 'null'
               default: null
               title: Color Temp
+              x-cosalette-consumer:
+                display_name: Color temperature
+                unit: K
+              x-cosalette-openhab:
+                channel_params:
+                  max: 6500
+                  min: 2200
+                  step: 1
+                channel_type: number
+                item_type: Number
             effect:
               anyOf:
               - type: string
@@ -106,6 +116,12 @@ channels:
               x-cosalette-consumer:
                 display_name: Effect
               x-cosalette-openhab:
+                channel_params:
+                  allowedStates: Alarm,Bedtime,Candlelight,Christmas,Club,Cool white,Cozy,Daylight,Deep
+                    dive,Dim-to-warm,Diwali,Fall,Fireplace,Focus,Forest,Golden white,Halloween,Jungle,Mojito,Night
+                    light,Ocean,Party,Pastel colors,Plantgrowth,Pulse,Relax,Rhythm,Romance,Snowy
+                    sky,Spring,Steampunk,Summer,Sunset,True colors,TV time,Wake-up,Warm
+                    white,White
                 channel_type: string
                 item_type: String
             hsb:
@@ -119,8 +135,6 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   colorMode: HSB
-                  'off': '{"state": "OFF"}'
-                  'on': '{"state": "ON"}'
                 channel_type: color
                 item_type: Color
             effect_speed:
@@ -131,6 +145,15 @@ channels:
               - type: 'null'
               default: null
               title: Effect Speed
+              x-cosalette-consumer:
+                display_name: Effect speed
+              x-cosalette-openhab:
+                channel_params:
+                  max: 200
+                  min: 10
+                  step: 1
+                channel_type: number
+                item_type: Number
           title: BulbSetCommand
           type: object
           x-cosalette-ha-discovery:
@@ -230,13 +253,11 @@ channels:
 
             and the offline ``cosalette schema ha-discovery`` path emit them per
 
-            configured bulb (cosalette ADR-057/ADR-059). The
+            configured bulb (cosalette ADR-057/ADR-059). The fields that an openHAB
 
-            ``state``/``brightness``/``hsb``/``effect`` fields additionally carry
+            Item can show additionally carry ``consumer()`` + ``openhab()`` metadata
 
-            ``consumer()`` + ``openhab()`` metadata driving the offline openHAB
-
-            Generic MQTT Thing generation.'
+            driving the offline openHAB Generic MQTT Thing generation.'
           properties:
             state:
               anyOf:
@@ -251,8 +272,8 @@ channels:
                 display_name: State
               x-cosalette-openhab:
                 channel_params:
-                  'off': '{"state": "OFF"}'
-                  'on': '{"state": "ON"}'
+                  'off': 'OFF'
+                  'on': 'ON'
                 channel_type: switch
                 item_type: Switch
             brightness:
@@ -268,9 +289,7 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   max: 255
-                  min: 1
-                  'off': '{"state": "OFF"}'
-                  'on': '{"state": "ON"}'
+                  min: 0
                   step: 1
                 channel_type: dimmer
                 item_type: Dimmer
@@ -294,6 +313,16 @@ channels:
               - type: 'null'
               default: null
               title: Color Temp
+              x-cosalette-consumer:
+                display_name: Color temperature
+                unit: K
+              x-cosalette-openhab:
+                channel_params:
+                  max: 6500
+                  min: 2200
+                  step: 1
+                channel_type: number
+                item_type: Number
             color_temp_kelvin:
               anyOf:
               - type: boolean
@@ -311,8 +340,6 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   colorMode: HSB
-                  'off': '{"state": "OFF"}'
-                  'on': '{"state": "ON"}'
                 channel_type: color
                 item_type: Color
             effect:
@@ -324,6 +351,7 @@ channels:
               x-cosalette-consumer:
                 display_name: Effect
               x-cosalette-openhab:
+                channel_params: {}
                 channel_type: string
                 item_type: String
             effect_speed:
@@ -332,12 +360,29 @@ channels:
               - type: 'null'
               default: null
               title: Effect Speed
+              x-cosalette-consumer:
+                display_name: Effect speed
+              x-cosalette-openhab:
+                channel_params:
+                  max: 200
+                  min: 10
+                  step: 1
+                channel_type: number
+                item_type: Number
             power_draw_w:
               anyOf:
               - type: number
               - type: 'null'
               default: null
               title: Power Draw W
+              x-cosalette-consumer:
+                display_name: Power
+                unit: W
+                read_only: true
+              x-cosalette-openhab:
+                channel_params: {}
+                channel_type: number
+                item_type: Number
             powered:
               enum:
               - true

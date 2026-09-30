@@ -3,7 +3,8 @@
 
 Test Techniques Used:
 - Equivalence Partitioning: valid single-field, multi-field, and empty payloads
-- Boundary Value Analysis: brightness 1-255, color channels 0-255, effect_speed 10-200
+- Boundary Value Analysis: brightness 0-255 (0 = OFF), color channels 0-255,
+  effect_speed 10-200
 - Decision Table: color/color_temp/effect/hsb mutual exclusion combinations
 - State Transition Testing: BulbState.apply_command colour-mode transitions
 - Error Guessing: extra/unknown fields, out-of-range values
@@ -11,6 +12,8 @@ Test Techniques Used:
 """
 
 from __future__ import annotations
+
+from typing import Any
 
 import jinja2
 import pytest
@@ -99,18 +102,18 @@ class TestFieldValidation:
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate({"state": "TOGGLE"})
 
-    @pytest.mark.parametrize("value", [1, 128, 255])
+    @pytest.mark.parametrize("value", [0, 1, 128, 255])
     def test_models_brightness_accepts_in_range(self, value: int) -> None:
-        """Brightness within 1-255 is accepted.
+        """Brightness within 0-255 is accepted; 0 is the openHAB OFF command.
 
         Technique: Boundary Value Analysis — lower/mid/upper bounds.
         """
         cmd = BulbSetCommand.model_validate({"brightness": value})
         assert cmd.brightness == value
 
-    @pytest.mark.parametrize("value", [0, 256, -1])
+    @pytest.mark.parametrize("value", [256, -1])
     def test_models_brightness_rejects_out_of_range(self, value: int) -> None:
-        """Brightness outside 1-255 is rejected.
+        """Brightness outside 0-255 is rejected.
 
         Technique: Boundary Value Analysis — just outside both bounds.
         """
@@ -229,8 +232,8 @@ class TestFractionalNumbers:
     """A fractional float on an integer ``.../set`` field rounds, never drops.
 
     openHAB's Dimmer channel maps a percent command onto the advertised
-    ``min``/``max`` as ``1 + pct / 100 * 254``, integral only at 0, 50 and
-    100 % — so almost every real dimmer command used to be rejected with
+    ``min``/``max`` as ``pct / 100 * 255``, integral only at multiples of
+    20 % — so almost every real dimmer command used to be rejected with
     ``type=int_from_float`` and published to the error topic instead.
     """
 
@@ -249,18 +252,42 @@ class TestFractionalNumbers:
         cmd = BulbSetCommand.model_validate({"brightness": value})
         assert cmd.brightness == expected
 
-    @pytest.mark.parametrize("value", [0.4, 256.4, 255.5, "76.47"])
+    @pytest.mark.parametrize("value", [-0.6, 256.4, 255.5, "76.47"])
     def test_models_brightness_still_rejects_out_of_range_or_non_numeric(
         self, value: object
     ) -> None:
         """Rounding runs before the range check and never rescues a bad value.
 
-        Technique: Boundary Value Analysis / Error Guessing — 0.4 rounds to 0
-        and 255.5 up to 256 (banker's rounding), both outside 1-255; a string
+        Technique: Boundary Value Analysis / Error Guessing — -0.6 rounds to -1
+        and 255.5 up to 256 (banker's rounding), both outside 0-255; a string
         is not coerced at all.
         """
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate({"brightness": value})
+
+    @pytest.mark.parametrize("field", ["brightness", "color_temp", "effect_speed"])
+    @pytest.mark.parametrize("value", [False, True, "0", "128"])
+    def test_models_lenient_field_rejects_a_bool_or_numeric_string(
+        self, field: str, value: object
+    ) -> None:
+        """Only a JSON number reaches an integer command field.
+
+        Technique: Error Guessing — lax ``int`` turns ``false`` or ``"0"``
+        into brightness 0, which means OFF, so a templating mistake would
+        switch the bulb off instead of reaching the error topic.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({field: value})
+
+    @pytest.mark.parametrize("literal", ["Infinity", "-Infinity", "NaN"])
+    def test_models_brightness_rejects_a_non_finite_number(self, literal: str) -> None:
+        """A non-finite JSON number is a validation error, not a crash.
+
+        Technique: Error Guessing — ``round(inf)`` raises ``OverflowError``,
+        which Pydantic would let escape instead of reporting it.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate_json(f'{{"brightness": {literal}}}')
 
     def test_models_brightness_accepts_an_explicit_null(self) -> None:
         """An explicit ``null`` still means "field not given".
@@ -307,7 +334,7 @@ class TestFractionalNumbers:
     @pytest.mark.parametrize(
         ("field", "bounds"),
         [
-            ("brightness", {"minimum": 1, "maximum": 255}),
+            ("brightness", {"minimum": 0, "maximum": 255}),
             ("color_temp", {"exclusiveMinimum": 0, "maximum": 10000}),
             ("effect_speed", {"minimum": 10, "maximum": 200}),
         ],
@@ -558,6 +585,13 @@ def _ha_entities(model: type) -> list[dict[str, object]]:
     return schema["x-cosalette-ha-discovery"]["entities"]
 
 
+def _openhab(
+    model: type[BulbStateModel | BulbSetCommand], field: str
+) -> dict[str, Any]:
+    """The ``openhab()`` channel metadata one payload field declares."""
+    return model.model_json_schema()["properties"][field]["x-cosalette-openhab"]
+
+
 class TestHaDiscoveryMetadata:
     """Both payload models carry ``ha_entities`` metadata the discovery
     generator (and ``app.discovery()``) turn into per-bulb HA entities.
@@ -647,23 +681,34 @@ class TestHaDiscoveryMetadata:
 
         Technique: Decision Table — one openHAB channel type per wire field.
         """
-        prop = BulbStateModel.model_json_schema()["properties"][field]
-        assert prop["x-cosalette-openhab"]["channel_type"] == expected_channel_type
+        assert _openhab(BulbStateModel, field)["channel_type"] == expected_channel_type
 
-    def test_models_on_off_commands_are_explicit_json_objects(self) -> None:
-        """openHAB emits a channel's ``on``/``off`` verbatim, bypassing
-        ``formatBeforePublish`` — so they must already be full JSON commands.
+    def test_models_switch_on_off_are_plain_state_values(self) -> None:
+        """openHAB formats a Switch's ``on``/``off`` through
+        ``formatBeforePublish`` — so they must be the bare ``ON``/``OFF``.
 
-        Technique: Error Guessing — a bare ``ON`` string would reach the bulb
-        unparsed; the metadata must carry ``{"state": "ON"}``.
+        Technique: Error Guessing — a JSON ``on`` value ends up nested as
+        ``{"state":"{"state": "ON"}"}``, which the ``/set`` validator rejects.
         """
-        brightness = BulbStateModel.model_json_schema()["properties"]["brightness"]
-        params = brightness["x-cosalette-openhab"]["channel_params"]
-        assert params["on"] == '{"state": "ON"}'
-        assert params["off"] == '{"state": "OFF"}'
+        for model in (BulbStateModel, BulbSetCommand):
+            meta = _openhab(model, "state")
+            assert meta["channel_params"]["on"] == "ON"
+            assert meta["channel_params"]["off"] == "OFF"
+
+    @pytest.mark.parametrize("field", ["brightness", "hsb"])
+    def test_models_dimmer_and_color_carry_no_on_off_values(self, field: str) -> None:
+        """A Dimmer or Color channel needs no ``on``/``off``: openHAB turns
+        OFF into brightness 0, which ``/set`` treats as OFF.
+
+        Technique: Error Guessing — with ``on``/``off`` set, a Dimmer publishes
+        the string into ``{"brightness":%s}`` and the command is rejected.
+        """
+        params = _openhab(BulbSetCommand, field)["channel_params"]
+        assert "on" not in params
+        assert "off" not in params
 
     def test_models_dimmer_min_matches_command_brightness_floor(self) -> None:
-        """The openHAB dimmer ``min`` matches ``brightness`` ``ge=1``.
+        """The openHAB dimmer ``min`` matches ``brightness`` ``ge=0``.
 
         A generated openHAB config must never be able to emit a brightness the
         ``/set`` validator would reject.
@@ -672,10 +717,46 @@ class TestHaDiscoveryMetadata:
         (PR #238 review finding).
         """
         for model in (BulbStateModel, BulbSetCommand):
-            params = model.model_json_schema()["properties"]["brightness"][
-                "x-cosalette-openhab"
-            ]["channel_params"]
-            assert params["min"] == 1
+            params = _openhab(model, "brightness")["channel_params"]
+            assert (params["min"], params["max"]) == (0, 255)
+
+    @pytest.mark.parametrize(
+        ("field", "bounds"),
+        [("color_temp", (2200, 6500)), ("effect_speed", (10, 200))],
+    )
+    def test_models_number_channels_are_bounded(
+        self, field: str, bounds: tuple[int, int]
+    ) -> None:
+        """Colour temperature and effect speed are bounded Number channels
+        with a command half.
+
+        Technique: Boundary Value Analysis — the advertised range matches the
+        bulbs' kelvin range and pywizlight's ``speed`` range.
+        """
+        for model in (BulbStateModel, BulbSetCommand):
+            meta = _openhab(model, field)
+            assert meta["item_type"] == "Number"
+            params = meta["channel_params"]
+            assert (params["min"], params["max"], params["step"]) == (*bounds, 1)
+
+    def test_models_power_draw_is_read_only_watts(self) -> None:
+        """``power_draw_w`` is a state-only Number labelled in watts.
+
+        Technique: Specification-based — a diagnostic has no command half.
+        """
+        prop = BulbStateModel.model_json_schema()["properties"]["power_draw_w"]
+        assert _openhab(BulbStateModel, "power_draw_w")["item_type"] == "Number"
+        assert prop["x-cosalette-consumer"]["unit"] == "W"
+        assert prop["x-cosalette-consumer"]["read_only"] is True
+        assert "power_draw_w" not in BulbSetCommand.model_fields
+
+    def test_models_effect_command_lists_the_scene_names(self) -> None:
+        """The effect command channel offers exactly the WiZ scene list.
+
+        Technique: Specification-based — openHAB ``allowedStates``.
+        """
+        params = _openhab(BulbSetCommand, "effect")["channel_params"]
+        assert params["allowedStates"].split(",") == list(WIZ_EFFECT_LIST)
 
 
 class TestPoweredField:

@@ -11,12 +11,15 @@ Test Techniques Used:
   real router, handler and telemetry entity
 - Decision Table: the per-source opt-in decides whether a request appears
 - Specification-based: the request is retained, and never a command topic
+- State Transition: the consumer contract — appearance-only commands mean ON,
+  and release once the relay signal reports the circuit on
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
+from typing import Literal, assert_never
 
 import pytest
 from cosalette import MockMqttClient
@@ -179,3 +182,130 @@ class TestPowerOnRequestPublication:
         await _run_with_commands(harness, {"state": "ON"}, expect_publishes=1)
 
         assert _requests(harness) == [None]
+
+
+SIGNAL_TOPIC = "openhab/relay/downstairs/state"
+
+_Step = tuple[Literal["command", "signal"], object, str, int]
+"""``(kind, payload, topic, count)`` for :func:`_run_steps`."""
+
+
+async def _run_steps(
+    harness: AppHarness,
+    *steps: _Step,
+) -> None:
+    """Run the app through ``(kind, payload, topic, count)`` steps, then stop.
+
+    ``kind`` is ``"command"`` (a bulb ``/set`` payload) or ``"signal"`` (a
+    relay payload on :data:`SIGNAL_TOPIC`); each step then waits until
+    *topic* has seen *count* publishes, which proves it was dispatched.
+    """
+    task = asyncio.create_task(harness.run())
+    try:
+        await wait_until_subscribed(harness, SIGNAL_TOPIC)
+        await harness.advance_time(0)
+        await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 1)
+        for kind, payload, topic, count in steps:
+            if kind == "command":
+                await harness.inject_command("office", payload)
+            elif kind == "signal":
+                await harness.mqtt.deliver(SIGNAL_TOPIC, str(payload))
+            else:
+                assert_never(kind)
+            await harness.wait_for_publish_count(topic, count)
+        await harness.clock.settle(stable_rounds=20)
+    finally:
+        harness.shutdown_event.set()
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+def _contract_harness(fake_adapter: FakeWizBulbAdapter) -> AppHarness:
+    """A dark ``no_power`` circuit with the opt-in and a relay signal topic."""
+    fake_adapter.always_fail = True
+    settings = make_settings(
+        power_sources=[
+            {
+                "name": SOURCE_NAME,
+                "members": ["office"],
+                "when_unreachable": "no_power",
+                "enable_power_on_request": True,
+                "signal_topic": SIGNAL_TOPIC,
+            }
+        ]
+    )
+    return AppHarness(
+        app=build_integration_app(fake_adapter),
+        mqtt=MockMqttClient(),
+        clock=ManualClock(),
+        settings=settings,
+        shutdown_event=asyncio.Event(),
+    )
+
+
+@pytest.mark.integration
+class TestConsumerContract:
+    """The contract ``docs/power-awareness.md`` promises a relay rule."""
+
+    async def test_appearance_command_on_a_fresh_bulb_requests_power(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Equivalence Partitioning — a command without state is ON.
+
+        An effect-only command lights the bulb, so it raises the request
+        like ``state: ON``.
+        """
+        harness = _harness(fake_adapter, enable_power_on_request=True)
+
+        await _run_with_commands(harness, {"effect": "Party"}, expect_publishes=2)
+
+        assert _requests(harness) == [None, "on"]
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"brightness": 76.5},  # openHAB Dimmer slider at 30 %
+            {"hsb": "120,50,30"},  # openHAB Color picker
+            {"effect": "Party"},
+        ],
+    )
+    async def test_appearance_command_on_a_bulb_switched_off_requests_power(
+        self, fake_adapter: FakeWizBulbAdapter, payload: dict[str, object]
+    ) -> None:
+        """Technique: Decision Table — appearance alone means ON (cap-32m6).
+
+        After ``state: OFF`` a command without ``state`` still lights the
+        bulb on the wire, so it records ON, raises the request and the
+        bulb's state topic reports ON rather than OFF.
+        """
+        harness = _contract_harness(fake_adapter)
+
+        await _run_steps(
+            harness,
+            ("command", {"state": "OFF"}, BULB_STATE_TOPIC, 1),
+            ("command", payload, SOURCE_STATE_TOPIC, 2),
+        )
+
+        assert _requests(harness) == [None, "on"]
+        last_payload, _retain, _qos = harness.messages_for(BULB_STATE_TOPIC)[-1]
+        assert json.loads(last_payload)["state"] == "ON"
+
+    async def test_relay_signal_on_releases_the_request(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: State Transition — request, relay reports on, release.
+
+        The request is released on convergence, never on a timeout, so the
+        consumer needs one rule on ``changed`` and no retry of its own.
+        """
+        harness = _contract_harness(fake_adapter)
+
+        await _run_steps(
+            harness,
+            ("command", {"state": "ON"}, SOURCE_STATE_TOPIC, 2),
+            ("signal", "on", SOURCE_STATE_TOPIC, 3),
+        )
+
+        assert _requests(harness) == [None, "on", None]
+        assert harness.messages_for(SIGNAL_TOPIC) == []
