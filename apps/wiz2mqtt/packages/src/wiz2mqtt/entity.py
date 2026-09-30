@@ -205,13 +205,21 @@ def _conflicts_with_restore_settle(
     the state that the write actually confirmed; a later tick performs the
     re-apply, keeping this read path free of writes.
     """
+    expected = _active_restore_settle_state(state, name)
+    if expected is None:
+        return False
+    return not _bulb_states_match(expected, bulb_state)
+
+
+def _active_restore_settle_state(state: SharedState, name: str) -> BulbState | None:
+    """Return the active guard target, clearing it only after its deadline."""
     deadline = state.restore_settle_until.get(name)
     expected = state.restore_settle_state.get(name)
     if deadline is None or expected is None or time.monotonic() >= deadline:
         state.restore_settle_until.pop(name, None)
         state.restore_settle_state.pop(name, None)
-        return False
-    return not _bulb_states_match(expected, bulb_state)
+        return None
+    return expected
 
 
 def _bulb_states_match(expected: BulbState, observed: BulbState) -> bool:
@@ -406,7 +414,16 @@ async def _run_return_path(
     kwargs = intent.pop_valid(
         state.pending_commands, name, settings.queued_command_ttl_for(name), now
     )
-    if kwargs is None and config.restore_previous_state:
+    settle_target = (
+        _active_restore_settle_state(state, name) if kwargs is None else None
+    )
+    if settle_target is not None:
+        # A confirmed queued command owns this short window too, even when
+        # restoring persisted state is disabled.  Reapply the complete
+        # read-back state so a foreign update cannot retain fields omitted by
+        # the original partial command.
+        kwargs = _bulb_state_to_set_state_kwargs(settle_target)
+    elif kwargs is None and config.restore_previous_state:
         desired = intent.resolve_desired_state(state, store, name)
         if desired is not None:
             kwargs = intent.desired_state_to_set_state_kwargs(desired)
@@ -421,7 +438,8 @@ async def _run_return_path(
         state.last_applied[name] = intent.AppliedCommand(
             kwargs=kwargs, at=time.time(), attempts=attempts, confirmed=confirmed
         )
-        _start_restore_settle(settings, state, name, observed, confirmed)
+        if settle_target is None:
+            _start_restore_settle(settings, state, name, observed, confirmed)
         if not confirmed:
             logger.warning(
                 "Bulb %s: return-path restore unconfirmed after %d attempts; "
@@ -445,6 +463,19 @@ async def _run_return_path(
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, observed, belief)
+
+
+def _bulb_state_to_set_state_kwargs(bulb_state: BulbState) -> SetStateKwargs:
+    """Translate a confirmed read-back into a complete reapply command."""
+    return {
+        "state": bulb_state.state,
+        "brightness": bulb_state.brightness,
+        "hue": bulb_state.hue,
+        "saturation": bulb_state.saturation,
+        "color_temp_kelvin": bulb_state.color_temp_kelvin,
+        "scene": bulb_state.scene,
+        "speed": bulb_state.effect_speed,
+    }
 
 
 def _start_restore_settle(
@@ -604,8 +635,8 @@ def _make_boot_handler(
 
 
 def _boot_should_rearm(state: SharedState, name: str) -> bool:
-    """Accept firstBeat only for an unreachable bulb or pending desired change."""
-    if not state.bulb_answered.get(name, False):
+    """Accept firstBeat for a return, not duplicate startup broadcasts."""
+    if not state.bulb_answered.get(name, False) or name in state.stale_answers:
         return True
     desired = state.desired_state.get(name)
     applied = state.last_applied.get(name)
