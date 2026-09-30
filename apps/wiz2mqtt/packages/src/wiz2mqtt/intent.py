@@ -237,6 +237,9 @@ def resolve_desired_state(
     restart with a stored intent is picked up exactly once, not reloaded on
     every call.
     """
+    generation = state.desired_state_generation.get(name, 0)
+    if state.suppressed_desired_state_generation.get(name) == generation:
+        return None
     if name in state.desired_state:
         return state.desired_state[name]
     if store is None:
@@ -269,6 +272,7 @@ def record_observation(
         written_at=now,
     )
     state.desired_state[name] = desired
+    state.suppressed_desired_state_generation.pop(name, None)
     if store is not None:
         _save(store, desired)
 
@@ -309,6 +313,7 @@ def record_command(
         written_at=now,
     )
     state.desired_state[name] = desired
+    state.suppressed_desired_state_generation.pop(name, None)
     if store is not None:
         _save(store, desired)
     return desired

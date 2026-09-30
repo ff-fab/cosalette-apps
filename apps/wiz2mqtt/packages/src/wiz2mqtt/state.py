@@ -60,6 +60,15 @@ class SharedState:
     that readback when a newer command advanced the generation in the meantime.
     """
 
+    suppressed_desired_state_generation: dict[str, int] = field(default_factory=dict)
+    """Desired states discarded with a queued command, keyed by generation.
+
+    An on-to-off source signal can intentionally drop a pending command.  Its
+    desired state must not be restored on the next reconnect, including from
+    the telemetry-side store.  A later command advances the generation and
+    supersedes this suppression without losing that newer intent.
+    """
+
     bulb_answered: dict[str, bool] = field(default_factory=dict)
     """Whether the most recent poll/push for a bulb succeeded — the raw
     evidence :mod:`wiz2mqtt.power` aggregates into a source's belief."""

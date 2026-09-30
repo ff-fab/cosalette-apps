@@ -79,7 +79,7 @@ def _settings_with_no_power_policy_source() -> Wiz2MqttSettings:
 
 
 def _settings_with_office_power_source(
-    when_unreachable: str,
+    when_unreachable: str, *, clear_queue_on_power_off: bool = False
 ) -> Wiz2MqttSettings:
     """Single-member power source over 'office' with the given policy."""
     return Wiz2MqttSettings(
@@ -89,6 +89,7 @@ def _settings_with_office_power_source(
                 "name": "office-power",
                 "members": ["office"],
                 "when_unreachable": when_unreachable,
+                "clear_queue_on_power_off": clear_queue_on_power_off,
             }
         ],
         _env_file=None,
@@ -415,6 +416,77 @@ class TestReturnPath:
         ]
         assert state.phase["office"] == "steady"
         assert ctx.published == []
+
+    async def test_power_off_queue_clear_suppresses_stored_state_restore(self) -> None:
+        """Technique: Regression — a discarded queue cannot restore old intent."""
+        settings = _settings_with_office_power_source(
+            "fault", clear_queue_on_power_off=True
+        )
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, desired_state={"office": _DESIRED_ON}
+        )
+        store = _store_with_desired()
+        enqueue(
+            state.pending_commands,
+            "office",
+            {"state": True, "brightness": 100},  # type: ignore[arg-type]
+            time.time(),
+        )
+        record_signal(settings, state, "office-power", "on", 0.0)
+        record_signal(settings, state, "office-power", "off", 1.0)
+
+        await _tick(
+            FakeDeviceContext(settings=settings),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
+        assert adapter.set_state_calls == []
+        assert state.phase["office"] == "steady"
+
+    async def test_command_after_power_off_queue_clear_remains_eligible(self) -> None:
+        """Technique: State Transition — a newer command supersedes the clear."""
+        settings = _settings_with_office_power_source(
+            "fault", clear_queue_on_power_off=True
+        )
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, desired_state={"office": _DESIRED_ON}
+        )
+        store = _store_with_desired()
+        enqueue(
+            state.pending_commands,
+            "office",
+            {"state": True, "brightness": 100},  # type: ignore[arg-type]
+            time.time(),
+        )
+        record_signal(settings, state, "office-power", "on", 0.0)
+        record_signal(settings, state, "office-power", "off", 1.0)
+        fresh = {
+            "state": True,
+            "brightness": 200,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
+        record_command(state, store, "office", fresh, time.time())
+        enqueue(state.pending_commands, "office", fresh, time.time())
+
+        await _tick(
+            FakeDeviceContext(settings=settings),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
+        assert adapter.set_state_calls[0][1]["brightness"] == 200
+        assert state.phase["office"] == "steady"
 
     async def test_direct_timeout_replays_queued_command_on_next_successful_tick(
         self,

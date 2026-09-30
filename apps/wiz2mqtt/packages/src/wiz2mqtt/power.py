@@ -107,6 +107,10 @@ def record_signal(
     if previous == "on" and signal == "off" and source.clear_queue_on_power_off:
         for name in members:
             if state.pending_commands.pop(name, None) is not None:
+                state.desired_state.pop(name, None)
+                state.suppressed_desired_state_generation[name] = (
+                    state.desired_state_generation.get(name, 0)
+                )
                 logger.info("Dropping pending command for bulb %s: power off", name)
     return True
 
