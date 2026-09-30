@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from typing import Literal, assert_never
 
 import pytest
 from cosalette import MockMqttClient
@@ -185,10 +186,13 @@ class TestPowerOnRequestPublication:
 
 SIGNAL_TOPIC = "openhab/relay/downstairs/state"
 
+_Step = tuple[Literal["command", "signal"], object, str, int]
+"""``(kind, payload, topic, count)`` for :func:`_run_steps`."""
+
 
 async def _run_steps(
     harness: AppHarness,
-    *steps: tuple[str, object, str, int],
+    *steps: _Step,
 ) -> None:
     """Run the app through ``(kind, payload, topic, count)`` steps, then stop.
 
@@ -204,8 +208,10 @@ async def _run_steps(
         for kind, payload, topic, count in steps:
             if kind == "command":
                 await harness.inject_command("office", payload)
-            else:
+            elif kind == "signal":
                 await harness.mqtt.deliver(SIGNAL_TOPIC, str(payload))
+            else:
+                assert_never(kind)
             await harness.wait_for_publish_count(topic, count)
         await harness.clock.settle(stable_rounds=20)
     finally:
