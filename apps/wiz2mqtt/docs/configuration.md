@@ -136,6 +136,13 @@ the wire. Use a retained relay signal when prompt outage detection or
 `boot_grace` queueing matters; wiz2mqtt warns when `boot_grace` is set without
 one.
 
+`restore_settle` also reverts a deliberate change. A change made in the WiZ
+app, with a WiZ remote or by a WiZ room sync within `restore_settle` seconds
+of a power-on restore is written back; after the window, wiz2mqtt adopts it as
+the new desired state. Only a bulb with a power source has this window. While
+a restore stays unconfirmed, the bulb stays in the return path and wiz2mqtt
+keeps writing the desired state on later ticks, whatever the window.
+
 The retained request outlives a wiz2mqtt restart, and that is intended. It is
 not a stale value: on start wiz2mqtt republishes `null` and recomputes from
 the belief, so a restart alone can never cut a circuit.

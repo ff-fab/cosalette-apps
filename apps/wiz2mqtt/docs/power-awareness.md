@@ -225,13 +225,17 @@ it has no better evidence (no answering member and no signal).
 
 A bulb behind a relay needs a few seconds to boot after the relay turns on. Without
 more configuration, a command in that window times out, and failed reads count
-towards `offline`. Two power-source keys make a switched circuit behave:
+towards `offline`. Three power-source keys make a switched circuit behave:
 
 - `boot_grace` (seconds, default `0` = off) opens a window when the signal changes to
   `on`. Until a member bulb answers, wiz2mqtt queues a command for it without a wire
   attempt, and a failed read does not count towards `offline`. The queued command is
   applied as soon as the bulb answers. The window needs a `signal_topic`; set it a
   little above the boot time of your bulbs, for example `20`.
+- `restore_settle` (seconds, default `15`) writes the restored state again when the
+  bulb reports something else shortly after a confirmed restore. A change in the WiZ
+  app, with a WiZ remote or by a WiZ room sync in that window is therefore reverted;
+  after it, the change becomes the new desired state. `0` switches the window off.
 - `clear_queue_on_power_off = true` (default `false`) drops the members' queued
   commands when the signal changes from `on` to `off`. Use it when switching the relay
   off means "forget what was asked". A command queued while the signal is already
