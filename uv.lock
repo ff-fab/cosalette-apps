@@ -3375,7 +3375,7 @@ wheels = [
 
 [[package]]
 name = "wiz2mqtt"
-version = "0.2.8"
+version = "0.2.9"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
     { name = "cosalette", extra = ["schema"] },
