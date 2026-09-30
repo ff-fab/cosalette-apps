@@ -197,6 +197,15 @@ class PowerSourceConfig(BaseModel):
             "(default) disables the window (ADR-008)."
         ),
     )
+    restore_settle: float = Field(
+        default=15.0,
+        ge=0,
+        description=(
+            "Seconds after a confirmed return-path restore during which a "
+            "conflicting observation is restored again instead of adopted. "
+            "0 disables the guard (ADR-008)."
+        ),
+    )
     clear_queue_on_power_off: bool = Field(
         default=False,
         description=(
@@ -240,6 +249,16 @@ class PowerSourceConfig(BaseModel):
                 f"'_-./:' (got {value!r})"
             )
         return value
+
+    @model_validator(mode="after")
+    def _warn_when_boot_grace_has_no_signal(self) -> PowerSourceConfig:
+        """Make an ineffective boot-grace setting visible to operators."""
+        if self.boot_grace and self.signal_topic is None:
+            logger.warning(
+                "Power source %s: boot_grace needs signal_topic and has no effect",
+                self.name,
+            )
+        return self
 
 
 def _index_sources_by_name(

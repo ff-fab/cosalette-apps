@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
+from wiz2mqtt.models import BulbState
+
 if TYPE_CHECKING:
     from wiz2mqtt.intent import AppliedCommand, DesiredState, PendingCommand
     from wiz2mqtt.power import Belief, Signal
@@ -87,6 +89,12 @@ class SharedState:
     """Each bulb's last return-path write and its read-back outcome
     (ADR-008), published as ``last_applied``. In memory only, so it is
     absent again after a restart."""
+
+    restore_settle_until: dict[str, float] = field(default_factory=dict)
+    """Monotonic deadline of a confirmed return-path restore's settle window."""
+
+    restore_settle_state: dict[str, BulbState] = field(default_factory=dict)
+    """Read-back state confirmed by the return-path write, keyed by bulb."""
 
     source_belief: dict[str, Belief] = field(default_factory=dict)
     """Each power source's last-computed belief, refreshed by its own

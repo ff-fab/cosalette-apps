@@ -793,6 +793,7 @@ class TestBootSafeguardSettings:
         source = settings.power_sources[0]
 
         assert source.boot_grace == 0.0
+        assert source.restore_settle == 15.0
         assert source.clear_queue_on_power_off is False
         assert source.queued_command_ttl is None
         assert settings.bulbs[0].queued_command_ttl is None
@@ -802,6 +803,23 @@ class TestBootSafeguardSettings:
             build_settings(
                 [{"name": "a", "ip": "10.0.0.1"}], [self._source(boot_grace=-1)]
             )
+
+    def test_negative_restore_settle_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            build_settings(
+                [{"name": "a", "ip": "10.0.0.1"}],
+                [self._source(restore_settle=-1)],
+            )
+
+    def test_boot_grace_without_signal_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        build_settings(
+            [{"name": "a", "ip": "10.0.0.1"}],
+            [self._source(boot_grace=10)],
+        )
+
+        assert "boot_grace needs signal_topic" in caplog.text
 
     @pytest.mark.parametrize("where", ["bulb", "source"])
     def test_zero_ttl_override_is_rejected(self, where: str) -> None:
