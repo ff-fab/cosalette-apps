@@ -389,6 +389,53 @@ channels:
               - false
               - __unknown__
               title: Powered
+            reachable:
+              anyOf:
+              - type: boolean
+              - type: 'null'
+              default: null
+              title: Reachable
+              x-cosalette-consumer:
+                display_name: Reachable
+                read_only: true
+              x-cosalette-openhab:
+                channel_params:
+                  'off': 'false'
+                  'on': 'true'
+                channel_type: switch
+                item_type: Switch
+            pending:
+              anyOf:
+              - $ref: '#/components/schemas/PendingModel'
+              - const: __null__
+                type: string
+              default: __null__
+              title: Pending
+              x-cosalette-consumer:
+                display_name: Pending
+                read_only: true
+              x-cosalette-openhab:
+                channel_params:
+                  nullValue: 'NULL'
+                  transformationPattern: JSONPATH:$[?(@.pending != null)].pending
+                channel_type: string
+                item_type: String
+            last_applied:
+              anyOf:
+              - $ref: '#/components/schemas/LastAppliedModel'
+              - const: __null__
+                type: string
+              default: __null__
+              title: Last Applied
+              x-cosalette-consumer:
+                display_name: Last applied
+                read_only: true
+              x-cosalette-openhab:
+                channel_params:
+                  nullValue: 'NULL'
+                  transformationPattern: JSONPATH:$[?(@.last_applied != null)].last_applied
+                channel_type: string
+                item_type: String
           required:
           - powered
           title: BulbStateModel
@@ -461,6 +508,26 @@ channels:
                 step: 1
                 value_template: '{{ value_json.effect_speed }}'
               name: Effect speed
+            - component: binary_sensor
+              extra:
+                device_class: connectivity
+                entity_category: diagnostic
+                value_template: '{{ ''ON'' if value_json.reachable else ''OFF'' }}'
+              name: Reachable
+            - component: sensor
+              extra:
+                entity_category: diagnostic
+                icon: mdi:tray-full
+                value_template: '{{ value_json.pending.fields | join('','') if value_json.pending
+                  else ''none'' }}'
+              name: Pending
+            - component: sensor
+              extra:
+                entity_category: diagnostic
+                icon: mdi:check-network
+                value_template: '{{ (''confirmed'' if value_json.last_applied.confirmed
+                  else ''unconfirmed'') if value_json.last_applied else ''none'' }}'
+              name: Last applied
     x-cosalette-archetype: telemetry
     x-cosalette-summary: 'Per-bulb state publisher: retained state, availability debounce'
 operations:
@@ -499,6 +566,54 @@ components:
       - g
       - b
       title: BulbColor
+      type: object
+    LastAppliedModel:
+      additionalProperties: false
+      description: '``last_applied``: the bulb''s last return-path write (ADR-008).'
+      properties:
+        at:
+          title: At
+          type: integer
+        fields:
+          items:
+            type: string
+          title: Fields
+          type: array
+        attempts:
+          minimum: 1
+          title: Attempts
+          type: integer
+        confirmed:
+          title: Confirmed
+          type: boolean
+      required:
+      - at
+      - fields
+      - attempts
+      - confirmed
+      title: LastAppliedModel
+      type: object
+    PendingModel:
+      additionalProperties: false
+      description: '``pending``: the queued command a returning bulb will receive
+        (ADR-008).'
+      properties:
+        fields:
+          items:
+            type: string
+          title: Fields
+          type: array
+        queued_at:
+          title: Queued At
+          type: integer
+        expires_at:
+          title: Expires At
+          type: integer
+      required:
+      - fields
+      - queued_at
+      - expires_at
+      title: PendingModel
       type: object
 x-cosalette-enforcement:
   mode: warn

@@ -327,6 +327,17 @@ class PendingCommand:
     queued_at: float
 
 
+@dataclass(frozen=True)
+class AppliedCommand:
+    """The outcome of a bulb's last ADR-008 return-path write."""
+
+    kwargs: SetStateKwargs
+    at: float
+    """Wall clock, seconds since the epoch."""
+    attempts: int
+    confirmed: bool
+
+
 def _pending_as_bulb_state(command: PendingCommand | None) -> BulbState:
     """Adapt a pending command to the state merge model shared with intent."""
     if command is None:
@@ -356,7 +367,7 @@ def _pending_kwargs(bulb_state: BulbState) -> SetStateKwargs:
     }
 
 
-def _pending_write_kwargs(kwargs: SetStateKwargs) -> SetStateKwargs:
+def pending_write_kwargs(kwargs: SetStateKwargs) -> SetStateKwargs:
     """Keep queued appearance for a later ON, but never send it with OFF."""
     if kwargs.get("state") is False:
         return {
@@ -435,4 +446,4 @@ def pop_valid(
     if now - command.queued_at > ttl:
         logger.info("Dropping expired pending command for bulb %s", name)
         return None
-    return _pending_write_kwargs(command.kwargs)
+    return pending_write_kwargs(command.kwargs)

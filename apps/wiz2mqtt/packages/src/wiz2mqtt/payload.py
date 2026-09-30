@@ -13,12 +13,15 @@ import math
 from typing import TYPE_CHECKING
 
 from wiz2mqtt.colour import hue_saturation_to_rgb, is_cct_mode, scene_id_to_effect_name
-from wiz2mqtt.models import POWERED_UNKNOWN
+from wiz2mqtt.intent import pending_write_kwargs
+from wiz2mqtt.models import NULL_WIRE, POWERED_UNKNOWN
 
 _MAX_BRIGHTNESS: int = 255
 """HA brightness scale upper bound (0-255)."""
 
 if TYPE_CHECKING:
+    from wiz2mqtt.commands import SetStateKwargs
+    from wiz2mqtt.intent import AppliedCommand, PendingCommand
     from wiz2mqtt.models import BulbState, PoweredWire
     from wiz2mqtt.power import Belief
 
@@ -92,3 +95,56 @@ def _color_fields(state: BulbState) -> dict[str, object]:
         "color": {"r": r, "g": g, "b": b},
         "hsb": f"{hue_deg},{sat_pct},{dimming_percent}",
     }
+
+
+_WIRE_FIELD_BY_KWARG: dict[str, str] = {
+    "state": "state",
+    "brightness": "brightness",
+    "hue": "hsb",
+    "saturation": "hsb",
+    "color_temp_kelvin": "color_temp",
+    "scene": "effect",
+    "speed": "effect_speed",
+}
+"""``set_state`` keyword → the ``/set`` field a consumer sends for it."""
+
+
+def command_wire_fields(kwargs: SetStateKwargs) -> list[str]:
+    """The ``/set`` field names a ``set_state`` write carries, in kwarg order."""
+    fields = (_WIRE_FIELD_BY_KWARG[k] for k, v in kwargs.items() if v is not None)
+    return list(dict.fromkeys(fields))
+
+
+def readiness_fields(
+    *,
+    reachable: bool,
+    pending: PendingCommand | None,
+    ttl: float,
+    last_applied: AppliedCommand | None,
+) -> dict[str, object]:
+    """``reachable``/``pending``/``last_applied`` — queued-command readiness.
+
+    All three are always present; ``pending``/``last_applied`` render JSON
+    ``null`` when absent (see :data:`wiz2mqtt.models.NULL_WIRE`). ``pending``
+    lists the fields the return path would write: a queued OFF writes only
+    ``state``, while its queued appearance waits for a later ON.
+    """
+    fields: dict[str, object] = {
+        "reachable": reachable,
+        "pending": NULL_WIRE,
+        "last_applied": NULL_WIRE,
+    }
+    if pending is not None:
+        fields["pending"] = {
+            "fields": command_wire_fields(pending_write_kwargs(pending.kwargs)),
+            "queued_at": round(pending.queued_at),
+            "expires_at": round(pending.queued_at + ttl),
+        }
+    if last_applied is not None:
+        fields["last_applied"] = {
+            "at": round(last_applied.at),
+            "fields": command_wire_fields(last_applied.kwargs),
+            "attempts": last_applied.attempts,
+            "confirmed": last_applied.confirmed,
+        }
+    return fields

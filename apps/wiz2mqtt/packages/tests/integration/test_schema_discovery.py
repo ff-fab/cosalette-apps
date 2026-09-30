@@ -22,7 +22,7 @@ Covers both halves of the consumer-integration adoption:
 
 The per-bulb entity name is a callable ``NameSpec`` keyed off
 ``settings.bulbs``; ``wiz2mqtt.schema.toml`` configures one bulb (``example``),
-so the CLI output expands to three per-bulb entities plus the bridge.
+so the CLI output expands to six per-bulb entities plus the bridge.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
@@ -88,6 +88,9 @@ ENTITY_COMPONENTS = (
     ("light", "light"),
     ("effect_speed", "number"),
     ("power", "sensor"),
+    ("reachable", "binary_sensor"),
+    ("pending", "sensor"),
+    ("last_applied", "sensor"),
 )
 SUFFIXES = tuple(suffix for suffix, _ in ENTITY_COMPONENTS)
 _WAIT_TIMEOUT = 3.0
@@ -146,7 +149,7 @@ class TestHaDiscoveryGeneration:
     def test_generates_one_entity_per_composite_spec_per_bulb(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """Three composite specs × one configured bulb → three entities.
+        """Six composite specs × one configured bulb → six entities.
 
         Technique: Specification-based — one entity per ``ha_entities`` spec,
         not one per JSON property (composite entities skip per-property gen).
@@ -165,7 +168,7 @@ class TestHaDiscoveryGeneration:
     ) -> None:
         """Every entity is grouped under its bulb's HA device (ADR-058).
 
-        Technique: Specification-based — HA device grouping contract; the three
+        Technique: Specification-based — HA device grouping contract; the six
         components share one per-bulb ``device`` block.
         """
         for suffix in SUFFIXES:
@@ -237,6 +240,20 @@ class TestHaDiscoveryGeneration:
         assert config["unit_of_measurement"] == "W"
         assert config["state_class"] == "measurement"
         assert config["value_template"] == "{{ value_json.power_draw_w }}"
+
+    @pytest.mark.parametrize("suffix", ["reachable", "pending", "last_applied"])
+    def test_readiness_entities_are_read_only_diagnostics(
+        self, configs_by_id: dict[str, dict[str, Any]], suffix: str
+    ) -> None:
+        """Queued-command readiness reads the bulb state topic (cap-ea7n.3).
+
+        Technique: Equivalence Partitioning — diagnostics, never controls.
+        """
+        config = configs_by_id[f"{SCHEMA_BULB}_{suffix}"]
+        assert config["state_topic"] == f"{TOPIC_PREFIX}/{SCHEMA_BULB}/state"
+        assert "command_topic" not in config
+        assert config["entity_category"] == "diagnostic"
+        assert f"value_json.{suffix}" in config["value_template"]
 
 
 # ---------------------------------------------------------------------------
@@ -661,11 +678,11 @@ class TestPowerSourceDiscovery:
         assert set(configs) == {SOURCE_POWERED_TOPIC, SOURCE_POWER_REQUEST_TOPIC}
 
     async def test_existing_per_bulb_entities_unaffected(self) -> None:
-        """AC: the existing four-entity output per bulb is unchanged.
+        """AC: the per-bulb composite entity output is unchanged.
 
         Runs the per-bulb discovery app with the enrich hook wired (the code
         path this task restructured) and confirms it still publishes exactly
-        the light/number/sensor set plus bridge.
+        the per-bulb composite set plus bridge.
         """
         harness = AppHarness(
             app=_build_discovery_app(enrich=True),

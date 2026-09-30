@@ -71,7 +71,8 @@ dimmest on level is `1`.
 
 **Topic:** `wiz2mqtt/<bulb>/state`
 
-The app publishes a retained JSON payload. `state` is always present; the other
+The app publishes a retained JSON payload. `state`, `powered` and the
+[command readiness](#command-readiness) keys are always present; the other
 keys appear only when known for that bulb and mode.
 
 Example RGB payload:
@@ -105,6 +106,41 @@ Optional state keys include `brightness`, `effect`, `effect_speed`, and
 source. While wiz2mqtt cannot see the bulb, the payload carries the desired
 state, not `"OFF"`. A bulb is lit when `state` is `"ON"` and `powered` is
 `true`. See [Mains Power Awareness](power-awareness.md).
+
+### Command readiness
+
+Three more keys are always present. Together with `powered` they tell a
+consumer whether the bulb has actually taken a command:
+
+| Key | Value | Meaning |
+| --- | ----- | ------- |
+| `reachable` | `true` / `false` | The bulb itself answered, and not before its power source's last signal change. Like availability it is debounced: a live bulb stays `true` through isolated timeouts. |
+| `pending` | object or `null` | The command queued while the bulb was out of reach (ADR-008). `null` when nothing is queued. |
+| `last_applied` | object or `null` | The last queued or restored command wiz2mqtt wrote to the bulb on its return, and whether a read-back confirmed it. `null` until the first such write since wiz2mqtt started. |
+
+`pending` carries `fields` (the `/set` field names the write will carry),
+`queued_at` and `expires_at` (epoch seconds; the queue drops the command after
+`queued_command_ttl`, so an `expires_at` in the past means the command will
+not be sent). A queued OFF lists only `state`: the appearance queued
+with it waits for a later ON. `last_applied` carries `at` (epoch seconds),
+`fields`, `attempts` (1 to 3) and `confirmed`. When `confirmed` is `false`, the
+bulb refused the write three times and wiz2mqtt accepted the bulb's own state.
+
+A command to a dark bulb therefore shows up as, for example:
+
+```json
+{
+  "state": "ON",
+  "brightness": 200,
+  "powered": false,
+  "reachable": false,
+  "pending": {"fields": ["state", "brightness"], "queued_at": 1790768304, "expires_at": 1790854704},
+  "last_applied": null
+}
+```
+
+Once the bulb returns, `pending` goes back to `null` and `last_applied` records
+the write.
 
 ## Availability Topic
 
@@ -168,6 +204,9 @@ topics above.
 | `homeassistant/light/wiz2mqtt/{bulb}_light/config` | `light` (`schema: json`) | `wiz2mqtt/{bulb}/state` | `wiz2mqtt/{bulb}/set` |
 | `homeassistant/number/wiz2mqtt/{bulb}_effect_speed/config` | `number` | `wiz2mqtt/{bulb}/state` | `wiz2mqtt/{bulb}/set` |
 | `homeassistant/sensor/wiz2mqtt/{bulb}_power/config` | `sensor` | `wiz2mqtt/{bulb}/state` | — (read-only) |
+| `homeassistant/binary_sensor/wiz2mqtt/{bulb}_reachable/config` | `binary_sensor` (`device_class: connectivity`, diagnostic) | `wiz2mqtt/{bulb}/state` | — (read-only) |
+| `homeassistant/sensor/wiz2mqtt/{bulb}_pending/config` | `sensor` (diagnostic): queued fields, or `none` | `wiz2mqtt/{bulb}/state` | — (read-only) |
+| `homeassistant/sensor/wiz2mqtt/{bulb}_last_applied/config` | `sensor` (diagnostic): `confirmed`, `unconfirmed` or `none` | `wiz2mqtt/{bulb}/state` | — (read-only) |
 | `homeassistant/binary_sensor/wiz2mqtt/{source}_powered/config` | `binary_sensor` (`device_class: power`) | `wiz2mqtt/{source}/state` | — (read-only) |
 | `homeassistant/binary_sensor/wiz2mqtt/{source}_power_request/config` | `binary_sensor` (`entity_category: diagnostic`) | `wiz2mqtt/{source}/state` | — (read-only) |
 | `homeassistant/binary_sensor/wiz2mqtt/bridge/config` | `binary_sensor` | `wiz2mqtt/status` | — |
@@ -209,6 +248,9 @@ topic:
 | `effect` / `effect_cmd` | `string`; the command lists the WiZ scenes as `allowedStates` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
 | `effect_speed` / `effect_speed_cmd` | `number`, `min` 10 `max` 200 `step` 1 | read `JSONPATH:$.effect_speed`; write `{"effect_speed":%s}` |
 | `power_draw_w` | `number`, read-only, Item label in W | read `JSONPATH:$.power_draw_w` |
+| `reachable` | `switch`, read-only, `on="true"` `off="false"` | read `JSONPATH:$.reachable` |
+| `pending` | `string`, read-only, `nullValue="NULL"` | read `JSONPATH:$[?(@.pending != null)].pending` (the JSON object) |
+| `last_applied` | `string`, read-only, `nullValue="NULL"` | read `JSONPATH:$[?(@.last_applied != null)].last_applied` (the JSON object) |
 
 `hsb`, `color_temp` and `effect` are only present in the colour mode that
 uses them, so openHAB logs a JSONPATH warning for the other two on each state

@@ -266,6 +266,11 @@ class TestQueueWhileUnreachable:
         assert body["state"] == "ON"
         assert body["brightness"] == 200
         assert body["powered"] is False  # never a hard-coded OFF
+        # Readiness (cap-ea7n.3): dark, queued, never applied — keys on the wire.
+        assert body["reachable"] is False
+        assert body["pending"]["fields"] == ["state", "brightness"]
+        assert body["pending"]["expires_at"] > body["pending"]["queued_at"]
+        assert body["last_applied"] is None
 
     async def test_a_second_command_replaces_the_first_in_the_queue(
         self, harness_when_off: AppHarness, fake_adapter: FakeWizBulbAdapter
