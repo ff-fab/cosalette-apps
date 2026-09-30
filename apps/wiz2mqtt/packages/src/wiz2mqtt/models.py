@@ -7,6 +7,7 @@ never leaks the SDK's shapes across the hexagonal boundary.
 from __future__ import annotations
 
 import dataclasses
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Annotated, Any, Literal
@@ -545,8 +546,20 @@ def _round_fractional(value: object) -> object:
     ``round`` uses banker's rounding — ``254.5`` rounds down to ``254``,
     ``255.5`` up to ``256`` — and the declared range still applies
     afterwards, so ``255.5`` and ``-0.6`` remain rejected.
+
+    Only a JSON number passes. Pydantic's lax ``int`` would otherwise turn
+    ``false`` into ``0``, which means OFF, and ``"128"`` into ``128``, so a
+    templating mistake could switch a bulb off. A non-finite float is
+    rejected here too, because ``round`` raises ``OverflowError`` on it,
+    which Pydantic does not turn into a validation error.
     """
-    return round(value) if isinstance(value, float) else value
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError("must be a JSON number")
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError("must be a finite number")
+        return round(value)
+    return value
 
 
 _LenientBrightness = Annotated[

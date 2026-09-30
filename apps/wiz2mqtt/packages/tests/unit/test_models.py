@@ -13,6 +13,8 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+from typing import Any
+
 import jinja2
 import pytest
 from pydantic import ValidationError
@@ -262,6 +264,30 @@ class TestFractionalNumbers:
         """
         with pytest.raises(ValidationError):
             BulbSetCommand.model_validate({"brightness": value})
+
+    @pytest.mark.parametrize("field", ["brightness", "color_temp", "effect_speed"])
+    @pytest.mark.parametrize("value", [False, True, "0", "128"])
+    def test_models_lenient_field_rejects_a_bool_or_numeric_string(
+        self, field: str, value: object
+    ) -> None:
+        """Only a JSON number reaches an integer command field.
+
+        Technique: Error Guessing — lax ``int`` turns ``false`` or ``"0"``
+        into brightness 0, which means OFF, so a templating mistake would
+        switch the bulb off instead of reaching the error topic.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate({field: value})
+
+    @pytest.mark.parametrize("literal", ["Infinity", "-Infinity", "NaN"])
+    def test_models_brightness_rejects_a_non_finite_number(self, literal: str) -> None:
+        """A non-finite JSON number is a validation error, not a crash.
+
+        Technique: Error Guessing — ``round(inf)`` raises ``OverflowError``,
+        which Pydantic would let escape instead of reporting it.
+        """
+        with pytest.raises(ValidationError):
+            BulbSetCommand.model_validate_json(f'{{"brightness": {literal}}}')
 
     def test_models_brightness_accepts_an_explicit_null(self) -> None:
         """An explicit ``null`` still means "field not given".
@@ -559,6 +585,13 @@ def _ha_entities(model: type) -> list[dict[str, object]]:
     return schema["x-cosalette-ha-discovery"]["entities"]
 
 
+def _openhab(
+    model: type[BulbStateModel | BulbSetCommand], field: str
+) -> dict[str, Any]:
+    """The ``openhab()`` channel metadata one payload field declares."""
+    return model.model_json_schema()["properties"][field]["x-cosalette-openhab"]
+
+
 class TestHaDiscoveryMetadata:
     """Both payload models carry ``ha_entities`` metadata the discovery
     generator (and ``app.discovery()``) turn into per-bulb HA entities.
@@ -648,8 +681,7 @@ class TestHaDiscoveryMetadata:
 
         Technique: Decision Table — one openHAB channel type per wire field.
         """
-        prop = BulbStateModel.model_json_schema()["properties"][field]
-        assert prop["x-cosalette-openhab"]["channel_type"] == expected_channel_type
+        assert _openhab(BulbStateModel, field)["channel_type"] == expected_channel_type
 
     def test_models_switch_on_off_are_plain_state_values(self) -> None:
         """openHAB formats a Switch's ``on``/``off`` through
@@ -713,7 +745,7 @@ class TestHaDiscoveryMetadata:
         Technique: Specification-based — a diagnostic has no command half.
         """
         prop = BulbStateModel.model_json_schema()["properties"]["power_draw_w"]
-        assert prop["x-cosalette-openhab"]["item_type"] == "Number"
+        assert _openhab(BulbStateModel, "power_draw_w")["item_type"] == "Number"
         assert prop["x-cosalette-consumer"]["unit"] == "W"
         assert prop["x-cosalette-consumer"]["read_only"] is True
         assert "power_draw_w" not in BulbSetCommand.model_fields
@@ -725,11 +757,6 @@ class TestHaDiscoveryMetadata:
         """
         params = _openhab(BulbSetCommand, "effect")["channel_params"]
         assert params["allowedStates"].split(",") == list(WIZ_EFFECT_LIST)
-
-
-def _openhab(model: type[BulbStateModel | BulbSetCommand], field: str) -> dict:
-    prop = model.model_json_schema()["properties"][field]
-    return prop["x-cosalette-openhab"]
 
 
 class TestPoweredField:

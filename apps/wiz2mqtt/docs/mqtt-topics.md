@@ -53,6 +53,10 @@ Rounding happens before the range check, so it does not widen the accepted
 range: `-0.6` rounds to `-1` and is still rejected, as is `256.4`. Ties round to
 the nearest even integer (Python's `round`), so `254.5` becomes `254`.
 
+These fields take a JSON number only. `true`/`false`, a numeric string such
+as `"128"`, and a non-finite number are rejected to the error topic. Otherwise
+`false` or `"0"` would read as brightness `0` and switch the bulb off.
+
 ### Brightness 0 means OFF
 
 A command whose brightness is `0` switches the bulb off and changes nothing
