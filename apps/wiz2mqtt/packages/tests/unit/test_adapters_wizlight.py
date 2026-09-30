@@ -671,6 +671,23 @@ class TestGetState:
         assert state.hue == pytest.approx(16.0, abs=1.0)
         assert state.saturation == pytest.approx(88.0, abs=1.0)
 
+    async def test_wizlight_get_state_reads_saturation_below_half_as_written(
+        self, ctx: _Ctx
+    ) -> None:
+        """``hsb 16,49`` goes on the wire as ``249,70,0`` plus ``w=128``.
+
+        Technique: Round-trip Testing — pywizlight's own inverse reads 43.6.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [
+            _FakeParser(rgb=(249.0, 70.0, 0.0), warm_white=128)
+        ]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert state.hue == pytest.approx(16.0, abs=1.0)
+        assert state.saturation == pytest.approx(49.0, abs=1.0)
+
     async def test_wizlight_get_state_ignores_stale_rgb_in_cct_mode(
         self, ctx: _Ctx
     ) -> None:

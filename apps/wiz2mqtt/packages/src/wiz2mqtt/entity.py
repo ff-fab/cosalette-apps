@@ -20,7 +20,7 @@ import cosalette
 from cosalette import DeviceStore, EntityNotifier, Optional
 
 from wiz2mqtt import intent, power
-from wiz2mqtt.colour import clamp_kelvin
+from wiz2mqtt.colour import clamp_kelvin, wiz_brightness
 from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizBridgeError, WizIdentityError
 from wiz2mqtt.models import BulbCapabilities, BulbState
@@ -46,6 +46,12 @@ _SATURATION_TOLERANCE = 1.0
 hue/saturation from an RGB byte round-trip (see :mod:`wiz2mqtt.colour`), so
 the value read back after a colour write is not always bit-identical to the
 value sent."""
+
+_HUE_QUANTISATION = 13.0
+"""Upper bound of the hue error, in degrees times saturation percent, that
+the RGB byte quantisation of a low-saturation colour adds (measured: 11.6
+degrees at saturation 1, 1.24 degrees at 10). The hue check tolerates
+``_HUE_QUANTISATION / saturation`` degrees, never less than ``_HUE_TOLERANCE``."""
 
 
 async def bulb_entity_tick(
@@ -580,11 +586,20 @@ def _kwargs_match_observed(
 def _scalar_fields_match(
     kwargs: SetStateKwargs, observed: BulbState, caps: BulbCapabilities | None
 ) -> bool:
-    """Exact-match check of brightness, scene, colour temperature and speed."""
-    for field in ("brightness", "scene"):
-        expected = kwargs.get(field)
-        if expected is not None and getattr(observed, field) != expected:
-            return False
+    """Exact-match check of brightness, scene, colour temperature and speed.
+
+    Brightness also accepts the value after the bulb's whole-percent
+    dimming, so an off-grid value such as 1 or 4 still confirms.
+    """
+    brightness = kwargs.get("brightness")
+    if brightness is not None and observed.brightness not in (
+        brightness,
+        wiz_brightness(brightness),
+    ):
+        return False
+    scene = kwargs.get("scene")
+    if scene is not None and observed.scene != scene:
+        return False
     expected_ct = kwargs.get("color_temp_kelvin")
     if expected_ct is not None:
         if caps is not None:
@@ -596,14 +611,21 @@ def _scalar_fields_match(
 
 
 def _hue_matches(kwargs: SetStateKwargs, observed: BulbState) -> bool:
-    """Circular-distance hue check within ``_HUE_TOLERANCE``."""
+    """Circular-distance hue check, widened for low saturation.
+
+    Below saturation 1 the colour is white and has no hue, so any hue
+    confirms. Above it, byte quantisation of the RGB channels widens the
+    tolerance to ``_HUE_QUANTISATION / saturation`` degrees.
+    """
     expected = kwargs.get("hue")
-    if expected is None:
+    saturation = kwargs.get("saturation")
+    if expected is None or (saturation is not None and saturation < 1):
         return True
     if observed.hue is None:
         return False
+    tolerance = max(_HUE_TOLERANCE, _HUE_QUANTISATION / (saturation or 100.0))
     diff = abs(observed.hue - expected)
-    return min(diff, 360.0 - diff) <= _HUE_TOLERANCE
+    return min(diff, 360.0 - diff) <= tolerance
 
 
 def _saturation_matches(kwargs: SetStateKwargs, observed: BulbState) -> bool:

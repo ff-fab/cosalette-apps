@@ -120,7 +120,9 @@ occurs:
 
 A write to restore `OFF` sends only `OFF`. A write to restore `ON` sends `ON` and the
 appearance (brightness, colour or scene) in one command. wiz2mqtt reads the state back
-after each write. It tries a maximum of three times in total. If all three attempts
+after each write. The comparison allows for the bulb's own rounding: brightness in whole
+percent, and the hue of a very pale colour. Any hue confirms for white (saturation
+`0`). It tries a maximum of three times in total. If all three attempts
 fail, it publishes an error on `wiz2mqtt/{bulb}/error`, keeps the desired state and
 stays in the reconnect phase, so the next tick or `firstBeat` runs the return path
 again.

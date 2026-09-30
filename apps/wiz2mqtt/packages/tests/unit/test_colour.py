@@ -6,6 +6,7 @@ Test Techniques Used:
 - Round-trip Testing: RGB <-> hue/saturation conversion sanity
 - Error Guessing: unsupported scene raises, missing kelvin range passes through
 - Decision Table: CCT-mode detection from colortemp value
+- Round-trip Testing: pywizlight's own hue/saturation writer inverted exactly
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from wiz2mqtt.colour import (
     parse_hsb,
     rgb_to_hue_saturation,
     validate_scene,
+    wiz_brightness,
 )
 from wiz2mqtt.errors import WizUnsupportedCommandError
 from wiz2mqtt.models import BulbCapabilities
@@ -202,6 +204,43 @@ class TestRgbToHueSaturation:
         hue, saturation = rgb_to_hue_saturation(128, 64, 200)
         assert 0.0 <= hue < 360.0  # rgbcw2hs: [0, 360) — 360.0 is never returned
         assert 0.0 <= saturation <= 100.0
+
+    @pytest.mark.parametrize(
+        ("hue", "saturation"),
+        [(16, 49), (270, 49), (30, 10), (200, 50), (90, 1), (0, 0)],
+    )
+    def test_colour_rgb_to_hue_saturation_inverts_pastel_writes(
+        self, hue: float, saturation: float
+    ) -> None:
+        """A saturation at or below 50 reads back as pywizlight wrote it.
+
+        ``rgbcw2hs`` alone reads ``16,49`` back as saturation 43.6 and
+        ``270,49`` as 42.3, because it measures the vector length of a
+        gamut-clipped point.
+
+        Technique: Round-trip Testing — pywizlight writer, then this reader.
+        """
+        from pywizlight.rgbcw import hs2rgbcw  # noqa: PLC0415 — test-only
+
+        rgb, white = hs2rgbcw((hue, saturation))
+
+        _, read_saturation = rgb_to_hue_saturation(*rgb, white)
+
+        assert read_saturation == pytest.approx(saturation, abs=0.2)
+
+
+class TestWizBrightness:
+    """wiz_brightness predicts the bulb's whole-percent brightness read-back."""
+
+    @pytest.mark.parametrize(
+        ("written", "read_back"),
+        [(255, 255), (128, 128), (100, 99), (4, 5), (1, 3), (0, 3)],
+    )
+    def test_colour_wiz_brightness_matches_whole_percent_dimming(
+        self, written: int, read_back: int
+    ) -> None:
+        """Technique: Boundary Value Analysis — full scale, off-grid, and floor."""
+        assert wiz_brightness(written) == read_back
 
 
 # ---------------------------------------------------------------------------

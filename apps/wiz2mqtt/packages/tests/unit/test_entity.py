@@ -25,6 +25,7 @@ import wiz2mqtt.entity as entity
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.adapters.wizlight import _parse_state
 from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
 from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizIdentityError, WizTimeoutError
 from wiz2mqtt.intent import (
@@ -1581,3 +1582,59 @@ class TestBootSafeguards:
         await _tick(ctx, _config(), adapter, state)
 
         assert bool(adapter.set_state_calls) is replayed
+
+
+class TestColourReadBack:
+    """A write confirms against pywizlight's real wire round trip (ADR-008).
+
+    Each case encodes a write with ``PilotBuilder``, decodes the same pilot
+    with ``PilotParser`` and the adapter's ``_parse_state``, and compares it
+    with ``_kwargs_match_observed``, assuming the bulb echoes what it got.
+    """
+
+    @staticmethod
+    def _read_back(**pilot: object) -> BulbState:
+        from pywizlight import PilotBuilder, PilotParser  # noqa: PLC0415
+
+        params = {**PilotBuilder(**pilot).pilot_params, "state": True}  # type: ignore[arg-type]
+        observed = _parse_state([PilotParser(params)])
+        assert observed is not None
+        return observed
+
+    def test_every_hue_and_saturation_confirms(self) -> None:
+        """Technique: Exhaustive Testing — hue 0-359 x saturation 0-100,
+        covering pastels, white (saturation 0) and quantised low saturation."""
+        unconfirmed = [
+            (hue, saturation)
+            for saturation in range(101)
+            for hue in range(360)
+            if not entity._kwargs_match_observed(  # noqa: SLF001
+                {"state": True, "hue": hue, "saturation": saturation},
+                self._read_back(hucolor=(hue, saturation)),
+            )
+        ]
+
+        assert unconfirmed == []
+
+    def test_every_brightness_confirms(self) -> None:
+        """Technique: Exhaustive Testing — WiZ dims in whole percent, so an
+        off-grid brightness such as 4 reads back as 5 and still confirms."""
+        unconfirmed = [
+            brightness
+            for brightness in range(1, 256)
+            if not entity._kwargs_match_observed(  # noqa: SLF001
+                {"state": True, "brightness": brightness},
+                self._read_back(brightness=brightness),
+            )
+        ]
+
+        assert unconfirmed == []
+
+    def test_a_different_hue_stays_unconfirmed(self) -> None:
+        """Technique: Error Guessing — the widened tolerance still rejects a
+        hue the bulb did not take."""
+        observed = self._read_back(hucolor=(30, 49))
+
+        assert not entity._kwargs_match_observed(  # noqa: SLF001
+            {"state": True, "hue": 16, "saturation": 49}, observed
+        )
