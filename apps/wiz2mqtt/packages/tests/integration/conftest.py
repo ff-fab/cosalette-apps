@@ -16,7 +16,6 @@ from cosalette.testing import AppHarness, ManualClock
 
 from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
-from wiz2mqtt.entity import bulb_entity_tick
 from wiz2mqtt.errors import error_type_map
 from wiz2mqtt.main import (
     _SIGNAL_QUEUE_SIZE,
@@ -24,11 +23,13 @@ from wiz2mqtt.main import (
     _power_source_map,
     _signal_source_map,
     _signal_topic,
+    bulb_entity,
     bulb_set,
     power_signal,
     power_source_entity,
     shared_state,
 )
+from wiz2mqtt.models import BulbStateModel
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import Wiz2MqttSettings
 
@@ -97,10 +98,13 @@ def build_integration_app(
     app.state(shared_state)
     app.add_telemetry(
         _bulb_map,
-        bulb_entity_tick,
+        bulb_entity,
         interval=interval,
         triggerable="local",
         publish=OnChange(),
+        # As in main.py: the model turns the wire sentinels
+        # (POWERED_UNKNOWN, NULL_WIRE) into JSON null.
+        state_model=BulbStateModel,
     )
     # Mirrors main.py's power_source_entity registration: bulb_entity_tick
     # arms a bulb's power source by name (cap-bjw9.7), so a source-bearing
