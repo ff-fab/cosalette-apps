@@ -348,6 +348,72 @@ class TestSuccessfulPoll:
         assert state.desired_state["office"].state == "ON"
         assert state.desired_state["office"].appearance.brightness == 200
 
+    async def test_pre_signal_read_does_not_consume_reconnect_work(self) -> None:
+        """Technique: Regression — a stale in-flight read is not return evidence."""
+
+        class AwaitingAdapter(FakeWizBulbAdapter):
+            def __init__(self) -> None:
+                super().__init__()
+                self.started = asyncio.Event()
+                self.release = asyncio.Event()
+
+            async def get_state(self, ip: str) -> BulbState:
+                self.started.set()
+                await self.release.wait()
+                return await super().get_state(ip)
+
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}],
+            [
+                {
+                    "name": "office-power",
+                    "members": ["office"],
+                    "restore_settle": 3600,
+                }
+            ],
+        )
+        adapter = AwaitingAdapter()
+        expected = BulbState(True, 100, None, None, None, None)
+        state = SharedState(
+            consecutive_failures={"office": 2},
+            phase={"office": "reconnect"},
+            desired_state={"office": _DESIRED_ON},
+            bulb_answered={"office": True},
+            restore_settle_until={"office": time.monotonic() + 3600},
+            restore_settle_state={"office": expected},
+        )
+        enqueue(state.pending_commands, "office", {"state": True}, time.time())
+        pending = state.pending_commands["office"]
+        ctx = FakeDeviceContext(settings=settings)
+        notify = RecordingNotifier()
+
+        tick = asyncio.create_task(
+            bulb_entity_tick(
+                ctx,
+                _config(restore_previous_state=True),
+                adapter,
+                state,
+                None,
+                notify,
+            )
+        )
+        await adapter.started.wait()
+        record_signal(settings, state, "office-power", "off", time.monotonic())
+        adapter.release.set()
+        await tick
+
+        assert adapter.set_state_calls == []
+        assert state.phase["office"] == "reconnect"
+        assert state.pending_commands["office"] is pending
+        assert state.restore_settle_state["office"] is expected
+        assert "office" in state.restore_settle_until
+        assert state.desired_state["office"] is _DESIRED_ON
+        assert state.consecutive_failures["office"] == 2
+        assert state.bulb_answered["office"] is True
+        assert "office" in state.stale_answers
+        assert ctx.availability_calls == ["available"]
+        assert notify.armed == ["office-power"]
+
 
 _DESIRED_OFF = DesiredState(
     state="OFF",

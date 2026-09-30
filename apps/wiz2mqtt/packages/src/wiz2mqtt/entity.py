@@ -179,11 +179,20 @@ async def _handle_read_success(
     )
     answered_after_signal = issued_at >= signal_at
     was_unreachable = state.bulb_answered.get(name) is False
-    state.consecutive_failures[name] = 0
     if answered_after_signal:
+        state.consecutive_failures[name] = 0
         state.bulb_answered[name] = True
         state.stale_answers.discard(name)
     await _mark_online_once(ctx, state, name)
+    if not answered_after_signal:
+        # The read was issued before the source's latest signal, so it cannot
+        # establish post-signal reachability.  It may still be rendered, but
+        # must not consume reconnect work, settle state, or desired intent.
+        # In particular, leave the stale/evidence markers untouched until a
+        # read issued after that signal answers.
+        belief = _recompute_and_notify(settings, state, notify, name)
+        return _render(settings, state, name, bulb_state, belief)
+
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a
     # boot event) also needs to run the return path when a desired state exists.

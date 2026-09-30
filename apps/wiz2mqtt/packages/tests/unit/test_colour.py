@@ -145,17 +145,17 @@ class TestValidateScene:
 
 
 class TestRgbToHueSaturation:
-    """rgb_to_hue_saturation converts RGB + cold-white to pywizlight's hue/saturation.
+    """rgb_to_hue_saturation converts RGB + white to pywizlight's hue/saturation.
 
-    Cases use rgb=(0, 0, 0) + cold_white for "white" rather than
+    Cases use rgb=(0, 0, 0) + white for "white" rather than
     rgb=(255, 255, 255) — a real bulb reports colour on the RGB channels
     and white on the separate cold-white channel, never both saturated at
-    once; ``rgbcw2hs`` derives saturation from ``cold_white``, not from
+    once; ``rgbcw2hs`` derives saturation from ``white``, not from
     the RGB vector's own magnitude.
     """
 
     @pytest.mark.parametrize(
-        ("rgb", "cold_white", "expected_hue", "expected_saturation"),
+        ("rgb", "white", "expected_hue", "expected_saturation"),
         [
             ((255, 0, 0), 0, 0.0, 100.0),  # pure red, no white channel
             ((0, 255, 0), 0, 120.0, 100.0),  # pure green, no white channel
@@ -166,7 +166,7 @@ class TestRgbToHueSaturation:
     def test_colour_rgb_to_hue_saturation_primary_colours(
         self,
         rgb: tuple[int, int, int],
-        cold_white: int,
+        white: int,
         expected_hue: float,
         expected_saturation: float,
     ) -> None:
@@ -174,11 +174,11 @@ class TestRgbToHueSaturation:
 
         Technique: Round-trip Testing — well-known RGB -> HSV fixed points.
         """
-        hue, saturation = rgb_to_hue_saturation(*rgb, cold_white)
+        hue, saturation = rgb_to_hue_saturation(*rgb, white)
         assert hue == pytest.approx(expected_hue, abs=0.01)
         assert saturation == pytest.approx(expected_saturation, abs=0.01)
 
-    def test_colour_rgb_to_hue_saturation_blends_cold_white_into_saturation(
+    def test_colour_rgb_to_hue_saturation_blends_white_into_saturation(
         self,
     ) -> None:
         """A partial cold-white channel reduces saturation below fully-saturated red.
@@ -189,7 +189,7 @@ class TestRgbToHueSaturation:
 
         Technique: Round-trip Testing — known rgbcw2hs fixed point.
         """
-        hue, saturation = rgb_to_hue_saturation(255, 0, 0, cold_white=64)
+        hue, saturation = rgb_to_hue_saturation(255, 0, 0, white=64)
         assert hue == pytest.approx(0.0, abs=0.01)
         # rgbcw2hs: cw_norm=64/128=0.5; sat=(1-0.5/2)*100=75.0
         assert saturation == pytest.approx(75.0, abs=0.01)
