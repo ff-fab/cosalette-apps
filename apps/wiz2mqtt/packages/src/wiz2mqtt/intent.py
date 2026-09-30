@@ -381,8 +381,29 @@ def merge_pending(
     temperature, or a scene supersedes the other modes. Each merge refreshes
     the TTL from the newest user intent.
     """
+    has_appearance = any(
+        kwargs.get(field) is not None
+        for field in (
+            "brightness",
+            "hue",
+            "saturation",
+            "color_temp_kelvin",
+            "scene",
+            "speed",
+        )
+    )
+    # WiZ treats an appearance update as a request to show that appearance.
+    # Preserve that direct-command behaviour when it supersedes queued OFF.
+    state_update = kwargs.get("state")
+    if (
+        existing is not None
+        and existing.kwargs.get("state") is False
+        and state_update is None
+        and has_appearance
+    ):
+        state_update = True
     merged = _pending_as_bulb_state(existing).apply_command(
-        state=kwargs.get("state"),
+        state=state_update,
         brightness=kwargs.get("brightness"),
         hue=kwargs.get("hue"),
         saturation=kwargs.get("saturation"),

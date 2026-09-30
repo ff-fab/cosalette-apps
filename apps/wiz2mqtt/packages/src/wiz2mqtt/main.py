@@ -159,6 +159,9 @@ async def bulb_set(
         await ctx.mark_unavailable()
         state.last_availability[config.name] = "offline"
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
+        # A direct write failed after the reachability gate had admitted it.
+        # Route the queued intent through the next successful telemetry tick.
+        state.phase[config.name] = "reconnect"
         notify(config.name)
         raise
 

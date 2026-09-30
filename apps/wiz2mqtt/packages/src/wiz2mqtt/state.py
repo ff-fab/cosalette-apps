@@ -71,7 +71,8 @@ class SharedState:
 
     pending_commands: dict[str, PendingCommand] = field(default_factory=dict)
     """At most one queued command per bulb, set while the bulb cannot be
-    reached (ADR-008 feature D); the newest command replaces the older one."""
+    reached (ADR-008 feature D); newer fields merge into older intent, with
+    a later appearance update superseding queued OFF by turning the bulb on."""
 
     source_belief: dict[str, Belief] = field(default_factory=dict)
     """Each power source's last-computed belief, refreshed by its own

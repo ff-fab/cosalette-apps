@@ -524,6 +524,47 @@ class TestQueue:
         assert on.kwargs["scene"] == 5
         assert on.kwargs["state"] is True
 
+    @pytest.mark.parametrize(
+        "appearance",
+        [
+            {"brightness": 179},
+            {"hue": 30.0, "saturation": 80.0},
+            {"color_temp_kelvin": 2700},
+            {"scene": 5, "speed": 120},
+        ],
+        ids=["brightness", "rgb", "cct", "effect"],
+    )
+    def test_appearance_after_off_replays_as_on(
+        self, appearance: dict[str, object]
+    ) -> None:
+        """Technique: Decision Table — appearance supersedes queued explicit OFF."""
+        off = merge_pending(None, {"state": False}, 100.0)  # type: ignore[arg-type]
+        merged = merge_pending(off, appearance, 105.0)  # type: ignore[arg-type]
+        pending = {"office": merged}
+
+        replay = pop_valid(pending, "office", ttl=60.0, now=110.0)
+
+        assert replay is not None
+        assert replay["state"] is True
+        for field, value in appearance.items():
+            assert replay[field] == value
+
+    def test_newer_explicit_off_replays_only_off(self) -> None:
+        """Technique: Decision Table — explicit OFF remains authoritative."""
+        appearance = merge_pending(None, {"brightness": 179}, 100.0)  # type: ignore[arg-type]
+        off = merge_pending(appearance, {"state": False}, 105.0)  # type: ignore[arg-type]
+        pending = {"office": off}
+
+        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == {
+            "state": False,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
+
     def test_pop_returns_none_when_absent(self) -> None:
         assert pop_valid({}, "office", ttl=60.0, now=110.0) is None
 

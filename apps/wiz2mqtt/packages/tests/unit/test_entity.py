@@ -17,6 +17,7 @@ import asyncio
 import json
 import time
 
+import pytest
 from cosalette import DeviceStore
 from cosalette.stores import MemoryStore
 
@@ -31,7 +32,8 @@ from wiz2mqtt.intent import (
     enqueue,
     record_command,
 )
-from wiz2mqtt.models import POWERED_UNKNOWN, BulbState
+from wiz2mqtt.main import bulb_set
+from wiz2mqtt.models import POWERED_UNKNOWN, BulbSetCommand, BulbState
 from wiz2mqtt.power import record_signal
 from wiz2mqtt.settings import BulbConfig, Wiz2MqttSettings
 from wiz2mqtt.state import SharedState
@@ -405,6 +407,60 @@ class TestReturnPath:
         ]
         assert state.phase["office"] == "steady"
         assert ctx.published == []
+
+    async def test_direct_timeout_replays_queued_command_on_next_successful_tick(
+        self,
+    ) -> None:
+        """Technique: State Transition — write timeout → reconnect → replay."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        notify = RecordingNotifier()
+        adapter.fail_next(_IP, WizTimeoutError("timeout"))
+
+        with pytest.raises(WizTimeoutError):
+            await bulb_set(
+                BulbSetCommand(brightness=200),
+                _config(),
+                adapter,
+                state,
+                ctx,
+                notify,
+            )
+
+        assert state.phase["office"] == "reconnect"
+        assert "office" in state.pending_commands
+
+        await _tick(ctx, _config(), adapter, state, notify=notify)
+
+        assert state.pending_commands == {}
+        assert state.phase["office"] == "steady"
+        assert adapter.set_state_calls == [
+            (
+                _IP,
+                {
+                    "state": None,
+                    "brightness": 200,
+                    "hue": None,
+                    "saturation": None,
+                    "color_temp_kelvin": None,
+                    "scene": None,
+                    "speed": None,
+                },
+            ),
+            (
+                _IP,
+                {
+                    "state": None,
+                    "brightness": 200,
+                    "hue": None,
+                    "saturation": None,
+                    "color_temp_kelvin": None,
+                    "scene": None,
+                    "speed": None,
+                },
+            ),
+        ]
 
     async def test_no_pending_command_with_restore_enabled_applies_stored_intent(
         self,
