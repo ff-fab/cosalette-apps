@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: caldates2mqtt
-  version: 0.2.5 # x-release-please-version
+  version: 0.2.6 # x-release-please-version
   x-cosalette-contract-version: '1'
 channels:
   birthdayState:
