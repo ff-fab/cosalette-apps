@@ -203,6 +203,35 @@ class TestBulbSet:
         assert len(adapter.set_state_calls) == 1
         assert notify.armed == ["office", "office"]
 
+    async def test_reconnect_commands_merge_without_a_direct_write(self) -> None:
+        """A return-path queue is the only writer until it has drained."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        notify = RecordingNotifier()
+
+        await bulb_set(
+            BulbSetCommand(effect="Warm white"),
+            self._config(),
+            adapter,
+            state,
+            self._ctx(),
+            notify,
+        )
+        await bulb_set(
+            BulbSetCommand(brightness=179),
+            self._config(),
+            adapter,
+            state,
+            self._ctx(),
+            notify,
+        )
+
+        queued = state.pending_commands["office"].kwargs
+        assert adapter.set_state_calls == []
+        assert queued["brightness"] == 179
+        assert queued["scene"] is not None
+        assert notify.armed == ["office", "office"]
+
     @pytest.mark.parametrize(
         "error",
         [WizIdentityError("wrong bulb"), WizUnsupportedCommandError("unsupported")],

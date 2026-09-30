@@ -321,17 +321,104 @@ def record_command(
 
 @dataclass(frozen=True)
 class PendingCommand:
-    """A queued command for a currently-unreachable bulb."""
+    """The merged queued command for a currently-unreachable bulb."""
 
     kwargs: SetStateKwargs
     queued_at: float
 
 
+def _pending_as_bulb_state(command: PendingCommand | None) -> BulbState:
+    """Adapt a pending command to the state merge model shared with intent."""
+    if command is None:
+        return EMPTY_BULB_STATE
+    kwargs = command.kwargs
+    return BulbState(
+        state=kwargs.get("state"),
+        brightness=kwargs.get("brightness"),
+        hue=kwargs.get("hue"),
+        saturation=kwargs.get("saturation"),
+        color_temp_kelvin=kwargs.get("color_temp_kelvin"),
+        scene=kwargs.get("scene"),
+        effect_speed=kwargs.get("speed"),
+    )
+
+
+def _pending_kwargs(bulb_state: BulbState) -> SetStateKwargs:
+    """Translate the merged state back to its pending representation."""
+    return {
+        "state": bulb_state.state,
+        "brightness": bulb_state.brightness,
+        "hue": bulb_state.hue,
+        "saturation": bulb_state.saturation,
+        "color_temp_kelvin": bulb_state.color_temp_kelvin,
+        "scene": bulb_state.scene,
+        "speed": bulb_state.effect_speed,
+    }
+
+
+def _pending_write_kwargs(kwargs: SetStateKwargs) -> SetStateKwargs:
+    """Keep queued appearance for a later ON, but never send it with OFF."""
+    if kwargs.get("state") is False:
+        return {
+            "state": False,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
+    return kwargs
+
+
+def merge_pending(
+    existing: PendingCommand | None, kwargs: SetStateKwargs, now: float
+) -> PendingCommand:
+    """Merge *kwargs* into a pending command with desired-state semantics.
+
+    ``BulbState.apply_command`` owns the colour-mode rules, so a queued
+    command and desired state cannot disagree about whether RGB, colour
+    temperature, or a scene supersedes the other modes. Each merge refreshes
+    the TTL from the newest user intent.
+    """
+    has_appearance = any(
+        kwargs.get(field) is not None
+        for field in (
+            "brightness",
+            "hue",
+            "saturation",
+            "color_temp_kelvin",
+            "scene",
+            "speed",
+        )
+    )
+    # WiZ treats an appearance update as a request to show that appearance.
+    # Preserve that direct-command behaviour when it supersedes queued OFF.
+    state_update = kwargs.get("state")
+    if (
+        existing is not None
+        and existing.kwargs.get("state") is False
+        and state_update is None
+        and has_appearance
+    ):
+        state_update = True
+    merged = _pending_as_bulb_state(existing).apply_command(
+        state=state_update,
+        brightness=kwargs.get("brightness"),
+        hue=kwargs.get("hue"),
+        saturation=kwargs.get("saturation"),
+        color_temp_kelvin=kwargs.get("color_temp_kelvin"),
+        scene=kwargs.get("scene"),
+        effect_speed=kwargs.get("speed"),
+    )
+    return PendingCommand(kwargs=_pending_kwargs(merged), queued_at=now)
+
+
 def enqueue(
     pending: dict[str, PendingCommand], name: str, kwargs: SetStateKwargs, now: float
 ) -> None:
-    """Queue *kwargs* for *name*, replacing any older pending command."""
-    pending[name] = PendingCommand(kwargs=kwargs, queued_at=now)
+    """Merge *kwargs* into *name*'s pending command."""
+    pending[name] = merge_pending(pending.get(name), kwargs, now)
 
 
 def pop_valid(
@@ -348,4 +435,4 @@ def pop_valid(
     if now - command.queued_at > ttl:
         logger.info("Dropping expired pending command for bulb %s", name)
         return None
-    return command.kwargs
+    return _pending_write_kwargs(command.kwargs)

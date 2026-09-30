@@ -22,6 +22,7 @@ from wiz2mqtt.intent import (
     desired_state_from_dict,
     desired_state_to_dict,
     enqueue,
+    merge_pending,
     pop_valid,
     record_command,
     record_observation,
@@ -454,7 +455,7 @@ class TestRecordCommand:
 
 
 class TestQueue:
-    """The single-slot per-bulb pending-command queue (cap-bjw9.6)."""
+    """The field-wise pending-command queue (cap-ea7n.1)."""
 
     def test_enqueue_then_pop_returns_the_kwargs(self) -> None:
         pending: dict[str, object] = {}
@@ -462,7 +463,15 @@ class TestQueue:
 
         enqueue(pending, "office", kwargs, 100.0)  # type: ignore[arg-type]
 
-        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == kwargs
+        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == {
+            "state": True,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
 
     def test_pop_removes_the_entry(self) -> None:
         pending: dict[str, object] = {}
@@ -472,13 +481,89 @@ class TestQueue:
 
         assert "office" not in pending
 
-    def test_a_second_enqueue_replaces_the_first(self) -> None:
+    def test_a_second_enqueue_merges_with_the_first(self) -> None:
         pending: dict[str, object] = {}
-        enqueue(pending, "office", {"state": True}, 100.0)  # type: ignore[arg-type]
-        enqueue(pending, "office", {"state": False}, 105.0)  # type: ignore[arg-type]
+        enqueue(pending, "office", {"scene": 5}, 100.0)  # type: ignore[arg-type]
+        enqueue(pending, "office", {"brightness": 179}, 105.0)  # type: ignore[arg-type]
 
         assert len(pending) == 1
-        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == {"state": False}
+        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == {
+            "state": None,
+            "brightness": 179,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": 5,
+            "speed": None,
+        }
+
+    def test_newest_colour_mode_supersedes_the_older_mode(self) -> None:
+        scene = merge_pending(None, {"scene": 5, "speed": 120}, 100.0)  # type: ignore[arg-type]
+        merged = merge_pending(scene, {"color_temp_kelvin": 2700}, 105.0)  # type: ignore[arg-type]
+
+        assert merged.kwargs["color_temp_kelvin"] == 2700
+        assert merged.kwargs["scene"] is None
+        assert merged.kwargs["hue"] is None
+        assert merged.kwargs["saturation"] is None
+
+    def test_off_replays_without_appearance_but_keeps_it_for_a_later_on(self) -> None:
+        scene = merge_pending(None, {"scene": 5}, 100.0)  # type: ignore[arg-type]
+        off = merge_pending(scene, {"state": False}, 105.0)  # type: ignore[arg-type]
+        on = merge_pending(off, {"state": True}, 110.0)  # type: ignore[arg-type]
+        pending = {"office": off}
+
+        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == {
+            "state": False,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
+        assert on.kwargs["scene"] == 5
+        assert on.kwargs["state"] is True
+
+    @pytest.mark.parametrize(
+        "appearance",
+        [
+            {"brightness": 179},
+            {"hue": 30.0, "saturation": 80.0},
+            {"color_temp_kelvin": 2700},
+            {"scene": 5, "speed": 120},
+        ],
+        ids=["brightness", "rgb", "cct", "effect"],
+    )
+    def test_appearance_after_off_replays_as_on(
+        self, appearance: dict[str, object]
+    ) -> None:
+        """Technique: Decision Table — appearance supersedes queued explicit OFF."""
+        off = merge_pending(None, {"state": False}, 100.0)  # type: ignore[arg-type]
+        merged = merge_pending(off, appearance, 105.0)  # type: ignore[arg-type]
+        pending = {"office": merged}
+
+        replay = pop_valid(pending, "office", ttl=60.0, now=110.0)
+
+        assert replay is not None
+        assert replay["state"] is True
+        for field, value in appearance.items():
+            assert replay[field] == value
+
+    def test_newer_explicit_off_replays_only_off(self) -> None:
+        """Technique: Decision Table — explicit OFF remains authoritative."""
+        appearance = merge_pending(None, {"brightness": 179}, 100.0)  # type: ignore[arg-type]
+        off = merge_pending(appearance, {"state": False}, 105.0)  # type: ignore[arg-type]
+        pending = {"office": off}
+
+        assert pop_valid(pending, "office", ttl=60.0, now=110.0) == {
+            "state": False,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
 
     def test_pop_returns_none_when_absent(self) -> None:
         assert pop_valid({}, "office", ttl=60.0, now=110.0) is None
@@ -488,7 +573,15 @@ class TestQueue:
         pending: dict[str, object] = {}
         enqueue(pending, "office", {"state": True}, 0.0)  # type: ignore[arg-type]
 
-        assert pop_valid(pending, "office", ttl=60.0, now=60.0) == {"state": True}
+        assert pop_valid(pending, "office", ttl=60.0, now=60.0) == {
+            "state": True,
+            "brightness": None,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
 
     def test_pop_drops_a_command_older_than_the_ttl(self) -> None:
         """Technique: Boundary Value Analysis — just over the limit is expired."""

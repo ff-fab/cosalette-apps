@@ -24,7 +24,7 @@ constraints = [
     { name = "msgpack", specifier = ">=1.2.1" },
     { name = "pip", specifier = ">=26.2" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
-    { name = "pyjwt", specifier = ">=2.13.0" },
+    { name = "pyjwt", specifier = ">=2.14.0" },
     { name = "pymdown-extensions", specifier = ">=11.0.1" },
     { name = "python-multipart", specifier = ">=0.0.31" },
     { name = "starlette", specifier = ">=1.3.1" },
@@ -141,7 +141,7 @@ wheels = [
 
 [[package]]
 name = "airthings2mqtt"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/airthings2mqtt" }
 dependencies = [
     { name = "bleak" },
@@ -152,7 +152,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "bleak", specifier = ">=0.22" },
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
     { name = "dbus-fast", specifier = ">=1.83.0" },
 ]
 
@@ -354,7 +354,7 @@ wheels = [
 
 [[package]]
 name = "caldates2mqtt"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
@@ -364,7 +364,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "caldav", specifier = ">=1.4" },
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
 ]
 
 [[package]]
@@ -522,7 +522,7 @@ wheels = [
 
 [[package]]
 name = "cosalette"
-version = "0.10.4"
+version = "0.10.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiomqtt" },
@@ -532,16 +532,16 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/29/97/82f119b84f13d35764589284d8bdf8446a94567eb133daa57c3371c8b05b/cosalette-0.10.4.tar.gz", hash = "sha256:7877d82c5fcdbf4b2536a45755f07f522b2fc67170d340c8d82886ada3d048df", size = 702876, upload-time = "2026-09-27T18:00:16.851Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/b9/d81832e9bb6ab85935f9031acbc5436d151afec0c5a40a057dd4a6080093/cosalette-0.10.5.tar.gz", hash = "sha256:cba93e203c015eba8540552554680c0eb35846ad5d5035d495390e3fa6799211", size = 702909, upload-time = "2026-09-30T06:50:23.939Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/68/59/c01731b2ef98f7116751e7816e355e71e7ddda458e6aa19702745be0c03a/cosalette-0.10.4-cp314-abi3-macosx_10_12_x86_64.whl", hash = "sha256:73e84d825ee4f78ff87c65588ea5e8bbb5d5436d37d790425acef1a611279672", size = 1032230, upload-time = "2026-09-27T18:00:03.195Z" },
-    { url = "https://files.pythonhosted.org/packages/04/37/4f64ec01fb0e3318e41929c7b31f71d6dd777c6ad488d744616401a352e3/cosalette-0.10.4-cp314-abi3-macosx_11_0_arm64.whl", hash = "sha256:2f26659119f1c606dacc95508c6520d3d6a9c2cbc39b0b1f00405879da955131", size = 1029954, upload-time = "2026-09-27T18:00:05.655Z" },
-    { url = "https://files.pythonhosted.org/packages/a0/42/8e08141d0b1ced095acc725e566c0e24b999ff81e37e8b00d350362d1a29/cosalette-0.10.4-cp314-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:444f7d5f246cc908226e4c82856a1014596ee27640a8996d4eb50c607ecffce9", size = 1064183, upload-time = "2026-09-27T18:00:07.138Z" },
-    { url = "https://files.pythonhosted.org/packages/0a/11/ca021430e27959e7eb03f8cbd42d90d75d07559b0a5080e900049769d3ec/cosalette-0.10.4-cp314-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:cffa4d4fe4bbe1add7370e4a17ca02fe994858fa3095ed6088a682c6c8735d9e", size = 1071015, upload-time = "2026-09-27T18:00:08.809Z" },
-    { url = "https://files.pythonhosted.org/packages/78/f7/8a3671ffa0fa1e2a4f4ad02f8a07b6d33047706839e23aa5b73cfbc7e084/cosalette-0.10.4-cp314-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7f07f0f5310874083ed3bd0a9ea92b96e3b6f3d25ec72594459cb1c243aed391", size = 1070401, upload-time = "2026-09-27T18:00:10.283Z" },
-    { url = "https://files.pythonhosted.org/packages/a1/ca/2ec022ef1727d3e985ac0a3e3536c8e76719375ddcca9b43ec45da1c9985/cosalette-0.10.4-cp314-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:ab6bf5d0618579dbad76ca72083770b1b85a6be85500b044917b9328b02f7527", size = 1241374, upload-time = "2026-09-27T18:00:11.8Z" },
-    { url = "https://files.pythonhosted.org/packages/0e/c5/23ac94b2264c2c2d9a2a3a19cec1b5f770d2255200575f83307373c24b2f/cosalette-0.10.4-cp314-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:d74e7c1a40068593a202988b2686dfb5bdd109889c6d9339cd6dae38e748a2b6", size = 1272899, upload-time = "2026-09-27T18:00:13.724Z" },
-    { url = "https://files.pythonhosted.org/packages/80/88/8c2d209fb6ccd60a8a03d921c467d1242b541b332f48ed0e044acb5a03c5/cosalette-0.10.4-cp314-abi3-win_amd64.whl", hash = "sha256:4ab3afc959f3b82d40ba2bc96f0dbf5c606599e929ee440acf88b88aeadce225", size = 926554, upload-time = "2026-09-27T18:00:15.154Z" },
+    { url = "https://files.pythonhosted.org/packages/c9/de/637c6b3ad99de3a06a4b1c153a64d9e7fa000c3068c6283d864fc9e9a236/cosalette-0.10.5-cp314-abi3-macosx_10_12_x86_64.whl", hash = "sha256:1b0b89ad9f1af60842ffe77e77c4b930935398c9339a37e364d3caaeed5c8f42", size = 1032235, upload-time = "2026-09-30T06:50:10.692Z" },
+    { url = "https://files.pythonhosted.org/packages/57/99/b8977c0a9bd24f01aed868782084610f62f7319ce38cd4e6916e50137ba4/cosalette-0.10.5-cp314-abi3-macosx_11_0_arm64.whl", hash = "sha256:9d31233a6f359dec5adc3971da2f7c5b8659f880f582981d961901373cf77d7f", size = 1029962, upload-time = "2026-09-30T06:50:12.745Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/41/cf46a46b89246cf266da2e9fad67e18528461f7b2377f8293229c6d2667a/cosalette-0.10.5-cp314-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:504721eb4fd1303c29f539e87ebf2689fc3b10f28e3c1174b399b5aafbc3a181", size = 1064186, upload-time = "2026-09-30T06:50:14.577Z" },
+    { url = "https://files.pythonhosted.org/packages/f6/90/6d42f1821e8db4e25fc6ea10c2d39a6b1e6a91e31ffad757bd34ea2aabdf/cosalette-0.10.5-cp314-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:420a4baf0f43a5096e3e779604ef20a64d1787cedcdfeb58f7df34935dff7cc5", size = 1071020, upload-time = "2026-09-30T06:50:16.032Z" },
+    { url = "https://files.pythonhosted.org/packages/a6/8a/de693b4db6a4d8f48d12666c1dbfa2ec99c905ab167f175a9162a82975dc/cosalette-0.10.5-cp314-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ed561b7f128224ee484190ee15f0316d806dd140b3da19ecade734a3211b58da", size = 1070405, upload-time = "2026-09-30T06:50:17.545Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/bb/72135f0cd559cf97821e12db750aad90e43768760ea5da8828fd600ffa68/cosalette-0.10.5-cp314-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:20117568d8f72331b53c9a305dfdf4d8c20868f2a2ce1568e2ba2ebfd129dd25", size = 1241380, upload-time = "2026-09-30T06:50:19.631Z" },
+    { url = "https://files.pythonhosted.org/packages/16/67/d9b7dd8dd484bcaf17a129ecf4f1a730786f15ef6ea5c2d3614ec0c1a4d0/cosalette-0.10.5-cp314-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:a8f855058a73799e0d9d03431d29508e601a0f287e036f116361644010edaa43", size = 1272903, upload-time = "2026-09-30T06:50:21.379Z" },
+    { url = "https://files.pythonhosted.org/packages/80/30/85cd73773cf66ddd23f9f57b08ae4af25aa7506e1d41fc84556bdd17f146/cosalette-0.10.5-cp314-abi3-win_amd64.whl", hash = "sha256:5388ba6a42c75c5268b57dcbefc7ac956dc186673518c1ec5140c375890eda23", size = 926561, upload-time = "2026-09-30T06:50:22.666Z" },
 ]
 
 [package.optional-dependencies]
@@ -598,7 +598,7 @@ docs = [
 [package.metadata.requires-dev]
 dev = [
     { name = "actionlint-py", specifier = ">=1.7.12.24" },
-    { name = "cosalette", extras = ["mcp"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["mcp"], specifier = ">=0.10.5,<0.11" },
     { name = "coverage", specifier = ">=7.15.2" },
     { name = "detect-secrets", specifier = ">=1.5.0" },
     { name = "flake8", specifier = ">=7.3.0" },
@@ -1017,7 +1017,7 @@ wheels = [
 
 [[package]]
 name = "gas2mqtt"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
     { name = "cosalette", extra = ["schema"] },
@@ -1028,7 +1028,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "smbus2", specifier = ">=0.6.0" },
@@ -1251,7 +1251,7 @@ wheels = [
 
 [[package]]
 name = "jeelink2mqtt"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/jeelink2mqtt" }
 dependencies = [
     { name = "cosalette", extra = ["schema"] },
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pylacrosse", specifier = ">=0.4" },
@@ -2220,11 +2220,11 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.13.0"
+version = "2.15.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/ea/5194e52748b0da83d71e082d75496eaec6e58f419f5e184786ded517e6a9/pyjwt-2.15.1.tar.gz", hash = "sha256:4f259e80cdfb6b3fc18a7de51fd1ef9ec79652f25019bae68975ca2468a34df8", size = 121252, upload-time = "2026-09-28T18:40:42.598Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
+    { url = "https://files.pythonhosted.org/packages/50/ca/44de4e75f8aadc457f0634be3b542815078ded46dca30efb960edeecad6e/pyjwt-2.15.1-py3-none-any.whl", hash = "sha256:42d59d631f7768a1028a64c7ff581a9bf7519804daf91fc5b6c56e30eec5e193", size = 33860, upload-time = "2026-09-28T18:40:41.429Z" },
 ]
 
 [package.optional-dependencies]
@@ -2850,7 +2850,7 @@ wheels = [
 
 [[package]]
 name = "suncast"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/suncast" }
 dependencies = [
     { name = "astral" },
@@ -2872,7 +2872,7 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">=3.9" },
     { name = "astral", specifier = ">=3.2" },
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.7" },
-    { name = "cosalette", specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", specifier = ">=0.10.5,<0.11" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
@@ -3082,7 +3082,7 @@ wheels = [
 
 [[package]]
 name = "velux2mqtt"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
     { name = "cosalette", extra = ["schema"] },
@@ -3093,7 +3093,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
     { name = "gpiozero", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
@@ -3116,7 +3116,7 @@ wheels = [
 
 [[package]]
 name = "vito2mqtt"
-version = "0.2.4"
+version = "0.2.5"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
     { name = "cosalette", extra = ["schema"] },
@@ -3128,7 +3128,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyserial", specifier = ">=3.5" },
@@ -3137,7 +3137,7 @@ requires-dist = [
 
 [[package]]
 name = "wallpanel-control"
-version = "0.3.4"
+version = "0.3.5"
 source = { editable = "apps/wallpanel-control" }
 dependencies = [
     { name = "asyncssh" },
@@ -3147,7 +3147,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "asyncssh", specifier = ">=2.20.0" },
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
 ]
 
 [[package]]
@@ -3375,7 +3375,7 @@ wheels = [
 
 [[package]]
 name = "wiz2mqtt"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
     { name = "cosalette", extra = ["schema"] },
@@ -3385,7 +3385,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.4,<0.11" },
+    { name = "cosalette", extras = ["schema"], specifier = ">=0.10.5,<0.11" },
     { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
     { name = "typer", specifier = ">=0.12" },
 ]
