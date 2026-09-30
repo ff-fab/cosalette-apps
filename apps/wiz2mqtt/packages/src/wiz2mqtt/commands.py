@@ -65,6 +65,12 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
     A resulting brightness of ``0`` is an OFF command and nothing else: an
     openHAB Dimmer sends OFF as ``{"brightness":0}`` and a Color channel as
     an ``"h,s,0"`` triple (ADR-001 amendment 2026-09-30).
+
+    Any other non-empty command without ``state`` means ON: the adapter
+    sends it with pywizlight's ``turn_on``, which lights the bulb. Making
+    that explicit here keeps the desired state, the optimistic cache and
+    the power request in step with the device (ADR-008 amendment
+    2026-09-30).
     """
     hue = saturation = None
     brightness = cmd.brightness
@@ -78,8 +84,8 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
         return {**_NO_CHANGE, "state": False}
 
     scene = effect_name_to_scene_id(cmd.effect) if cmd.effect is not None else None
-    return {
-        "state": _STATE_ON_OFF.get(cmd.state),
+    kwargs: SetStateKwargs = {
+        **_NO_CHANGE,
         "brightness": brightness,
         "hue": hue,
         "saturation": saturation,
@@ -87,3 +93,8 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
         "scene": scene,
         "speed": cmd.effect_speed,
     }
+    if cmd.state is not None:
+        kwargs["state"] = _STATE_ON_OFF[cmd.state]
+    elif any(value is not None for value in kwargs.values()):
+        kwargs["state"] = True
+    return kwargs

@@ -35,6 +35,11 @@ Supported keys:
 `color`, `color_temp`, `effect`, and `hsb` are mutually exclusive. Invalid combinations
 are rejected before the adapter is called.
 
+A command without `state` that changes anything else also switches the bulb on,
+because the bulb lights to apply it. wiz2mqtt records it as `state: "ON"`, so the
+state topic, the desired state and a [power request](power-awareness.md#power-requests)
+follow what the bulb does. An empty command `{}` changes nothing.
+
 ### Fractional numbers
 
 `brightness`, `color_temp` and `effect_speed` accept a JSON number with a

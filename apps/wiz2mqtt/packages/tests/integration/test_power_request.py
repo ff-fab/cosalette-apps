@@ -11,8 +11,8 @@ Test Techniques Used:
   real router, handler and telemetry entity
 - Decision Table: the per-source opt-in decides whether a request appears
 - Specification-based: the request is retained, and never a command topic
-- State Transition: the consumer contract — appearance-only commands, and
-  release once the relay signal reports the circuit on
+- State Transition: the consumer contract — appearance-only commands mean ON,
+  and release once the relay signal reports the circuit on
 """
 
 from __future__ import annotations
@@ -245,10 +245,10 @@ class TestConsumerContract:
     async def test_appearance_command_on_a_fresh_bulb_requests_power(
         self, fake_adapter: FakeWizBulbAdapter
     ) -> None:
-        """Technique: Equivalence Partitioning — no known intent reads as ON.
+        """Technique: Equivalence Partitioning — a command without state is ON.
 
-        A bulb with no recorded intent takes an effect-only command as a
-        wish for light, so it raises the request like ``state: ON``.
+        An effect-only command lights the bulb, so it raises the request
+        like ``state: ON``.
         """
         harness = _harness(fake_adapter, enable_power_on_request=True)
 
@@ -256,23 +256,34 @@ class TestConsumerContract:
 
         assert _requests(harness) == [None, "on"]
 
-    async def test_appearance_command_on_a_bulb_meant_off_requests_nothing(
-        self, fake_adapter: FakeWizBulbAdapter
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"brightness": 76.5},  # openHAB Dimmer slider at 30 %
+            {"hsb": "120,50,30"},  # openHAB Color picker
+            {"effect": "Party"},
+        ],
+    )
+    async def test_appearance_command_on_a_bulb_switched_off_requests_power(
+        self, fake_adapter: FakeWizBulbAdapter, payload: dict[str, object]
     ) -> None:
-        """Technique: Decision Table — appearance alone keeps an OFF intent.
+        """Technique: Decision Table — appearance alone means ON (cap-32m6).
 
-        After ``state: OFF`` an effect-only command only restyles the bulb
-        for later; the consumer must send ``state: ON`` to ask for power.
+        After ``state: OFF`` a command without ``state`` still lights the
+        bulb on the wire, so it records ON, raises the request and the
+        bulb's state topic reports ON rather than OFF.
         """
         harness = _contract_harness(fake_adapter)
 
         await _run_steps(
             harness,
             ("command", {"state": "OFF"}, BULB_STATE_TOPIC, 1),
-            ("command", {"effect": "Party"}, BULB_STATE_TOPIC, 2),
+            ("command", payload, SOURCE_STATE_TOPIC, 2),
         )
 
-        assert _requests(harness) == [None]
+        assert _requests(harness) == [None, "on"]
+        last_payload, _retain, _qos = harness.messages_for(BULB_STATE_TOPIC)[-1]
+        assert json.loads(last_payload)["state"] == "ON"
 
     async def test_relay_signal_on_releases_the_request(
         self, fake_adapter: FakeWizBulbAdapter

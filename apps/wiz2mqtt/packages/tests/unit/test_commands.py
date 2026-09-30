@@ -1,7 +1,8 @@
 """Unit tests for commands.py — set-command to WizBulbPort.set_state translation.
 
 Test Techniques Used:
-- Equivalence Partitioning: ON/OFF/absent state; color/hsb present/absent
+- Equivalence Partitioning: ON/OFF/absent state (absent + a change = ON);
+  color/hsb present/absent
 - Specification-based: field-by-field mapping onto set_state's kwarg names
 - Round-trip Testing: RGB in -> hue/saturation out via the colour module
 - Decision Table: hsb brightness only fills in when brightness is absent
@@ -40,13 +41,37 @@ class TestStateMapping:
         kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"state": "OFF"}))
         assert kwargs["state"] is False
 
-    def test_commands_absent_state_maps_to_none(self) -> None:
-        """No state field in the payload stays None (partial-update passthrough).
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"brightness": 100},
+            {"color": {"r": 255, "g": 0, "b": 0}},
+            {"hsb": "120,50,40"},
+            {"color_temp": 2700},
+            {"effect": "Ocean"},
+            {"effect_speed": 100},
+        ],
+    )
+    def test_commands_absent_state_with_a_change_means_on(
+        self, payload: dict[str, object]
+    ) -> None:
+        """A command without ``state`` lights the bulb, so it says ON.
 
-        Technique: Equivalence Partitioning — state absent.
+        pywizlight sends it with ``turn_on``; the explicit ``True`` keeps the
+        desired state and the power request in step (ADR-008 amendment).
+
+        Technique: Equivalence Partitioning — state absent, one class per key.
         """
-        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"brightness": 100}))
-        assert kwargs["state"] is None
+        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate(payload))
+        assert kwargs["state"] is True
+
+    def test_commands_empty_command_stays_a_no_op(self) -> None:
+        """An empty command changes nothing, not even the state.
+
+        Technique: Boundary Value Analysis — the empty payload.
+        """
+        kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({}))
+        assert all(value is None for value in kwargs.values())
 
 
 # ---------------------------------------------------------------------------
@@ -225,4 +250,4 @@ class TestBrightnessZeroIsOff:
         Technique: Boundary Value Analysis — just above the OFF floor.
         """
         kwargs = to_set_state_kwargs(BulbSetCommand.model_validate({"brightness": 1}))
-        assert (kwargs["state"], kwargs["brightness"]) == (None, 1)
+        assert (kwargs["state"], kwargs["brightness"]) == (True, 1)

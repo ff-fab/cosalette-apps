@@ -246,12 +246,10 @@ A consumer that maps the power-on request to a relay can rely on these rules:
 3. **Only a dark circuit.** The belief must be `off`. A belief of `unknown` never
    raises a request. With `when_unreachable = "fault"` and no `signal_topic`, the
    belief is never `off`, so use `no_power` or connect a relay signal.
-4. **The command must leave the bulb desired `ON`.** `state: "ON"` does. `state:
-   "OFF"`, and brightness `0` (which means OFF), never do. A command with no `state`
-   key keeps the desired state: it gives `ON` for a bulb that was desired `ON` or has
-   no desired state yet, and `OFF` for a bulb that was desired `OFF`. Thus a
-   brightness, colour or effect command alone does not ask for power for a bulb that
-   you switched off. Send `state: "ON"` with it, or before it.
+4. **The command must want light.** `state: "ON"` does, and so does any command
+   without a `state` key that changes something (brightness, colour, colour
+   temperature, effect or effect speed), because the bulb switches on to apply it.
+   `state: "OFF"`, and brightness `0` (which means OFF), never do.
 5. **Release on convergence, never on a timeout.** wiz2mqtt sets the request back to
    `null` when the belief becomes `on`, or when no member is desired `ON` any more. With
    a `signal_topic` the release follows the relay's `on` at once. Without one, it
@@ -353,10 +351,10 @@ message (MQTT 5 refresh) does not send the command again. `NULL` means "no reque
 the rule does nothing.
 
 The request follows [the consumer contract](#the-consumer-contract). In openHAB terms:
-`ON` on the `State` Item asks for power. `OFF` on the `State`, `Brightness` or `Color`
-Item never does, because openHAB sends it as brightness `0`. A `Brightness`, `Color`,
-`ColorTemp` or `Effect` command alone asks for power only when the bulb was not
-switched off before. Send `ON` to the `State` Item first.
+`ON` on the `State` Item asks for power, and so does a `Brightness`, `Color`,
+`ColorTemp`, `Effect` or `EffectSpeed` command, such as a move of the brightness
+slider. `OFF` on the `State`, `Brightness` or `Color` Item never does, because openHAB
+sends it as brightness `0`.
 
 **Thing availability.** Each generated bulb Thing reads the availability topic of its
 bulb. The Thing goes `OFFLINE` when the bulb publishes `offline`, and openHAB then does

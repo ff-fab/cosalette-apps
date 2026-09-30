@@ -439,7 +439,7 @@ class TestReturnPath:
             (
                 _IP,
                 {
-                    "state": None,
+                    "state": True,
                     "brightness": 200,
                     "hue": None,
                     "saturation": None,
@@ -451,7 +451,7 @@ class TestReturnPath:
             (
                 _IP,
                 {
-                    "state": None,
+                    "state": True,
                     "brightness": 200,
                     "hue": None,
                     "saturation": None,
