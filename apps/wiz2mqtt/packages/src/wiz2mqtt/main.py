@@ -16,7 +16,12 @@ from wiz2mqtt.adapters.wizlight import WizBulbAdapter
 from wiz2mqtt.commands import to_set_state_kwargs
 from wiz2mqtt.discovery import cache_capabilities, make_discovery_enrich
 from wiz2mqtt.entity import bulb_entity_tick
-from wiz2mqtt.errors import WizConnectionError, WizTimeoutError, error_type_map
+from wiz2mqtt.errors import (
+    WizConnectionError,
+    WizQueuedTimeoutError,
+    WizTimeoutError,
+    error_type_map,
+)
 from wiz2mqtt.models import BulbSetCommand, BulbStateModel, PowerSourceStateModel
 from wiz2mqtt.ports import WizBulbPort
 from wiz2mqtt.settings import BulbConfig, PowerSourceConfig, Wiz2MqttSettings
@@ -124,7 +129,11 @@ async def bulb_set(
     all — the command is merged into the queue instead and the entity is
     armed to republish the (now updated) desired state immediately, without
     an error. A bulb believed reachable that still times out on the wire is
-    queued too, then the timeout still surfaces on the error topic as before.
+    queued too, then the timeout surfaces on the error topic as
+    ``timeout_queued``. A bulb inside its power source's ``boot_grace``
+    window is queued with no wire attempt, so a circuit that was just
+    switched on raises no timeout and no availability flap (ADR-008
+    amendment 2026-09-30).
     """
     settings = cast(Wiz2MqttSettings, ctx.settings)
     kwargs = to_set_state_kwargs(cmd)
@@ -141,6 +150,10 @@ async def bulb_set(
         notify(source_name)
 
     belief = power.belief_for_bulb(settings, state, config.name)
+    if power.in_boot_grace(settings, state, config.name, time.monotonic()):
+        # The bulb may have answered before the power cut, so no tick would
+        # see it return: arm the return path that replays the queue.
+        state.phase[config.name] = "reconnect"
     queue_for_return = (
         belief == "off" or state.last_availability.get(config.name) == "offline"
     )
@@ -155,7 +168,7 @@ async def bulb_set(
 
     try:
         await port.set_state(config.ip, **kwargs)
-    except WizTimeoutError, WizConnectionError:
+    except (WizTimeoutError, WizConnectionError) as exc:
         await ctx.mark_unavailable()
         state.last_availability[config.name] = "offline"
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
@@ -163,6 +176,10 @@ async def bulb_set(
         # Route the queued intent through the next successful telemetry tick.
         state.phase[config.name] = "reconnect"
         notify(config.name)
+        if isinstance(exc, WizTimeoutError):
+            raise WizQueuedTimeoutError(
+                "set timed out; command queued until the bulb answers"
+            ) from exc
         raise
 
 
@@ -298,7 +315,7 @@ async def power_signal(
     if signal is None:
         logger.warning("Ignoring invalid signal for power source %s", source.name)
         return
-    if not power.record_signal(settings, state, source.name, signal):
+    if not power.record_signal(settings, state, source.name, signal, time.monotonic()):
         return
     for name in power.signal_wake_targets(settings, source.name):
         notify(name)

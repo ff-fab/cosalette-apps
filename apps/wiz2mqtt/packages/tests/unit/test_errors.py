@@ -15,6 +15,7 @@ from wiz2mqtt.errors import (
     WizBridgeError,
     WizConnectionError,
     WizIdentityError,
+    WizQueuedTimeoutError,
     WizTimeoutError,
     WizUnsupportedCommandError,
     error_type_map,
@@ -23,6 +24,7 @@ from wiz2mqtt.errors import (
 _SUBCLASSES = [
     WizConnectionError,
     WizTimeoutError,
+    WizQueuedTimeoutError,
     WizIdentityError,
     WizUnsupportedCommandError,
 ]
@@ -94,6 +96,7 @@ class TestErrorTypeMap:
             (WizBridgeError, "wiz_bridge"),
             (WizConnectionError, "wiz_connection"),
             (WizTimeoutError, "wiz_timeout"),
+            (WizQueuedTimeoutError, "timeout_queued"),
             (WizIdentityError, "wiz_identity"),
             (WizUnsupportedCommandError, "wiz_unsupported_command"),
         ],

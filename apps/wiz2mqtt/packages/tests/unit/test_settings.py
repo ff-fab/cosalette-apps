@@ -21,6 +21,7 @@ import pytest
 from cosalette import SettingsLoadError
 from pydantic import ValidationError
 
+from tests.fixtures.settings import build_settings
 from wiz2mqtt.settings import (
     BulbConfig,
     GroupConfig,
@@ -778,3 +779,62 @@ class TestQueuedCommandTtl:
     def test_defaults_to_one_day(self) -> None:
         settings = Wiz2MqttSettings(**_UNCONFIGURED)
         assert settings.queued_command_ttl == 86400.0
+
+
+class TestBootSafeguardSettings:
+    """Technique: Specification-based — defaults keep today's behaviour."""
+
+    @staticmethod
+    def _source(**overrides: object) -> dict[str, object]:
+        return {"name": "up", "members": ["a"], **overrides}
+
+    def test_defaults_are_off(self) -> None:
+        settings = build_settings([{"name": "a", "ip": "10.0.0.1"}], [self._source()])
+        source = settings.power_sources[0]
+
+        assert source.boot_grace == 0.0
+        assert source.clear_queue_on_power_off is False
+        assert source.queued_command_ttl is None
+        assert settings.bulbs[0].queued_command_ttl is None
+
+    def test_negative_boot_grace_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            build_settings(
+                [{"name": "a", "ip": "10.0.0.1"}], [self._source(boot_grace=-1)]
+            )
+
+    @pytest.mark.parametrize("where", ["bulb", "source"])
+    def test_zero_ttl_override_is_rejected(self, where: str) -> None:
+        bulb: dict[str, object] = {"name": "a", "ip": "10.0.0.1"}
+        source = self._source()
+        (bulb if where == "bulb" else source)["queued_command_ttl"] = 0
+        with pytest.raises(ValidationError):
+            build_settings([bulb], [source])
+
+
+class TestQueuedCommandTtlFor:
+    """Technique: Decision Table — bulb, then power source, then global."""
+
+    @staticmethod
+    def _settings(bulb_ttl: float | None, source_ttl: float | None) -> Wiz2MqttSettings:
+        return build_settings(
+            [
+                {"name": "a", "ip": "10.0.0.1", "queued_command_ttl": bulb_ttl},
+                {"name": "b", "ip": "10.0.0.2"},
+            ],
+            [{"name": "up", "members": ["a"], "queued_command_ttl": source_ttl}],
+        )
+
+    @pytest.mark.parametrize(
+        ("bulb_ttl", "source_ttl", "expected"),
+        [(60.0, 120.0, 60.0), (None, 120.0, 120.0), (None, None, 86400.0)],
+    )
+    def test_resolution_order(
+        self, bulb_ttl: float | None, source_ttl: float | None, expected: float
+    ) -> None:
+        settings = self._settings(bulb_ttl, source_ttl)
+
+        assert settings.queued_command_ttl_for("a") == expected
+
+    def test_bulb_outside_the_source_uses_the_global(self) -> None:
+        assert self._settings(None, 120.0).queued_command_ttl_for("b") == 86400.0

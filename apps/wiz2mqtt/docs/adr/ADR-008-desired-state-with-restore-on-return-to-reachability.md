@@ -176,3 +176,34 @@ Keep the desired state OFF and send the appearance without switching the bulb on
 ### Additional Negative Consequences
 
 - A consumer can no longer stage an appearance for later on a bulb it wants off; the command switches the bulb on, as it already did on the wire.
+
+## Amendment (2026-09-30) — Additive
+
+**Rationale:** Bulbs behind a switched relay need several seconds to boot after the relay closes. A command in that window timed out on the wire, and failed reads during boot counted towards offline, so a normal power-on looked like a fault. Consumers also could not tell a queued timeout apart from other timeouts, and the return-path exhaustion error carried no stable type (cap-ea7n.4).
+
+### Additional Sub-Decision: Boot grace window per power source
+
+`[[power_sources]] boot_grace` (seconds, default `0` = off) opens a window when the source's signal changes to `on`, measured on the monotonic clock. While the window is open and a member bulb has not answered since the change, `/set` queues the command without a wire attempt and sets the bulb's phase to `reconnect`, so the return path replays the queue on the first successful read. A failed read inside the window does not advance the availability debounce counter. A fresh answer or the end of the window closes it.
+
+### Additional Sub-Decision: Typed queued-timeout and restore errors
+
+A direct `/set` timeout re-raises as `WizQueuedTimeoutError` (a `WizTimeoutError` subclass) with `error_type` `timeout_queued`, because the command is queued, not lost. A connection error keeps `wiz_connection`. Return-path exhaustion publishes `{"error_type": "restore_unconfirmed", "attempts": ..., "state": ...}`, so openHAB's `JSONPATH:$.error_type` Error channel reads it like any other error.
+
+### Additional Sub-Decision: Queue TTL overrides
+
+`queued_command_ttl` may be set on a bulb and on a power source. Resolution order: bulb, then power source, then the top-level value (`Wiz2MqttSettings.queued_command_ttl_for`). Unset overrides keep the global default.
+
+### Additional Sub-Decision: Optional clear-on-power-off
+
+`[[power_sources]] clear_queue_on_power_off` (default `false`) drops the members' queued commands when the signal changes from `on` to `off`. A first `off` signal, or a command queued while the signal is already `off`, keeps the queue, so "command, then power-on request" still works.
+
+### Additional Positive Consequences
+
+- A switched circuit powers on without a false `offline` or a spurious timeout error when `boot_grace` is set.
+- Consumers can route `timeout_queued` and `restore_unconfirmed` by a stable `error_type`.
+- Every new key defaults to the earlier behaviour.
+
+### Additional Negative Consequences
+
+- A direct `/set` timeout now publishes `timeout_queued` instead of `wiz_timeout`; a consumer rule matching `wiz_timeout` needs an update.
+- `boot_grace` only works with a `signal_topic`: without a signal there is no moment the window can start from.

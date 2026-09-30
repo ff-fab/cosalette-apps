@@ -60,6 +60,15 @@ class SharedState:
     that readback when a newer command advanced the generation in the meantime.
     """
 
+    suppressed_desired_state_generation: dict[str, int] = field(default_factory=dict)
+    """Desired states discarded with a queued command, keyed by generation.
+
+    An on-to-off source signal can intentionally drop a pending command.  Its
+    desired state must not be restored on the next reconnect, including from
+    the telemetry-side store.  A later command advances the generation and
+    supersedes this suppression without losing that newer intent.
+    """
+
     bulb_answered: dict[str, bool] = field(default_factory=dict)
     """Whether the most recent poll/push for a bulb succeeded — the raw
     evidence :mod:`wiz2mqtt.power` aggregates into a source's belief."""
@@ -86,6 +95,10 @@ class SharedState:
     source_signal: dict[str, Signal | None] = field(default_factory=dict)
     """Each power source's last-known raw relay signal, set by the
     ``power_signal`` inbound handler from the subscribed ``signal_topic``."""
+
+    source_signal_at: dict[str, float] = field(default_factory=dict)
+    """Monotonic reading of each power source's last signal change, the start
+    of its ``boot_grace`` window (:func:`wiz2mqtt.power.in_boot_grace`)."""
 
     source_power_on_requested: set[str] = field(default_factory=set)
     """Power sources with an outstanding power-on request (ADR-009).

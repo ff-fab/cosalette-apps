@@ -277,6 +277,19 @@ topic is not retained, so the `Error` Item is `NULL` after a restart and then
 holds the `error_type` of the last failure. It is never cleared. Trigger rules
 on `received update`, not on `changed`, to see a repeat of the same error.
 
+| `error_type` | Meaning |
+| ------------ | ------- |
+| `invalid_command` | The `/set` payload was rejected; nothing is queued |
+| `timeout_queued` | A `/set` write timed out. The command is queued and is applied when the bulb answers again (ADR-008) |
+| `wiz_connection` | A `/set` write could not connect. The command is queued like a timeout |
+| `wiz_identity` | The bulb at the configured IP reported another MAC; nothing is queued |
+| `wiz_unsupported_command` | The bulb cannot do what the command asks; nothing is queued |
+| `restore_unconfirmed` | The return path wrote three times and no read-back confirmed it. The lamp keeps its state, which becomes the new desired state. The object also carries `attempts` and the reported `state` |
+
+A direct `/set` timeout published `wiz_timeout` before the switched-relay
+safeguards; it now publishes `timeout_queued`. Update a rule that matched
+`wiz_timeout`.
+
 The `*_cmd` channels wrap the outbound scalar back into JSON with
 `formatBeforePublish` (full Java `String.format`) so a single `.../set` payload
 carries just the changed field.

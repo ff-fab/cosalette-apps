@@ -33,6 +33,7 @@ restore_previous_state = true
 | `mac` | no | Bare 12-hex-digit MAC verified on first successful contact; a mismatch rejects that contact, while a missing device MAC is warned as unverifiable |
 | `power_source` | no | Name of a `[[power_sources]]` entry that powers this bulb directly. Wins over any `[[power_sources]]` block that claims the bulb's group (ADR-007) |
 | `restore_previous_state` | no | Restore the bulb's previous desired state when it returns to reachability with no queued command (default `false`, ADR-008) |
+| `queued_command_ttl` | no | Seconds a command queued for this bulb stays valid. Wins over the power source's and the top-level value (see [Command Queueing](#command-queueing)) |
 
 ### Legacy `when_unreachable` (bulb-level, removed)
 
@@ -113,6 +114,9 @@ wiz_bulbs_only = true
 | `enable_power_off_request` | no | Publish `power_request = "off"` once every member bulb has been desired `OFF` for `power_off_idle_delay`. The request stays until the belief becomes `off`. Requires `wiz_bulbs_only = true` (default `false`) |
 | `power_off_idle_delay` | no | Seconds every member bulb must be desired `OFF` before a power-off request. Must be greater than zero: the timer starts on a tick, so wiz2mqtt always spends the full delay in the current process before it asks for a circuit to be cut (default `600`) |
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
+| `boot_grace` | no | Seconds after the signal turns `on` in which a member bulb is expected to still be booting. Until the bulb answers, a command is queued without a wire attempt and a failed read does not count towards `offline`. Needs a `signal_topic`; `0` switches the window off (default `0`) |
+| `clear_queue_on_power_off` | no | Drop the members' queued commands when the signal changes from `on` to `off`. A command queued while the signal is already `off` survives, so "command, then power on" still works (default `false`) |
+| `queued_command_ttl` | no | Seconds a command queued for a member bulb stays valid. Wins over the top-level value; a bulb's own value wins over it (see [Command Queueing](#command-queueing)) |
 
 Read `power_request` as a request, never as a state. wiz2mqtt announces it as
 a read-only diagnostic `binary_sensor` and never as a switch, because a
@@ -212,6 +216,32 @@ the broker by itself.
 | Setting | Environment Variable | Default | Description |
 | ------- | --------------------- | ------- | ----------- |
 | `queued_command_ttl` | `WIZ2MQTT_QUEUED_COMMAND_TTL` | `86400.0` (seconds) | How long a command queued for an unreachable bulb stays valid (ADR-008). The TTL applies when the bulb returns and the queued command is replayed; an older command is dropped with a log line. |
+
+A bulb's TTL resolves in order: the bulb's own `queued_command_ttl`, then its
+power source's, then this top-level value. Only the top-level value has an
+environment variable. Set a short override on a switched circuit whose
+commands should not replay after an unexpectedly long outage:
+
+```toml
+queued_command_ttl = 86400
+
+[[bulbs]]
+name = "hall"
+ip = "192.168.1.52"
+queued_command_ttl = 60
+
+[[power_sources]]
+name = "downstairs-power"
+group = "downstairs"
+signal_topic = "openhab/relay/downstairs/state"
+boot_grace = 20
+clear_queue_on_power_off = true
+queued_command_ttl = 600
+```
+
+A `/set` that times out on the wire publishes `error_type` `timeout_queued`
+on `wiz2mqtt/{bulb}/error`: the command is not lost, it waits in the queue
+for the bulb to answer. See [MQTT Topics](mqtt-topics.md) for all error types.
 
 ## Store File
 

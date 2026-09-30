@@ -22,9 +22,10 @@ from cosalette import DeviceStore
 from cosalette.stores import MemoryStore
 
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
+from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
-from wiz2mqtt.errors import WizIdentityError, WizTimeoutError
+from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizIdentityError, WizTimeoutError
 from wiz2mqtt.intent import (
     Appearance,
     DesiredState,
@@ -78,7 +79,7 @@ def _settings_with_no_power_policy_source() -> Wiz2MqttSettings:
 
 
 def _settings_with_office_power_source(
-    when_unreachable: str,
+    when_unreachable: str, *, clear_queue_on_power_off: bool = False
 ) -> Wiz2MqttSettings:
     """Single-member power source over 'office' with the given policy."""
     return Wiz2MqttSettings(
@@ -88,6 +89,7 @@ def _settings_with_office_power_source(
                 "name": "office-power",
                 "members": ["office"],
                 "when_unreachable": when_unreachable,
+                "clear_queue_on_power_off": clear_queue_on_power_off,
             }
         ],
         _env_file=None,
@@ -415,6 +417,77 @@ class TestReturnPath:
         assert state.phase["office"] == "steady"
         assert ctx.published == []
 
+    async def test_power_off_queue_clear_suppresses_stored_state_restore(self) -> None:
+        """Technique: Regression — a discarded queue cannot restore old intent."""
+        settings = _settings_with_office_power_source(
+            "fault", clear_queue_on_power_off=True
+        )
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, desired_state={"office": _DESIRED_ON}
+        )
+        store = _store_with_desired()
+        enqueue(
+            state.pending_commands,
+            "office",
+            {"state": True, "brightness": 100},  # type: ignore[arg-type]
+            time.time(),
+        )
+        record_signal(settings, state, "office-power", "on", 0.0)
+        record_signal(settings, state, "office-power", "off", 1.0)
+
+        await _tick(
+            FakeDeviceContext(settings=settings),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
+        assert adapter.set_state_calls == []
+        assert state.phase["office"] == "steady"
+
+    async def test_command_after_power_off_queue_clear_remains_eligible(self) -> None:
+        """Technique: State Transition — a newer command supersedes the clear."""
+        settings = _settings_with_office_power_source(
+            "fault", clear_queue_on_power_off=True
+        )
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, desired_state={"office": _DESIRED_ON}
+        )
+        store = _store_with_desired()
+        enqueue(
+            state.pending_commands,
+            "office",
+            {"state": True, "brightness": 100},  # type: ignore[arg-type]
+            time.time(),
+        )
+        record_signal(settings, state, "office-power", "on", 0.0)
+        record_signal(settings, state, "office-power", "off", 1.0)
+        fresh = {
+            "state": True,
+            "brightness": 200,
+            "hue": None,
+            "saturation": None,
+            "color_temp_kelvin": None,
+            "scene": None,
+            "speed": None,
+        }
+        record_command(state, store, "office", fresh, time.time())
+        enqueue(state.pending_commands, "office", fresh, time.time())
+
+        await _tick(
+            FakeDeviceContext(settings=settings),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=store,
+        )
+
+        assert adapter.set_state_calls[0][1]["brightness"] == 200
+        assert state.phase["office"] == "steady"
+
     async def test_direct_timeout_replays_queued_command_on_next_successful_tick(
         self,
     ) -> None:
@@ -599,6 +672,7 @@ class TestReturnPath:
         channel, payload = ctx.published[0]
         assert channel == "error"
         body = json.loads(payload)
+        assert body["error_type"] == RESTORE_UNCONFIRMED
         assert body["attempts"] == 3
         assert "state" in body
         assert state.phase["office"] == "steady"
@@ -969,7 +1043,7 @@ class TestSignalOff:
     ) -> None:
         await _tick(ctx, _config(), adapter, state)
         assert state.bulb_answered["office"] is True
-        record_signal(ctx.settings, state, "office-power", "off")
+        record_signal(ctx.settings, state, "office-power", "off", 0.0)
 
     async def test_first_failed_read_after_the_signal_is_firm(self) -> None:
         """Technique: Boundary Value Analysis — one failure reaches the threshold.
@@ -1178,3 +1252,48 @@ class TestBootCallback:
         # boot event for a different, unconfigured ip.
         assert state.phase["office"] == "steady"
         assert notify.armed == []
+
+
+class TestBootSafeguards:
+    """Switched-relay boot safeguards (ADR-008 amendment 2026-09-30, cap-ea7n.4)."""
+
+    async def test_failed_reads_inside_boot_grace_do_not_count(self) -> None:
+        """Technique: State Transition — a booting bulb is not yet a fault."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}],
+            [{"name": "office-power", "members": ["office"], "boot_grace": 3600}],
+        )
+        ctx = FakeDeviceContext(settings=settings)
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        record_signal(settings, state, "office-power", "on", time.monotonic())
+
+        for _ in range(_FAILURE_THRESHOLD):
+            adapter.fail_next(_IP, WizTimeoutError("booting"))
+            await _tick(ctx, _config(), adapter, state)
+
+        assert adapter.get_state_call_count == _FAILURE_THRESHOLD
+        assert state.consecutive_failures.get("office", 0) == 0
+        assert ctx.availability_calls == []
+
+    @pytest.mark.parametrize(("bulb_ttl", "replayed"), [(60.0, False), (None, True)])
+    async def test_return_path_honours_the_bulb_ttl(
+        self, bulb_ttl: float | None, replayed: bool
+    ) -> None:
+        """Technique: Decision Table — a bulb override outranks the global TTL."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP, "queued_command_ttl": bulb_ttl}]
+        )
+        ctx = FakeDeviceContext(settings=settings)
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        enqueue(
+            state.pending_commands,
+            "office",
+            {"state": True, "brightness": 200},  # type: ignore[arg-type]
+            time.time() - 120,
+        )
+
+        await _tick(ctx, _config(), adapter, state)
+
+        assert bool(adapter.set_state_calls) is replayed
