@@ -123,8 +123,9 @@ consumer whether the bulb has actually taken a command:
 `queued_command_ttl`, so an `expires_at` in the past means the command will
 not be sent). A queued OFF lists only `state`: the appearance queued
 with it waits for a later ON. `last_applied` carries `at` (epoch seconds),
-`fields`, `attempts` (1 to 3) and `confirmed`. When `confirmed` is `false`, the
-bulb refused the write three times and wiz2mqtt accepted the bulb's own state.
+`fields`, `attempts` (1 to 3) and `confirmed`. When `confirmed` is `false`, no
+read-back confirmed the write. wiz2mqtt keeps the desired state and retries on a
+later tick or boot event.
 
 A command to a dark bulb therefore shows up as, for example:
 

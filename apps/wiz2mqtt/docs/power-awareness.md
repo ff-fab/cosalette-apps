@@ -103,7 +103,7 @@ stateDiagram-v2
     Unreachable --> Reconnect: firstBeat, or a read succeeds and a desired state exists
     Unreachable --> Steady: a read succeeds and no desired state exists
     Reconnect --> Steady: the return path writes, and a read-back confirms it
-    Reconnect --> Steady: three write attempts fail (error, the lamp keeps its state)
+    Reconnect --> Reconnect: three write attempts fail (error, the intent is kept)
 ```
 
 `firstBeat` is a broadcast that a WiZ bulb sends when it boots. It only wakes the
@@ -121,8 +121,9 @@ occurs:
 A write to restore `OFF` sends only `OFF`. A write to restore `ON` sends `ON` and the
 appearance (brightness, colour or scene) in one command. wiz2mqtt reads the state back
 after each write. It tries a maximum of three times in total. If all three attempts
-fail, it publishes an error on `wiz2mqtt/{bulb}/error`, goes to the steady phase and
-keeps the state of the lamp.
+fail, it publishes an error on `wiz2mqtt/{bulb}/error`, keeps the desired state and
+stays in the reconnect phase, so the next tick or `firstBeat` runs the return path
+again.
 
 ## Operator guide
 
