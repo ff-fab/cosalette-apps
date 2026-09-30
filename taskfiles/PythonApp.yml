@@ -169,6 +169,7 @@ tasks:
           --app {{.APP_SPEC | default (printf "%s.main:app" .MODULE_NAME)}} > docs/schema.yaml.tmp
         {{end}}
         mv docs/schema.yaml.tmp docs/schema.yaml
+        sed -i '/^  version: / s/$/ # x-release-please-version/' docs/schema.yaml
 
   schema:openhab:
     desc: 'Generate openHAB .things/.items configuration for {{.APP_NAME}}'
