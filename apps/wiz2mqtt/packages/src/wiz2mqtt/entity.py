@@ -13,14 +13,14 @@ import dataclasses
 import json
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable, Sequence
 from typing import Annotated, cast
 
 import cosalette
 from cosalette import DeviceStore, EntityNotifier, Optional
 
 from wiz2mqtt import intent, power
-from wiz2mqtt.colour import clamp_kelvin
+from wiz2mqtt.colour import clamp_kelvin, wiz_brightness
 from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizBridgeError, WizIdentityError
 from wiz2mqtt.models import BulbCapabilities, BulbState
@@ -46,6 +46,12 @@ _SATURATION_TOLERANCE = 1.0
 hue/saturation from an RGB byte round-trip (see :mod:`wiz2mqtt.colour`), so
 the value read back after a colour write is not always bit-identical to the
 value sent."""
+
+_HUE_QUANTISATION = 13.0
+"""Upper bound of the hue error, in degrees times saturation percent, that
+the RGB byte quantisation of a low-saturation colour adds (measured: 11.6
+degrees at saturation 1, 1.24 degrees at 10). The hue check tolerates
+``_HUE_QUANTISATION / saturation`` degrees, never less than ``_HUE_TOLERANCE``."""
 
 
 async def bulb_entity_tick(
@@ -416,12 +422,14 @@ async def _run_return_path(
     detected this return — becomes the new desired state and the phase
     settles to steady without touching the wire.
 
-    A write is read back and retried up to three attempts total
-    (:func:`_write_and_verify`). On success the pending command or stored
-    desired state applied is already what ``state.desired_state`` holds
-    (recorded when the command was issued/stored), so nothing more needs
-    writing. On exhaustion, a structured error of ``error_type``
-    ``restore_unconfirmed`` is published to ``wiz2mqtt/{bulb}/error`` and
+    A write is read back and retried up to three attempts total, spaced by
+    the bulb's ``restore_retry_delays`` (:func:`_write_and_verify`). On
+    success the pending command or stored desired state applied is already
+    what ``state.desired_state`` holds (recorded when the command was
+    issued/stored), so nothing more needs writing. On exhaustion, a
+    structured error of ``error_type`` ``restore_unconfirmed`` is published
+    to ``wiz2mqtt/{bulb}/error`` with one ``attempt_results`` entry per
+    attempt, and
     the desired state remains authoritative. The reconnect phase stays armed,
     so a later telemetry tick or boot event retries the return path instead
     of adopting a boot-state observation.
@@ -460,20 +468,51 @@ async def _run_return_path(
         confirmed = True
         intent.record_observation(state, store, name, observed, now)
     else:
-        observed, attempts, confirmed = await _write_and_verify(
-            port, config.ip, kwargs, bulb_state
+        if name in state.restore_retry_exhausted:
+            # Keep reconnect armed so this observation cannot replace the
+            # desired state, while the terminal cap prevents another write.
+            belief = _recompute_and_notify(settings, state, notify, name)
+            return _render(settings, state, name, bulb_state, belief)
+        retry_at = state.restore_retry_at.get(name)
+        if retry_at is not None and time.monotonic() < retry_at:
+            # firstBeat may repeat while a bulb starts.  Do not turn each
+            # broadcast into an immediate fresh three-write cycle.
+            belief = _recompute_and_notify(settings, state, notify, name)
+            return _render(settings, state, name, bulb_state, belief)
+        observed, results, confirmed = await _write_and_verify(
+            port,
+            config.ip,
+            kwargs,
+            bulb_state,
+            delays=settings.restore_retry_delays_for(name),
+            sleep=ctx.sleep,
         )
+        attempts = len(results)
         state.last_applied[name] = intent.AppliedCommand(
             kwargs=kwargs, at=time.time(), attempts=attempts, confirmed=confirmed
         )
         if settle_target is None:
             _start_restore_settle(settings, state, name, observed, confirmed)
         if not confirmed:
+            cycles = state.restore_retry_cycles.get(name, 0) + 1
+            state.restore_retry_cycles[name] = cycles
+            terminal = cycles >= settings.restore_retry_limit_for(name)
+            if terminal:
+                state.restore_retry_exhausted.add(name)
+                state.restore_retry_at.pop(name, None)
+            else:
+                state.restore_retry_at[name] = time.monotonic() + _retry_delay(
+                    settings.restore_retry_delays_for(name), cycles
+                )
             logger.warning(
-                "Bulb %s: return-path restore unconfirmed after %d attempts; "
-                "retaining desired state for retry",
+                "Bulb %s: return-path restore unconfirmed after %d attempts; %s",
                 name,
                 attempts,
+                (
+                    "retry cap reached"
+                    if terminal
+                    else "retaining desired state for retry"
+                ),
             )
             await ctx.publish(
                 "error",
@@ -481,14 +520,31 @@ async def _run_return_path(
                     {
                         "error_type": RESTORE_UNCONFIRMED,
                         "attempts": attempts,
+                        "attempt_results": results,
+                        "retry_cycles": cycles,
+                        "terminal": terminal,
                         "state": dataclasses.asdict(observed),
                     }
                 ),
             )
+    if confirmed:
+        state.restore_retry_cycles.pop(name, None)
+        state.restore_retry_at.pop(name, None)
+        state.restore_retry_exhausted.discard(name)
     if confirmed and name not in state.pending_commands:
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, observed, belief)
+
+
+def _retry_delay(delays: Sequence[float], cycles: int) -> float:
+    """Return the pacing delay after exhausted restore *cycles*.
+
+    Reuse the configured retry sequence: its first value paces the second
+    cycle, its last value repeats, and an empty list permits an immediate
+    later tick just as it does between attempts within a cycle.
+    """
+    return 0.0 if not delays else delays[min(cycles - 1, len(delays) - 1)]
 
 
 def _bulb_state_to_set_state_kwargs(bulb_state: BulbState) -> SetStateKwargs:
@@ -522,34 +578,61 @@ def _start_restore_settle(
 
 
 async def _write_and_verify(
-    port: WizBulbPort, ip: str, kwargs: SetStateKwargs, fallback: BulbState
-) -> tuple[BulbState, int, bool]:
+    port: WizBulbPort,
+    ip: str,
+    kwargs: SetStateKwargs,
+    fallback: BulbState,
+    *,
+    delays: Sequence[float] = (),
+    sleep: Callable[[float], Awaitable[None]] | None = None,
+) -> tuple[BulbState, list[str], bool]:
     """Write *kwargs*, read back, retry until it matches or attempts run out.
 
-    Returns the last-observed state, the attempt count used (1-3), and
-    whether that last read-back confirmed the write. Transport errors
-    (``WizBridgeError``) count as failed attempts; on exhaustion the
-    *fallback* state is returned so the caller's error handler has
+    Returns the last-observed state, one result per attempt used (1-3):
+    ``"confirmed"``, ``"mismatch"`` or the transport error's class name, and
+    whether the last read-back confirmed the write. *sleep* waits
+    ``delays[i]`` before attempt ``i + 2``; the last delay repeats, so a
+    bulb still booting gets time to apply the write. Transport errors
+    (``WizBridgeError``) count as failed attempts; when none read back,
+    the *fallback* state is returned so the caller's error handler has
     something to publish.  The adapter's cache is invalidated before each
     read-back so the comparison sees an authoritative poll, not the
     optimistic merge ``set_state`` applied.
     """
     caps = await port.get_capabilities(ip)
-    last_observed = fallback
+    observed = fallback
+    results: list[str] = []
     for attempt in range(1, _MAX_WRITE_ATTEMPTS + 1):
+        if attempt > 1 and delays and sleep is not None:
+            await sleep(delays[min(attempt - 2, len(delays) - 1)])
         try:
             await port.set_state(ip, **kwargs)
             port.invalidate_cache(ip)
             observed = await port.get_state(ip)
-        except WizBridgeError:
-            if attempt == _MAX_WRITE_ATTEMPTS:
-                return last_observed, attempt, False
+        except WizBridgeError as exc:
+            results.append(type(exc).__name__)
+            logger.info(
+                "Bulb at %s: write attempt %d/%d failed: %s",
+                ip,
+                attempt,
+                _MAX_WRITE_ATTEMPTS,
+                results[-1],
+            )
             continue
-        last_observed = observed
-        confirmed = _kwargs_match_observed(kwargs, observed, caps)
-        if confirmed or attempt == _MAX_WRITE_ATTEMPTS:
-            return observed, attempt, confirmed
-    raise AssertionError("unreachable: _MAX_WRITE_ATTEMPTS >= 1")
+        if _kwargs_match_observed(kwargs, observed, caps):
+            results.append("confirmed")
+            logger.debug("Bulb at %s: write attempt %d confirmed", ip, attempt)
+            return observed, results, True
+        results.append("mismatch")
+        logger.info(
+            "Bulb at %s: write attempt %d/%d not confirmed: wrote %s, read %s",
+            ip,
+            attempt,
+            _MAX_WRITE_ATTEMPTS,
+            kwargs,
+            observed,
+        )
+    return observed, results, False
 
 
 def _kwargs_match_observed(
@@ -580,11 +663,20 @@ def _kwargs_match_observed(
 def _scalar_fields_match(
     kwargs: SetStateKwargs, observed: BulbState, caps: BulbCapabilities | None
 ) -> bool:
-    """Exact-match check of brightness, scene, colour temperature and speed."""
-    for field in ("brightness", "scene"):
-        expected = kwargs.get(field)
-        if expected is not None and getattr(observed, field) != expected:
-            return False
+    """Exact-match check of brightness, scene, colour temperature and speed.
+
+    Brightness also accepts the value after the bulb's whole-percent
+    dimming, so an off-grid value such as 1 or 4 still confirms.
+    """
+    brightness = kwargs.get("brightness")
+    if brightness is not None and observed.brightness not in (
+        brightness,
+        wiz_brightness(brightness),
+    ):
+        return False
+    scene = kwargs.get("scene")
+    if scene is not None and observed.scene != scene:
+        return False
     expected_ct = kwargs.get("color_temp_kelvin")
     if expected_ct is not None:
         if caps is not None:
@@ -596,14 +688,21 @@ def _scalar_fields_match(
 
 
 def _hue_matches(kwargs: SetStateKwargs, observed: BulbState) -> bool:
-    """Circular-distance hue check within ``_HUE_TOLERANCE``."""
+    """Circular-distance hue check, widened for low saturation.
+
+    Below saturation 1 the colour is white and has no hue, so any hue
+    confirms. Above it, byte quantisation of the RGB channels widens the
+    tolerance to ``_HUE_QUANTISATION / saturation`` degrees.
+    """
     expected = kwargs.get("hue")
-    if expected is None:
+    saturation = kwargs.get("saturation")
+    if expected is None or (saturation is not None and saturation < 1):
         return True
     if observed.hue is None:
         return False
+    tolerance = max(_HUE_TOLERANCE, _HUE_QUANTISATION / (saturation or 100.0))
     diff = abs(observed.hue - expected)
-    return min(diff, 360.0 - diff) <= _HUE_TOLERANCE
+    return min(diff, 360.0 - diff) <= tolerance
 
 
 def _saturation_matches(kwargs: SetStateKwargs, observed: BulbState) -> bool:
@@ -662,6 +761,11 @@ def _make_boot_handler(
 
 def _boot_should_rearm(state: SharedState, name: str) -> bool:
     """Accept firstBeat for a return, not duplicate startup broadcasts."""
+    if name in state.restore_retry_exhausted:
+        return False
+    retry_at = state.restore_retry_at.get(name)
+    if retry_at is not None and time.monotonic() < retry_at:
+        return False
     if not state.bulb_answered.get(name, False) or name in state.stale_answers:
         return True
     desired = state.desired_state.get(name)

@@ -137,10 +137,38 @@ def rgb_to_hue_saturation(
     reports full saturation for any colour mixed with white light.
     ``white`` defaults to 0 for callers with no white channel to
     report (e.g. pure-RGB test fixtures).
-    """
-    from pywizlight.rgbcw import rgbcw2hs  # noqa: PLC0415 — lazy import by design
 
-    return rgbcw2hs((r, g, b), white)
+    Saturation at or below 50 is inverted from pywizlight's *writer*, not
+    taken from ``rgbcw2hs``: ``hs2rgbcw`` encodes it as white at ``CWMAX``
+    plus the gamut-clipped hue point (largest component 1) scaled by
+    ``2 * s``, while ``rgbcw2hs`` measures that point's vector length, which
+    is shorter except at the six primary and secondary hues. The largest
+    RGB component is the exact inverse, so a pastel reads back as written.
+    """
+    from pywizlight.rgbcw import (  # noqa: PLC0415 — lazy import by design
+        CWMAX,
+        rgbcw2hs,
+    )
+
+    hue, saturation = rgbcw2hs((r, g, b), white)
+    if white >= CWMAX:
+        saturation = max(r, g, b) / 255 * 50
+    return hue, saturation
+
+
+def wiz_brightness(value: int) -> int:
+    """The 0-255 brightness a bulb reports back after a write of *value*.
+
+    WiZ dims in whole percent (``dimming`` 1..100): pywizlight rounds the
+    written value to a percent and scales the read-back percent to 0-255
+    again, so 155 of the 255 raw values do not survive the round trip.
+    """
+    from pywizlight.utils import (  # noqa: PLC0415 — lazy import by design
+        hex_to_percent,
+        percent_to_hex,
+    )
+
+    return percent_to_hex(max(1, hex_to_percent(value)))
 
 
 def hue_saturation_to_rgb(

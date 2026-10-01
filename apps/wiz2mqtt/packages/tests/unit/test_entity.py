@@ -25,6 +25,7 @@ import wiz2mqtt.entity as entity
 from tests.fixtures.doubles import FakeDeviceContext, RecordingNotifier
 from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
+from wiz2mqtt.adapters.wizlight import _parse_state
 from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
 from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizIdentityError, WizTimeoutError
 from wiz2mqtt.intent import (
@@ -747,6 +748,56 @@ class TestReturnPath:
         assert state.desired_state["office"].state == "ON"
         assert state.phase["office"] == "reconnect"
 
+    async def test_unconfirmed_cycle_is_paced_before_the_next_three_writes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: an exhausted cycle cannot run again on every tick."""
+        clock = [100.0]
+        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert len(adapter.set_state_calls) == 3
+        assert state.restore_retry_cycles["office"] == 1
+        assert state.restore_retry_at["office"] == 102.0
+
+    async def test_retry_cap_publishes_terminal_outcome_and_new_command_resets_it(
+        self,
+    ) -> None:
+        """Boundary: terminal cap retains intent until a new command arrives."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}], restore_retry_limit=1
+        )
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=settings)
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        body = json.loads(ctx.published[0][1])
+        assert body["terminal"] is True
+        assert body["retry_cycles"] == 1
+        assert "office" in state.restore_retry_exhausted
+        record_command(state, None, "office", {"state": True}, time.time())  # type: ignore[arg-type]
+        assert "office" not in state.restore_retry_exhausted
+
     async def test_unconfirmed_off_restore_does_not_adopt_boot_state(self) -> None:
         """A refused OFF restore retains the user intent for the next retry."""
         adapter = FakeWizBulbAdapter()
@@ -765,6 +816,8 @@ class TestReturnPath:
 
         assert state.desired_state["office"].state == "OFF"
         assert state.phase["office"] == "reconnect"
+        # An exhausted cycle is deliberately paced before the next cycle.
+        state.restore_retry_at["office"] = 0.0
 
         await _tick(
             FakeDeviceContext(),
@@ -791,6 +844,104 @@ class TestReturnPath:
 
         assert adapter.set_state_calls == []
         assert ctx.published == []
+
+
+class _TimeoutOnFirstWrite(FakeWizBulbAdapter):
+    """Fake whose first ``set_state`` raises a transport error."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.failed = False
+
+    async def set_state(self, ip: str, **kwargs: object) -> None:  # type: ignore[override]
+        if not self.failed:
+            self.failed = True
+            raise WizTimeoutError("write lost")
+        await super().set_state(ip, **kwargs)  # type: ignore[arg-type]
+
+
+class TestRestoreRetrySpacing:
+    """ADR-008 return-path retries wait ``restore_retry_delays`` between
+    attempts and account for every attempt.
+
+    Technique: Boundary Value Analysis — 0, 1 and 3 failed attempts;
+    Equivalence Partitioning — mismatch vs. transport error results.
+    """
+
+    async def _restore(
+        self,
+        adapter: FakeWizBulbAdapter,
+        settings: Wiz2MqttSettings | None = None,
+    ) -> FakeDeviceContext:
+        ctx = FakeDeviceContext(settings=settings or _settings_with_office())
+        state = SharedState(phase={"office": "reconnect"})
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+        return ctx
+
+    async def test_first_attempt_confirmed_never_sleeps(self) -> None:
+        ctx = await self._restore(FakeWizBulbAdapter())
+
+        assert ctx.slept == []
+
+    async def test_one_refused_write_waits_first_delay_then_confirms(self) -> None:
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 1)
+
+        ctx = await self._restore(adapter)
+
+        assert ctx.slept == [2.0]
+        assert len(adapter.set_state_calls) == 2
+        assert ctx.published == []
+
+    async def test_exhausted_restore_reports_each_attempt(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+
+        with caplog.at_level("INFO", logger="wiz2mqtt.entity"):
+            ctx = await self._restore(adapter)
+
+        assert ctx.slept == [2.0, 5.0]
+        body = json.loads(ctx.published[0][1])
+        assert body["attempt_results"] == ["mismatch"] * 3
+        assert len(body["attempt_results"]) == body["attempts"]
+        assert caplog.text.count("not confirmed: wrote") == 3
+
+    async def test_transport_error_is_logged_and_reported(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Technique: Error Guessing — a lost write was silent before."""
+        adapter = _TimeoutOnFirstWrite()
+
+        with caplog.at_level("INFO", logger="wiz2mqtt.entity"):
+            ctx = await self._restore(adapter)
+
+        assert "write attempt 1/3 failed: WizTimeoutError" in caplog.text
+        assert ctx.slept == [2.0]
+        assert ctx.published == []
+
+    @pytest.mark.parametrize(("delays", "expected"), [([], []), ([3.0], [3.0, 3.0])])
+    async def test_empty_list_retries_at_once_and_last_delay_repeats(
+        self, delays: list[float], expected: list[float]
+    ) -> None:
+        """Technique: Boundary Value Analysis — list lengths 0 and 1."""
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}], restore_retry_delays=delays
+        )
+
+        ctx = await self._restore(adapter, settings)
+
+        assert ctx.slept == expected
+        assert len(adapter.set_state_calls) == 3
 
 
 class TestFailureDebounce:
@@ -1581,3 +1732,59 @@ class TestBootSafeguards:
         await _tick(ctx, _config(), adapter, state)
 
         assert bool(adapter.set_state_calls) is replayed
+
+
+class TestColourReadBack:
+    """A write confirms against pywizlight's real wire round trip (ADR-008).
+
+    Each case encodes a write with ``PilotBuilder``, decodes the same pilot
+    with ``PilotParser`` and the adapter's ``_parse_state``, and compares it
+    with ``_kwargs_match_observed``, assuming the bulb echoes what it got.
+    """
+
+    @staticmethod
+    def _read_back(**pilot: object) -> BulbState:
+        from pywizlight import PilotBuilder, PilotParser  # noqa: PLC0415
+
+        params = {**PilotBuilder(**pilot).pilot_params, "state": True}  # type: ignore[arg-type]
+        observed = _parse_state([PilotParser(params)])
+        assert observed is not None
+        return observed
+
+    def test_every_hue_and_saturation_confirms(self) -> None:
+        """Technique: Exhaustive Testing — hue 0-359 x saturation 0-100,
+        covering pastels, white (saturation 0) and quantised low saturation."""
+        unconfirmed = [
+            (hue, saturation)
+            for saturation in range(101)
+            for hue in range(360)
+            if not entity._kwargs_match_observed(  # noqa: SLF001
+                {"state": True, "hue": hue, "saturation": saturation},
+                self._read_back(hucolor=(hue, saturation)),
+            )
+        ]
+
+        assert unconfirmed == []
+
+    def test_every_brightness_confirms(self) -> None:
+        """Technique: Exhaustive Testing — WiZ dims in whole percent, so an
+        off-grid brightness such as 4 reads back as 5 and still confirms."""
+        unconfirmed = [
+            brightness
+            for brightness in range(1, 256)
+            if not entity._kwargs_match_observed(  # noqa: SLF001
+                {"state": True, "brightness": brightness},
+                self._read_back(brightness=brightness),
+            )
+        ]
+
+        assert unconfirmed == []
+
+    def test_a_different_hue_stays_unconfirmed(self) -> None:
+        """Technique: Error Guessing — the widened tolerance still rejects a
+        hue the bulb did not take."""
+        observed = self._read_back(hucolor=(30, 49))
+
+        assert not entity._kwargs_match_observed(  # noqa: SLF001
+            {"state": True, "hue": 16, "saturation": 49}, observed
+        )

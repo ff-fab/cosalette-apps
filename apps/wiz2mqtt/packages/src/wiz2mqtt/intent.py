@@ -295,6 +295,11 @@ def record_command(
     state.desired_state_generation[name] = (
         state.desired_state_generation.get(name, 0) + 1
     )
+    # A new user command supersedes an exhausted return-path restore.  It must
+    # get its own bounded replay budget rather than inheriting stale failures.
+    state.restore_retry_cycles.pop(name, None)
+    state.restore_retry_at.pop(name, None)
+    state.restore_retry_exhausted.discard(name)
     current = resolve_desired_state(state, store, name)
     base = current.as_bulb_state() if current is not None else EMPTY_BULB_STATE
     merged = base.apply_command(

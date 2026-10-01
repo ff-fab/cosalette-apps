@@ -147,6 +147,19 @@ class TestTelemetryTriggerConfig:
 
         assert _TICK_INTERVAL_SECONDS == _DEFAULT_PUSH_STALENESS_THRESHOLD
 
+    def test_tick_timeout_outlasts_the_slowest_return_path(self) -> None:
+        """Technique: Boundary Value Analysis — worst case of every wait.
+
+        One read, then three write-and-read-back attempts, each at the
+        pywizlight request timeout, plus the largest allowed retry delays.
+        The implicit default (the 60 s interval) cancelled such a tick.
+        """
+        from pywizlight.bulb import TIMEOUT  # noqa: PLC0415
+
+        worst_case = TIMEOUT + 3 * 2 * TIMEOUT + 2 * 30.0
+
+        assert self._bulb_entity_registration().timeout > worst_case  # ty: ignore[unresolved-attribute]
+
 
 class TestBulbSet:
     """Command-side intent and transient queue behavior.

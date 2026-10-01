@@ -90,6 +90,24 @@ class SharedState:
     (ADR-008), published as ``last_applied``. In memory only, so it is
     absent again after a restart."""
 
+    restore_retry_cycles: dict[str, int] = field(default_factory=dict)
+    """Exhausted return-path write/read-back cycles per bulb.
+
+    Each cycle still has the three attempts required by ADR-008.  This
+    separate counter bounds repeating an entirely unconfirmed cycle on later
+    ticks without weakening those individual attempts.
+    """
+
+    restore_retry_at: dict[str, float] = field(default_factory=dict)
+    """Monotonic earliest time for a bulb's next unconfirmed restore cycle."""
+
+    restore_retry_exhausted: set[str] = field(default_factory=set)
+    """Bulbs whose unconfirmed restore-cycle cap was reached.
+
+    Their desired state remains authoritative, but no more writes occur until
+    a new command resets the cap.
+    """
+
     restore_settle_until: dict[str, float] = field(default_factory=dict)
     """Monotonic deadline of a confirmed return-path restore's settle window."""
 
