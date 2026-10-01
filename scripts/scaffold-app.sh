@@ -668,7 +668,11 @@ sed -i "${TASKS_LINE}i\\
 # 3. release-please-config.json — add package entry
 TMP=$(mktemp)
 jq --arg name "$NAME" --arg path "apps/$NAME" \
-  '.packages[$path] = { component: $name, "release-type": "python", "extra-files": [{type: "generic", path: "docs/schema.yaml"}] }' \
+  --arg lock_version "\$.package[?(@.name.value=='$NAME')].version" \
+  '.packages[$path] = { component: $name, "release-type": "python", "extra-files": [
+     {type: "generic", path: "docs/schema.yaml"},
+     {type: "toml", path: "/uv.lock", jsonpath: $lock_version}
+   ] }' \
   release-please-config.json > "$TMP" && mv "$TMP" release-please-config.json
 
 # 4. .release-please-manifest.json — add entry

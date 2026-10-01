@@ -213,10 +213,11 @@ tasks:
       - bash scripts/test-check-agent-config.sh
 
   test:scripts:
-    desc: Run shell script unit tests (qa-task.sh, pre-pr.sh, add_gpl_headers.py)
+    desc: Run shell regression tests for repository scripts
     cmds:
       - bash scripts/tests/test_qa_scripts.sh
       - bash scripts/tests/test_gpl_headers.sh
+      - bash scripts/tests/test_beads_recover.sh
 
   pre-pr:
     desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + security)
@@ -344,6 +345,17 @@ tasks:
     cmds:
       - bd export -o .beads/issues.jsonl
       - echo "✓ Exported beads state to .beads/issues.jsonl"
+
+  # Run when every bd call fails with 'database "dolt" is locked by another
+  # dolt process' or 'Dolt server unreachable at 127.0.0.1:0' (cap-bqfr).
+  beads:recover:
+    desc: Stop an orphaned beads dolt server and restart a tracked one
+    silent: true
+    preconditions:
+      - sh: command -v bd >/dev/null 2>&1
+        msg: bd is not installed
+    cmds:
+      - bash scripts/beads-recover.sh
 
   # ===========================================================================
   # Test Tasks - Top Level
