@@ -892,3 +892,12 @@ class TestRestoreRetryDelays:
 
         assert settings.restore_retry_delays_for("a") == [1.0]
         assert settings.restore_retry_delays_for("b") == []
+
+    def test_retry_cycle_limit_defaults_and_power_source_overrides(self) -> None:
+        settings = build_settings(
+            [{"name": "a", "ip": "10.0.0.1"}, {"name": "b", "ip": "10.0.0.2"}],
+            [{"name": "up", "members": ["a"], "restore_retry_limit": 2}],
+        )
+
+        assert settings.restore_retry_limit_for("a") == 2
+        assert settings.restore_retry_limit_for("b") == 3

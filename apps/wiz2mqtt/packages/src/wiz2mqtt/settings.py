@@ -233,6 +233,15 @@ class PowerSourceConfig(BaseModel):
             "value (ADR-008)."
         ),
     )
+    restore_retry_limit: int | None = Field(
+        default=None,
+        ge=1,
+        le=10,
+        description=(
+            "Maximum exhausted return-path restore cycles for member bulbs. "
+            "Unset falls back to the top-level value (ADR-008)."
+        ),
+    )
 
     @field_validator("members")
     @classmethod
@@ -569,6 +578,16 @@ class Wiz2MqttSettings(cosalette.Settings):
             "source may override it."
         ),
     )
+    restore_retry_limit: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description=(
+            "Maximum exhausted return-path restore cycles before writes stop. "
+            "Each cycle still makes up to three write-and-read-back attempts; "
+            "a power source may override it."
+        ),
+    )
     _power_sources_by_bulb: dict[str, PowerSourceConfig | None] = PrivateAttr(
         default_factory=dict
     )
@@ -687,6 +706,13 @@ class Wiz2MqttSettings(cosalette.Settings):
         if source is not None and source.restore_retry_delays is not None:
             return source.restore_retry_delays
         return self.restore_retry_delays
+
+    def restore_retry_limit_for(self, bulb_name: str) -> int:
+        """The exhausted return-path cycle cap: power source, then global."""
+        source = self.power_source_of(bulb_name)
+        if source is not None and source.restore_retry_limit is not None:
+            return source.restore_retry_limit
+        return self.restore_retry_limit
 
     def bulbs_for_power_source(self, source_name: str) -> list[str]:
         """Return the bulb names resolving to power source *source_name*.

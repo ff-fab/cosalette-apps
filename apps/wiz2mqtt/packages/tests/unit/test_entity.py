@@ -748,6 +748,56 @@ class TestReturnPath:
         assert state.desired_state["office"].state == "ON"
         assert state.phase["office"] == "reconnect"
 
+    async def test_unconfirmed_cycle_is_paced_before_the_next_three_writes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Regression: an exhausted cycle cannot run again on every tick."""
+        clock = [100.0]
+        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext()
+        store = _store_with_desired()
+
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+        await _tick(
+            ctx, _config(restore_previous_state=True), adapter, state, store=store
+        )
+
+        assert len(adapter.set_state_calls) == 3
+        assert state.restore_retry_cycles["office"] == 1
+        assert state.restore_retry_at["office"] == 102.0
+
+    async def test_retry_cap_publishes_terminal_outcome_and_new_command_resets_it(
+        self,
+    ) -> None:
+        """Boundary: terminal cap retains intent until a new command arrives."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}], restore_retry_limit=1
+        )
+        adapter = FakeWizBulbAdapter()
+        adapter.refuse_writes(_IP, 3)
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=settings)
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        body = json.loads(ctx.published[0][1])
+        assert body["terminal"] is True
+        assert body["retry_cycles"] == 1
+        assert "office" in state.restore_retry_exhausted
+        record_command(state, None, "office", {"state": True}, time.time())  # type: ignore[arg-type]
+        assert "office" not in state.restore_retry_exhausted
+
     async def test_unconfirmed_off_restore_does_not_adopt_boot_state(self) -> None:
         """A refused OFF restore retains the user intent for the next retry."""
         adapter = FakeWizBulbAdapter()
@@ -766,6 +816,8 @@ class TestReturnPath:
 
         assert state.desired_state["office"].state == "OFF"
         assert state.phase["office"] == "reconnect"
+        # An exhausted cycle is deliberately paced before the next cycle.
+        state.restore_retry_at["office"] = 0.0
 
         await _tick(
             FakeDeviceContext(),

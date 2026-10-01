@@ -468,6 +468,17 @@ async def _run_return_path(
         confirmed = True
         intent.record_observation(state, store, name, observed, now)
     else:
+        if name in state.restore_retry_exhausted:
+            # Keep reconnect armed so this observation cannot replace the
+            # desired state, while the terminal cap prevents another write.
+            belief = _recompute_and_notify(settings, state, notify, name)
+            return _render(settings, state, name, bulb_state, belief)
+        retry_at = state.restore_retry_at.get(name)
+        if retry_at is not None and time.monotonic() < retry_at:
+            # firstBeat may repeat while a bulb starts.  Do not turn each
+            # broadcast into an immediate fresh three-write cycle.
+            belief = _recompute_and_notify(settings, state, notify, name)
+            return _render(settings, state, name, bulb_state, belief)
         observed, results, confirmed = await _write_and_verify(
             port,
             config.ip,
@@ -483,11 +494,25 @@ async def _run_return_path(
         if settle_target is None:
             _start_restore_settle(settings, state, name, observed, confirmed)
         if not confirmed:
+            cycles = state.restore_retry_cycles.get(name, 0) + 1
+            state.restore_retry_cycles[name] = cycles
+            terminal = cycles >= settings.restore_retry_limit_for(name)
+            if terminal:
+                state.restore_retry_exhausted.add(name)
+                state.restore_retry_at.pop(name, None)
+            else:
+                state.restore_retry_at[name] = time.monotonic() + _retry_delay(
+                    settings.restore_retry_delays_for(name), cycles
+                )
             logger.warning(
-                "Bulb %s: return-path restore unconfirmed after %d attempts; "
-                "retaining desired state for retry",
+                "Bulb %s: return-path restore unconfirmed after %d attempts; %s",
                 name,
                 attempts,
+                (
+                    "retry cap reached"
+                    if terminal
+                    else "retaining desired state for retry"
+                ),
             )
             await ctx.publish(
                 "error",
@@ -496,14 +521,30 @@ async def _run_return_path(
                         "error_type": RESTORE_UNCONFIRMED,
                         "attempts": attempts,
                         "attempt_results": results,
+                        "retry_cycles": cycles,
+                        "terminal": terminal,
                         "state": dataclasses.asdict(observed),
                     }
                 ),
             )
+    if confirmed:
+        state.restore_retry_cycles.pop(name, None)
+        state.restore_retry_at.pop(name, None)
+        state.restore_retry_exhausted.discard(name)
     if confirmed and name not in state.pending_commands:
         state.phase[name] = "steady"
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, observed, belief)
+
+
+def _retry_delay(delays: Sequence[float], cycles: int) -> float:
+    """Return the pacing delay after exhausted restore *cycles*.
+
+    Reuse the configured retry sequence: its first value paces the second
+    cycle, its last value repeats, and an empty list permits an immediate
+    later tick just as it does between attempts within a cycle.
+    """
+    return 0.0 if not delays else delays[min(cycles - 1, len(delays) - 1)]
 
 
 def _bulb_state_to_set_state_kwargs(bulb_state: BulbState) -> SetStateKwargs:
@@ -720,6 +761,11 @@ def _make_boot_handler(
 
 def _boot_should_rearm(state: SharedState, name: str) -> bool:
     """Accept firstBeat for a return, not duplicate startup broadcasts."""
+    if name in state.restore_retry_exhausted:
+        return False
+    retry_at = state.restore_retry_at.get(name)
+    if retry_at is not None and time.monotonic() < retry_at:
+        return False
     if not state.bulb_answered.get(name, False) or name in state.stale_answers:
         return True
     desired = state.desired_state.get(name)
