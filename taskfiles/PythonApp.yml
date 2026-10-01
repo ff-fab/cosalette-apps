@@ -86,7 +86,7 @@ tasks:
   typecheck:
     desc: 'Type check {{.APP_NAME}}'
     cmds:
-      - uv run ty check {{.PKG}}/src/
+      - uv run --package {{.APP_NAME}} --all-extras ty check {{.PKG}}/src/
 
   check:
     desc: 'Run all checks for {{.APP_NAME}}'
