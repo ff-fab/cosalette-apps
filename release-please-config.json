@@ -9,47 +9,110 @@
     "apps/gas2mqtt": {
       "component": "gas2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='gas2mqtt')].version"
+        }
+      ]
     },
     "apps/jeelink2mqtt": {
       "component": "jeelink2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='jeelink2mqtt')].version"
+        }
+      ]
     },
     "apps/vito2mqtt": {
       "component": "vito2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='vito2mqtt')].version"
+        }
+      ]
     },
     "apps/velux2mqtt": {
       "component": "velux2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='velux2mqtt')].version"
+        }
+      ]
     },
     "apps/airthings2mqtt": {
       "component": "airthings2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='airthings2mqtt')].version"
+        }
+      ]
     },
     "apps/caldates2mqtt": {
       "component": "caldates2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='caldates2mqtt')].version"
+        }
+      ]
     },
     "apps/suncast": {
       "component": "suncast",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='suncast')].version"
+        }
+      ]
     },
     "apps/wallpanel-control": {
       "component": "wallpanel-control",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='wallpanel-control')].version"
+        }
+      ]
     },
     "apps/wiz2mqtt": {
       "component": "wiz2mqtt",
       "release-type": "python",
-      "extra-files": [{ "type": "generic", "path": "docs/schema.yaml" }]
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='wiz2mqtt')].version"
+        }
+      ]
     }
   }
 }
