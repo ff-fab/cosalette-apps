@@ -140,7 +140,7 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
 ```json
 {
   "error_type": "ble_device_not_found",
-  "message": "Device with address **:EE:FF was not found.",
+  "message": "BleakDeviceNotFoundError: Device with address **:EE:FF was not found.",
   "device": "airthings",
   "timestamp": "2026-10-01T18:34:58+00:00",
   "id": "9f2c1a4b7e0d",

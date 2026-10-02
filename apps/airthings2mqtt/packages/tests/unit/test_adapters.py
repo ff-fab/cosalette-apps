@@ -205,6 +205,38 @@ class TestRedactMac:
 
 
 @pytest.mark.unit
+class TestRedactMacsInText:
+    """Verify _redact_macs_in strips full MACs from free-form exception text.
+
+    Technique: Equivalence Partitioning — colon, dash, BlueZ object-path
+    underscore form, several MACs, and text without a MAC.
+    """
+
+    @pytest.mark.parametrize(
+        ("text", "expected"),
+        [
+            (
+                "Device with address AA:BB:CC:DD:EE:FF was not found.",
+                "Device with address **:EE:FF was not found.",
+            ),
+            ("peer aa-bb-cc-dd-ee-ff gone", "peer **:ee:ff gone"),
+            (
+                "[org.bluez.Error.Failed] /org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF",
+                "[org.bluez.Error.Failed] /org/bluez/hci0/dev_**:EE:FF",
+            ),
+            ("11:22:33:44:55:66 and AA:BB:CC:DD:EE:FF", "**:55:66 and **:EE:FF"),
+            ("uuid 00002a6e-0000-1000-8000-00805f9b34fb", None),  # not a MAC
+            ("timed out", None),
+        ],
+    )
+    def test_redacts_every_mac(self, text: str, expected: str | None) -> None:
+        """Every MAC keeps only its last two octets; other text is unchanged."""
+        from airthings2mqtt.adapters.bleak import _redact_macs_in
+
+        assert _redact_macs_in(text) == (text if expected is None else expected)
+
+
+@pytest.mark.unit
 class TestBleakAirthingsReader:
     """Verify BleakAirthingsReader parses 1st-gen GATT data and translates errors."""
 
@@ -398,6 +430,34 @@ class TestBleakAirthingsReader:
 
         assert type(raised.value) is expected
         assert raised.value.__cause__ is exc
+
+    async def test_device_not_found_message_carries_no_full_mac(self) -> None:
+        """bleak's not-found text is redacted and its chain hidden from logs.
+
+        Technique: Error Guessing — incident 2 published the full MAC on the
+        broker-visible error topic; the cause's traceback would leak it too.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        mac = "AA:BB:CC:DD:EE:FF"
+        exc = BleakDeviceNotFoundError(mac, f"Device with address {mac} was not found.")
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(side_effect=exc)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+            ),
+            pytest.raises(BleDeviceNotFoundError) as raised,
+        ):
+            await BleakAirthingsReader().read(mac)
+
+        assert str(raised.value) == (
+            "BleakDeviceNotFoundError: Device with address **:EE:FF was not found."
+        )
+        assert raised.value.__suppress_context__
+        assert raised.value.__cause__ is None
 
     async def test_malformed_payload_raises_ble_read_error(self) -> None:
         """Truncated GATT payload triggers struct.error → BleReadError.

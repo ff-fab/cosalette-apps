@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import struct
 from collections.abc import Buffer
 
@@ -91,6 +92,23 @@ def _redact_mac(mac: str) -> str:
         if len(parts) == 6:  # standard MAC: 6 octets with 5 separators
             return f"{parts[-2]}:{parts[-1]}"
     return "??:??"
+
+
+_MAC_IN_TEXT = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:_-]){4}"
+    r"([0-9A-Fa-f]{2})[:_-]([0-9A-Fa-f]{2})(?![0-9A-Fa-f])"
+)
+"""A MAC inside free text: colon, dash, or BlueZ object-path underscore form."""
+
+
+def _redact_macs_in(text: str) -> str:
+    """Replace every MAC in *text* with ``**:EE:FF`` (its last two octets).
+
+    bleak and BlueZ embed the full address in exception text (``Device with
+    address AA:BB:… was not found``, ``/org/bluez/hci0/dev_AA_BB_…``), which
+    would otherwise reach the logs and the broker-visible error topic.
+    """
+    return _MAC_IN_TEXT.sub(lambda m: f"**:{m[1]}:{m[2]}", text)
 
 
 def _bounded_radon(value: int) -> int | None:
@@ -239,7 +257,13 @@ class BleakAirthingsReader:
                     )
         except Exception as exc:
             # struct.error from a malformed frame is unmapped → BleReadError.
-            raise map_exception(exc, _BLEAK_ERROR_MAP)(str(exc)) from exc
+            error = map_exception(exc, _BLEAK_ERROR_MAP)
+            message = _redact_macs_in(str(exc))
+            if message == str(exc):
+                raise error(message) from exc
+            # The cause's own text (logged with the traceback) carries the full
+            # MAC, so drop the chain and keep only its class name.
+            raise error(f"{type(exc).__name__}: {message}") from None
 
         logger.info(
             "Airthings read ok: mac=**:%s protocol=%s temperature=%.2f humidity=%.2f "
