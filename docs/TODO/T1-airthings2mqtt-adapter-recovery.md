@@ -2,7 +2,7 @@
 
 | Field   | Value                                                         |
 | ------- | ------------------------------------------------------------- |
-| Status  | Open                                                          |
+| Status  | Decided 2026-10-02                                            |
 | Trigger | Before any airthings2mqtt adapter-restart or D-Bus write work |
 | Gate    | beads `cap-oxdp.7` (epic `cap-oxdp`)                          |
 
@@ -28,7 +28,7 @@ did not help. Two app-side gaps remain after the error classification fix (`cap-
 | B. Opt-in reset: toggle `org.bluez.Adapter1.Powered` after N device-not-found errors with zero advertisers | Cheap first escalation the process can do by itself      | Did not help in the incident; disturbs other BLE users on the host; needs a D-Bus policy that allows the write from a non-root UID |
 | C. Wait for cosalette data-driven restarts (stale entity triggers the restart path)                          | One mechanism for all apps; no app-specific D-Bus writes | Blocked on an upstream release                                                                                                  |
 
-## Open questions
+## Open questions (moot after the resolution below)
 
 - Can the container's D-Bus policy write `Adapter1.Powered` with the read-only system bus
   socket mount and a non-root UID (proposal open question 3)?
@@ -37,5 +37,15 @@ did not help. Two app-side gaps remain after the error classification fix (`cap-
 
 ## Resolution
 
-Record the decision as an app ADR (`adr-create`, `--adr-dir apps/airthings2mqtt/docs/adr`)
-or update this file, then close the gate and create the implementation tasks.
+**Decided 2026-10-02 (gate `cap-oxdp.7` closed).** A non-root user shall not be able to
+power-cycle the Bluetooth adapter, and airthings2mqtt is not designed to do so. Option B
+is rejected. Inside the app, recovery is reconnect and backoff only: retry, then mark
+the entity `offline`. Recovering the adapter is the job of the host and the operator.
+Option C stays acceptable only if it restarts the app's adapter object and never the
+radio itself.
+
+Follow-ups:
+
+- `cap-oxdp.10`: remove the dead restart knobs and declare the adapter `restartable = False`.
+- `cap-oxdp.11`: an operator runbook for host-side adapter recovery.
+- `cap-oxdp.12`: record this decision as an app ADR.
