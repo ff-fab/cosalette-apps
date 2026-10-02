@@ -63,7 +63,10 @@ from a trigger.
 
 
 def build_integration_app(
-    fake_adapter: FakeWizBulbAdapter, *, interval: float = _FAST_TICK_INTERVAL
+    fake_adapter: FakeWizBulbAdapter,
+    *,
+    interval: float = _FAST_TICK_INTERVAL,
+    startup_connect_timeout: float | None = 10.0,
 ) -> App:
     """Construct a fully-wired App with FakeWizBulbAdapter.
 
@@ -86,6 +89,7 @@ def build_integration_app(
         settings_class=Wiz2MqttSettings,
         adapters={WizBulbPort: _adapter_factory},
         error_type_map=error_type_map,
+        startup_connect_timeout=startup_connect_timeout,
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across
         # every test in the session. That was harmless while the only thing
