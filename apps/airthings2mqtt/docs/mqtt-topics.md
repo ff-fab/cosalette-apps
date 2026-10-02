@@ -103,6 +103,27 @@ This is the telemetry entity's availability, not a continuous Bluetooth adapter 
 check. For example, it does not promise that the adapter or sensor remains reachable
 between polls.
 
+!!! warning "Availability alone does not prove the reading is fresh"
+
+    The last good reading stays retained on `airthings2mqtt/airthings/state`, and
+    availability only turns `"offline"` after a retryable failure exhausts its retries.
+    A `BleReadError` that repeats every poll, or a bridge whose telemetry task has
+    stopped, keeps availability `"online"` while the value goes stale. Guard the
+    consumer as well, sized to about two poll intervals:
+
+    - **openHAB:** add `expire` metadata to each item, so a value that is not refreshed
+      becomes `UNDEF`. With the default 25-minute poll interval:
+
+        ```text
+        Number Airthings2Mqtt_Airthings_Radon24HAvg "Radon (24h avg) [%s Bq/m³]" {
+            channel="mqtt:topic:broker:airthings2mqtt_airthings:radon_24h_avg",
+            expire="1h,state=UNDEF"
+        }
+        ```
+
+    - **Any consumer:** alert when `devices.airthings.status` in
+      [`airthings2mqtt/status`](#status-heartbeat) is not `"ok"` for longer than an hour.
+
 ### Status (Heartbeat)
 
 **Topic:** `airthings2mqtt/status`
@@ -114,20 +135,20 @@ unexpectedly.
 ```json
 {
   "status": "online",
-  "uptime": 3600.0,
-  "version": "0.1.0",
+  "uptime_s": 3600.0,
   "devices": {
-    "airthings": { "status": "online" }
-  }
+    "airthings": { "status": "ok" }
+  },
+  "version": "0.2.6"
 }
 ```
 
-| Field     | Type   | Description                                    |
-| --------- | ------ | ---------------------------------------------- |
-| `status`  | string | `"online"` or `"offline"`                      |
-| `uptime`  | float  | Seconds since application start                |
-| `version` | string | Application version                            |
-| `devices` | object | Per-device status map                          |
+| Field      | Type   | Description                                                                  |
+| ---------- | ------ | ---------------------------------------------------------------------------- |
+| `status`   | string | `"online"` or `"offline"`                                                    |
+| `uptime_s` | float  | Seconds since application start                                              |
+| `devices`  | object | Per-device status: `"ok"`, `"error"`, `"unavailable"` or `"circuit_open"`    |
+| `version`  | string | Application version                                                          |
 
 ### Error
 
