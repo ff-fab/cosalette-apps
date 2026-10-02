@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.7](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.2.6...velux2mqtt-v0.2.7) (2026-10-02)
+
+
+### Bug Fixes
+
+* **deps:** upgrade apps to cosalette 0.10.6 ([#315](https://github.com/ff-fab/cosalette-apps/issues/315)) ([f45aa69](https://github.com/ff-fab/cosalette-apps/commit/f45aa69ef2ded1de6a94f3a06618325755596769))
+
 ## [0.2.6](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.2.5...velux2mqtt-v0.2.6) (2026-09-30)
 
 
