@@ -121,8 +121,12 @@ between polls.
         }
         ```
 
-    - **Any consumer:** alert when `devices.airthings.status` in
-      [`airthings2mqtt/status`](#status-heartbeat) is not `"ok"` for longer than an hour.
+    - **Any consumer:** alert when the last publication to
+      `airthings2mqtt/airthings/state` is older than about an hour. Also monitor
+      `devices.airthings.status` and heartbeat recency in
+      [`airthings2mqtt/status`](#status-heartbeat), but do not use them as the
+      only freshness signal: the telemetry loop can stop while the health reporter
+      remains healthy.
 
 ### Status (Heartbeat)
 
@@ -139,7 +143,7 @@ unexpectedly.
   "devices": {
     "airthings": { "status": "ok" }
   },
-  "version": "0.2.6"
+  "version": "0.2.7"
 }
 ```
 

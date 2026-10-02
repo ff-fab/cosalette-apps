@@ -222,7 +222,11 @@ class TestErrorRecovery:
         error: AirthingsError,
         error_type: str,
     ) -> None:
-        """Four retryable failures publish retained offline once, then online."""
+        """Four retryable failures publish retained offline once, then online.
+
+        Technique: State Transition — drive retries to their terminal offline
+        state, then trigger a fresh read to verify recovery returns online.
+        """
         reader = _FailuresThenRecoverReader(failures=4, error=error)
         harness = make_harness(adapter=lambda: reader, settings=test_settings)
         availability_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
@@ -270,6 +274,9 @@ class TestErrorRecovery:
         ``BleReadError`` is deliberately outside the retry policy: it describes
         unusable sensor data, not loss of transport. Cosalette therefore keeps
         the device online; automatic offline is reserved for exhausted retries.
+
+        Technique: Equivalence Partitioning — contrast a non-retryable data
+        failure with retryable transport failures that change availability.
         """
         reader = _FailuresThenRecoverReader(
             failures=1, error=BleReadError("malformed sensor frame")
