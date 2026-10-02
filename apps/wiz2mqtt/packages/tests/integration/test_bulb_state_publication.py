@@ -14,16 +14,26 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Awaitable, Callable
 
 import pytest
-from cosalette.testing import AppHarness
+from cosalette import MockMqttClient, MqttNotConnectedError
+from cosalette.testing import AppHarness, ManualClock
 
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.models import BulbState
 
-from .conftest import _FAST_TICK_INTERVAL, TOPIC_PREFIX, wait_until_subscribed
+from .conftest import (
+    _FAST_TICK_INTERVAL,
+    NO_TICK_INTERVAL,
+    TOPIC_PREFIX,
+    build_integration_app,
+    make_settings,
+    wait_until_subscribed,
+)
 
 _SOURCE_TOPIC = f"{TOPIC_PREFIX}/office-power/state"
+_ERROR_SUFFIX = "/error"
 
 _TICKS = 3
 """Scheduled ticks to fire past the startup run.
@@ -55,6 +65,50 @@ async def _run_briefly(harness: AppHarness) -> None:
         if not task.done():
             task.cancel()
             await asyncio.gather(task, return_exceptions=True)
+
+
+class ConnectableMockMqttClient(MockMqttClient):
+    """MQTT double whose initial publish attempts fail until ``connect()``.
+
+    The connect callbacks make this a real ``MqttConnectAware`` structural
+    match, exercising the runner's deferred-telemetry wake rather than
+    manually advancing its scheduled interval.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.attempted_topics: list[str] = []
+        self._connected = False
+        self._connect_callbacks: list[Callable[[], Awaitable[None]]] = []
+
+    @property
+    def is_connected(self) -> bool:
+        """Expose the current transport state to cosalette's first-connect gate."""
+        return self._connected
+
+    def add_connect_callback(self, callback: Callable[[], Awaitable[None]]) -> None:
+        """Register the callbacks that reannounce and wake deferred telemetry."""
+        self._connect_callbacks.append(callback)
+
+    async def publish(
+        self,
+        topic: str,
+        payload: str | dict[str, object],
+        *,
+        retain: bool = False,
+        qos: int = 1,
+    ) -> None:
+        """Record every attempted topic, rejecting sends before connection."""
+        self.attempted_topics.append(topic)
+        if not self._connected:
+            raise MqttNotConnectedError("test MQTT client is disconnected")
+        await super().publish(topic, payload, retain=retain, qos=qos)
+
+    async def connect(self) -> None:
+        """Connect and run the registered callbacks in production order."""
+        self._connected = True
+        for callback in self._connect_callbacks:
+            await callback()
 
 
 @pytest.mark.integration
@@ -136,6 +190,53 @@ class TestPowerSourcePublication:
                 await asyncio.gather(task, return_exceptions=True)
             else:
                 await task
+
+    async def test_retries_initial_telemetry_after_mqtt_connect(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Initial telemetry before a broker connection is deferred, not failed.
+
+        Technique: State Transition — disconnected → connected proves the
+        deferred initial bulb telemetry wakes and arms its power source.
+
+        Technique: Error Guessing — a transport exception at the state
+        publish boundary must not be misclassified as a runner failure and
+        emitted to either error topic.
+        """
+        mqtt = ConnectableMockMqttClient()
+        harness = AppHarness(
+            app=build_integration_app(
+                fake_adapter,
+                interval=NO_TICK_INTERVAL,
+                startup_connect_timeout=None,
+            ),
+            mqtt=mqtt,
+            clock=ManualClock(),
+            settings=make_settings(
+                power_sources=[{"name": "office-power", "members": ["office"]}]
+            ),
+            shutdown_event=asyncio.Event(),
+        )
+        task = asyncio.create_task(harness.run())
+        try:
+            await wait_until_subscribed(harness)
+            await harness.clock.settle(stable_rounds=10)
+
+            assert f"{TOPIC_PREFIX}/office/state" in mqtt.attempted_topics
+            assert _SOURCE_TOPIC in mqtt.attempted_topics
+            assert not any(
+                topic.endswith(_ERROR_SUFFIX) for topic in mqtt.attempted_topics
+            )
+
+            await mqtt.connect()
+            await harness.wait_for_publish_count(_SOURCE_TOPIC, 1)
+
+            payload, retain, _qos = harness.messages_for(_SOURCE_TOPIC)[0]
+            assert json.loads(payload)["powered"] == "on"
+            assert retain is True
+        finally:
+            harness.shutdown_event.set()
+            await asyncio.wait_for(task, timeout=2.0)
 
 
 @pytest.mark.integration
