@@ -2,7 +2,8 @@
 
 - **Status:** complete — all sixteen validation criteria discharged
 - **Discharges:** `cap-8au`, definition-of-done item D4 of
-  [the event-driven publication proposal](cosalette-event-driven-publication-proposal.md)
+  the event-driven publication proposal
+  (`cosalette-event-driven-publication-proposal.md`, kept in the cosalette repository)
 - **Verified against:** cosalette 0.8.0, the installed wheel — assertions run against it,
   source claims read from it (`_runners/_notifier.py`, `_runners/_device_trigger.py`,
   `_runners/_telemetry_runner.py`, `_runners/_contracts.py`, `_wiring/_context.py`,

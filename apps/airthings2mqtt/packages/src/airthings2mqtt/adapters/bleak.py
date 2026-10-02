@@ -18,14 +18,26 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import struct
 from collections.abc import Buffer
 
 from bleak import BleakClient
+from bleak.exc import (
+    BleakBluetoothNotAvailableError,
+    BleakDBusError,
+    BleakDeviceNotFoundError,
+)
 from dbus_fast import BusType, Message, MessageType, Variant
 from dbus_fast.aio import MessageBus
 
-from airthings2mqtt.errors import ERROR_TYPE_MAP, BleReadError
+from airthings2mqtt.errors import (
+    ERROR_TYPE_MAP,
+    AirthingsError,
+    BleConnectionError,
+    BleDeviceNotFoundError,
+    map_exception,
+)
 from airthings2mqtt.ports import AirthingsReading
 
 # BLE GATT characteristic UUIDs — Wave (1st-gen)
@@ -48,6 +60,20 @@ Wave 2 frame that unpacks to a wild uint16 (``0xFFFF`` == 65535) is dropped to
 ``None`` rather than published as a false radon spike.
 """
 
+_BLEAK_ERROR_MAP: dict[type[BaseException], type[AirthingsError]] = {
+    **ERROR_TYPE_MAP,
+    BleakDeviceNotFoundError: BleDeviceNotFoundError,
+    BleakBluetoothNotAvailableError: BleConnectionError,
+    BleakDBusError: BleConnectionError,
+}
+"""bleak-specific additions to :data:`~airthings2mqtt.errors.ERROR_TYPE_MAP`.
+
+A vanished device must be retried and, once retries are exhausted, marked
+offline; as a plain ``BleakError`` it would fall through to the non-retryable
+``BleReadError``. Every other ``BleakError`` (e.g. a missing characteristic
+on a non-Airthings device) stays ``BleReadError``.
+"""
+
 _BLUEZ_ADAPTER_PATH = "/org/bluez/hci0"
 _HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
 
@@ -66,6 +92,23 @@ def _redact_mac(mac: str) -> str:
         if len(parts) == 6:  # standard MAC: 6 octets with 5 separators
             return f"{parts[-2]}:{parts[-1]}"
     return "??:??"
+
+
+_MAC_IN_TEXT = re.compile(
+    r"(?<![0-9A-Fa-f])(?:[0-9A-Fa-f]{2}[:_-]){4}"
+    r"([0-9A-Fa-f]{2})[:_-]([0-9A-Fa-f]{2})(?![0-9A-Fa-f])"
+)
+"""A MAC inside free text: colon, dash, or BlueZ object-path underscore form."""
+
+
+def _redact_macs_in(text: str) -> str:
+    """Replace every MAC in *text* with ``**:EE:FF`` (its last two octets).
+
+    bleak and BlueZ embed the full address in exception text (``Device with
+    address AA:BB:… was not found``, ``/org/bluez/hci0/dev_AA_BB_…``), which
+    would otherwise reach the logs and the broker-visible error topic.
+    """
+    return _MAC_IN_TEXT.sub(lambda m: f"**:{m[1]}:{m[2]}", text)
 
 
 def _bounded_radon(value: int) -> int | None:
@@ -192,7 +235,8 @@ class BleakAirthingsReader:
             AirthingsReading with parsed sensor values.
 
         Raises:
-            BleConnectionError: If the device cannot be reached.
+            BleConnectionError: If the device cannot be reached
+                (:class:`BleDeviceNotFoundError` when it is not seen at all).
             BleReadError: If a GATT characteristic cannot be read or decoded.
             BleTimeoutError: If the connection or read times out.
         """
@@ -212,12 +256,14 @@ class BleakAirthingsReader:
                         await client.read_gatt_char(_UUID_RADON_LTA),
                     )
         except Exception as exc:
-            # struct.error from a malformed frame is unmapped → BleReadError,
-            # same as before parsing moved inside the connection block.
-            mapped = ERROR_TYPE_MAP.get(type(exc))
-            if mapped is not None:
-                raise mapped(str(exc)) from exc
-            raise BleReadError(str(exc)) from exc
+            # struct.error from a malformed frame is unmapped → BleReadError.
+            error = map_exception(exc, _BLEAK_ERROR_MAP)
+            message = _redact_macs_in(str(exc))
+            if message == str(exc):
+                raise error(message) from exc
+            # The cause's own text (logged with the traceback) carries the full
+            # MAC, so drop the chain and keep only its class name.
+            raise error(f"{type(exc).__name__}: {message}") from None
 
         logger.info(
             "Airthings read ok: mac=**:%s protocol=%s temperature=%.2f humidity=%.2f "

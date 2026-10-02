@@ -115,7 +115,8 @@ class AirthingsReaderPort(HealthCheckable, Protocol):
             AirthingsReading with temperature, humidity, and radon values.
 
         Raises:
-            BleConnectionError: If the device cannot be reached.
+            BleConnectionError: If the device cannot be reached
+                (:class:`BleDeviceNotFoundError` when it is not seen at all).
             BleReadError: If a GATT characteristic cannot be read.
             BleTimeoutError: If the connection or read times out.
         """

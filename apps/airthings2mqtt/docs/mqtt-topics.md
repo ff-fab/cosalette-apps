@@ -86,10 +86,13 @@ as scheduled polls.
 
 Managed automatically by the cosalette framework and retained by the broker. Retryable
 BLE failures are retried first; `"offline"` is published only when those failures exhaust
-the configured retry budget. A later successful read publishes `"online"` again. A
-non-retryable `BleReadError` publishes an error without retrying and leaves availability
-`"online"`, because malformed or unreadable data does not necessarily mean the device is
-unreachable.
+the configured retry budget. A later successful read publishes `"online"` again.
+
+Retryable failures are connection errors (including a sensor that is not found because
+it stopped advertising or is out of range, a BlueZ D-Bus error, or a powered-off
+adapter) and timeouts. A non-retryable `BleReadError` (a missing GATT characteristic or a
+malformed frame) publishes an error without retrying and leaves availability `"online"`,
+because unreadable data does not necessarily mean the device is unreachable.
 
 ```text
 "online"     # no retryable reachability failure has exhausted its retry budget
@@ -99,6 +102,31 @@ unreachable.
 This is the telemetry entity's availability, not a continuous Bluetooth adapter health
 check. For example, it does not promise that the adapter or sensor remains reachable
 between polls.
+
+!!! warning "Availability alone does not prove the reading is fresh"
+
+    The last good reading stays retained on `airthings2mqtt/airthings/state`, and
+    availability only turns `"offline"` after a retryable failure exhausts its retries.
+    A `BleReadError` that repeats every poll, or a bridge whose telemetry task has
+    stopped, keeps availability `"online"` while the value goes stale. Guard the
+    consumer as well, sized to about two poll intervals:
+
+    - **openHAB:** add `expire` metadata to each item, so a value that is not refreshed
+      becomes `UNDEF`. With the default 25-minute poll interval:
+
+        ```text
+        Number Airthings2Mqtt_Airthings_Radon24HAvg "Radon (24h avg) [%s Bq/m³]" {
+            channel="mqtt:topic:broker:airthings2mqtt_airthings:radon_24h_avg",
+            expire="1h,state=UNDEF"
+        }
+        ```
+
+    - **Any consumer:** alert when the last publication to
+      `airthings2mqtt/airthings/state` is older than about an hour. Also monitor
+      `devices.airthings.status` and heartbeat recency in
+      [`airthings2mqtt/status`](#status-heartbeat), but do not use them as the
+      only freshness signal: the telemetry loop can stop while the health reporter
+      remains healthy.
 
 ### Status (Heartbeat)
 
@@ -111,44 +139,55 @@ unexpectedly.
 ```json
 {
   "status": "online",
-  "uptime": 3600.0,
-  "version": "0.1.0",
+  "uptime_s": 3600.0,
   "devices": {
-    "airthings": { "status": "online" }
-  }
+    "airthings": { "status": "ok" }
+  },
+  "version": "0.2.7"
 }
 ```
 
-| Field     | Type   | Description                                    |
-| --------- | ------ | ---------------------------------------------- |
-| `status`  | string | `"online"` or `"offline"`                      |
-| `uptime`  | float  | Seconds since application start                |
-| `version` | string | Application version                            |
-| `devices` | object | Per-device status map                          |
+| Field      | Type   | Description                                                                  |
+| ---------- | ------ | ---------------------------------------------------------------------------- |
+| `status`   | string | `"online"` or `"offline"`                                                    |
+| `uptime_s` | float  | Seconds since application start                                              |
+| `devices`  | object | Per-device status: `"ok"`, `"error"`, `"unavailable"` or `"circuit_open"`    |
+| `version`  | string | Application version                                                          |
 
 ### Error
 
 **Topic:** `airthings2mqtt/error`
 
 Published (not retained) when an error occurs. The cosalette framework deduplicates
-consecutive identical errors. BLE-specific errors (connection failures, read timeouts)
-are the most common.
+consecutive errors of the same type, so a persistent failure is reported once, at onset.
+BLE-specific errors (connection failures, read timeouts) are the most common.
 
 ```json
 {
-  "type": "BleConnectionError",
-  "message": "Failed to connect to AA:BB:CC:DD:EE:FF",
+  "error_type": "ble_device_not_found",
+  "message": "BleakDeviceNotFoundError: Device with address **:EE:FF was not found.",
   "device": "airthings",
-  "timestamp": 1700000000.0
+  "timestamp": "2026-10-01T18:34:58+00:00",
+  "id": "c0ffee000001",
+  "details": {}
 }
 ```
 
-| Field       | Type   | Description                            |
-| ----------- | ------ | -------------------------------------- |
-| `type`      | string | Python exception class name            |
-| `message`   | string | Human-readable error description       |
-| `device`    | string | Device that raised the error           |
-| `timestamp` | float  | Unix timestamp when the error occurred |
+| Field        | Type   | Description                                          |
+| ------------ | ------ | ---------------------------------------------------- |
+| `error_type` | string | Machine-readable error class (see below)             |
+| `message`    | string | Human-readable error description                     |
+| `device`     | string | Device that raised the error                         |
+| `timestamp`  | string | ISO 8601 time when the error occurred                |
+| `id`         | string | Correlation id, matching the local log line          |
+| `details`    | object | Additional context (usually empty)                   |
+
+| `error_type`           | Meaning                                                   | Retried |
+| ---------------------- | --------------------------------------------------------- | ------- |
+| `ble_device_not_found` | The adapter did not see the sensor (not advertising)      | yes     |
+| `ble_connection`       | Connection, BlueZ D-Bus or adapter failure                | yes     |
+| `ble_timeout`          | A BLE connection or read timed out                        | yes     |
+| `ble_read`             | A characteristic is missing or the frame cannot be decoded | no      |
 
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to

@@ -151,7 +151,7 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bleak", specifier = ">=0.22" },
+    { name = "bleak", specifier = ">=1.0" },
     { name = "cosalette", extras = ["schema"], specifier = ">=0.10.6,<0.11" },
     { name = "dbus-fast", specifier = ">=1.83.0" },
 ]
