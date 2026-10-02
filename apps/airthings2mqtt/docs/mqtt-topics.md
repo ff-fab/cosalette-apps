@@ -86,10 +86,13 @@ as scheduled polls.
 
 Managed automatically by the cosalette framework and retained by the broker. Retryable
 BLE failures are retried first; `"offline"` is published only when those failures exhaust
-the configured retry budget. A later successful read publishes `"online"` again. A
-non-retryable `BleReadError` publishes an error without retrying and leaves availability
-`"online"`, because malformed or unreadable data does not necessarily mean the device is
-unreachable.
+the configured retry budget. A later successful read publishes `"online"` again.
+
+Retryable failures are connection errors (including a sensor that is not found because
+it stopped advertising or is out of range, a BlueZ D-Bus error, or a powered-off
+adapter) and timeouts. A non-retryable `BleReadError` (a missing GATT characteristic or a
+malformed frame) publishes an error without retrying and leaves availability `"online"`,
+because unreadable data does not necessarily mean the device is unreachable.
 
 ```text
 "online"     # no retryable reachability failure has exhausted its retry budget
@@ -131,24 +134,35 @@ unexpectedly.
 **Topic:** `airthings2mqtt/error`
 
 Published (not retained) when an error occurs. The cosalette framework deduplicates
-consecutive identical errors. BLE-specific errors (connection failures, read timeouts)
-are the most common.
+consecutive errors of the same type, so a persistent failure is reported once, at onset.
+BLE-specific errors (connection failures, read timeouts) are the most common.
 
 ```json
 {
-  "type": "BleConnectionError",
-  "message": "Failed to connect to AA:BB:CC:DD:EE:FF",
+  "error_type": "ble_device_not_found",
+  "message": "Device with address **:EE:FF was not found.",
   "device": "airthings",
-  "timestamp": 1700000000.0
+  "timestamp": "2026-10-01T18:34:58+00:00",
+  "id": "9f2c1a4b7e0d",
+  "details": {}
 }
 ```
 
-| Field       | Type   | Description                            |
-| ----------- | ------ | -------------------------------------- |
-| `type`      | string | Python exception class name            |
-| `message`   | string | Human-readable error description       |
-| `device`    | string | Device that raised the error           |
-| `timestamp` | float  | Unix timestamp when the error occurred |
+| Field        | Type   | Description                                          |
+| ------------ | ------ | ---------------------------------------------------- |
+| `error_type` | string | Machine-readable error class (see below)             |
+| `message`    | string | Human-readable error description                     |
+| `device`     | string | Device that raised the error                         |
+| `timestamp`  | string | ISO 8601 time when the error occurred                |
+| `id`         | string | Correlation id, matching the local log line          |
+| `details`    | object | Additional context (usually empty)                   |
+
+| `error_type`           | Meaning                                                   | Retried |
+| ---------------------- | --------------------------------------------------------- | ------- |
+| `ble_device_not_found` | The adapter did not see the sensor (not advertising)      | yes     |
+| `ble_connection`       | Connection, BlueZ D-Bus or adapter failure                | yes     |
+| `ble_timeout`          | A BLE connection or read timed out                        | yes     |
+| `ble_read`             | A characteristic is missing or the frame cannot be decoded | no      |
 
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to

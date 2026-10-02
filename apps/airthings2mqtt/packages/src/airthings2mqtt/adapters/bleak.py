@@ -22,10 +22,21 @@ import struct
 from collections.abc import Buffer
 
 from bleak import BleakClient
+from bleak.exc import (
+    BleakBluetoothNotAvailableError,
+    BleakDBusError,
+    BleakDeviceNotFoundError,
+)
 from dbus_fast import BusType, Message, MessageType, Variant
 from dbus_fast.aio import MessageBus
 
-from airthings2mqtt.errors import ERROR_TYPE_MAP, BleReadError
+from airthings2mqtt.errors import (
+    ERROR_TYPE_MAP,
+    AirthingsError,
+    BleConnectionError,
+    BleDeviceNotFoundError,
+    map_exception,
+)
 from airthings2mqtt.ports import AirthingsReading
 
 # BLE GATT characteristic UUIDs — Wave (1st-gen)
@@ -46,6 +57,20 @@ _RADON_MAX = 16383
 Matches the community ``airthings-ble`` library's own sanity check. A garbled
 Wave 2 frame that unpacks to a wild uint16 (``0xFFFF`` == 65535) is dropped to
 ``None`` rather than published as a false radon spike.
+"""
+
+_BLEAK_ERROR_MAP: dict[type[BaseException], type[AirthingsError]] = {
+    **ERROR_TYPE_MAP,
+    BleakDeviceNotFoundError: BleDeviceNotFoundError,
+    BleakBluetoothNotAvailableError: BleConnectionError,
+    BleakDBusError: BleConnectionError,
+}
+"""bleak-specific additions to :data:`~airthings2mqtt.errors.ERROR_TYPE_MAP`.
+
+A vanished device must be retried and, once retries are exhausted, marked
+offline; as a plain ``BleakError`` it would fall through to the non-retryable
+``BleReadError``. Every other ``BleakError`` (e.g. a missing characteristic
+on a non-Airthings device) stays ``BleReadError``.
 """
 
 _BLUEZ_ADAPTER_PATH = "/org/bluez/hci0"
@@ -192,7 +217,8 @@ class BleakAirthingsReader:
             AirthingsReading with parsed sensor values.
 
         Raises:
-            BleConnectionError: If the device cannot be reached.
+            BleConnectionError: If the device cannot be reached
+                (:class:`BleDeviceNotFoundError` when it is not seen at all).
             BleReadError: If a GATT characteristic cannot be read or decoded.
             BleTimeoutError: If the connection or read times out.
         """
@@ -212,12 +238,8 @@ class BleakAirthingsReader:
                         await client.read_gatt_char(_UUID_RADON_LTA),
                     )
         except Exception as exc:
-            # struct.error from a malformed frame is unmapped → BleReadError,
-            # same as before parsing moved inside the connection block.
-            mapped = ERROR_TYPE_MAP.get(type(exc))
-            if mapped is not None:
-                raise mapped(str(exc)) from exc
-            raise BleReadError(str(exc)) from exc
+            # struct.error from a malformed frame is unmapped → BleReadError.
+            raise map_exception(exc, _BLEAK_ERROR_MAP)(str(exc)) from exc
 
         logger.info(
             "Airthings read ok: mac=**:%s protocol=%s temperature=%.2f humidity=%.2f "

@@ -17,7 +17,12 @@ import asyncio
 import pytest
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import BleConnectionError, BleReadError
+from airthings2mqtt.errors import (
+    AirthingsError,
+    BleConnectionError,
+    BleDeviceNotFoundError,
+    BleReadError,
+)
 from airthings2mqtt.ports import AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -203,14 +208,22 @@ class TestErrorRecovery:
         harness.assert_published(f"{TOPIC_PREFIX}/status")
 
     @pytest.mark.integration
+    @pytest.mark.parametrize(
+        ("error", "error_type"),
+        [
+            (BleConnectionError("device unreachable"), "ble_connection"),
+            # Incident 2: a vanished sensor must be retried and go offline.
+            (BleDeviceNotFoundError("device not found"), "ble_device_not_found"),
+        ],
+    )
     async def test_retry_exhaustion_marks_offline_then_recovery_online(
         self,
         test_settings: Airthings2MqttSettings,
+        error: AirthingsError,
+        error_type: str,
     ) -> None:
         """Four retryable failures publish retained offline once, then online."""
-        reader = _FailuresThenRecoverReader(
-            failures=4, error=BleConnectionError("device unreachable")
-        )
+        reader = _FailuresThenRecoverReader(failures=4, error=error)
         harness = make_harness(adapter=lambda: reader, settings=test_settings)
         availability_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
         state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
@@ -224,6 +237,9 @@ class TestErrorRecovery:
                 "offline",
                 True,
                 1,
+            )
+            harness.assert_published(
+                f"{TOPIC_PREFIX}/{DEVICE_NAME}/error", contains=error_type
             )
             await harness.inject_command(
                 DEVICE_NAME, "", topic=f"{TOPIC_PREFIX}/{DEVICE_NAME}/set"

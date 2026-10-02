@@ -19,10 +19,23 @@ import struct
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from bleak.exc import (
+    BleakBluetoothNotAvailableError,
+    BleakBluetoothNotAvailableReason,
+    BleakCharacteristicNotFoundError,
+    BleakDBusError,
+    BleakDeviceNotFoundError,
+    BleakError,
+)
 from dbus_fast import Message, MessageType, Variant
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import BleConnectionError, BleReadError, BleTimeoutError
+from airthings2mqtt.errors import (
+    BleConnectionError,
+    BleDeviceNotFoundError,
+    BleReadError,
+    BleTimeoutError,
+)
 from airthings2mqtt.ports import AirthingsReading
 from tests.fixtures.ble import (
     WAVE2_SAMPLE_2950,
@@ -341,6 +354,50 @@ class TestBleakAirthingsReader:
             reader = BleakAirthingsReader()
             with pytest.raises(BleReadError, match="unexpected"):
                 await reader.read("AA:BB:CC:DD:EE:FF")
+
+    @pytest.mark.parametrize(
+        ("exc", "expected"),
+        [
+            (
+                BleakDeviceNotFoundError("AA:BB:CC:DD:EE:FF", "not found"),
+                BleDeviceNotFoundError,
+            ),
+            (
+                BleakBluetoothNotAvailableError(
+                    "off", BleakBluetoothNotAvailableReason.POWERED_OFF
+                ),
+                BleConnectionError,
+            ),
+            (BleakDBusError("org.bluez.Error.Failed", ["abort"]), BleConnectionError),
+            (ConnectionRefusedError("refused"), BleConnectionError),
+            (BleakCharacteristicNotFoundError("2a6e"), BleReadError),
+            (BleakError("other"), BleReadError),
+        ],
+    )
+    async def test_translates_bleak_errors_by_mro(
+        self, exc: Exception, expected: type[Exception]
+    ) -> None:
+        """bleak and stdlib subclasses map to the closest domain error.
+
+        Technique: Decision Table — incident 2 (BleakDeviceNotFoundError fell
+        through the exact-type lookup to non-retryable BleReadError).
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(side_effect=exc)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+            ),
+            pytest.raises(expected) as raised,
+        ):
+            await BleakAirthingsReader().read("AA:BB:CC:DD:EE:FF")
+
+        assert type(raised.value) is expected
+        assert raised.value.__cause__ is exc
 
     async def test_malformed_payload_raises_ble_read_error(self) -> None:
         """Truncated GATT payload triggers struct.error → BleReadError.
