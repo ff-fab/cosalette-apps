@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.10](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.9...wiz2mqtt-v0.2.10) (2026-10-02)
+
+
+### Features
+
+* **wiz2mqtt:** pace restore retries and confirm every colour restore ([#312](https://github.com/ff-fab/cosalette-apps/issues/312)) ([70c578a](https://github.com/ff-fab/cosalette-apps/commit/70c578a84273513e578963c58f18855e1b1fd6d6))
+
+
+### Bug Fixes
+
+* **deps:** upgrade apps to cosalette 0.10.6 ([#315](https://github.com/ff-fab/cosalette-apps/issues/315)) ([f45aa69](https://github.com/ff-fab/cosalette-apps/commit/f45aa69ef2ded1de6a94f3a06618325755596769))
+
 ## [0.2.9](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.8...wiz2mqtt-v0.2.9) (2026-09-30)
 
 
