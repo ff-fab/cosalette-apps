@@ -141,6 +141,10 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         this; `restart: unless-stopped` does not act on it. See
         [Troubleshooting](troubleshooting.md#container-health-check).
 
+        The `healthcheck` block in `compose.yml` needs image 0.3.0 or later. Do not
+        add it to a deployment pinned to an older tag: see
+        [Host Setup](host-setup.md#health-check-needs-030-or-later).
+
 === "Manual (pip/uv)"
 
     Install airthings2mqtt directly on your Pi:

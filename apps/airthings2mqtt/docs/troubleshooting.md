@@ -142,6 +142,13 @@ A single failed read does not make the container unhealthy. To include it, appen
 the flag: `--fail-on error` on its own replaces the default `stale` instead of adding to
 it.
 
+!!! danger "The health check needs image 0.3.0 or later"
+
+    Older images have no `health` command. There, `airthings2mqtt health` starts a
+    second instance of the app with the same MQTT client ID, which disconnects the
+    running one. Upgrade the image before you add the `healthcheck` block. See
+    [Host Setup](host-setup.md#health-check-needs-030-or-later).
+
 !!! warning "Docker does not restart unhealthy containers"
 
     `restart: unless-stopped` only restarts a container whose process has exited. An
