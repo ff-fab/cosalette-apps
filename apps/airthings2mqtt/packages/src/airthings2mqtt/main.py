@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import weakref
+from dataclasses import replace
 
 import cosalette
 from cosalette import setting_ref
@@ -105,23 +106,23 @@ cadence. Deployments override it via ``AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL``.
 """
 
 
-def _resolve_trigger_min_interval(app: cosalette.App) -> float:
-    """Read the configured throttle, or the default when settings are absent.
+def _configure_trigger_min_interval(settings: Airthings2MqttSettings) -> None:
+    """Apply the final CLI-loaded throttle before cosalette builds trigger slots.
 
-    ``min_interval=`` takes a concrete ``float`` without ``setting_ref``
-    support, so the value is read from the
-    eagerly-built ``app.settings`` at registration time. ``app.settings``
-    raises when required fields (``device_mac``) are unset — as under
-    ``--help``, tests, or schema generation — so fall back to the field default
-    to keep the module importable in those contexts.
+    The CLI resolves ``--env-file`` and ``--config-file`` settings after module
+    import. ``on_configure`` runs with those settings before trigger slots are
+    built, so update the frozen registration at that point.
     """
-    try:
-        settings = app.settings
-    except RuntimeError:
-        return _TRIGGER_MIN_INTERVAL_SECONDS
-    if isinstance(settings, Airthings2MqttSettings):
-        return settings.trigger_min_interval
-    return _TRIGGER_MIN_INTERVAL_SECONDS
+    for index, registration in enumerate(app._telemetry):
+        if registration.func is _telemetry:
+            app._telemetry[index] = replace(
+                registration, min_interval=settings.trigger_min_interval
+            )
+            return
+    raise RuntimeError("Airthings telemetry registration was not found")
+
+
+app.on_configure(_configure_trigger_min_interval)
 
 
 @app.telemetry(
@@ -129,10 +130,9 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     interval=setting_ref("poll_interval"),
     timeout=setting_ref("poll_timeout"),
     triggerable=True,
-    # Resolved at import time. App.__init__ eagerly builds settings, so a
-    # configured deployment gets its override here; under --help/tests/schema-gen
-    # (settings unavailable) it falls back to the field default.
-    min_interval=_resolve_trigger_min_interval(app),
+    # Replaced by _configure_trigger_min_interval after CLI settings load and
+    # before cosalette builds trigger slots.
+    min_interval=_TRIGGER_MIN_INTERVAL_SECONDS,
     retry=3,
     retry_on=RETRY_ON,
     unavailable_on=UNAVAILABLE_ON,

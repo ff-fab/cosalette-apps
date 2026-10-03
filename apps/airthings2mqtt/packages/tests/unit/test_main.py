@@ -480,43 +480,36 @@ class TestTriggerThrottleRegistration:
         min_poll_interval = 60.0  # Airthings2MqttSettings.poll_interval ge=60
         assert min_poll_interval > _TRIGGER_MIN_INTERVAL_SECONDS
 
-    def test_resolver_reads_the_configured_override(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A deployment override flows from settings into the throttle .
+    def test_config_file_override_updates_the_throttle(self, tmp_path: Path) -> None:
+        """A CLI-selected config file flows into the throttle before startup.
 
-        Technique: Specification-based — the whole point of the field is that a
-        non-default value reaches min_interval= at registration time.
+        Technique: Regression — CLI config is loaded after module import, so
+        registration-time settings would silently leave the default throttle.
         """
-        from airthings2mqtt.main import _resolve_trigger_min_interval
+        from airthings2mqtt.main import _configure_trigger_min_interval
         from airthings2mqtt.settings import Airthings2MqttSettings
 
-        monkeypatch.setenv("AIRTHINGS2MQTT_DEVICE_MAC", "AA:BB:CC:DD:EE:FF")
-        monkeypatch.setenv("AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL", "45")
-        configured_app = cosalette.App(
-            name="airthings2mqtt", settings_class=Airthings2MqttSettings
+        config_file = tmp_path / "settings.json"
+        config_file.write_text(
+            '{"device_mac":"AA:BB:CC:DD:EE:FF","trigger_min_interval":300}',
+            encoding="utf-8",
         )
+        settings = Airthings2MqttSettings(_config_file=config_file)
 
-        assert _resolve_trigger_min_interval(configured_app) == 45.0
+        _configure_trigger_min_interval(settings)
+        try:
+            assert self._registration().min_interval == 300.0
+        finally:
+            _configure_trigger_min_interval(
+                Airthings2MqttSettings(device_mac="AA:BB:CC:DD:EE:FF")
+            )
 
-    def test_resolver_falls_back_when_settings_unavailable(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Missing required fields fall back to the default, keeping import safe.
+    def test_registration_starts_with_the_default_throttle(self) -> None:
+        """The default remains available until CLI settings load.
 
-        Technique: Error Guessing — ``app.settings`` raises when ``device_mac``
-        is unset (``--help``, tests, schema generation); the resolver must not
-        propagate that at import time.
+        Technique: Specification-based — ``--help`` and schema generation may
+        import the module without resolving runtime settings.
         """
-        from airthings2mqtt.main import (
-            _TRIGGER_MIN_INTERVAL_SECONDS,
-            _resolve_trigger_min_interval,
-        )
-        from airthings2mqtt.settings import Airthings2MqttSettings
+        from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS
 
-        monkeypatch.delenv("AIRTHINGS2MQTT_DEVICE_MAC", raising=False)
-        bare_app = cosalette.App(
-            name="airthings2mqtt", settings_class=Airthings2MqttSettings
-        )
-
-        assert _resolve_trigger_min_interval(bare_app) == _TRIGGER_MIN_INTERVAL_SECONDS
+        assert self._registration().min_interval == _TRIGGER_MIN_INTERVAL_SECONDS

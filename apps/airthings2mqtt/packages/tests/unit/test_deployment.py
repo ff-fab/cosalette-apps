@@ -56,9 +56,15 @@ class TestComposePrivileges:
         Technique: Error Guessing — copied examples drift from the live service.
         """
         compose = (_APP_DIR / "compose.yml").read_text(encoding="utf-8")
+        block = compose.split("  # airthings2mqtt-bedroom:", maxsplit=1)[1]
+        lines = block.split("\n\n", maxsplit=1)[0].splitlines()[1:]
+        example = "airthings2mqtt-bedroom:\n" + "\n".join(
+            line[4:] for line in lines if line.startswith("  # ")
+        )
+        service = yaml.safe_load(example)["airthings2mqtt-bedroom"]
 
-        assert "cap_add" not in compose
-        assert compose.count("no-new-privileges:true") == 2
+        assert "cap_add" not in service
+        assert service["security_opt"] == ["no-new-privileges:true"]
 
 
 class TestHealthcheckTiming:

@@ -44,8 +44,9 @@ account to `bluetooth`, `netdev` or any other group: the default BlueZ policy al
 lets every account scan, connect and read.
 
 If `getent passwd 10001` or `getent group 10001` already prints an entry, `useradd`
-fails. Reuse that entry only if it is not a person's login account: the image and the
-policy file both hardcode 10001, and the policy would restrict whoever owns it.
+fails. Reuse that entry only if it is dedicated to airthings2mqtt: the image and the
+policy file both hardcode 10001, and the policy applies to every process running as
+that UID.
 
 ### Upgrading from 0.2.x
 
@@ -128,7 +129,7 @@ one starts every `interval`.
 Check the image before enabling the health check:
 
 ```bash
-docker compose run --rm --no-deps airthings2mqtt airthings2mqtt health
+docker compose run --rm --no-deps airthings2mqtt health
 # 0.3.0+: "unhealthy: ... does not exist" (exit 1) in a fresh container. Good.
 # 0.2.x: app startup logs and an MQTT connection. Press Ctrl+C and upgrade first.
 ```

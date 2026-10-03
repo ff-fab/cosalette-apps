@@ -70,9 +70,11 @@ Work through these steps on the host, in order.
 Is the sensor advertising, and is the signal usable?
 
 ```bash
-bluetoothctl scan on    # wait for the sensor's MAC to appear, then:
-bluetoothctl scan off
+bluetoothctl --timeout 30 scan on
 ```
+
+The timed scan stays active for 30 seconds. `bluetoothctl scan on` without an
+interactive session can exit immediately on some BlueZ versions.
 
 - **Not listed:** replace the batteries, move the sensor or the host closer, and make
   sure no other client (for example the Airthings phone app) is holding a connection.
