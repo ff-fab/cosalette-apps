@@ -121,7 +121,8 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         See [Host Setup](host-setup.md#capabilities-and-no-new-privileges).
 
         The app health check only reads BlueZ's `Adapter1.Powered` property over
-        D-Bus, with a bounded timeout. It reports unhealthy when D-Bus is unavailable,
+        D-Bus, with a bounded timeout, every 30 seconds. It reuses one system-bus
+        connection and reconnects after a bus error or a `dbus` restart. It reports unhealthy when D-Bus is unavailable,
         no Bluetooth adapter is present, or the adapter is powered off. The check does
         not scan for or connect to the configured Airthings sensor; terminal BLE read
         retry failures are reported separately on the device availability topic.

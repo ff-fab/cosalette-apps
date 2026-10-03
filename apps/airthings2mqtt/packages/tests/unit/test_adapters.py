@@ -3,7 +3,8 @@ BleakAirthingsReader.
 
 Test Techniques Used:
 - Specification-based: Verify protocol compliance, default behavior, cycling
-- State Transition: raise_on_next → read → error → cleared
+- State Transition: raise_on_next → read → error → cleared; health-check bus
+  connected → reused → dropped on error → reconnected
 - Error Guessing: BLE exception translation via ERROR_TYPE_MAP; health_check
   false when BLE adapter absent
 - Decision Table: Wave-generation dispatch (2nd-gen characteristic present /
@@ -780,6 +781,7 @@ class TestBleakAirthingsReaderHealthCheck:
         bus.connect = AsyncMock(return_value=bus)
         bus.call = AsyncMock(return_value=reply)
         bus.disconnect = Mock()
+        bus.connected = True
         return bus
 
     @staticmethod
@@ -875,7 +877,7 @@ class TestBleakAirthingsReaderHealthCheck:
         assert result is False
 
     async def test_returns_false_when_probe_times_out(self) -> None:
-        """The D-Bus probe is bounded and disconnects after cancellation."""
+        """The D-Bus probe is bounded and drops the bus after cancellation."""
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         bus = self._bus_with_reply(self._reply(True))
@@ -893,26 +895,128 @@ class TestBleakAirthingsReaderHealthCheck:
         assert result is False
         bus.disconnect.assert_called_once_with()
 
-    async def test_returns_false_when_disconnect_fails(self) -> None:
-        """Cleanup failure makes the probe unhealthy without escaping."""
+    async def test_failed_cleanup_does_not_escape(self) -> None:
+        """A disconnect failure while dropping a broken bus stays contained.
+
+        Technique: Error Guessing — cleanup raising inside the error path.
+        """
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         bus = self._bus_with_reply(self._reply(True))
+        bus.call.side_effect = ConnectionResetError("bus went away")
         bus.disconnect.side_effect = RuntimeError("disconnect failed")
         with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
             result = await BleakAirthingsReader().health_check()
 
         assert result is False
 
-    async def test_disconnects_after_successful_probe(self) -> None:
-        """The short-lived system bus is disconnected after a successful reply."""
+    async def test_reuses_one_bus_across_probes(self) -> None:
+        """Consecutive probes share one connection instead of one per probe.
+
+        Technique: State Transition — connected bus stays connected.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        bus = self._bus_with_reply(self._reply(True))
+        reader = BleakAirthingsReader()
+        with patch(
+            "airthings2mqtt.adapters.bleak.MessageBus", return_value=bus
+        ) as factory:
+            results = [await reader.health_check() for _ in range(3)]
+
+        assert results == [True, True, True]
+        factory.assert_called_once()
+        bus.connect.assert_awaited_once_with()
+        assert bus.call.await_count == 3
+        bus.disconnect.assert_not_called()
+
+    async def test_error_reply_keeps_the_bus(self) -> None:
+        """A BlueZ error reply is unhealthy but proves the bus works.
+
+        Technique: Equivalence Partitioning — reply errors vs transport errors.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        bus = self._bus_with_reply(Mock(message_type=MessageType.ERROR, body=[]))
+        reader = BleakAirthingsReader()
+        with patch(
+            "airthings2mqtt.adapters.bleak.MessageBus", return_value=bus
+        ) as factory:
+            assert await reader.health_check() is False
+            bus.call.return_value = self._reply(True)
+            assert await reader.health_check() is True
+
+        factory.assert_called_once()
+        bus.disconnect.assert_not_called()
+
+    async def test_reconnects_after_bus_error(self) -> None:
+        """A failed call drops the bus; the next probe opens a fresh one.
+
+        Technique: State Transition — broken → disconnected → reconnected.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        broken = self._bus_with_reply(self._reply(True))
+        broken.call.side_effect = ConnectionResetError("bus went away")
+        fresh = self._bus_with_reply(self._reply(True))
+        reader = BleakAirthingsReader()
+        with patch(
+            "airthings2mqtt.adapters.bleak.MessageBus", side_effect=[broken, fresh]
+        ):
+            first = await reader.health_check()
+            second = await reader.health_check()
+
+        assert (first, second) == (False, True)
+        broken.disconnect.assert_called_once_with()
+        fresh.disconnect.assert_not_called()
+
+    async def test_reconnects_when_peer_closed_the_bus(self) -> None:
+        """A bus the daemon disconnected (``connected`` false) is replaced.
+
+        Technique: Error Guessing — dbus-daemon restart between probes.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        stale = self._bus_with_reply(self._reply(True))
+        fresh = self._bus_with_reply(self._reply(True))
+        reader = BleakAirthingsReader()
+        with patch(
+            "airthings2mqtt.adapters.bleak.MessageBus", side_effect=[stale, fresh]
+        ):
+            assert await reader.health_check() is True
+            stale.connected = False
+            assert await reader.health_check() is True
+
+        stale.disconnect.assert_called_once_with()
+        assert fresh.call.await_count == 1
+
+    async def test_exit_disconnects_the_bus(self) -> None:
+        """Leaving the reader's context (app shutdown) closes the bus.
+
+        Technique: State Transition — cosalette enters/exits context adapters.
+        """
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         bus = self._bus_with_reply(self._reply(True))
         with patch("airthings2mqtt.adapters.bleak.MessageBus", return_value=bus):
-            await BleakAirthingsReader().health_check()
+            async with BleakAirthingsReader() as reader:
+                assert await reader.health_check() is True
+                bus.disconnect.assert_not_called()
 
         bus.disconnect.assert_called_once_with()
+
+    async def test_exit_without_probe_is_a_no_op(self) -> None:
+        """Shutdown before any probe has nothing to close.
+
+        Technique: Boundary Value Analysis — zero probes.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        with patch("airthings2mqtt.adapters.bleak.MessageBus") as factory:
+            async with BleakAirthingsReader():
+                pass
+
+        factory.assert_not_called()
 
     def test_isinstance_health_checkable(self) -> None:
         """BleakAirthingsReader satisfies the HealthCheckable protocol.

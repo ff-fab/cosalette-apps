@@ -22,6 +22,7 @@ import re
 import struct
 from collections.abc import Buffer
 from dataclasses import replace
+from typing import Self
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
@@ -167,6 +168,10 @@ class BleakAirthingsReader:
     generation, disconnects, and returns the parsed AirthingsReading. Each
     read() call is a full scan-connect-read-disconnect cycle.
 
+    The adapter health check keeps one system-bus connection for the reader's
+    lifetime instead of opening one per probe. cosalette enters the reader at
+    startup and exits it at shutdown, which closes that connection.
+
     Args:
         scan_timeout: Seconds the pre-connect scan listens for the target's
             advertisement; ``main`` keeps it well inside ``poll_timeout``.
@@ -178,6 +183,13 @@ class BleakAirthingsReader:
 
     def __init__(self, scan_timeout: float = SCAN_TIMEOUT_SECONDS) -> None:
         self._scan_timeout = scan_timeout
+        self._bus: MessageBus | None = None
+
+    async def __aenter__(self) -> Self:
+        return self
+
+    async def __aexit__(self, *_exc_info: object) -> None:
+        self._close_bus()
 
     async def health_check(self) -> bool:
         """Probe whether BlueZ reports the hci0 adapter as powered.
@@ -192,51 +204,58 @@ class BleakAirthingsReader:
                 timeout=_HEALTH_CHECK_TIMEOUT_SECONDS,
             )
         except Exception:
+            # A bus error or a call cancelled mid-flight leaves the connection
+            # in an unknown state: drop it so the next probe reconnects.
+            self._close_bus()
             return False
 
-    @staticmethod
-    async def _probe_adapter_powered() -> bool:
-        """Query BlueZ using one bounded, safely cleaned-up bus lifecycle."""
-        bus: MessageBus | None = None
-        healthy = False
-        try:
-            # dbus-fast binds MessageBus to the running loop, so construction
-            # and all public bus operations belong in this probe coroutine.
-            bus = MessageBus(bus_type=BusType.SYSTEM)
-            await bus.connect()
-            reply: Message = await bus.call(
-                Message(
-                    destination="org.bluez",
-                    path=_BLUEZ_ADAPTER_PATH,
-                    interface="org.freedesktop.DBus.Properties",
-                    member="Get",
-                    signature="ss",
-                    body=["org.bluez.Adapter1", "Powered"],
-                )
+    def _close_bus(self) -> None:
+        """Disconnect and forget the health-check bus; never raises."""
+        bus, self._bus = self._bus, None
+        if bus is not None:
+            try:
+                bus.disconnect()
+            except Exception:
+                logger.debug("Ignoring D-Bus disconnect failure", exc_info=True)
+
+    async def _system_bus(self) -> MessageBus:
+        """Return the connected health-check bus, reconnecting if it was lost."""
+        if self._bus is not None and self._bus.connected:
+            return self._bus
+        self._close_bus()
+        # dbus-fast binds MessageBus to the running loop, so it is built here,
+        # inside the probe, never in __init__.
+        self._bus = MessageBus(bus_type=BusType.SYSTEM)
+        await self._bus.connect()
+        return self._bus
+
+    async def _probe_adapter_powered(self) -> bool:
+        """Read ``Adapter1.Powered`` over the shared system bus."""
+        bus = await self._system_bus()
+        reply: Message = await bus.call(
+            Message(
+                destination="org.bluez",
+                path=_BLUEZ_ADAPTER_PATH,
+                interface="org.freedesktop.DBus.Properties",
+                member="Get",
+                signature="ss",
+                body=["org.bluez.Adapter1", "Powered"],
             )
-            body = reply.body
-            if (
-                reply.message_type is not MessageType.METHOD_RETURN
-                or not isinstance(body, list)
-                or len(body) != 1
-            ):
-                healthy = False
-            else:
-                powered = body[0]
-                healthy = (
-                    isinstance(powered, Variant)
-                    and powered.signature == "b"
-                    and powered.value is True
-                )
-        except Exception:
-            healthy = False
-        finally:
-            if bus is not None:
-                try:
-                    bus.disconnect()
-                except Exception:
-                    healthy = False
-        return healthy
+        )
+        # An error reply (BlueZ down, no hci0) is unhealthy, but the bus is fine.
+        body = reply.body
+        if (
+            reply.message_type is not MessageType.METHOD_RETURN
+            or not isinstance(body, list)
+            or len(body) != 1
+        ):
+            return False
+        powered = body[0]
+        return (
+            isinstance(powered, Variant)
+            and powered.signature == "b"
+            and powered.value is True
+        )
 
     async def _scan(self, mac: str) -> tuple[BLEDevice, int]:
         """Listen for *mac*'s advertisement; return the device and its RSSI (dBm).
