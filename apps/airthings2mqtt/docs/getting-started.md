@@ -48,9 +48,8 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         image: ghcr.io/ff-fab/airthings2mqtt:latest
         restart: unless-stopped
         network_mode: host
-        cap_add:
-          - NET_ADMIN
-          - SYS_ADMIN
+        security_opt:
+          - no-new-privileges:true
         env_file: .env
         environment:
           AIRTHINGS2MQTT_MQTT__HOST: localhost
@@ -116,9 +115,10 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
 
     !!! warning "BlueZ and D-Bus access"
         BLE communication requires access to the host Bluetooth stack via D-Bus.
-        The compose file mounts `/var/run/dbus` and adds `NET_ADMIN` / `SYS_ADMIN`
-        capabilities for BlueZ access. `network_mode: host` avoids additional network
-        configuration.
+        The compose file mounts `/var/run/dbus` for BlueZ access and needs no added
+        capabilities. `security_opt: no-new-privileges` stops the container from
+        gaining any. `network_mode: host` avoids additional network configuration.
+        See [Host Setup](host-setup.md#capabilities-and-no-new-privileges).
 
         The app health check only reads BlueZ's `Adapter1.Powered` property over
         D-Bus, with a bounded timeout. It reports unhealthy when D-Bus is unavailable,

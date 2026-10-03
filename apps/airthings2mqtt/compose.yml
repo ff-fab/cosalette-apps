@@ -8,9 +8,10 @@ services:
     # BLE requires access to the host Bluetooth stack via D-Bus.
     # network_mode: host is the simplest approach on a Raspberry Pi.
     network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
+    # D-Bus needs no extra capabilities. The non-root user has none, and
+    # no-new-privileges stops it gaining any. See docs/host-setup.md.
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
     environment:
       # With network_mode: host, use localhost (or the IP of your broker)
@@ -44,9 +45,8 @@ services:
   #   image: ghcr.io/ff-fab/airthings2mqtt:latest
   #   restart: unless-stopped
   #   network_mode: host
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - SYS_ADMIN
+  #   security_opt:
+  #     - no-new-privileges:true
   #   env_file: .env
   #   environment:
   #     AIRTHINGS2MQTT_MQTT__HOST: localhost
