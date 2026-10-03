@@ -100,8 +100,8 @@ Each device publishes its availability status. The cosalette framework manages t
 automatically.
 
 ```text
-"online"     # device is running
-"offline"    # device has stopped (or app shutting down)
+"online"     # no availability source currently marks the entity offline
+"offline"    # stale telemetry, a stopped task/app, or a reachability failure
 ```
 
 ### Status (Heartbeat)
@@ -115,15 +115,43 @@ unexpectedly.
 ```json title="Heartbeat"
 {
   "status": "online",
-  "uptime": 3600.0,
+  "uptime_s": 3600,
   "version": "1.0.0",
   "devices": {
-    "gas_counter": { "status": "online" },
-    "temperature": { "status": "online" },
-    "magnetometer": { "status": "online" }
+    "gas_counter": {
+      "status": "ok",
+      "last_success_at": "2026-10-01T18:34:58+00:00",
+      "consecutive_failures": 0,
+      "last_error": null,
+      "failing_since": null
+    },
+    "temperature": {
+      "status": "ok",
+      "last_success_at": "2026-10-01T18:34:58+00:00",
+      "consecutive_failures": 0,
+      "last_error": null,
+      "failing_since": null
+    },
+    "magnetometer": {
+      "status": "ok",
+      "last_success_at": "2026-10-01T18:34:58+00:00",
+      "consecutive_failures": 0,
+      "last_error": null,
+      "failing_since": null
+    }
   }
 }
 ```
+
+`uptime_s` is an integer. Telemetry entries include `last_success_at` (ISO 8601
+string, or `null` before the first success), `consecutive_failures` (integer),
+`last_error` (error type, or `null`) and `failing_since` (ISO 8601 string, or
+`null`). The last two values are populated during failures and reset to `null`
+on success. Device statuses are `"ok"`, `"error"`, `"unavailable"`,
+`"circuit_open"` or `"stale"`; stale freshness takes precedence. The freshness
+watchdog marks named telemetry offline after the derived window of two poll
+intervals plus the retry/timeout/backoff budget. A successful handler cycle
+clears that freshness mark, even when an unchanged value is not republished.
 
 ### Error
 
@@ -134,12 +162,20 @@ deduplicates consecutive identical telemetry errors: a persisting error is repub
 
 ```json
 {
-  "type": "OSError",
-  "message": "I2C bus read failed",
+  "error_type": "error",
+  "message": "OSError",
   "device": "gas_counter",
-  "timestamp": 1700000000.0
+  "timestamp": "2026-10-01T18:34:58+00:00",
+  "id": "c0ffee000001",
+  "details": {"count": 1, "first_seen": "2026-10-01T18:34:58+00:00"}
 }
 ```
+
+`error_type` is the machine-readable identifier: unmapped exceptions such as
+`OSError` use `"error"` and disclose only the exception class name by default.
+`timestamp` is ISO 8601, `id` matches the local log correlation id, and `details`
+is an object. Telemetry failure streaks add `details.count` and
+`details.first_seen` (ISO 8601); other error paths need not carry those keys.
 
 !!! info "Per-device error topics" In addition to the global error topic, cosalette
 publishes device-specific errors to `gas2mqtt/{device}/error` (e.g.,

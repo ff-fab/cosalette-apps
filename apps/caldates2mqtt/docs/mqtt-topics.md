@@ -112,8 +112,8 @@ Managed automatically by the cosalette framework. Published when the device come
 or goes offline.
 
 ```text
-"online"     # device is running and reachable
-"offline"    # device has stopped or is unreachable
+"online"     # no availability source currently marks the entity offline
+"offline"    # stale telemetry, a stopped task/app, or a reachability failure
 ```
 
 ### Status (Heartbeat)
@@ -127,11 +127,23 @@ unexpectedly.
 ```json
 {
   "status": "online",
-  "uptime": 3600.0,
+  "uptime_s": 3600,
   "version": "0.1.0",
   "devices": {
-    "garbage": { "status": "online" },
-    "birthday": { "status": "online" }
+    "garbage": {
+      "status": "ok",
+      "last_success_at": "2026-10-01T18:34:58+00:00",
+      "consecutive_failures": 0,
+      "last_error": null,
+      "failing_since": null
+    },
+    "birthday": {
+      "status": "ok",
+      "last_success_at": "2026-10-01T18:34:58+00:00",
+      "consecutive_failures": 0,
+      "last_error": null,
+      "failing_since": null
+    }
   }
 }
 ```
@@ -139,33 +151,52 @@ unexpectedly.
 | Field     | Type   | Description                                    |
 | --------- | ------ | ---------------------------------------------- |
 | `status`  | string | `"online"` or `"offline"`                      |
-| `uptime`  | float  | Seconds since application start                |
+| `uptime_s` | integer  | Seconds since application start                |
 | `version` | string | Application version                            |
 | `devices` | object | Per-device status map                          |
+
+`uptime_s` is an integer. Telemetry entries include `last_success_at` (ISO 8601
+string, or `null` before the first success), `consecutive_failures` (integer),
+`last_error` (error type, or `null`) and `failing_since` (ISO 8601 string, or
+`null`). The last two values are populated during failures and reset to `null`
+on success. Device statuses are `"ok"`, `"error"`, `"unavailable"`,
+`"circuit_open"` or `"stale"`; stale freshness takes precedence. The freshness
+watchdog marks named telemetry offline after the derived window of two poll
+intervals plus the retry/timeout/backoff budget. A successful handler cycle
+clears that freshness mark, even when an unchanged value is not republished.
 
 ### Error
 
 **Topic:** `caldates2mqtt/error`
 
 Published (not retained) when an error occurs. The cosalette framework deduplicates
-consecutive identical errors: a persisting error is republished as a reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) carrying `details.count` and `details.first_seen`; count `1` marks a new incident. CalDAV-specific errors (authentication failures, connection
+consecutive identical telemetry errors: a persisting error is republished as a reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) carrying `details.count` and `details.first_seen`; count `1` marks a new incident. CalDAV-specific errors (authentication failures, connection
 timeouts) are the most common.
 
 ```json
 {
-  "type": "CalDavConnectionError",
+  "error_type": "caldav_connection",
   "message": "Failed to connect to cloud.example.com",
   "device": "garbage",
-  "timestamp": 1700000000.0
+  "timestamp": "2026-10-01T18:34:58+00:00",
+  "id": "c0ffee000001",
+  "details": {"count": 1, "first_seen": "2026-10-01T18:34:58+00:00"}
 }
 ```
 
-| Field       | Type   | Description                            |
-| ----------- | ------ | -------------------------------------- |
-| `type`      | string | Python exception class name            |
-| `message`   | string | Human-readable error description       |
-| `device`    | string | Calendar device that raised the error  |
-| `timestamp` | float  | Unix timestamp when the error occurred |
+| Field        | Type   | Description                                      |
+| ------------ | ------ | ------------------------------------------------ |
+| `error_type` | string | Machine-readable error identifier                |
+| `message`    | string | Sanitized domain message; otherwise class name   |
+| `device`     | string | Calendar device that raised the error            |
+| `timestamp`  | string | ISO 8601 time when the error occurred             |
+| `id`         | string | Correlation id matching the local log line        |
+| `details`    | object | Telemetry streak `count` and `first_seen`         |
+
+Domain error identifiers are `caldav_error`, `caldav_auth`,
+`caldav_connection`, `caldav_not_found`, `caldav_timeout` and `caldav_read`.
+Unmapped exceptions use `error_type: "error"` and disclose only the exception
+class name by default.
 
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to

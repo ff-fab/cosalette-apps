@@ -19,6 +19,14 @@ See the composition root (`packages/src/wallpanel_control/main.py`, monorepo
 [ADR-004](../../docs/adr/ADR-004-runtime-home-assistant-discovery-adoption.md)) and
 `packages/tests/integration/test_schema_discovery.py`.
 
+## openHAB
+
+Use manual MQTT bindings following the
+[topic and payload reference](docs/mqtt-topics.md). The display uses a Home Assistant
+composite light entity; cosalette composites are Home Assistant-only (framework
+ADR-057), so `task wallpanel-control:schema:openhab` does not support exporting this
+app's display bindings.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
