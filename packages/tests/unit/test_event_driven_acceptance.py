@@ -299,6 +299,8 @@ def _stable_error(payload: str) -> dict[str, Any]:
     parsed = json.loads(payload)
     for field in _VOLATILE_ERROR_FIELDS:
         parsed.pop(field, None)
+    # cosalette 0.11 (ADR-082) stamps the streak's wall-clock onset here.
+    parsed.get("details", {}).pop("first_seen", None)
     return parsed
 
 
@@ -1055,9 +1057,10 @@ class TestHealthAccounting:
     ) -> None:
         """A wake reason changes nothing about how a failure is accounted for.
 
-        Three consecutive identical failures must produce one error
-        publication, not three — the runner carries ``last_error_type``
-        across cycles and only republishes on a change.  That the count
+        Three consecutive identical failures must produce two error
+        publications, not three — the onset and, since cosalette 0.11
+        (ADR-082), one reminder on the 2nd failure; the 3rd is
+        deduplicated by ``last_error_type``.  That the count
         and the payload match on both paths is the accounting parity the
         open question asked about.
 
@@ -1125,7 +1128,9 @@ class TestHealthAccounting:
             ticked.shutdown_event.set()
             await asyncio.wait_for(task, timeout=_WAIT_TIMEOUT)
 
-        assert len(woken_errors) == 1, "a woken failure republished on every cycle"
+        assert [e["details"]["count"] for e in woken_errors] == [1, 2], (
+            "a woken failure republished on every cycle"
+        )
         assert woken_errors == ticked_errors
         assert woken_availability == ticked_availability
 
