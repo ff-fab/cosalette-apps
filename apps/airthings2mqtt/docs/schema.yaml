@@ -61,6 +61,33 @@ channels:
                 unit: Bq/m³
                 state_class: measurement
                 icon: mdi:radioactive
+            last_read:
+              format: date-time
+              title: Last Read
+              type: string
+              x-cosalette-consumer:
+                display_name: Last read
+                device_class: timestamp
+              x-cosalette-ha-discovery:
+                extra:
+                  entity_category: diagnostic
+              x-cosalette-openhab:
+                channel_type: datetime
+                item_type: DateTime
+            rssi:
+              anyOf:
+              - type: integer
+              - type: 'null'
+              default: null
+              title: Rssi
+              x-cosalette-consumer:
+                display_name: Signal strength
+                device_class: signal_strength
+                unit: dBm
+                state_class: measurement
+              x-cosalette-ha-discovery:
+                extra:
+                  entity_category: diagnostic
           required:
           - temperature
           - humidity

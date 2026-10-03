@@ -6,6 +6,9 @@ Supports cycling through multiple readings and raising errors on demand.
 
 from __future__ import annotations
 
+from dataclasses import replace
+from datetime import UTC, datetime
+
 from airthings2mqtt.ports import AirthingsReading
 
 _DEFAULT_READING = AirthingsReading(
@@ -13,6 +16,7 @@ _DEFAULT_READING = AirthingsReading(
     humidity=45.0,
     radon_24h_avg=80,
     radon_long_term_avg=65,
+    rssi=-60,
 )
 
 
@@ -20,7 +24,8 @@ class FakeAirthingsReader:
     """Test double for AirthingsReaderPort.
 
     Returns configurable, deterministic readings. Supports:
-    - Default values (21.5 C, 45% RH, 80 Bq/m3 24h, 65 Bq/m3 LTA)
+    - Default values (21.5 C, 45% RH, 80 Bq/m3 24h, 65 Bq/m3 LTA, -60 dBm)
+    - A fresh last_read stamp on every read, as after a real BLE read
     - Cycling through a list of readings
     - Raising a specific error on the next read
 
@@ -47,7 +52,7 @@ class FakeAirthingsReader:
             mac: Bluetooth MAC address (recorded but not used).
 
         Returns:
-            The next AirthingsReading in the cycle.
+            The next AirthingsReading in the cycle, stamped with the current time.
 
         Raises:
             Exception: Whatever is set in raise_on_next, if any.
@@ -59,4 +64,4 @@ class FakeAirthingsReader:
             raise err
         reading = self.readings[self._index % len(self.readings)]
         self._index += 1
-        return reading
+        return replace(reading, last_read=datetime.now(UTC))

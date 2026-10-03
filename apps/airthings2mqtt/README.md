@@ -13,8 +13,9 @@ on the 0.11.0 release.
 
 **Automatic.** Discovery config payloads publish to `homeassistant/.../config`
 (retained) on the first successful MQTT connect — one `sensor` per reading field
-(temperature, humidity, radon 24h avg, radon long-term avg), no manual copy step.
-Entities removed since the last run are cleared automatically.
+(temperature, humidity, radon 24h avg, radon long-term avg, plus diagnostic last read
+and signal strength), no manual copy step. Entities removed since the last run are
+cleared automatically.
 
 See the composition root (`packages/src/airthings2mqtt/main.py`, monorepo
 [ADR-004](../../docs/adr/ADR-004-runtime-home-assistant-discovery-adoption.md)) and

@@ -22,11 +22,12 @@ Mirrors velux2mqtt's ``CoverState`` and gas2mqtt's telemetry payloads.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from typing import Annotated, Any, Protocol, runtime_checkable
 
 from cosalette import HealthCheckable
-from cosalette.schema import consumer
+from cosalette.schema import consumer, ha_discovery, merge, openhab
 from pydantic import Field
 
 
@@ -43,6 +44,14 @@ def _radon(display_name: str) -> dict[str, Any]:
         state_class="measurement",
         icon="mdi:radioactive",
     )
+
+
+_DIAGNOSTIC = ha_discovery(extra={"entity_category": "diagnostic"})
+"""Files the read-health fields under Home Assistant's diagnostic entities."""
+
+
+def _utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +72,13 @@ class AirthingsReading:
             ``null`` on the state topic, not an omitted key.
         radon_long_term_avg: Long-term average radon level in Bq/m³, or
             ``None`` under the same out-of-range guard as ``radon_24h_avg``.
+        last_read: UTC time the reading was taken, published as ISO 8601.
+            Defaults to construction time, which the adapter reaches right
+            after the GATT reads succeed. Excluded from equality: two readings
+            with the same values are the same reading.
+        rssi: Signal strength (dBm) of the advertisement the pre-connect scan
+            observed, or ``None`` when the reader has no advertisement to
+            report (published as JSON ``null``).
     """
 
     temperature: Annotated[
@@ -91,6 +107,30 @@ class AirthingsReading:
     radon_long_term_avg: Annotated[
         int | None, Field(json_schema_extra=_radon("Radon (long-term avg)"))
     ]
+    last_read: Annotated[
+        datetime,
+        Field(
+            json_schema_extra=merge(
+                consumer(display_name="Last read", device_class="timestamp"),
+                _DIAGNOSTIC,
+                openhab(item_type="DateTime", channel_type="datetime"),
+            )
+        ),
+    ] = field(default_factory=_utcnow, compare=False)
+    rssi: Annotated[
+        int | None,
+        Field(
+            json_schema_extra=merge(
+                consumer(
+                    display_name="Signal strength",
+                    device_class="signal_strength",
+                    unit="dBm",
+                    state_class="measurement",
+                ),
+                _DIAGNOSTIC,
+            )
+        ),
+    ] = None
 
 
 @runtime_checkable

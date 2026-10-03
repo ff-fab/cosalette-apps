@@ -21,6 +21,7 @@ import logging
 import re
 import struct
 from collections.abc import Buffer
+from dataclasses import replace
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
@@ -274,7 +275,7 @@ class BleakAirthingsReader:
             mac: Bluetooth MAC address of the Airthings Wave device.
 
         Returns:
-            AirthingsReading with parsed sensor values.
+            AirthingsReading with parsed sensor values and the scan's RSSI.
 
         Raises:
             BleConnectionError: If the device cannot be reached
@@ -310,6 +311,7 @@ class BleakAirthingsReader:
             # MAC, so drop the chain and keep only its class name.
             raise error(f"{type(exc).__name__}: {message}") from None
 
+        reading = replace(reading, rssi=rssi)
         logger.info(
             "Airthings read ok: mac=**:%s rssi=%d protocol=%s temperature=%.2f "
             "humidity=%.2f radon_24h_avg=%s radon_long_term_avg=%s",

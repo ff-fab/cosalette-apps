@@ -28,14 +28,17 @@ configured MQTT topic prefix. The examples below use the defaults: prefix
 Published after each successful BLE poll. Contains all four sensor readings from the
 Airthings Wave, decoded from whichever GATT layout the unit uses — the 1st-gen
 four-characteristic set or the Wave 2 / Wave Radon (2nd-gen) single "current values"
-characteristic. The payload shape is identical either way.
+characteristic. The payload shape is identical either way. Two read-health fields
+follow the readings: when the read happened and how strongly the sensor was heard.
 
 ```json
 {
   "temperature": 21.5,
   "humidity": 45.0,
   "radon_24h_avg": 42,
-  "radon_long_term_avg": 38
+  "radon_long_term_avg": 38,
+  "last_read": "2026-10-01T18:34:58.123456Z",
+  "rssi": -71
 }
 ```
 
@@ -45,6 +48,19 @@ characteristic. The payload shape is identical either way.
 | `humidity`           | float           | %      | Relative humidity as a percentage            |
 | `radon_24h_avg`      | integer \| null | Bq/m3  | 24-hour rolling average radon concentration  |
 | `radon_long_term_avg`| integer \| null | Bq/m3  | Long-term average radon concentration        |
+| `last_read`          | string          | —      | ISO 8601 UTC time of the successful BLE read |
+| `rssi`               | integer \| null | dBm    | Signal strength of the sensor's advertisement |
+
+`last_read` lets a consumer see a value's age without tracking publication time:
+the retained payload keeps the time of its own read, so an old `last_read` exposes a
+stale reading even after a broker or consumer restart. `rssi` is taken from the
+advertisement that the pre-connect scan observed; record it to spot a weakening link
+(range, battery, obstruction) before reads start failing. It is `null` only when the
+reader has no advertisement to report.
+
+Both fields are discovered as diagnostic entities: in Home Assistant as a `timestamp`
+sensor and a `signal_strength` sensor (dBm); in openHAB (`cosalette schema openhab`) as a
+`DateTime` item on a `datetime` channel and a `Number` item.
 
 !!! note "Radon can be `null`"
 
@@ -126,7 +142,9 @@ between polls.
         ```
 
     - **Any consumer:** alert when the last publication to
-      `airthings2mqtt/airthings/state` is older than about an hour. Also monitor
+      `airthings2mqtt/airthings/state` is older than about an hour, or compare the
+      payload's own `last_read` against the clock: unlike arrival time, it survives
+      a consumer or broker restart. Also monitor
       `devices.airthings.status` and heartbeat recency in
       [`airthings2mqtt/status`](#status-heartbeat), but do not use them as the
       only publication-age signal: freshness tracks successful handler cycles,

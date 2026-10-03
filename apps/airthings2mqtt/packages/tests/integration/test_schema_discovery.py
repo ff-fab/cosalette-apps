@@ -11,7 +11,7 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: schema enrichment must yield the documented HA entities
 - Equivalence Partitioning: typed (device_class) vs untyped (radon) sensors
-- Parametrize: all four sensor fields declared once, no duplication
+- Parametrize: all six payload fields declared once, no duplication
 - Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
@@ -64,7 +64,7 @@ class TestHaDiscoveryGeneration:
     def test_generates_one_sensor_per_reading_field(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """All four AirthingsReading fields yield a discovery payload.
+        """All six AirthingsReading fields yield a discovery payload.
 
         Technique: Specification-based — count matches schema properties.
         """
@@ -74,6 +74,8 @@ class TestHaDiscoveryGeneration:
             "airthings_humidity",
             "airthings_radon_24h_avg",
             "airthings_radon_long_term_avg",
+            "airthings_last_read",
+            "airthings_rssi",
         }
         # Act
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
@@ -155,6 +157,24 @@ class TestHaDiscoveryGeneration:
                     "unit_of_measurement": "Bq/m³",
                     "state_class": "measurement",
                     "value_template": "{{ value_json.radon_long_term_avg }}",
+                },
+            ),
+            (
+                "airthings_last_read",
+                {
+                    "device_class": "timestamp",
+                    "entity_category": "diagnostic",
+                    "value_template": "{{ value_json.last_read }}",
+                },
+            ),
+            (
+                "airthings_rssi",
+                {
+                    "device_class": "signal_strength",
+                    "unit_of_measurement": "dBm",
+                    "state_class": "measurement",
+                    "entity_category": "diagnostic",
+                    "value_template": "{{ value_json.rssi }}",
                 },
             ),
         ],

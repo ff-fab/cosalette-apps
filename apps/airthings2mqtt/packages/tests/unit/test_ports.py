@@ -3,9 +3,12 @@
 Test Techniques Used:
 - Specification-based: Verify dataclass fields and immutability
 - Error Guessing: Frozen dataclass mutation attempt
+- Equivalence Partitioning: Value fields vs. read time in equality
 """
 
 from __future__ import annotations
+
+from datetime import UTC, datetime
 
 import pytest
 
@@ -77,3 +80,33 @@ class TestAirthingsReading:
         )
         assert reading.radon_24h_avg is None
         assert reading.radon_long_term_avg is None
+
+    def test_read_health_fields_default(self) -> None:
+        """last_read defaults to an aware UTC now; rssi defaults to None.
+
+        Technique: Specification-based — a reading built without an
+        advertisement or explicit stamp is still publishable.
+        """
+        before = datetime.now(UTC)
+        reading = AirthingsReading(
+            temperature=21.5, humidity=45.0, radon_24h_avg=80, radon_long_term_avg=65
+        )
+        assert before <= reading.last_read <= datetime.now(UTC)
+        assert reading.rssi is None
+
+    def test_last_read_excluded_from_equality(self) -> None:
+        """Readings with the same values but different read times are equal.
+
+        Technique: Equivalence Partitioning — read time is not part of a
+        reading's value identity; rssi is.
+        """
+        values = {
+            "temperature": 21.5,
+            "humidity": 45.0,
+            "radon_24h_avg": 80,
+            "radon_long_term_avg": 65,
+        }
+        a = AirthingsReading(**values, last_read=datetime(2026, 1, 1, tzinfo=UTC))
+        b = AirthingsReading(**values, last_read=datetime(2026, 1, 2, tzinfo=UTC))
+        assert a == b
+        assert a != AirthingsReading(**values, rssi=-70)
