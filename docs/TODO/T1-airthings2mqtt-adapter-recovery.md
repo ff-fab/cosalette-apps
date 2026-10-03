@@ -2,7 +2,7 @@
 
 | Field   | Value                                                         |
 | ------- | ------------------------------------------------------------- |
-| Status  | Open                                                          |
+| Status  | Decided 2026-10-02                                            |
 | Trigger | Before any airthings2mqtt adapter-restart or D-Bus write work |
 | Gate    | beads `cap-oxdp.7` (epic `cap-oxdp`)                          |
 
@@ -30,12 +30,33 @@ did not help. Two app-side gaps remain after the error classification fix (`cap-
 
 ## Open questions
 
-- Can the container's D-Bus policy write `Adapter1.Powered` with the read-only system bus
-  socket mount and a non-root UID (proposal open question 3)?
-- Does option B need the advertiser count from the pre-connect scan (`cap-oxdp.5`) to
-  avoid power-cycling an adapter that works and a sensor that has a flat battery?
+- Does the deployment's host D-Bus policy deny `Adapter1.Powered` writes from the
+  container's non-root identity (proposal open question 3)? This capability question
+  remains open and is tracked in `cap-oxdp.13`.
+- The advertiser-count prerequisite for option B (`cap-oxdp.5`) is no longer needed
+  for this decision, because app-driven power cycling is rejected.
 
 ## Resolution
 
-Record the decision as an app ADR (`adr-create`, `--adr-dir apps/airthings2mqtt/docs/adr`)
-or update this file, then close the gate and create the implementation tasks.
+**Decided 2026-10-02 (gate `cap-oxdp.7` closed).** airthings2mqtt must not change the
+Bluetooth adapter's power state. Option B is rejected. Inside the app, recovery is
+reconnect and backoff only: retry, then mark the entity `offline`. Recovering the
+adapter is the job of the host and the operator. Option C stays acceptable only if it
+restarts the app's adapter object and never the radio itself.
+
+The desired deployment policy is to deny adapter power changes from the container's
+non-root identity. The shipped app invariant is that it does not request those changes;
+the deployment does not yet provide a tested authorization guarantee. A read-only
+system bus socket mount (`:ro`) protects the mounted filesystem path but does not
+prevent clients from sending D-Bus method calls or property writes through the socket.
+A non-root UID alone does not prove that `Adapter1.Powered` writes are denied: host
+D-Bus authorization policy controls access to those operations. Verify that policy
+before claiming that the container cannot power-cycle the adapter.
+
+Follow-ups:
+
+- `cap-oxdp.10`: remove the dead restart knobs and declare the adapter `restartable = False`.
+- `cap-oxdp.11`: an operator runbook for host-side adapter recovery.
+- `cap-oxdp.12`: record this decision as an app ADR.
+- `cap-oxdp.13`: verify host D-Bus authorization for the deployed non-root
+  identity and document whether adapter power changes are denied.
