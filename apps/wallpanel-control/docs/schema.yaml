@@ -2,8 +2,40 @@ asyncapi: 3.0.0
 info:
   title: wallpanel-control
   version: 0.3.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  availability:
+    address: wallpanel-control/availability
+    x-cosalette-app: wallpanel-control
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
+  displayAvailability:
+    address: wallpanel-control/display/availability
+    x-cosalette-app: wallpanel-control
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   displayCommand:
     address: wallpanel-control/display/set
     x-cosalette-app: wallpanel-control
@@ -96,6 +128,33 @@ channels:
               name: Display
     x-cosalette-archetype: command
     x-cosalette-summary: Control display state and brightness
+  restore_answersState:
+    address: wallpanel-control/state
+    x-cosalette-app: wallpanel-control
+    messages:
+      message:
+        payload:
+          type: object
+    x-cosalette-archetype: device
+    x-cosalette-summary: Re-publish the last display and system action answers at
+      startup
+    x-cosalette-discoverable: false
+  systemActionAvailability:
+    address: wallpanel-control/system/action/availability
+    x-cosalette-app: wallpanel-control
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   systemActionCommand:
     address: wallpanel-control/system/action/set
     x-cosalette-app: wallpanel-control
@@ -146,11 +205,28 @@ channels:
     x-cosalette-summary: 'System power action: wake (WoL), suspend, or hibernate'
     x-cosalette-discoverable: false
 operations:
+  publishAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/availability'
+  publishDisplayAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/displayAvailability'
   publishDisplayState:
     action: send
     channel:
       $ref: '#/channels/displayState'
     summary: Control display state and brightness
+  publishRestoreAnswersState:
+    action: send
+    channel:
+      $ref: '#/channels/restore_answersState'
+    summary: Re-publish the last display and system action answers at startup
+  publishSystemActionAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/systemActionAvailability'
   publishSystemActionState:
     action: send
     channel:

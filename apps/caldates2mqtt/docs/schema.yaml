@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: caldates2mqtt
   version: 0.2.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  birthdayAvailability:
+    address: caldates2mqtt/birthday/availability
+    x-cosalette-app: caldates2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   birthdayState:
     address: caldates2mqtt/birthday/state
     x-cosalette-app: caldates2mqtt
@@ -36,6 +52,22 @@ channels:
                 value_template: '{{ value_json.events | length }}'
               name: Events
     x-cosalette-archetype: telemetry
+  garbageAvailability:
+    address: caldates2mqtt/garbage/availability
+    x-cosalette-app: caldates2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   garbageState:
     address: caldates2mqtt/garbage/state
     x-cosalette-app: caldates2mqtt
@@ -49,10 +81,18 @@ channels:
           x-cosalette-ha-discovery: *id003
     x-cosalette-archetype: telemetry
 operations:
+  publishBirthdayAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/birthdayAvailability'
   publishBirthdayState:
     action: send
     channel:
       $ref: '#/channels/birthdayState'
+  publishGarbageAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/garbageAvailability'
   publishGarbageState:
     action: send
     channel:

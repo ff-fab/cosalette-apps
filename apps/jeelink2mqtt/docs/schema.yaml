@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: jeelink2mqtt
   version: 0.2.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  mappingAvailability:
+    address: jeelink2mqtt/mapping/availability
+    x-cosalette-app: jeelink2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   mappingCommand:
     address: jeelink2mqtt/mapping/set
     x-cosalette-app: jeelink2mqtt
@@ -24,6 +40,22 @@ channels:
           type: object
     x-cosalette-archetype: command
     x-cosalette-summary: Manually assign an ephemeral sensor ID to a logical name
+    x-cosalette-discoverable: false
+  officeAvailability:
+    address: jeelink2mqtt/office/availability
+    x-cosalette-app: jeelink2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
     x-cosalette-discoverable: false
   officeState:
     address: jeelink2mqtt/office/state
@@ -51,7 +83,7 @@ channels:
 
             Assistant MQTT discovery entity per field, per configured sensor
 
-            (cap-egy, ADR-059). ``timestamp`` is publish-freshness bookkeeping,
+            (ADR-059). ``timestamp`` is publish-freshness bookkeeping,
 
             not a user-facing entity, so it is left unannotated.'
           properties: &id001
@@ -94,6 +126,22 @@ channels:
     x-cosalette-archetype: device
     x-cosalette-summary: 'Per-sensor state publisher: calibrated readings, heartbeat
       re-publish, and staleness availability'
+  outdoorAvailability:
+    address: jeelink2mqtt/outdoor/availability
+    x-cosalette-app: jeelink2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   outdoorState:
     address: jeelink2mqtt/outdoor/state
     x-cosalette-app: jeelink2mqtt
@@ -120,7 +168,7 @@ channels:
 
             Assistant MQTT discovery entity per field, per configured sensor
 
-            (cap-egy, ADR-059). ``timestamp`` is publish-freshness bookkeeping,
+            (ADR-059). ``timestamp`` is publish-freshness bookkeeping,
 
             not a user-facing entity, so it is left unannotated.'
           properties: *id001
@@ -141,17 +189,29 @@ channels:
     x-cosalette-summary: 'JeeLink LaCrosse serial receiver: read sensor frames and
       publish state'
 operations:
+  publishMappingAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/mappingAvailability'
   publishMappingState:
     action: send
     channel:
       $ref: '#/channels/mappingState'
     summary: Manually assign an ephemeral sensor ID to a logical name
+  publishOfficeAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/officeAvailability'
   publishOfficeState:
     action: send
     channel:
       $ref: '#/channels/officeState'
     summary: 'Per-sensor state publisher: calibrated readings, heartbeat re-publish,
       and staleness availability'
+  publishOutdoorAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/outdoorAvailability'
   publishOutdoorState:
     action: send
     channel:
