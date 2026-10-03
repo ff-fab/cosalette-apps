@@ -18,7 +18,7 @@ class BleConnectionError(AirthingsError):
 
 
 class BleDeviceNotFoundError(BleConnectionError):
-    """Raised when the BLE device is not seen by the adapter (not advertising)."""
+    """Raised when the target's advertisement is not observed by the adapter."""
 
 
 class BleReadError(AirthingsError):

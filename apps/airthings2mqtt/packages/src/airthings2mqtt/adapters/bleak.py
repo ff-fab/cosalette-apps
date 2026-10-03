@@ -76,8 +76,8 @@ offline; as a plain ``BleakError`` it would fall through to the non-retryable
 on a non-Airthings device) stays ``BleReadError``.
 """
 
-_SCAN_TIMEOUT_SECONDS = 10.0
-"""Default upper bound on the pre-connect advertiser scan (bleak's own default)."""
+SCAN_TIMEOUT_SECONDS = 10.0
+"""Upper bound on the pre-connect advertiser scan and its default duration."""
 
 _BLUEZ_ADAPTER_PATH = "/org/bluez/hci0"
 _HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
@@ -171,7 +171,7 @@ class BleakAirthingsReader:
             advertisement; ``main`` keeps it well inside ``poll_timeout``.
     """
 
-    def __init__(self, scan_timeout: float = _SCAN_TIMEOUT_SECONDS) -> None:
+    def __init__(self, scan_timeout: float = SCAN_TIMEOUT_SECONDS) -> None:
         self._scan_timeout = scan_timeout
 
     async def health_check(self) -> bool:
@@ -236,8 +236,8 @@ class BleakAirthingsReader:
     async def _scan(self, mac: str) -> tuple[BLEDevice, int]:
         """Listen for *mac*'s advertisement; return the device and its RSSI (dBm).
 
-        Counting every advertiser heard tells a deaf radio (nothing heard)
-        from a missing sensor (others heard), and handing the found
+        Counting distinct advertiser addresses records whether any other
+        advertisements were observed during the scan. Handing the found
         :class:`BLEDevice` to :class:`BleakClient` spares it a second scan.
 
         Raises:
@@ -253,9 +253,9 @@ class BleakAirthingsReader:
         device = await BleakScanner.find_device_by_filter(_is_target, timeout=timeout)
         if device is None:
             hint = (
-                "adapter heard nothing, check the radio"
+                "no advertisements observed during scan"
                 if not heard
-                else "radio ok, check sensor range and battery"
+                else "other addresses observed; target not observed"
             )
             raise BleDeviceNotFoundError(
                 f"target not seen; {len(heard)} advertisers in {timeout:g}s ({hint})"

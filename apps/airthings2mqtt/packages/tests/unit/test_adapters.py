@@ -535,20 +535,28 @@ class TestBleakAirthingsReaderScan:
     @pytest.mark.parametrize(
         ("adverts", "expected"),
         [
-            ([], "0 advertisers in 10s (adapter heard nothing, check the radio)"),
+            ([], "0 advertisers in 10s (no advertisements observed during scan)"),
             (
                 [("11:22:33:44:55:66", -80), ("11:22:33:44:55:77", -90)],
-                "2 advertisers in 10s (radio ok, check sensor range and battery)",
+                "2 advertisers in 10s (other addresses observed; target not observed)",
+            ),
+            (
+                [
+                    ("11:22:33:44:55:66", -80),
+                    ("11:22:33:44:55:66", -75),
+                    ("11:22:33:44:55:77", -90),
+                ],
+                "2 advertisers in 10s (other addresses observed; target not observed)",
             ),
         ],
     )
-    async def test_miss_tells_deaf_radio_from_missing_sensor(
+    async def test_miss_reports_distinct_advertiser_count(
         self, scanner: Mock, adverts: list[tuple[str, int]], expected: str
     ) -> None:
-        """A miss raises BleDeviceNotFoundError naming how many advertisers were heard.
+        """A miss reports how many distinct advertiser addresses were observed.
 
-        Technique: Equivalence Partitioning — nothing heard (radio fault) vs.
-        others heard (sensor fault); no MAC appears and no connect is attempted.
+        Technique: Equivalence Partitioning — no advertisements vs. one or more
+        distinct other addresses; no connect is attempted in either case.
         """
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
@@ -600,6 +608,26 @@ class TestBleakAirthingsReaderScan:
         )
         with pytest.raises(BleConnectionError):
             await BleakAirthingsReader().read("AA:BB:CC:DD:EE:FF")
+
+    async def test_scan_cancellation_propagates_without_connecting(
+        self, scanner: Mock
+    ) -> None:
+        """Scanner cancellation propagates unchanged before any BLE connection.
+
+        Technique: Error Guessing — cancellation must not become a read error.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        cancellation = asyncio.CancelledError("scan cancelled")
+        scanner.find_device_by_filter.side_effect = cancellation
+        with (
+            patch("airthings2mqtt.adapters.bleak.BleakClient") as client_cls,
+            pytest.raises(asyncio.CancelledError) as raised,
+        ):
+            await BleakAirthingsReader().read("AA:BB:CC:DD:EE:FF")
+
+        assert raised.value is cancellation
+        client_cls.assert_not_called()
 
 
 @pytest.mark.unit
