@@ -110,12 +110,17 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         capabilities for BlueZ access. `network_mode: host` avoids additional network
         configuration.
 
-        The app health check uses this read-only D-Bus access to query BlueZ's
-        `Adapter1.Powered` property with a bounded timeout. It reports unhealthy when
-        D-Bus is unavailable, no Bluetooth adapter is present, or the adapter is
-        powered off. The check does not scan for or connect to the configured Airthings
-        sensor; terminal BLE read retry failures are reported separately on the device
-        availability topic.
+        The app health check only reads BlueZ's `Adapter1.Powered` property over
+        D-Bus, with a bounded timeout. It reports unhealthy when D-Bus is unavailable,
+        no Bluetooth adapter is present, or the adapter is powered off. The check does
+        not scan for or connect to the configured Airthings sensor; terminal BLE read
+        retry failures are reported separately on the device availability topic.
+
+        The app never power-cycles or resets the adapter and has no restart settings:
+        it recovers by retrying on the next poll, and recovering the adapter is the
+        host's job ([ADR-003](adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md)).
+        The `:ro` socket mount and non-root user do not by themselves stop D-Bus
+        writes; only the host's D-Bus/BlueZ policy does.
 
 === "Manual (pip/uv)"
 

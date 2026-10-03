@@ -172,6 +172,10 @@ class BleakAirthingsReader:
             advertisement; ``main`` keeps it well inside ``poll_timeout``.
     """
 
+    restartable = False
+    """Opt out of cosalette auto-restart: recovery is reconnect/backoff per poll,
+    and the radio itself is host-side (ADR-003)."""
+
     def __init__(self, scan_timeout: float = SCAN_TIMEOUT_SECONDS) -> None:
         self._scan_timeout = scan_timeout
 

@@ -46,8 +46,6 @@ app = cosalette.App(
     adapters={
         AirthingsReaderPort: (_make_reader, FakeAirthingsReader),
     },
-    restart_after_failures=5,
-    max_restarts=3,
     error_type_map=error_type_map,
 )
 

@@ -1,8 +1,8 @@
 """Unit tests for airthings2mqtt main — telemetry handler and poll interval.
 
 Test Techniques Used:
-- Specification-based: Handler returns the reader's AirthingsReading; retry and
-  restart metadata matches declared configuration
+- Specification-based: Handler returns the reader's AirthingsReading; retry metadata
+  matches declared configuration; no adapter auto-restart is configured
 - Error Guessing: BLE errors propagate through handler (not swallowed)
 - Equivalence Partitioning: Duplicate readings are not deduplicated
 - Branch Coverage: Scheduled and triggered telemetry paths (caplog assertions)
@@ -364,25 +364,16 @@ class TestMakeReader:
 
 @pytest.mark.unit
 class TestAppRestartConfig:
-    """Verify restart configuration on the App instance."""
+    """Verify the app does not configure adapter auto-restart (ADR-003)."""
 
-    def test_restart_after_failures_is_five(self) -> None:
-        """App is configured to restart after 5 consecutive failures.
+    def test_bleak_reader_opts_out_of_restart(self) -> None:
+        """BleakAirthingsReader declares restartable = False.
 
-        Technique: Specification-based — BLE adapter recovery configuration.
+        Technique: Specification-based — cosalette skips opted-out adapters.
         """
-        from airthings2mqtt.main import app
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
-        assert app._restart_after_failures == 5
-
-    def test_max_restarts_is_three(self) -> None:
-        """App allows at most 3 restarts before giving up.
-
-        Technique: Specification-based — bounded restart loop prevents runaway.
-        """
-        from airthings2mqtt.main import app
-
-        assert app._max_restarts == 3
+        assert BleakAirthingsReader.restartable is False
 
 
 @pytest.mark.unit
