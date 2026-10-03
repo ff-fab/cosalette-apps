@@ -118,10 +118,11 @@ you copy the `healthcheck` block into your own compose file.
 
 This matters if you pin a tag. The 0.2.x CLI ignores its arguments, so
 `airthings2mqtt health` on an old image does not check anything: it starts a **second
-instance** of the app inside the container. That instance connects with the same MQTT
-client ID, so the broker disconnects the running app, and both poll the sensor. Docker
-kills the probe after `timeout` and marks the container `unhealthy`, then repeats this
-every `interval`.
+instance** of the app inside the container. Both instances poll the sensor and publish
+to the broker. If you set `MQTT__CLIENT_ID`, the second instance uses the same client
+ID, so the broker keeps disconnecting one instance in favour of the other. Docker marks
+the probe as failed after `timeout`, but the stray process can keep running, and a new
+one starts every `interval`.
 
 Check the image before enabling the health check:
 

@@ -145,8 +145,8 @@ it.
 !!! danger "The health check needs image 0.3.0 or later"
 
     Older images have no `health` command. There, `airthings2mqtt health` starts a
-    second instance of the app with the same MQTT client ID, which disconnects the
-    running one. Upgrade the image before you add the `healthcheck` block. See
+    second instance of the app. With a fixed `MQTT__CLIENT_ID` it uses the same client
+    ID, and the two instances keep disconnecting each other. Upgrade the image before you add the `healthcheck` block. See
     [Host Setup](host-setup.md#health-check-needs-030-or-later).
 
 !!! warning "Docker does not restart unhealthy containers"
