@@ -77,6 +77,16 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
       mosquitto-log:
     ```
 
+    Create the host account for the container user (UID 10001). Without it the host's
+    D-Bus refuses the container and no reading arrives. The details, and the steps for
+    upgrading from 0.2.x, are in [Host Setup](host-setup.md):
+
+    ```bash
+    sudo groupadd --system --gid 10001 airthings2mqtt
+    sudo useradd --system --uid 10001 --gid 10001 --no-create-home \
+        --shell /usr/sbin/nologin airthings2mqtt
+    ```
+
     Then download the Mosquitto config and create your env file:
 
     ```bash
@@ -212,6 +222,8 @@ mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
 
 ## Next Steps
 
+- [Host Setup](host-setup.md) --- the container user's host account and optional
+  hardening
 - [Configure](configuration.md) MQTT connection, polling intervals, and logging
 - [MQTT Topics](mqtt-topics.md) --- full topic reference with payload schemas
 - [Troubleshooting](troubleshooting.md) --- an offline sensor and the operator runbook

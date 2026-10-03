@@ -105,6 +105,10 @@ re-read:
 mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
 ```
 
+If the logs show D-Bus connection failures, or `Permission denied` for
+`/app/data/store.json`, after an upgrade from 0.2.x, the host account or the data
+ownership step is missing. See [Host Setup](host-setup.md#container-user-uid-10001).
+
 ### 3. Restart the Container
 
 A container restart only helps when the app itself is stuck, which the health check

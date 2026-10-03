@@ -46,6 +46,14 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
     [:octicons-arrow-right-24: Get started](getting-started.md)
 
+-   :material-server-security:{ .lg .middle } **Host Setup**
+
+    ---
+
+    The host account for the container user, and optional host hardening.
+
+    [:octicons-arrow-right-24: Set up the host](host-setup.md)
+
 -   :material-cog:{ .lg .middle } **Configuration**
 
     ---

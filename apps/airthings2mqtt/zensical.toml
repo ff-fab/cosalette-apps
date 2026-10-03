@@ -34,6 +34,7 @@ extra_javascript = ["javascripts/click-zoom.js", "javascripts/version-fetch.js",
 nav = [
     { "Home" = "index.md" },
     { "Getting Started" = "getting-started.md" },
+    { "Host Setup" = "host-setup.md" },
     { "Configuration" = "configuration.md" },
     { "MQTT Topics" = "mqtt-topics.md" },
     { "Troubleshooting" = "troubleshooting.md" },
