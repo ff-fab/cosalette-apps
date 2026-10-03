@@ -1,9 +1,7 @@
-"""Integration tests for docs/schema.yaml — Home Assistant MQTT discovery generation.
+"""Integration tests for docs/schema.yaml consumer discovery metadata.
 
-Guards the consumer-metadata enrichment in the AsyncAPI schema: regenerating
-the schema with ``cosalette schema init`` (or ``task airthings2mqtt:schema:generate``)
-strips the ``x-cosalette-consumer`` annotations, which would silently break HA
-discovery. These tests fail loudly if that happens.
+Guards the consumer metadata declared in the AsyncAPI schema and verifies that
+the schema CLI renders it into Home Assistant and openHAB discovery output.
 
 Note: Lives in integration/ because it spawns a subprocess and reads from the
 filesystem — not hermetic enough for the unit suite.
@@ -11,7 +9,7 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: schema enrichment must yield the documented HA entities
 - Equivalence Partitioning: typed (device_class) vs untyped (radon) sensors
-- Parametrize: all four sensor fields declared once, no duplication
+- Parametrize: all six payload fields declared once, no duplication
 - Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
@@ -19,6 +17,8 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -57,6 +57,17 @@ def configs_by_id(entity_payloads: list[dict[str, Any]]) -> dict[str, dict[str, 
     return configs_by_object_id(entity_payloads)
 
 
+@pytest.fixture(scope="module")
+def openhab_run() -> subprocess.CompletedProcess[str]:
+    """Run the schema openHAB CLI once and return its output."""
+    return subprocess.run(
+        [sys.executable, "-m", "cosalette", "schema", "openhab", str(SCHEMA_PATH)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 @pytest.mark.integration
 class TestHaDiscoveryGeneration:
     """Verify the enriched schema produces valid HA MQTT discovery payloads."""
@@ -64,7 +75,7 @@ class TestHaDiscoveryGeneration:
     def test_generates_one_sensor_per_reading_field(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """All four AirthingsReading fields yield a discovery payload.
+        """All six AirthingsReading fields yield a discovery payload.
 
         Technique: Specification-based — count matches schema properties.
         """
@@ -74,6 +85,8 @@ class TestHaDiscoveryGeneration:
             "airthings_humidity",
             "airthings_radon_24h_avg",
             "airthings_radon_long_term_avg",
+            "airthings_last_read",
+            "airthings_rssi",
         }
         # Act
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
@@ -157,6 +170,24 @@ class TestHaDiscoveryGeneration:
                     "value_template": "{{ value_json.radon_long_term_avg }}",
                 },
             ),
+            (
+                "airthings_last_read",
+                {
+                    "device_class": "timestamp",
+                    "entity_category": "diagnostic",
+                    "value_template": "{{ value_json.last_read }}",
+                },
+            ),
+            (
+                "airthings_rssi",
+                {
+                    "device_class": "signal_strength",
+                    "unit_of_measurement": "dBm",
+                    "state_class": "measurement",
+                    "entity_category": "diagnostic",
+                    "value_template": "{{ value_json.rssi }}",
+                },
+            ),
         ],
     )
     def test_sensor_config_fields_match_enrichment_annotations(
@@ -215,3 +246,48 @@ class TestStateTopicsAreReal:
 
         payloads = [SimpleNamespace(config=p["config"]) for p in ha_payloads]
         assert_discovery_topics_published(harness, payloads)
+
+
+@pytest.mark.integration
+class TestOpenHabDiagnostics:
+    """Verify openHAB diagnostic items use their matching typed channels."""
+
+    def test_last_read_uses_datetime_channel_and_reading_jsonpath(
+        self, openhab_run: subprocess.CompletedProcess[str]
+    ) -> None:
+        """The DateTime item reads the timestamp field from the state topic.
+
+        Technique: Specification-based — validate generated item and channel
+        wiring against the diagnostic field's declared openHAB metadata.
+        """
+        assert openhab_run.returncode == 0, openhab_run.stderr
+        output = openhab_run.stdout
+        channel_uid = "mqtt:topic:broker:airthings2mqtt_airthings:last_read"
+        item_line = next(line for line in output.splitlines() if channel_uid in line)
+        channel = output.split("Type datetime : last_read ", maxsplit=1)[1].split(
+            "\n        ]", maxsplit=1
+        )[0]
+
+        assert item_line.startswith("DateTime ")
+        assert 'stateTopic="airthings2mqtt/airthings/state"' in channel
+        assert 'transformationPattern="JSONPATH:$.last_read"' in channel
+
+    def test_rssi_uses_number_channel_and_rssi_jsonpath(
+        self, openhab_run: subprocess.CompletedProcess[str]
+    ) -> None:
+        """The Number item reads RSSI from its own typed state channel.
+
+        Technique: Specification-based — validate generated item and channel
+        wiring against the diagnostic field's declared openHAB metadata.
+        """
+        assert openhab_run.returncode == 0, openhab_run.stderr
+        output = openhab_run.stdout
+        channel_uid = "mqtt:topic:broker:airthings2mqtt_airthings:rssi"
+        item_line = next(line for line in output.splitlines() if channel_uid in line)
+        channel = output.split("Type number : rssi ", maxsplit=1)[1].split(
+            "\n        ]", maxsplit=1
+        )[0]
+
+        assert item_line.startswith("Number ")
+        assert 'stateTopic="airthings2mqtt/airthings/state"' in channel
+        assert 'transformationPattern="JSONPATH:$.rssi"' in channel

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from cosalette import MockMqttClient
@@ -421,6 +422,53 @@ class TestNullableRadonPayload:
         assert latest["radon_long_term_avg"] == 91
         assert latest["temperature"] == 20.1
         assert latest["humidity"] == 44.0
+
+
+class TestReadHealthFields:
+    """last_read and rssi are appended to the unchanged sensor payload."""
+
+    @pytest.mark.integration
+    @pytest.mark.slow
+    @pytest.mark.parametrize("rssi", [-60, None])
+    async def test_payload_appends_last_read_and_rssi(self, rssi: int | None) -> None:
+        """The four sensor keys keep their order; last_read and rssi follow.
+
+        ``last_read`` is ISO 8601 in UTC, taken during this run; a reader
+        without an advertisement publishes ``rssi`` as an explicit ``null``.
+
+        Technique: Equivalence Partitioning — RSSI known vs. unknown;
+        Specification-based — key order and timestamp format on the wire.
+        """
+        reader = FakeAirthingsReader()
+        reader.readings = [
+            AirthingsReading(
+                temperature=20.1,
+                humidity=44.0,
+                radon_24h_avg=90,
+                radon_long_term_avg=91,
+                rssi=rssi,
+            )
+        ]
+        harness = make_harness(adapter=lambda: reader)
+        started = datetime.now(UTC)
+
+        await run_app_briefly(harness)
+
+        state_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/state"
+        payload, _retain, _qos = harness.messages_for(state_topic)[-1]
+        latest = json.loads(payload)
+        assert list(latest) == [
+            "temperature",
+            "humidity",
+            "radon_24h_avg",
+            "radon_long_term_avg",
+            "last_read",
+            "rssi",
+        ]
+        assert latest["rssi"] == rssi
+        last_read = datetime.fromisoformat(latest["last_read"])
+        assert last_read.utcoffset() == timedelta(0)
+        assert started <= last_read <= datetime.now(UTC)
 
 
 # ---------------------------------------------------------------------------

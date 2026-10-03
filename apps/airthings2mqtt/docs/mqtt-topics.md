@@ -28,14 +28,17 @@ configured MQTT topic prefix. The examples below use the defaults: prefix
 Published after each successful BLE poll. Contains all four sensor readings from the
 Airthings Wave, decoded from whichever GATT layout the unit uses — the 1st-gen
 four-characteristic set or the Wave 2 / Wave Radon (2nd-gen) single "current values"
-characteristic. The payload shape is identical either way.
+characteristic. The payload shape is identical either way. Two read-health fields
+follow the readings: when the read happened and how strongly the sensor was heard.
 
 ```json
 {
   "temperature": 21.5,
   "humidity": 45.0,
   "radon_24h_avg": 42,
-  "radon_long_term_avg": 38
+  "radon_long_term_avg": 38,
+  "last_read": "2026-10-01T18:34:58.123456Z",
+  "rssi": -71
 }
 ```
 
@@ -45,6 +48,23 @@ characteristic. The payload shape is identical either way.
 | `humidity`           | float           | %      | Relative humidity as a percentage            |
 | `radon_24h_avg`      | integer \| null | Bq/m3  | 24-hour rolling average radon concentration  |
 | `radon_long_term_avg`| integer \| null | Bq/m3  | Long-term average radon concentration        |
+| `last_read`          | string          | —      | ISO 8601 UTC time of the successful BLE read |
+| `rssi`               | integer \| null | dBm    | Signal strength of the sensor's advertisement |
+
+`last_read` lets a consumer see a value's age without tracking publication time:
+the retained payload keeps the time of its own read, so an old `last_read` exposes a
+stale reading even after a broker or consumer restart. `rssi` is taken from the
+advertisement that the pre-connect scan observed; record it to spot a weakening link
+(range, battery, obstruction) before reads start failing. It is `null` only when the
+reader has no advertisement to report.
+
+Both `last_read` and `rssi` are always included in published state. Their model defaults
+can make them optional in the generated validation schema; that does not mean the app
+omits them from runtime payloads.
+
+Both fields are discovered as diagnostic entities: in Home Assistant as a `timestamp`
+sensor and a `signal_strength` sensor (dBm); in openHAB (`cosalette schema openhab`) as a
+`DateTime` item on a `datetime` channel and a `Number` item.
 
 !!! note "Radon can be `null`"
 
@@ -112,11 +132,17 @@ between polls.
     the framework freshness watchdog turns availability `"offline"` after the
     derived window: two poll intervals plus the retry/timeout/backoff budget.
     Repeated `BleReadError` failures and stalled telemetry therefore become stale
-    even while the health reporter runs. Guard the consumer as well if it needs a
-    tighter publication-age limit, sized to about two poll intervals:
+    even while the health reporter runs. Arrival or publication age is not a reliable
+    reading-age check: a broker can replay a retained payload on reconnect, and MQTT 5
+    refreshes retained payloads unchanged every eight hours. Compare the payload's
+    `last_read` with the current time as the authoritative reading-age check. A rule or
+    alert threshold of about one hour is a reasonable default.
 
-    - **openHAB:** add `expire` metadata to each item, so a value that is not refreshed
-      becomes `UNDEF`. With the default 25-minute poll interval:
+    - **openHAB:** `expire` metadata is a supplementary absence-of-updates guard, not a
+      reliable reading-age check after reconnects or unchanged retained refreshes. Keep
+      it if useful, and add a rule or alert comparing the `DateTime` `last_read` item
+      with the current time. For example, the item can also expire to `UNDEF` if no
+      update arrives; with the default 25-minute poll interval:
 
         ```text
         Number Airthings2Mqtt_Airthings_Radon24HAvg "Radon (24h avg) [%s Bq/m³]" {
@@ -125,8 +151,8 @@ between polls.
         }
         ```
 
-    - **Any consumer:** alert when the last publication to
-      `airthings2mqtt/airthings/state` is older than about an hour. Also monitor
+    - **Any consumer:** compare `last_read` against the clock rather than relying on the
+      last publication time. Also monitor
       `devices.airthings.status` and heartbeat recency in
       [`airthings2mqtt/status`](#status-heartbeat), but do not use them as the
       only publication-age signal: freshness tracks successful handler cycles,
@@ -224,7 +250,9 @@ cause. Range, battery, advertising state, and another client are among the possi
 With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained topic in
 the tables above expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
 unless airthings2mqtt refreshes it. airthings2mqtt re-publishes each retained topic with an unchanged
-payload every third of that interval (8 hours by default). Non-retained topics, such as
+payload every third of that interval (8 hours by default). For sensor state, this can
+refresh delivery age without a new BLE reading; use `last_read` to judge reading age.
+Non-retained topics, such as
 `airthings2mqtt/error`, carry no expiry. See
 [MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
 operator contract and the MQTT 3.1.1 fallback.

@@ -17,6 +17,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import struct
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -137,7 +138,7 @@ class TestFakeAirthingsReader:
     """Verify FakeAirthingsReader satisfies AirthingsReaderPort protocol."""
 
     async def test_default_reading(self) -> None:
-        """Default reading returns (21.5, 45.0, 80, 65)."""
+        """Default reading returns (21.5, 45.0, 80, 65) at -60 dBm."""
         reader = FakeAirthingsReader()
         reading = await reader.read("AA:BB:CC:DD:EE:FF")
         assert reading == AirthingsReading(
@@ -145,7 +146,20 @@ class TestFakeAirthingsReader:
             humidity=45.0,
             radon_24h_avg=80,
             radon_long_term_avg=65,
+            rssi=-60,
         )
+
+    async def test_stamps_last_read_on_every_read(self) -> None:
+        """Each read carries the time it was taken, not the reading's creation.
+
+        Technique: Specification-based — the cycled readings are module-level
+        constants, so an unstamped one would publish a stale last_read.
+        """
+        reader = FakeAirthingsReader()
+        before = datetime.now(UTC)
+        first = await reader.read("AA:BB:CC:DD:EE:FF")
+        second = await reader.read("AA:BB:CC:DD:EE:FF")
+        assert before <= first.last_read <= second.last_read <= datetime.now(UTC)
 
     async def test_records_mac_address(self) -> None:
         """read() records the MAC address passed."""
@@ -301,6 +315,7 @@ class TestBleakAirthingsReader:
             humidity=45.0,
             radon_24h_avg=80,
             radon_long_term_avg=65,
+            rssi=-71,
         )
 
     async def test_falls_through_to_1st_gen_when_wave2_char_absent(self) -> None:
@@ -655,7 +670,7 @@ class TestBleakAirthingsReaderWave2:
 
         read_uuids = [c.args[0] for c in mock_client.read_gatt_char.call_args_list]
         assert read_uuids == [_UUID_WAVE2_DATA]
-        assert reading == AirthingsReading(**WAVE2_SAMPLE_2950_DECODED)
+        assert reading == AirthingsReading(**WAVE2_SAMPLE_2950_DECODED, rssi=-64)
 
     async def test_decodes_captured_real_device_frame(self) -> None:
         """Decoded values match the ff-fab field capture cross-check.

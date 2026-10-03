@@ -167,7 +167,9 @@ sensor readings:
   "temperature": 21.5,
   "humidity": 45.0,
   "radon_24h_avg": 42,
-  "radon_long_term_avg": 38
+  "radon_long_term_avg": 38,
+  "last_read": "2026-10-01T18:34:58.123456Z",
+  "rssi": -71
 }
 ```
 
