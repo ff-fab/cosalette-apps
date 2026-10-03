@@ -9,6 +9,7 @@ Test Techniques Used:
 - Decision Table: Wave-generation dispatch (2nd-gen characteristic present /
   absent) and the Wave 2 radon out-of-range guard
 - Round-trip: Wave 2 decode over a captured real-device byte frame
+- Equivalence Partitioning: pre-connect scan miss with zero vs. some advertisers
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ import struct
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from bleak.backends.device import BLEDevice
 from bleak.exc import (
     BleakBluetoothNotAvailableError,
     BleakBluetoothNotAvailableReason,
@@ -42,6 +44,32 @@ from tests.fixtures.ble import (
     WAVE2_SAMPLE_2950_DECODED,
     WAVE2_SAMPLE_2950_STATUS_BYTE_CLEARED,
 )
+
+_DEFAULT_ADVERTS = [("AA:BB:CC:DD:EE:FF", -71), ("40:79:12:16:A0:52", -64)]
+
+
+@pytest.fixture(autouse=True)
+def scanner() -> object:
+    """Patch BleakScanner to "hear" ``scanner.adverts`` as (address, rssi) pairs.
+
+    Defaults to every MAC this module reads, so the pre-connect scan finds the
+    target; a test empties or replaces ``scanner.adverts`` to simulate a miss.
+    """
+
+    async def find_device_by_filter(
+        filterfunc: object, timeout: float = 10.0
+    ) -> BLEDevice | None:
+        for address, rssi in fake.adverts:
+            device = BLEDevice(address, None, None)
+            if filterfunc(device, Mock(rssi=rssi)):  # type: ignore[operator]
+                return device
+        return None
+
+    fake = Mock()
+    fake.adverts = list(_DEFAULT_ADVERTS)
+    fake.find_device_by_filter = AsyncMock(side_effect=find_device_by_filter)
+    with patch("airthings2mqtt.adapters.bleak.BleakScanner", fake):
+        yield fake
 
 
 def _make_client(
@@ -498,6 +526,108 @@ class TestBleakAirthingsReader:
             reading = await reader.read("AA:BB:CC:DD:EE:FF")
 
         assert reading.temperature == -5.0
+
+
+@pytest.mark.unit
+class TestBleakAirthingsReaderScan:
+    """Verify the pre-connect advertiser scan (proposal 5.9, cap-oxdp.5)."""
+
+    @pytest.mark.parametrize(
+        ("adverts", "expected"),
+        [
+            ([], "0 advertisers in 10s (no advertisements observed during scan)"),
+            (
+                [("11:22:33:44:55:66", -80), ("11:22:33:44:55:77", -90)],
+                "2 advertisers in 10s (other addresses observed; target not observed)",
+            ),
+            (
+                [
+                    ("11:22:33:44:55:66", -80),
+                    ("11:22:33:44:55:66", -75),
+                    ("11:22:33:44:55:77", -90),
+                ],
+                "2 advertisers in 10s (other addresses observed; target not observed)",
+            ),
+        ],
+    )
+    async def test_miss_reports_distinct_advertiser_count(
+        self, scanner: Mock, adverts: list[tuple[str, int]], expected: str
+    ) -> None:
+        """A miss reports how many distinct advertiser addresses were observed.
+
+        Technique: Equivalence Partitioning — no advertisements vs. one or more
+        distinct other addresses; no connect is attempted in either case.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        scanner.adverts = adverts
+        with (
+            patch("airthings2mqtt.adapters.bleak.BleakClient") as client_cls,
+            pytest.raises(BleDeviceNotFoundError) as raised,
+        ):
+            await BleakAirthingsReader().read("AA:BB:CC:DD:EE:FF")
+
+        assert str(raised.value) == f"target not seen; {expected}"
+        client_cls.assert_not_called()
+
+    async def test_connects_to_scanned_device_within_scan_timeout(
+        self, scanner: Mock, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The found BLEDevice goes to BleakClient; its RSSI reaches the read log.
+
+        Technique: Specification-based — a lower-case configured MAC still
+        matches, the scan honours ``scan_timeout``, and the client skips its
+        own internal scan.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        mock_client = _make_client(lambda _uuid: WAVE2_SAMPLE_2950, wave2_char=object())
+        with (
+            patch(
+                "airthings2mqtt.adapters.bleak.BleakClient", return_value=mock_client
+            ) as client_cls,
+            caplog.at_level(logging.INFO, logger="airthings2mqtt.adapters.bleak"),
+        ):
+            await BleakAirthingsReader(scan_timeout=7.5).read("40:79:12:16:a0:52")
+
+        (device,) = client_cls.call_args.args
+        assert isinstance(device, BLEDevice)
+        assert device.address == "40:79:12:16:A0:52"
+        assert scanner.find_device_by_filter.call_args.kwargs["timeout"] == 7.5
+        assert "rssi=-64" in caplog.records[-1].getMessage()
+
+    async def test_scan_failure_is_translated(self, scanner: Mock) -> None:
+        """A powered-off adapter during the scan becomes BleConnectionError.
+
+        Technique: Error Guessing — scanner errors share read()'s translation.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        scanner.find_device_by_filter.side_effect = BleakBluetoothNotAvailableError(
+            "off", BleakBluetoothNotAvailableReason.POWERED_OFF
+        )
+        with pytest.raises(BleConnectionError):
+            await BleakAirthingsReader().read("AA:BB:CC:DD:EE:FF")
+
+    async def test_scan_cancellation_propagates_without_connecting(
+        self, scanner: Mock
+    ) -> None:
+        """Scanner cancellation propagates unchanged before any BLE connection.
+
+        Technique: Error Guessing — cancellation must not become a read error.
+        """
+        from airthings2mqtt.adapters.bleak import BleakAirthingsReader
+
+        cancellation = asyncio.CancelledError("scan cancelled")
+        scanner.find_device_by_filter.side_effect = cancellation
+        with (
+            patch("airthings2mqtt.adapters.bleak.BleakClient") as client_cls,
+            pytest.raises(asyncio.CancelledError) as raised,
+        ):
+            await BleakAirthingsReader().read("AA:BB:CC:DD:EE:FF")
+
+        assert raised.value is cancellation
+        client_cls.assert_not_called()
 
 
 @pytest.mark.unit
