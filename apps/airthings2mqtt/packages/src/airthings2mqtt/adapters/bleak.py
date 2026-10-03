@@ -22,7 +22,9 @@ import re
 import struct
 from collections.abc import Buffer
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
+from bleak.backends.device import BLEDevice
+from bleak.backends.scanner import AdvertisementData
 from bleak.exc import (
     BleakBluetoothNotAvailableError,
     BleakDBusError,
@@ -73,6 +75,9 @@ offline; as a plain ``BleakError`` it would fall through to the non-retryable
 ``BleReadError``. Every other ``BleakError`` (e.g. a missing characteristic
 on a non-Airthings device) stays ``BleReadError``.
 """
+
+_SCAN_TIMEOUT_SECONDS = 10.0
+"""Default upper bound on the pre-connect advertiser scan (bleak's own default)."""
 
 _BLUEZ_ADAPTER_PATH = "/org/bluez/hci0"
 _HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
@@ -159,8 +164,15 @@ class BleakAirthingsReader:
 
     Connects to the device, reads the GATT characteristics for its Wave
     generation, disconnects, and returns the parsed AirthingsReading. Each
-    read() call is a full connect-read-disconnect cycle.
+    read() call is a full scan-connect-read-disconnect cycle.
+
+    Args:
+        scan_timeout: Seconds the pre-connect scan listens for the target's
+            advertisement; ``main`` keeps it well inside ``poll_timeout``.
     """
+
+    def __init__(self, scan_timeout: float = _SCAN_TIMEOUT_SECONDS) -> None:
+        self._scan_timeout = scan_timeout
 
     async def health_check(self) -> bool:
         """Probe whether BlueZ reports the hci0 adapter as powered.
@@ -221,12 +233,42 @@ class BleakAirthingsReader:
                     healthy = False
         return healthy
 
+    async def _scan(self, mac: str) -> tuple[BLEDevice, int]:
+        """Listen for *mac*'s advertisement; return the device and its RSSI (dBm).
+
+        Counting every advertiser heard tells a deaf radio (nothing heard)
+        from a missing sensor (others heard), and handing the found
+        :class:`BLEDevice` to :class:`BleakClient` spares it a second scan.
+
+        Raises:
+            BleDeviceNotFoundError: If the target did not advertise in time.
+        """
+        heard: dict[str, int] = {}
+
+        def _is_target(device: BLEDevice, adv: AdvertisementData) -> bool:
+            heard[device.address] = adv.rssi
+            return device.address.upper() == mac.upper()
+
+        timeout = self._scan_timeout
+        device = await BleakScanner.find_device_by_filter(_is_target, timeout=timeout)
+        if device is None:
+            hint = (
+                "adapter heard nothing, check the radio"
+                if not heard
+                else "radio ok, check sensor range and battery"
+            )
+            raise BleDeviceNotFoundError(
+                f"target not seen; {len(heard)} advertisers in {timeout:g}s ({hint})"
+            )
+        return device, heard[device.address]
+
     async def read(self, mac: str) -> AirthingsReading:
         """Read sensor data from the Airthings Wave device.
 
-        Probes for the Wave 2 / Wave Radon (2nd-gen) "current values"
-        characteristic and reads it if present; otherwise falls through to the
-        1st-gen four-characteristic path.
+        Scans for the device first (see :meth:`_scan`), then probes for the
+        Wave 2 / Wave Radon (2nd-gen) "current values" characteristic and reads
+        it if present; otherwise falls through to the 1st-gen
+        four-characteristic path.
 
         Args:
             mac: Bluetooth MAC address of the Airthings Wave device.
@@ -241,7 +283,8 @@ class BleakAirthingsReader:
             BleTimeoutError: If the connection or read times out.
         """
         try:
-            async with BleakClient(mac) as client:
+            device, rssi = await self._scan(mac)
+            async with BleakClient(device) as client:
                 if client.services.get_characteristic(_UUID_WAVE2_DATA) is not None:
                     protocol = "wave2"
                     reading = _parse_wave2(
@@ -255,6 +298,8 @@ class BleakAirthingsReader:
                         await client.read_gatt_char(_UUID_RADON_24H),
                         await client.read_gatt_char(_UUID_RADON_LTA),
                     )
+        except AirthingsError:
+            raise
         except Exception as exc:
             # struct.error from a malformed frame is unmapped → BleReadError.
             error = map_exception(exc, _BLEAK_ERROR_MAP)
@@ -266,9 +311,10 @@ class BleakAirthingsReader:
             raise error(f"{type(exc).__name__}: {message}") from None
 
         logger.info(
-            "Airthings read ok: mac=**:%s protocol=%s temperature=%.2f humidity=%.2f "
-            "radon_24h_avg=%s radon_long_term_avg=%s",
+            "Airthings read ok: mac=**:%s rssi=%d protocol=%s temperature=%.2f "
+            "humidity=%.2f radon_24h_avg=%s radon_long_term_avg=%s",
             _redact_mac(mac),
+            rssi,
             protocol,
             reading.temperature,
             reading.humidity,

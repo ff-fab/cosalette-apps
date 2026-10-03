@@ -182,7 +182,7 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
 ```json
 {
   "error_type": "ble_device_not_found",
-  "message": "BleakDeviceNotFoundError: Device with address **:EE:FF was not found.",
+  "message": "target not seen; 0 advertisers in 10s (adapter heard nothing, check the radio)",
   "device": "airthings",
   "timestamp": "2026-10-01T18:34:58+00:00",
   "id": "c0ffee000001",
@@ -201,10 +201,16 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
 
 | `error_type`           | Meaning                                                   | Retried |
 | ---------------------- | --------------------------------------------------------- | ------- |
-| `ble_device_not_found` | The adapter did not see the sensor (not advertising)      | yes     |
+| `ble_device_not_found` | The adapter did not see the sensor (not advertising)\*    | yes     |
 | `ble_connection`       | Connection, BlueZ D-Bus or adapter failure                | yes     |
 | `ble_timeout`          | A BLE connection or read timed out                        | yes     |
 | `ble_read`             | A characteristic is missing or the frame cannot be decoded | no      |
+
+\* Before each connect the app scans for the sensor's advertisement (at most 10 s, or a
+quarter of `poll_timeout` if that is shorter). A miss reports how many other Bluetooth
+devices were heard: `0 advertisers` points at the host radio or BlueZ, while a
+non-zero count means the radio works and the sensor is out of range, has a flat
+battery, or is busy with another client.
 
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to

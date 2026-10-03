@@ -340,6 +340,29 @@ class TestTelemetryRetryConfig:
 
 
 @pytest.mark.unit
+class TestMakeReader:
+    """Verify the production reader's scan stays inside the poll budget."""
+
+    @pytest.mark.parametrize(
+        ("poll_timeout", "scan_timeout"), [(120.0, 10.0), (40.0, 10.0), (20.0, 5.0)]
+    )
+    def test_scan_timeout_bounded_by_poll_timeout(
+        self, poll_timeout: float, scan_timeout: float
+    ) -> None:
+        """Scan gets a quarter of poll_timeout, capped at bleak's 10 s default.
+
+        Technique: Boundary Value Analysis — at, above and below the cap.
+        """
+        from airthings2mqtt.main import _make_reader
+
+        settings = make_airthings2mqtt_settings(
+            device_mac="AA:BB:CC:DD:EE:FF", poll_timeout=poll_timeout
+        )
+
+        assert _make_reader(settings)._scan_timeout == scan_timeout
+
+
+@pytest.mark.unit
 class TestAppRestartConfig:
     """Verify restart configuration on the App instance."""
 

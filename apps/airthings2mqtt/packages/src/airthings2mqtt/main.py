@@ -24,12 +24,22 @@ from airthings2mqtt.errors import (
 from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
+
+def _make_reader(settings: Airthings2MqttSettings) -> BleakAirthingsReader:
+    """Build the production reader with its scan bounded inside ``poll_timeout``.
+
+    A quarter of the poll budget (at most bleak's 10 s default) leaves the rest
+    for connecting and reading.
+    """
+    return BleakAirthingsReader(scan_timeout=min(10.0, settings.poll_timeout / 4))
+
+
 app = cosalette.App(
     name="airthings2mqtt",
     version=__version__,
     settings_class=Airthings2MqttSettings,
     adapters={
-        AirthingsReaderPort: (BleakAirthingsReader, FakeAirthingsReader),
+        AirthingsReaderPort: (_make_reader, FakeAirthingsReader),
     },
     restart_after_failures=5,
     max_restarts=3,
