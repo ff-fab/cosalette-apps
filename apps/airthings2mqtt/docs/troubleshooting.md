@@ -54,7 +54,9 @@ write any adapter property over D-Bus. Its health check only reads
 
 This is a rule about what the app's code does, not a host security guarantee. The
 read-only `/var/run/dbus` mount and the non-root user do not, by themselves, block
-D-Bus writes; only the host's D-Bus/BlueZ policy does. The full rationale is in
+D-Bus writes; only the host's D-Bus/BlueZ policy does. To enforce the rule, install the
+opt-in policy in [Host Setup](host-setup.md#optional-deny-bluez-property-writes). The
+full rationale is in
 [ADR-003](adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md).
 
 ---

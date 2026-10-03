@@ -130,7 +130,9 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         it recovers by retrying on the next poll, and recovering the adapter is the
         host's job ([ADR-003](adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md)).
         The `:ro` socket mount and non-root user do not by themselves stop D-Bus
-        writes; only the host's D-Bus/BlueZ policy does.
+        writes; only the host's D-Bus/BlueZ policy does. An opt-in policy that
+        enforces this is in
+        [Host Setup](host-setup.md#optional-deny-bluez-property-writes).
 
     !!! info "Container health check"
         The image ships a `HEALTHCHECK` that runs `airthings2mqtt health` every

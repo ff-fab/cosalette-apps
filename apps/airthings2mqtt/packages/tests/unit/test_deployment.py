@@ -1,12 +1,12 @@
-"""Unit tests for the shipped deployment files — Dockerfile and compose.
+"""Unit tests for the shipped deployment files — Dockerfile, compose, D-Bus policy.
 
 The image runs as a dedicated UID so a host D-Bus policy can target the app alone
 (ADR-003). The host-side files and docs repeat that UID, so drift breaks the
 deployment silently.
 
 Test Techniques Used:
-- Specification-based: the Dockerfile pins the documented UID/GID; compose adds
-  no capabilities.
+- Specification-based: the Dockerfile pins the documented UID/GID, which the host
+  D-Bus policy repeats; compose adds no capabilities.
 - Error Guessing: the commented compose example drifting from the live service.
 """
 
@@ -59,3 +59,24 @@ class TestComposePrivileges:
 
         assert "cap_add" not in compose
         assert compose.count("no-new-privileges:true") == 2
+
+
+class TestBluezPolicy:
+    """The opt-in host D-Bus policy targets the image UID and only BlueZ Set."""
+
+    def test_policy_targets_image_uid_and_denies_only_set(self) -> None:
+        """The policy's user matches the Dockerfile UID and denies one call.
+
+        Technique: Specification-based — a UID drift would leave the app unguarded.
+        """
+        policy = (_APP_DIR / "deploy" / "airthings2mqtt-bluez.conf").read_text(
+            encoding="utf-8"
+        )
+
+        assert re.findall(r'<policy\s+user="(\d+)"', policy) == [str(_APP_UID)]
+        deny_rules = re.findall(r"<deny\b[^>]*/>", policy, re.DOTALL)
+        assert len(deny_rules) == 1
+        assert 'send_destination="org.bluez"' in deny_rules[0]
+        assert 'send_interface="org.freedesktop.DBus.Properties"' in deny_rules[0]
+        assert 'send_member="Set"' in deny_rules[0]
+        assert "<allow" not in policy

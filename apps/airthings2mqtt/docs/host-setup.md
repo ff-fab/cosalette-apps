@@ -8,6 +8,7 @@ dbus-daemon 1.16.2.
 | ----------------------------------------------- | -------------------------- |
 | [Host account for UID 10001](#container-user-uid-10001) | **Yes**, from 0.3.0 |
 | [No added capabilities, `no-new-privileges`](#capabilities-and-no-new-privileges) | Recommended |
+| [Deny BlueZ property writes](#optional-deny-bluez-property-writes) | Optional |
 
 ---
 
@@ -18,7 +19,8 @@ used UID 1000.
 
 **Why a dedicated UID.** On most hosts UID 1000 is the first login account, often with
 `sudo`. A host D-Bus policy aimed at UID 1000 would also restrict that person. UID
-10001 belongs to airthings2mqtt alone, so a host D-Bus policy can target the app and
+10001 belongs to airthings2mqtt alone, so the
+[BlueZ write policy](#optional-deny-bluez-property-writes) can target the app and
 nothing else.
 
 **Why the host needs an account for it.** The container talks to BlueZ through the
@@ -103,3 +105,128 @@ docker exec "$C" grep -E '^Cap(Eff|Bnd)' /proc/1/status
 
 `CapEff` must be all zeros. `CapBnd` should no longer include bit 12 (`0x1000`,
 `cap_net_admin`) or bit 21 (`0x200000`, `cap_sys_admin`).
+
+---
+
+## Optional: Deny BlueZ Property Writes
+
+airthings2mqtt never power-cycles the adapter
+([ADR-003](adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md)),
+but that is a rule about its code. On a stock Debian host the BlueZ D-Bus policy
+(`/usr/share/dbus-1/system.d/bluetooth.conf`) lets **every** local account call
+`org.freedesktop.DBus.Properties.Set` on BlueZ, including setting
+`Adapter1.Powered`. Host testing confirmed this from inside the container. The read-only
+`/var/run/dbus` mount does not help: it protects the socket file, not the messages
+sent through it.
+
+To enforce the rule on the host, install the policy file shipped in
+[`deploy/airthings2mqtt-bluez.conf`](https://github.com/ff-fab/cosalette-apps/blob/main/apps/airthings2mqtt/deploy/airthings2mqtt-bluez.conf):
+
+```xml
+<busconfig>
+  <policy user="10001">
+    <deny send_destination="org.bluez"
+          send_interface="org.freedesktop.DBus.Properties"
+          send_member="Set"/>
+  </policy>
+</busconfig>
+```
+
+It denies one D-Bus call, `Properties.Set` addressed to BlueZ, and only for UID 10001.
+It is opt-in. The app works the same with or without it.
+
+**Why it does not break the app.** The app never calls `Properties.Set`. It only
+scans (`SetDiscoveryFilter`, `StartDiscovery`, `StopDiscovery`), connects, reads GATT
+characteristics, and reads properties and signals. A review of the bleak BlueZ backend
+found one `Properties.Set`: setting `Device1.Trusted` while pairing. bleak only does
+that for `connect(pair=True)` or `pair()`, and airthings2mqtt uses neither.
+
+### Install
+
+On the Docker host:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ff-fab/cosalette-apps/main/apps/airthings2mqtt/deploy/airthings2mqtt-bluez.conf \
+    -o airthings2mqtt-bluez.conf
+sudo install -m 0644 -o root -g root airthings2mqtt-bluez.conf /etc/dbus-1/system.d/
+sudo systemctl reload dbus
+```
+
+The reload applies the policy to existing connections, so the container needs no
+restart. dbus-daemon also picks up new files in `system.d` by itself within a few
+seconds. If `systemctl reload dbus` is not available, send the reload request
+directly:
+
+```bash
+sudo dbus-send --system --print-reply --dest=org.freedesktop.DBus \
+    / org.freedesktop.DBus.ReloadConfig
+```
+
+A syntax error makes dbus-daemon keep the previous configuration and log the problem
+(`journalctl -u dbus`). The file was tested with dbus-daemon 1.16.2. Hosts that run
+dbus-broker instead were not tested.
+
+### Verify
+
+Run these on the host while the container is running:
+
+```bash
+C=$(docker compose ps -q airthings2mqtt)
+
+# 1. A write is refused. The deliberately wrong value type means that, without the
+#    policy, BlueZ rejects it with InvalidSignature and the adapter stays on.
+docker exec "$C" dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 \
+    org.freedesktop.DBus.Properties.Set \
+    string:org.bluez.Adapter1 string:Powered variant:string:probe
+# expect: Error org.freedesktop.DBus.Error.AccessDenied
+
+# 2. Reads still work.
+docker exec "$C" dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 \
+    org.freedesktop.DBus.Properties.Get string:org.bluez.Adapter1 string:Powered
+# expect: variant boolean true
+
+# 3. Scanning still works.
+docker exec "$C" timeout 20 bluetoothctl --timeout 15 scan on
+# expect: [NEW] Device lines
+```
+
+Then wait for the next poll, or trigger one with
+`mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n`, and check that a new
+reading arrives on `airthings2mqtt/airthings/state`. If step 1 still prints
+`InvalidSignature`, the policy is not active: check the file path, the reload, and that
+the container runs as UID 10001 (`docker exec "$C" id -u`).
+
+### What It Blocks and What It Does Not
+
+dbus-daemon applies the default policy first, then group policies, then user policies,
+then `mandatory` ones. A later rule wins, so this user rule overrides the allow in
+`bluetooth.conf` and in any `group=` policy. A distribution policy with
+`context="mandatory"` that allows BlueZ writes would override it. Debian ships none;
+check with `grep -rl mandatory /etc/dbus-1 /usr/share/dbus-1`.
+
+For UID 10001 it blocks **every** BlueZ property write, not only `Powered`:
+
+- `Adapter1`: `Powered`, `Discoverable`, `DiscoverableTimeout`, `Pairable`,
+  `PairableTimeout`, `Alias`
+- `Device1`: `Trusted`, `Blocked`, `Alias`, `WakeAllowed`
+- any other BlueZ object's writable properties
+
+The app needs none of these. Anything else you run as UID 10001 loses them too, which
+is a reason to keep that UID for this app alone.
+
+It does **not** block BlueZ methods, which are separate D-Bus calls. UID 10001 can
+still call `Device1.Connect`, `Disconnect`, `Pair`, `Adapter1.RemoveDevice`,
+`StartDiscovery` and GATT `WriteValue`. Nor does it touch the kernel Bluetooth
+management socket, which the
+[capabilities section](#capabilities-and-no-new-privileges) covers. Other accounts on
+the host, including your login and root, are unaffected.
+
+The policy targets the UID, not the container. A 0.2.x image runs as UID 1000 and is
+not covered.
+
+### Remove
+
+```bash
+sudo rm /etc/dbus-1/system.d/airthings2mqtt-bluez.conf
+sudo systemctl reload dbus
+```
