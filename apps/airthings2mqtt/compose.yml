@@ -33,6 +33,9 @@ services:
     # Same probe as the image HEALTHCHECK. Docker only reports "unhealthy"; it
     # never restarts on it. Append `--fail-on stale --fail-on error` to the test to
     # also flag a failing read (a bare `--fail-on error` would drop `stale`).
+    # Needs image 0.3.0 or later. Older images have no `health` command and start
+    # a second app instance with the same MQTT client ID instead. See
+    # docs/host-setup.md.
     healthcheck:
       test: ['CMD', 'airthings2mqtt', 'health']
       interval: 60s
