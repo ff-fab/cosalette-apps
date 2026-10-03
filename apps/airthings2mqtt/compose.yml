@@ -29,6 +29,15 @@ services:
       - /var/run/dbus:/var/run/dbus:ro
     depends_on:
       - mosquitto
+    # Same probe as the image HEALTHCHECK. Docker only reports "unhealthy"; it
+    # never restarts on it. Append `--fail-on stale --fail-on error` to the test to
+    # also flag a failing read (a bare `--fail-on error` would drop `stale`).
+    healthcheck:
+      test: ['CMD', 'airthings2mqtt', 'health']
+      interval: 60s
+      timeout: 10s
+      start_period: 180s
+      retries: 3
 
   # --- Multi-device example (uncomment and duplicate as needed) ---
   # airthings2mqtt-bedroom:

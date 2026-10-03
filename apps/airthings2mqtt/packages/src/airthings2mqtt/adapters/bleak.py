@@ -107,7 +107,7 @@ _MAC_IN_TEXT = re.compile(
 """A MAC inside free text: colon, dash, or BlueZ object-path underscore form."""
 
 
-def _redact_macs_in(text: str) -> str:
+def redact_macs_in(text: str) -> str:
     """Replace every MAC in *text* with ``**:EE:FF`` (its last two octets).
 
     bleak and BlueZ embed the full address in exception text (``Device with
@@ -308,7 +308,7 @@ class BleakAirthingsReader:
         except Exception as exc:
             # struct.error from a malformed frame is unmapped → BleReadError.
             error = map_exception(exc, _BLEAK_ERROR_MAP)
-            message = _redact_macs_in(str(exc))
+            message = redact_macs_in(str(exc))
             if message == str(exc):
                 raise error(message) from exc
             # The cause's own text (logged with the traceback) carries the full

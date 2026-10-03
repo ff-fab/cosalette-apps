@@ -248,7 +248,7 @@ class TestRedactMac:
 
 @pytest.mark.unit
 class TestRedactMacsInText:
-    """Verify _redact_macs_in strips full MACs from free-form exception text.
+    """Verify redact_macs_in strips full MACs from free-form exception text.
 
     Technique: Equivalence Partitioning — colon, dash, BlueZ object-path
     underscore form, several MACs, and text without a MAC.
@@ -273,9 +273,9 @@ class TestRedactMacsInText:
     )
     def test_redacts_every_mac(self, text: str, expected: str | None) -> None:
         """Every MAC keeps only its last two octets; other text is unchanged."""
-        from airthings2mqtt.adapters.bleak import _redact_macs_in
+        from airthings2mqtt.adapters.bleak import redact_macs_in
 
-        assert _redact_macs_in(text) == (text if expected is None else expected)
+        assert redact_macs_in(text) == (text if expected is None else expected)
 
 
 @pytest.mark.unit

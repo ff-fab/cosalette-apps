@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
+from pathlib import Path
 
 import cosalette
 import pytest
@@ -323,10 +325,16 @@ class TestTelemetryRetryConfig:
         reg = _telemetry_registration()
         assert TimeoutError in reg.retry_on
 
-    def test_unavailable_on_matches_retry_on(self) -> None:
-        """Transport failures mark the device unavailable after retry exhaustion."""
+    def test_unavailable_on_adds_read_error_to_retry_on(self) -> None:
+        """Every terminal failure marks the device offline, retried or not.
+
+        Technique: Specification-based — a persistent non-retryable
+        BleReadError must not leave a stale reading looking online.
+        """
+        from airthings2mqtt.errors import BleReadError
+
         reg = _telemetry_registration()
-        assert reg.unavailable_on == reg.retry_on
+        assert reg.unavailable_on == (*reg.retry_on, BleReadError)
 
     def test_timeout_configured_from_poll_timeout_setting(self) -> None:
         """Telemetry timeout= resolves via setting_ref("poll_timeout").
@@ -374,6 +382,49 @@ class TestAppRestartConfig:
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         assert BleakAirthingsReader.restartable is False
+
+
+@pytest.mark.unit
+class TestLogRedaction:
+    """Verify the app scrubs sensor MACs from everything it logs (ADR-085)."""
+
+    def test_app_redacts_mac_addresses(self) -> None:
+        """App(redact=) masks a BlueZ object-path MAC down to its last octets.
+
+        Technique: Specification-based — bleak/BlueZ log records embed the
+        address outside the adapter's own error-text redaction.
+        """
+        from airthings2mqtt.main import app
+
+        assert app._redactor is not None
+        assert app._redactor("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF") == (
+            "/org/bluez/hci0/dev_**:EE:FF"
+        )
+
+
+@pytest.mark.unit
+class TestHealthProbeEntryPoint:
+    """Verify the console entry point exposes the container probe (ADR-083)."""
+
+    def test_health_subcommand_fails_on_missing_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """``airthings2mqtt health`` runs the probe instead of starting the app.
+
+        Technique: Specification-based — the Dockerfile HEALTHCHECK calls this
+        subcommand; a missing health file must exit 1 (unhealthy).
+        """
+        from airthings2mqtt.main import main
+
+        missing = tmp_path / "health.json"
+        monkeypatch.setattr(
+            sys, "argv", ["airthings2mqtt", "health", "--file", str(missing)]
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 1
 
 
 @pytest.mark.unit

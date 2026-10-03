@@ -17,10 +17,12 @@ from airthings2mqtt import __version__
 from airthings2mqtt.adapters.bleak import (
     SCAN_TIMEOUT_SECONDS,
     BleakAirthingsReader,
+    redact_macs_in,
 )
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import (
     BleConnectionError,
+    BleReadError,
     BleTimeoutError,
     error_type_map,
 )
@@ -47,7 +49,20 @@ app = cosalette.App(
         AirthingsReaderPort: (_make_reader, FakeAirthingsReader),
     },
     error_type_map=error_type_map,
+    # bleak/BlueZ log records embed the full sensor MAC; scrub them like the
+    # adapter already scrubs error text (cosalette ADR-085).
+    redact=redact_macs_in,
 )
+
+RETRY_ON = (BleConnectionError, BleTimeoutError, TimeoutError)
+"""Transport failures worth retrying within one poll."""
+
+UNAVAILABLE_ON = (*RETRY_ON, BleReadError)
+"""Terminal poll failures that mark the sensor offline.
+
+A persistent ``BleReadError`` (missing characteristic, undecodable frame) is
+not retried, but it leaves consumers without a fresh reading all the same.
+"""
 
 # ADR-004: runtime HA discovery
 app.discovery()
@@ -119,8 +134,10 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     # (settings unavailable) it falls back to the field default.
     min_interval=_resolve_trigger_min_interval(app),
     retry=3,
-    retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
-    unavailable_on=(BleConnectionError, BleTimeoutError, TimeoutError),
+    retry_on=RETRY_ON,
+    unavailable_on=UNAVAILABLE_ON,
+    # stale_after stays derived (ADR-080): 2 x poll_interval + 4 x poll_timeout
+    # + 3 x 72 s backoff = 3696 s (~62 min) with the defaults.
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )
@@ -145,5 +162,10 @@ async def _telemetry(
 
 
 def main() -> None:
-    """Start the application."""
-    app.run()
+    """Start the application, or run a CLI subcommand such as ``health``.
+
+    ``cli()`` rather than ``run()``: the container HEALTHCHECK calls
+    ``airthings2mqtt health`` (cosalette ADR-083), and the cosalette flags
+    (``--dry-run``, ``--env-file``, ``--version``) come with it.
+    """
+    app.cli()

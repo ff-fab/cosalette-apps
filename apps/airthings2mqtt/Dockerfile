@@ -47,4 +47,11 @@ USER appuser
 
 VOLUME /app/data
 
+# Liveness probe (cosalette ADR-083): the app rewrites this file every heartbeat;
+# `airthings2mqtt health` fails when it is too old (stalled event loop) or a
+# device is stale (no fresh reading within the derived stale_after window).
+ENV COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json
+HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 \
+    CMD ["airthings2mqtt", "health"]
+
 ENTRYPOINT ["airthings2mqtt"]
