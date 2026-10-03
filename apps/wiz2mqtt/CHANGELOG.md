@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.11](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.10...wiz2mqtt-v0.2.11) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** upgrade apps to cosalette 0.11.0 ([#319](https://github.com/ff-fab/cosalette-apps/issues/319)) ([2c35f5d](https://github.com/ff-fab/cosalette-apps/commit/2c35f5dc366abeae84f6ed9f2d11e27755ab4be3))
+
 ## [0.2.10](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.9...wiz2mqtt-v0.2.10) (2026-10-02)
 
 
