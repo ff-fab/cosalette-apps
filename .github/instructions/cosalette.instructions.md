@@ -417,14 +417,27 @@ See `cosalette ai help contracts`.
 ## Transport Availability Signaling
 
 `@app.telemetry` and `@app.device` publish availability **automatically** (ADR-077):
-retained `"offline"` once a handler's retries are exhausted, `"online"` on the next
-successful poll. No parameter needed.
+retained `"offline"` once a poll fails for good (retries exhausted, or none apply —
+`retry=0` or an error outside `retry_on`), `"online"` on the next successful poll. No
+parameter needed.
 
 ```python
 @app.telemetry("radon", interval=300, retry=2)
 async def read_radon(ctx: cosalette.DeviceContext) -> dict[str, float]:
     return await ctx.adapter(SensorPort).read()  # retries exhausted → "offline"
 ```
+
+A freshness watchdog (ADR-080) also marks a named telemetry entity `"offline"` when it has
+had no fresh cycle (a successful poll, even one a `PublishStrategy` suppressed) for
+`stale_after` seconds — catching dead tasks, hung polls and errors outside
+`unavailable_on`. The default is derived (`2×period + timeout×(retry+1) + allowance×retry`,
+allowance = the backoff's `max_delay` including jitter, at least 60 s);
+root entities are excluded; `stale_after=None` opts out. The heartbeat reports `"stale"`
+plus `last_success_at` and `consecutive_failures` per telemetry entry, and `last_error`
+and `failing_since` while it fails. A persisting same-type error is republished as a
+reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) with
+`details.count`/`details.first_seen`; tune with `App(error_reminder_interval=)`,
+`None` = onset and recovery only (ADR-082).
 
 `unavailable_on` **narrows** the trigger; `None` disables it. `@app.command` keeps its
 opt-in `None` default, because a command runs on demand and a failed command says nothing
@@ -442,15 +455,36 @@ async def handle_sensor(ctx: cosalette.DeviceContext) -> dict[str, object]:
     return {"value": await ssh.read()}  # exception → "offline" published + suppressed
 ```
 
-Root entities (`name=None`) are excluded from the automatic default and must pass an
+Root telemetry/device/command entities (`name=None`) are excluded from the automatic default and must pass an
 explicit `unavailable_on` — they publish to the flat `{app}/availability`, so one failed
 read would declare the whole app unavailable.
 
 Or call `ctx.mark_unavailable()` inside the handler body for conditional unavailability.
 Auto-recovery: the framework publishes `"online"` after the next successful invocation.
+For streams, manual marks require `ctx.mark_available()`; yielded items clear only
+crash and freshness marks.
 Topic: `{app}/{device}/availability`, values `"online"` / `"offline"` (retained, QoS 1).
 Availability carries no error text — *why* it failed stays in `{app}/status` and on the
 error topic.
+
+Named `@app.stream` / `@router.stream` handlers own retained
+`{app}/{stream}/availability` (ADR-081 amendment). Crashes mark them offline under
+`supervisor`; the first yielded item after restart clears that source. Declare
+`stale_after=120` (or a `(Settings) -> float` callable) to go stale/offline after no
+yield for that bound, recovering on the next yield. The default `None` disables
+freshness; streams never derive a bound. `feeds=["radon"]` holds named device or
+telemetry targets offline under `stream:{name}` while any source holds the stream
+offline; targets' own sources remain independent. Unknown or root targets fail at
+bootstrap. `App.add_stream` accepts the same health options.
+For Router inclusion, `feeds=` targets matching router-local device/telemetry
+names receive the combined router/include prefix. Unmatched names reference
+app-global entities; router-local matches take precedence when both exist.
+
+Root streams (`@app.stream()`) are heartbeat-only: they never publish availability
+or touch `{app}/availability`, and cannot declare `feeds=`. Their explicit
+`stale_after=` still affects the heartbeat, health file and `exit_after_stale=`.
+`restart_on_stale` does not restart stream adapters. Streams remain outside Home
+Assistant discovery.
 
 Both consumer targets wire availability automatically: Home Assistant gets dual-topic
 `availability_mode: "all"` (ADR-058); openHAB gets a single-topic `availabilityTopic` on
@@ -463,6 +497,8 @@ ghost entities). Works by default — no `store=` wiring needed. Pass `store=Non
 opt out of persistence entirely. Use `retained_cleanup=False` to opt out of only the
 ADR-048 cleanup (keeping persistence for `persist=`), vs `store=None` which drops
 persistence too. See ADR-048, `cosalette ai help persistence`.
+Named streams participate with availability only; their state topics are not in
+the cleanup snapshot. Root streams are excluded.
 
 MQTT 5 retained expiry is opt-in with `MQTT__PROTOCOL_VERSION=5`. Its retained-message
 ledger is bounded to 1,000 topics and 16 MiB of UTF-8 topic and payload data; a retained publish
@@ -501,6 +537,16 @@ their registry snapshot entries additionally carry fields AsyncAPI does not (max
 dependencies). Contract metadata also surfaces in the **registry snapshot** —
 `build_registry_snapshot()` / `format_registry_table()` and the `cosalette_inspect_app` MCP tool,
 which gained `streams` and `periodic` sections in 0.6.0.
+
+**Availability channels (ADR-086, contract version `"2"`).** The generated document has one
+retained availability channel per entity that owns one: each named device, telemetry, command
+and named stream gets `{name}Availability` on `{prefix}/{name}/availability` (online/offline);
+a root entity adds one flat `availability` channel on `{prefix}/availability`. Root streams get
+none, and `ctx.sub_entity()` topics are not in the schema. These channels carry
+`x-cosalette-framework: "availability"` and `x-cosalette-discoverable: false` with no
+`x-cosalette-archetype`, so HA/openHAB discovery, `schema acl` and the `manifest --table` rows
+are unchanged. Regenerate committed schema artefacts after upgrading; code that walks every
+channel should skip the ones with `x-cosalette-framework`.
 
 See `cosalette ai help manifest`, `cosalette ai help contracts`.
 
@@ -628,9 +674,9 @@ async def diagnostics() -> dict:
 
 It is then excluded from `schema ha-discovery`/`openhab` and does not trip the
 per-channel discovery gate; `x-cosalette-discoverable: false` is emitted on the
-generated channel only when set, so default documents stay byte-identical. The
-gate is evaluated per channel: every consumer-visible channel that emits nothing
-is reported by name. A top-level array-of-objects property (`events: list[Event]`)
+generated channel only when set (framework availability channels always carry
+it, ADR-086). The gate is evaluated per channel: every consumer-visible channel
+that emits nothing is reported by name. A top-level array-of-objects property (`events: list[Event]`)
 emits no entity — it has no single value. Give it one with
 `consumer(aggregate="count")` (ADR-076): one declaration renders in both targets
 (`JSONPATH:$.events.length()` for openHAB, `{{ value_json.events | length }}` for
