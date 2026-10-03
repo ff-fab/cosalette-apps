@@ -2,7 +2,7 @@
 
 | Field   | Value                                                         |
 | ------- | ------------------------------------------------------------- |
-| Status  | Decided 2026-10-02                                            |
+| Status  | Decided 2026-10-02, recorded as airthings2mqtt ADR-003        |
 | Trigger | Before any airthings2mqtt adapter-restart or D-Bus write work |
 | Gate    | beads `cap-oxdp.7` (epic `cap-oxdp`)                          |
 
@@ -38,8 +38,9 @@ did not help. Two app-side gaps remain after the error classification fix (`cap-
 
 ## Resolution
 
-**Decided 2026-10-02 (gate `cap-oxdp.7` closed).** airthings2mqtt must not change the
-Bluetooth adapter's power state. Option B is rejected. Inside the app, recovery is
+**Decided 2026-10-02 (gate `cap-oxdp.7` closed).** Recorded as
+[airthings2mqtt ADR-003](../../apps/airthings2mqtt/docs/adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md).
+airthings2mqtt must not change the Bluetooth adapter's power state. Option B is rejected. Inside the app, recovery is
 reconnect and backoff only: retry, then mark the entity `offline`. Recovering the
 adapter is the job of the host and the operator. Option C stays acceptable only if it
 restarts the app's adapter object and never the radio itself.
@@ -57,6 +58,6 @@ Follow-ups:
 
 - `cap-oxdp.10`: remove the dead restart knobs and declare the adapter `restartable = False`.
 - `cap-oxdp.11`: an operator runbook for host-side adapter recovery.
-- `cap-oxdp.12`: record this decision as an app ADR.
+- `cap-oxdp.12`: record this decision as an app ADR (done: ADR-003).
 - `cap-oxdp.13`: verify host D-Bus authorization for the deployed non-root
   identity and document whether adapter power changes are denied.
