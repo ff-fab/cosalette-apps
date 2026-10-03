@@ -48,7 +48,7 @@ from typing import Any
 import pytest
 import yaml
 
-from ha_discovery import run_ha_discovery
+from ha_discovery import app_channels, run_ha_discovery
 
 # packages/tests/integration/<file> → app root is parents[3]
 SCHEMA_PATH = Path(__file__).resolve().parents[3] / "docs" / "schema.yaml"
@@ -68,7 +68,7 @@ def ha_discovery_run() -> subprocess.CompletedProcess[str]:
 def schema_channels() -> dict[str, Any]:
     """Parse the committed schema and return its channels mapping."""
     document = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
-    channels: dict[str, Any] = document["channels"]
+    channels: dict[str, Any] = app_channels(document)
     return channels
 
 

@@ -89,3 +89,19 @@ def configs_by_object_id(
     dupes = [x for x, count in Counter(object_ids).items() if count > 1]
     assert not dupes, f"Duplicate object_ids emitted: {dupes}"
     return {p["config"]["object_id"]: p["config"] for p in payloads}
+
+
+def app_channels(document: dict[str, Any]) -> dict[str, Any]:
+    """Return the schema's app-declared channels, without framework channels.
+
+    cosalette 0.11 (ADR-086, contract version ``"2"``) adds one retained
+    ``*Availability`` channel per entity. These carry
+    ``x-cosalette-framework: availability`` and are always
+    ``x-cosalette-discoverable: false``. They are framework plumbing, not app
+    opt-outs, so per-app channel and opt-out golden sets leave them out.
+    """
+    return {
+        name: channel
+        for name, channel in document["channels"].items()
+        if "x-cosalette-framework" not in channel
+    }
