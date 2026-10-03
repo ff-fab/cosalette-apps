@@ -28,24 +28,35 @@ did not help. Two app-side gaps remain after the error classification fix (`cap-
 | B. Opt-in reset: toggle `org.bluez.Adapter1.Powered` after N device-not-found errors with zero advertisers | Cheap first escalation the process can do by itself      | Did not help in the incident; disturbs other BLE users on the host; needs a D-Bus policy that allows the write from a non-root UID |
 | C. Wait for cosalette data-driven restarts (stale entity triggers the restart path)                          | One mechanism for all apps; no app-specific D-Bus writes | Blocked on an upstream release                                                                                                  |
 
-## Open questions (moot after the resolution below)
+## Open questions
 
-- Can the container's D-Bus policy write `Adapter1.Powered` with the read-only system bus
-  socket mount and a non-root UID (proposal open question 3)?
-- Does option B need the advertiser count from the pre-connect scan (`cap-oxdp.5`) to
-  avoid power-cycling an adapter that works and a sensor that has a flat battery?
+- Does the deployment's host D-Bus policy deny `Adapter1.Powered` writes from the
+  container's non-root identity (proposal open question 3)? This capability question
+  remains open and is tracked in `cap-oxdp.13`.
+- The advertiser-count prerequisite for option B (`cap-oxdp.5`) is no longer needed
+  for this decision, because app-driven power cycling is rejected.
 
 ## Resolution
 
-**Decided 2026-10-02 (gate `cap-oxdp.7` closed).** A non-root user shall not be able to
-power-cycle the Bluetooth adapter, and airthings2mqtt is not designed to do so. Option B
-is rejected. Inside the app, recovery is reconnect and backoff only: retry, then mark
-the entity `offline`. Recovering the adapter is the job of the host and the operator.
-Option C stays acceptable only if it restarts the app's adapter object and never the
-radio itself.
+**Decided 2026-10-02 (gate `cap-oxdp.7` closed).** airthings2mqtt must not change the
+Bluetooth adapter's power state. Option B is rejected. Inside the app, recovery is
+reconnect and backoff only: retry, then mark the entity `offline`. Recovering the
+adapter is the job of the host and the operator. Option C stays acceptable only if it
+restarts the app's adapter object and never the radio itself.
+
+The desired deployment policy is to deny adapter power changes from the container's
+non-root identity. The shipped app invariant is that it does not request those changes;
+the deployment does not yet provide a tested authorization guarantee. A read-only
+system bus socket mount (`:ro`) protects the mounted filesystem path but does not
+prevent clients from sending D-Bus method calls or property writes through the socket.
+A non-root UID alone does not prove that `Adapter1.Powered` writes are denied: host
+D-Bus authorization policy controls access to those operations. Verify that policy
+before claiming that the container cannot power-cycle the adapter.
 
 Follow-ups:
 
 - `cap-oxdp.10`: remove the dead restart knobs and declare the adapter `restartable = False`.
 - `cap-oxdp.11`: an operator runbook for host-side adapter recovery.
 - `cap-oxdp.12`: record this decision as an app ADR.
+- `cap-oxdp.13`: verify host D-Bus authorization for the deployed non-root
+  identity and document whether adapter power changes are denied.
