@@ -48,9 +48,8 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         image: ghcr.io/ff-fab/airthings2mqtt:latest
         restart: unless-stopped
         network_mode: host
-        cap_add:
-          - NET_ADMIN
-          - SYS_ADMIN
+        security_opt:
+          - no-new-privileges:true
         env_file: .env
         environment:
           AIRTHINGS2MQTT_MQTT__HOST: localhost
@@ -75,6 +74,16 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
       airthings2mqtt-data:
       mosquitto-data:
       mosquitto-log:
+    ```
+
+    Create the host account for the container user (UID 10001). Without it the host's
+    D-Bus refuses the container and no reading arrives. The details, and the steps for
+    upgrading from 0.2.x, are in [Host Setup](host-setup.md):
+
+    ```bash
+    sudo groupadd --system --gid 10001 airthings2mqtt
+    sudo useradd --system --uid 10001 --gid 10001 --no-create-home \
+        --shell /usr/sbin/nologin airthings2mqtt
     ```
 
     Then download the Mosquitto config and create your env file:
@@ -106,12 +115,14 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
 
     !!! warning "BlueZ and D-Bus access"
         BLE communication requires access to the host Bluetooth stack via D-Bus.
-        The compose file mounts `/var/run/dbus` and adds `NET_ADMIN` / `SYS_ADMIN`
-        capabilities for BlueZ access. `network_mode: host` avoids additional network
-        configuration.
+        The compose file mounts `/var/run/dbus` for BlueZ access and needs no added
+        capabilities. `security_opt: no-new-privileges` stops the container from
+        gaining any. `network_mode: host` avoids additional network configuration.
+        See [Host Setup](host-setup.md#capabilities-and-no-new-privileges).
 
         The app health check only reads BlueZ's `Adapter1.Powered` property over
-        D-Bus, with a bounded timeout. It reports unhealthy when D-Bus is unavailable,
+        D-Bus, with a bounded timeout, every 30 seconds. It reuses one system-bus
+        connection and reconnects after a bus error or a `dbus` restart. It reports unhealthy when D-Bus is unavailable,
         no Bluetooth adapter is present, or the adapter is powered off. The check does
         not scan for or connect to the configured Airthings sensor; terminal BLE read
         retry failures are reported separately on the device availability topic.
@@ -120,7 +131,20 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         it recovers by retrying on the next poll, and recovering the adapter is the
         host's job ([ADR-003](adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md)).
         The `:ro` socket mount and non-root user do not by themselves stop D-Bus
-        writes; only the host's D-Bus/BlueZ policy does.
+        writes; only the host's D-Bus/BlueZ policy does. An opt-in policy that
+        enforces this is in
+        [Host Setup](host-setup.md#optional-deny-bluez-property-writes).
+
+    !!! info "Container health check"
+        The image ships a `HEALTHCHECK` that runs `airthings2mqtt health` every
+        60 seconds. The container turns `unhealthy` when the app stops writing its
+        health file or no reading has succeeded for about an hour. Docker only reports
+        this; `restart: unless-stopped` does not act on it. See
+        [Troubleshooting](troubleshooting.md#container-health-check).
+
+        The `healthcheck` block in `compose.yml` needs image 0.3.0 or later. Do not
+        add it to a deployment pinned to an older tag: see
+        [Host Setup](host-setup.md#health-check-needs-030-or-later).
 
 === "Manual (pip/uv)"
 
@@ -199,10 +223,14 @@ mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
       `bluetoothctl show` should list your controller
     - Check the sensor is in range:
       `bluetoothctl scan on` should show your Airthings device
+    - Still stuck? Work through [Troubleshooting](troubleshooting.md)
 
 ---
 
 ## Next Steps
 
+- [Host Setup](host-setup.md) --- the container user's host account and optional
+  hardening
 - [Configure](configuration.md) MQTT connection, polling intervals, and logging
 - [MQTT Topics](mqtt-topics.md) --- full topic reference with payload schemas
+- [Troubleshooting](troubleshooting.md) --- an offline sensor and the operator runbook

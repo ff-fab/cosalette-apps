@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import weakref
+from dataclasses import replace
 
 import cosalette
 from cosalette import setting_ref
@@ -17,10 +18,12 @@ from airthings2mqtt import __version__
 from airthings2mqtt.adapters.bleak import (
     SCAN_TIMEOUT_SECONDS,
     BleakAirthingsReader,
+    redact_macs_in,
 )
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import (
     BleConnectionError,
+    BleReadError,
     BleTimeoutError,
     error_type_map,
 )
@@ -47,7 +50,20 @@ app = cosalette.App(
         AirthingsReaderPort: (_make_reader, FakeAirthingsReader),
     },
     error_type_map=error_type_map,
+    # bleak/BlueZ log records embed the full sensor MAC; scrub them like the
+    # adapter already scrubs error text (cosalette ADR-085).
+    redact=redact_macs_in,
 )
+
+RETRY_ON = (BleConnectionError, BleTimeoutError, TimeoutError)
+"""Transport failures worth retrying within one poll."""
+
+UNAVAILABLE_ON = (*RETRY_ON, BleReadError)
+"""Terminal poll failures that mark the sensor offline.
+
+A persistent ``BleReadError`` (missing characteristic, undecodable frame) is
+not retried, but it leaves consumers without a fresh reading all the same.
+"""
 
 # ADR-004: runtime HA discovery
 app.discovery()
@@ -90,23 +106,23 @@ cadence. Deployments override it via ``AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL``.
 """
 
 
-def _resolve_trigger_min_interval(app: cosalette.App) -> float:
-    """Read the configured throttle, or the default when settings are absent.
+def _configure_trigger_min_interval(settings: Airthings2MqttSettings) -> None:
+    """Apply the final CLI-loaded throttle before cosalette builds trigger slots.
 
-    ``min_interval=`` takes a concrete ``float`` without ``setting_ref``
-    support, so the value is read from the
-    eagerly-built ``app.settings`` at registration time. ``app.settings``
-    raises when required fields (``device_mac``) are unset — as under
-    ``--help``, tests, or schema generation — so fall back to the field default
-    to keep the module importable in those contexts.
+    The CLI resolves ``--env-file`` and ``--config-file`` settings after module
+    import. ``on_configure`` runs with those settings before trigger slots are
+    built, so update the frozen registration at that point.
     """
-    try:
-        settings = app.settings
-    except RuntimeError:
-        return _TRIGGER_MIN_INTERVAL_SECONDS
-    if isinstance(settings, Airthings2MqttSettings):
-        return settings.trigger_min_interval
-    return _TRIGGER_MIN_INTERVAL_SECONDS
+    for index, registration in enumerate(app._telemetry):
+        if registration.func is _telemetry:
+            app._telemetry[index] = replace(
+                registration, min_interval=settings.trigger_min_interval
+            )
+            return
+    raise RuntimeError("Airthings telemetry registration was not found")
+
+
+app.on_configure(_configure_trigger_min_interval)
 
 
 @app.telemetry(
@@ -114,13 +130,14 @@ def _resolve_trigger_min_interval(app: cosalette.App) -> float:
     interval=setting_ref("poll_interval"),
     timeout=setting_ref("poll_timeout"),
     triggerable=True,
-    # Resolved at import time. App.__init__ eagerly builds settings, so a
-    # configured deployment gets its override here; under --help/tests/schema-gen
-    # (settings unavailable) it falls back to the field default.
-    min_interval=_resolve_trigger_min_interval(app),
+    # Replaced by _configure_trigger_min_interval after CLI settings load and
+    # before cosalette builds trigger slots.
+    min_interval=_TRIGGER_MIN_INTERVAL_SECONDS,
     retry=3,
-    retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
-    unavailable_on=(BleConnectionError, BleTimeoutError, TimeoutError),
+    retry_on=RETRY_ON,
+    unavailable_on=UNAVAILABLE_ON,
+    # stale_after stays derived (ADR-080): 2 x poll_interval + 4 x poll_timeout
+    # + 3 x 72 s backoff = 3696 s (~62 min) with the defaults.
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
 )
@@ -145,5 +162,10 @@ async def _telemetry(
 
 
 def main() -> None:
-    """Start the application."""
-    app.run()
+    """Start the application, or run a CLI subcommand such as ``health``.
+
+    ``cli()`` rather than ``run()``: the container HEALTHCHECK calls
+    ``airthings2mqtt health`` (cosalette ADR-083), and the cosalette flags
+    (``--dry-run``, ``--env-file``, ``--version``) come with it.
+    """
+    app.cli()

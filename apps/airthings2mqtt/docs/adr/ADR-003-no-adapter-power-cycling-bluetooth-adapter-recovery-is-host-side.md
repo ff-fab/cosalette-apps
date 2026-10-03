@@ -9,7 +9,7 @@ tags: [health, lifecycle, devices, security]
 
 ## Status
 
-Accepted **Date:** 2026-10-02
+Accepted **Date:** 2026-10-02 | Amended **Date:** 2026-10-03
 
 ## Context
 
@@ -93,4 +93,34 @@ _Scale: 1 (poor) to 5 (excellent)_
 - A wedged adapter keeps the entity `offline` until the host or operator recovers it.
 - Whether the host actually denies Powered writes from the container identity stays unverified until `cap-oxdp.13`.
 
-_2026-10-02_
+## Amendment (2026-10-03) — Additive
+
+**Rationale:** Host verification (`cap-oxdp.13`) answered the open question. On two Debian 13 hosts (BlueZ 5.82, dbus-daemon 1.16.2) the stock `bluetooth.conf` lets every local account call `org.freedesktop.DBus.Properties.Set` on `org.bluez`. From inside the container, a deliberately wrong-typed `Adapter1.Powered` write reached BlueZ and was rejected only with `InvalidSignature`, not `AccessDenied`. A correctly typed write would have been applied. The container had no effective capabilities (`CapEff` 0) despite `cap_add: [NET_ADMIN, SYS_ADMIN]`. The application invariant holds, but nothing on the host enforces it.
+
+### Additional Sub-Decision: Enforcement: dedicated UID plus an opt-in host D-Bus policy
+
+The image runs as a dedicated UID/GID 10001 instead of 1000. UID 1000 is usually the host's first login account, so a policy aimed at it would also restrict a person. The app ships `deploy/airthings2mqtt-bluez.conf` for `/etc/dbus-1/system.d/`. For `user="10001"` only, it denies `send_destination="org.bluez" send_interface="org.freedesktop.DBus.Properties" send_member="Set"`. dbus-daemon applies user policies after default and group policies, so the deny overrides the stock allow. Installing it is opt-in and documented in `docs/host-setup.md`.
+
+The app never sends `Properties.Set`. In bleak's BlueZ backend the only `Properties.Set` sets `Device1.Trusted` during pairing (`connect(pair=True)` or `pair()`), and the app does not pair. The policy therefore costs the app nothing. For UID 10001 it also blocks every other BlueZ property write (`Discoverable`, `Pairable`, `Alias`, `Device1.Trusted`). It does not block BlueZ methods such as `RemoveDevice`, `Connect` or `Pair`.
+
+Alternatives considered: keeping the rule code-only, which leaves the gap found on the hosts; a mandatory policy shipped with the image, which an image cannot install on the host; and aiming a policy at UID 1000, which would restrict the host's login user.
+
+### Additional Sub-Decision: No added capabilities and no-new-privileges
+
+The shipped `compose.yml` drops `cap_add: [NET_ADMIN, SYS_ADMIN]` and sets `security_opt: [no-new-privileges:true]`. BLE goes through BlueZ over D-Bus and needs no capability. The entries only widened the bounding set, from which a setuid or file-capability binary could have gained `CAP_NET_ADMIN`. That is enough to power the adapter off through the kernel management socket, bypassing any D-Bus policy.
+
+!!! note "Editorial note (2026-10-03)"
+    dbus-daemon refuses connections from a UID that has no account in the host's user database. The host therefore needs a system account for UID 10001, which makes the UID change a breaking change (0.3.0) together with a one-time `chown` of existing data.
+
+!!! note "Editorial note (2026-10-03)"
+    Re-verifying the shipped policy on the deployment hosts is tracked in beads (`cap-oxdp.13`).
+
+### Additional Positive Consequences
+
+- Operators who install the policy get a host-enforced guarantee that the app cannot change `Adapter1.Powered`, scoped to the app's UID alone.
+- The container runs with no capabilities and cannot gain any.
+
+### Additional Negative Consequences
+
+- Every host needs a system account for UID 10001, and existing data must be re-owned when upgrading from 0.2.x.
+- The policy is opt-in, so hosts without it still allow BlueZ property writes from the container identity.

@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import sys
+from pathlib import Path
 
 import cosalette
 import pytest
@@ -323,10 +325,16 @@ class TestTelemetryRetryConfig:
         reg = _telemetry_registration()
         assert TimeoutError in reg.retry_on
 
-    def test_unavailable_on_matches_retry_on(self) -> None:
-        """Transport failures mark the device unavailable after retry exhaustion."""
+    def test_unavailable_on_adds_read_error_to_retry_on(self) -> None:
+        """Every terminal failure marks the device offline, retried or not.
+
+        Technique: Specification-based — a persistent non-retryable
+        BleReadError must not leave a stale reading looking online.
+        """
+        from airthings2mqtt.errors import BleReadError
+
         reg = _telemetry_registration()
-        assert reg.unavailable_on == reg.retry_on
+        assert reg.unavailable_on == (*reg.retry_on, BleReadError)
 
     def test_timeout_configured_from_poll_timeout_setting(self) -> None:
         """Telemetry timeout= resolves via setting_ref("poll_timeout").
@@ -374,6 +382,49 @@ class TestAppRestartConfig:
         from airthings2mqtt.adapters.bleak import BleakAirthingsReader
 
         assert BleakAirthingsReader.restartable is False
+
+
+@pytest.mark.unit
+class TestLogRedaction:
+    """Verify the app scrubs sensor MACs from everything it logs (ADR-085)."""
+
+    def test_app_redacts_mac_addresses(self) -> None:
+        """App(redact=) masks a BlueZ object-path MAC down to its last octets.
+
+        Technique: Specification-based — bleak/BlueZ log records embed the
+        address outside the adapter's own error-text redaction.
+        """
+        from airthings2mqtt.main import app
+
+        assert app._redactor is not None
+        assert app._redactor("/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF") == (
+            "/org/bluez/hci0/dev_**:EE:FF"
+        )
+
+
+@pytest.mark.unit
+class TestHealthProbeEntryPoint:
+    """Verify the console entry point exposes the container probe (ADR-083)."""
+
+    def test_health_subcommand_fails_on_missing_file(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """``airthings2mqtt health`` runs the probe instead of starting the app.
+
+        Technique: Specification-based — the Dockerfile HEALTHCHECK calls this
+        subcommand; a missing health file must exit 1 (unhealthy).
+        """
+        from airthings2mqtt.main import main
+
+        missing = tmp_path / "health.json"
+        monkeypatch.setattr(
+            sys, "argv", ["airthings2mqtt", "health", "--file", str(missing)]
+        )
+
+        with pytest.raises(SystemExit) as exc_info:
+            main()
+
+        assert exc_info.value.code == 1
 
 
 @pytest.mark.unit
@@ -429,43 +480,36 @@ class TestTriggerThrottleRegistration:
         min_poll_interval = 60.0  # Airthings2MqttSettings.poll_interval ge=60
         assert min_poll_interval > _TRIGGER_MIN_INTERVAL_SECONDS
 
-    def test_resolver_reads_the_configured_override(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """A deployment override flows from settings into the throttle .
+    def test_config_file_override_updates_the_throttle(self, tmp_path: Path) -> None:
+        """A CLI-selected config file flows into the throttle before startup.
 
-        Technique: Specification-based — the whole point of the field is that a
-        non-default value reaches min_interval= at registration time.
+        Technique: Regression — CLI config is loaded after module import, so
+        registration-time settings would silently leave the default throttle.
         """
-        from airthings2mqtt.main import _resolve_trigger_min_interval
+        from airthings2mqtt.main import _configure_trigger_min_interval
         from airthings2mqtt.settings import Airthings2MqttSettings
 
-        monkeypatch.setenv("AIRTHINGS2MQTT_DEVICE_MAC", "AA:BB:CC:DD:EE:FF")
-        monkeypatch.setenv("AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL", "45")
-        configured_app = cosalette.App(
-            name="airthings2mqtt", settings_class=Airthings2MqttSettings
+        config_file = tmp_path / "settings.json"
+        config_file.write_text(
+            '{"device_mac":"AA:BB:CC:DD:EE:FF","trigger_min_interval":300}',
+            encoding="utf-8",
         )
+        settings = Airthings2MqttSettings(_config_file=config_file)
 
-        assert _resolve_trigger_min_interval(configured_app) == 45.0
+        _configure_trigger_min_interval(settings)
+        try:
+            assert self._registration().min_interval == 300.0
+        finally:
+            _configure_trigger_min_interval(
+                Airthings2MqttSettings(device_mac="AA:BB:CC:DD:EE:FF")
+            )
 
-    def test_resolver_falls_back_when_settings_unavailable(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Missing required fields fall back to the default, keeping import safe.
+    def test_registration_starts_with_the_default_throttle(self) -> None:
+        """The default remains available until CLI settings load.
 
-        Technique: Error Guessing — ``app.settings`` raises when ``device_mac``
-        is unset (``--help``, tests, schema generation); the resolver must not
-        propagate that at import time.
+        Technique: Specification-based — ``--help`` and schema generation may
+        import the module without resolving runtime settings.
         """
-        from airthings2mqtt.main import (
-            _TRIGGER_MIN_INTERVAL_SECONDS,
-            _resolve_trigger_min_interval,
-        )
-        from airthings2mqtt.settings import Airthings2MqttSettings
+        from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS
 
-        monkeypatch.delenv("AIRTHINGS2MQTT_DEVICE_MAC", raising=False)
-        bare_app = cosalette.App(
-            name="airthings2mqtt", settings_class=Airthings2MqttSettings
-        )
-
-        assert _resolve_trigger_min_interval(bare_app) == _TRIGGER_MIN_INTERVAL_SECONDS
+        assert self._registration().min_interval == _TRIGGER_MIN_INTERVAL_SECONDS

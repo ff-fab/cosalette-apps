@@ -8,9 +8,10 @@ services:
     # BLE requires access to the host Bluetooth stack via D-Bus.
     # network_mode: host is the simplest approach on a Raspberry Pi.
     network_mode: host
-    cap_add:
-      - NET_ADMIN
-      - SYS_ADMIN
+    # D-Bus needs no extra capabilities. The non-root user has none, and
+    # no-new-privileges stops it gaining any. See docs/host-setup.md.
+    security_opt:
+      - no-new-privileges:true
     env_file: .env
     environment:
       # With network_mode: host, use localhost (or the IP of your broker)
@@ -29,15 +30,27 @@ services:
       - /var/run/dbus:/var/run/dbus:ro
     depends_on:
       - mosquitto
+    # Same probe as the image HEALTHCHECK. Docker only reports "unhealthy"; it
+    # never restarts on it. Append `--fail-on stale --fail-on error` to the test to
+    # also flag a failing read (a bare `--fail-on error` would drop `stale`).
+    # Needs image 0.3.0 or later. Older images have no `health` command and start
+    # a second app instance instead (same client ID if MQTT__CLIENT_ID is set).
+    # See docs/host-setup.md. The probe imports the app, which takes several seconds
+    # on a Raspberry Pi, hence the 30s timeout.
+    healthcheck:
+      test: ['CMD', 'airthings2mqtt', 'health']
+      interval: 60s
+      timeout: 30s
+      start_period: 180s
+      retries: 3
 
   # --- Multi-device example (uncomment and duplicate as needed) ---
   # airthings2mqtt-bedroom:
   #   image: ghcr.io/ff-fab/airthings2mqtt:latest
   #   restart: unless-stopped
   #   network_mode: host
-  #   cap_add:
-  #     - NET_ADMIN
-  #     - SYS_ADMIN
+  #   security_opt:
+  #     - no-new-privileges:true
   #   env_file: .env
   #   environment:
   #     AIRTHINGS2MQTT_MQTT__HOST: localhost

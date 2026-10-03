@@ -16,9 +16,15 @@ from cosalette.testing import AppHarness, ManualClock
 from pydantic import Field
 from pydantic_settings import PydanticBaseSettingsSource
 
+from airthings2mqtt.adapters.bleak import redact_macs_in
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import BleConnectionError, BleTimeoutError, error_type_map
-from airthings2mqtt.main import _TRIGGER_MIN_INTERVAL_SECONDS, _telemetry
+from airthings2mqtt.errors import error_type_map
+from airthings2mqtt.main import (
+    _TRIGGER_MIN_INTERVAL_SECONDS,
+    RETRY_ON,
+    UNAVAILABLE_ON,
+    _telemetry,
+)
 from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -78,6 +84,7 @@ def build_integration_app(
         settings_class=Airthings2MqttSettings,
         adapters={AirthingsReaderPort: adapter},
         error_type_map=error_type_map,
+        redact=redact_macs_in,
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across
         # every test in the session and made CI flake (cap-9mud).
@@ -90,8 +97,8 @@ def build_integration_app(
         triggerable=True,
         min_interval=min_interval,
         retry=3,
-        retry_on=(BleConnectionError, BleTimeoutError, TimeoutError),
-        unavailable_on=(BleConnectionError, BleTimeoutError, TimeoutError),
+        retry_on=RETRY_ON,
+        unavailable_on=UNAVAILABLE_ON,
         state_model=AirthingsReading,
     )(_telemetry)
     return test_app

@@ -40,11 +40,25 @@ RUN uv export --frozen --no-dev --no-emit-workspace --package airthings2mqtt \
     && uv pip install --system --no-cache --no-deps ./apps/airthings2mqtt \
     && rm /tmp/requirements.txt
 
-# Prepare persistence directory and non-root user
-RUN adduser -D appuser \
-    && mkdir -p /app/data && chown appuser:appuser /app/data
-USER appuser
+# Prepare persistence directory and a dedicated non-root user. The fixed UID/GID
+# 10001 is deliberately not 1000 (usually the host login user), so a host D-Bus
+# policy can target this app alone. dbus-daemon refuses connections from a UID
+# without a host account, so the host needs a matching system user: see
+# docs/host-setup.md. Keep in sync with deploy/airthings2mqtt-bluez.conf.
+RUN addgroup -g 10001 appuser \
+    && adduser -D -H -u 10001 -G appuser appuser \
+    && mkdir -p /app/data && chown 10001:10001 /app/data
+USER 10001:10001
 
 VOLUME /app/data
+
+# Liveness probe (cosalette ADR-083): the app rewrites this file every heartbeat;
+# `airthings2mqtt health` fails when it is too old (stalled event loop) or a
+# device is stale (no fresh reading within the derived stale_after window).
+# The probe imports the app: ~4 s at 0.5 CPU on amd64 and several times that on a
+# Raspberry Pi, so the timeout leaves room. Keep in sync with compose.yml.
+ENV COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json
+HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=3 \
+    CMD ["airthings2mqtt", "health"]
 
 ENTRYPOINT ["airthings2mqtt"]

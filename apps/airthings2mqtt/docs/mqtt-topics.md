@@ -111,16 +111,23 @@ the configured retry budget. A later successful read publishes `"online"` again.
 Retryable failures are connection errors (including a sensor that is not found because
 it stopped advertising or is out of range, a BlueZ D-Bus error, or a powered-off
 adapter) and timeouts. A non-retryable `BleReadError` (a missing GATT characteristic or a
-malformed frame) publishes an error without retrying and does not immediately mark
-the sensor unreachable. Independently, cosalette 0.11 tracks successful telemetry
-cycles: repeated read failures or a stalled task eventually publish `"offline"`
-when the derived freshness window expires. The next successful cycle clears that
-freshness mark.
+malformed frame) is not retried — a re-read would fail the same way — but it publishes
+an error and marks the sensor `"offline"` straight away, because consumers are left
+without a fresh reading either way.
+
+Independently, a freshness watchdog tracks successful telemetry cycles and publishes
+`"offline"` when none has completed for `stale_after` seconds. That catches what the
+failure path cannot see, such as a stalled task or an unexpected handler error. The bound
+is derived from the settings: two poll intervals plus the worst-case retry budget
+(`2 × POLL_INTERVAL + 4 × POLL_TIMEOUT + 3 × 72 s`), which is 3696 s (about 62 minutes)
+with the defaults. The next successful cycle clears every mark.
 
 ```text
 "online"     # no availability source currently marks the entity offline
-"offline"    # retry exhaustion, stale telemetry, or a stopped task/app
+"offline"    # terminal read failure, stale telemetry, or a stopped task/app
 ```
+
+See [Troubleshooting](troubleshooting.md) for what to do when the sensor stays offline.
 
 This is the telemetry entity's availability, not a continuous Bluetooth adapter health
 check. For example, it does not promise that the adapter or sensor remains reachable
@@ -130,8 +137,8 @@ between polls.
 
     The last good reading stays retained on `airthings2mqtt/airthings/state`, and
     the framework freshness watchdog turns availability `"offline"` after the
-    derived window: two poll intervals plus the retry/timeout/backoff budget.
-    Repeated `BleReadError` failures and stalled telemetry therefore become stale
+    derived window: two poll intervals plus the retry/timeout/backoff budget
+    (about 62 minutes with the defaults). Stalled telemetry therefore becomes stale
     even while the health reporter runs. Arrival or publication age is not a reliable
     reading-age check: a broker can replay a retained payload on reconnect, and MQTT 5
     refreshes retained payloads unchanged every eight hours. Compare the payload's

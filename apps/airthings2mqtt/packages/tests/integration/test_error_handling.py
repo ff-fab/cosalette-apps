@@ -265,18 +265,19 @@ class TestErrorRecovery:
         )  # terminal failure + shutdown
 
     @pytest.mark.integration
-    async def test_non_retryable_read_error_publishes_error_but_remains_online(
+    async def test_non_retryable_read_error_marks_offline_without_retry(
         self,
         test_settings: Airthings2MqttSettings,
     ) -> None:
-        """A data/read failure is reported once without changing availability.
+        """A data/read failure is not retried but still marks the sensor offline.
 
-        ``BleReadError`` is deliberately outside the retry policy: it describes
-        unusable sensor data, not loss of transport. Cosalette therefore keeps
-        the device online; automatic offline is reserved for exhausted retries.
+        ``BleReadError`` is outside the retry policy — re-reading a missing
+        characteristic will not help — yet it leaves consumers without a fresh
+        reading, so it is in ``unavailable_on`` (cap-oxdp.8). The next
+        successful read restores ``"online"``.
 
-        Technique: Equivalence Partitioning — contrast a non-retryable data
-        failure with retryable transport failures that change availability.
+        Technique: Equivalence Partitioning — the non-retryable partition
+        reaches the same terminal offline state as exhausted retries.
         """
         reader = _FailuresThenRecoverReader(
             failures=1, error=BleReadError("malformed sensor frame")
@@ -284,14 +285,27 @@ class TestErrorRecovery:
         harness = make_harness(adapter=lambda: reader, settings=test_settings)
 
         task = asyncio.create_task(harness.run())
-        error_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/error"
         availability_topic = f"{TOPIC_PREFIX}/{DEVICE_NAME}/availability"
         try:
-            await harness.wait_for_publish_count(error_topic, 1)
+            await harness.wait_for_publish_count(availability_topic, 2)
             assert len(reader.calls) == 1, (
                 "BleReadError unexpectedly entered retry policy"
             )
-            assert harness.messages_for(availability_topic) == [("online", True, 1)]
+            assert harness.messages_for(availability_topic)[-1] == (
+                "offline",
+                True,
+                1,
+            )
+            harness.assert_published(
+                f"{TOPIC_PREFIX}/{DEVICE_NAME}/error", contains="ble_read"
+            )
+            await harness.advance_time(test_settings.poll_interval)
+            await harness.wait_for_publish_count(availability_topic, 3)
+            assert harness.messages_for(availability_topic)[-1] == (
+                "online",
+                True,
+                1,
+            )
         finally:
             harness.shutdown_event.set()
             if not task.done():
