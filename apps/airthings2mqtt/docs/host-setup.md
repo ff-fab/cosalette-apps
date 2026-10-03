@@ -1,8 +1,9 @@
 # Host Setup
 
 The Docker host needs the settings below. Each section says whether the setting is
-required and why. The values were tested against Debian 13 with BlueZ 5.82 and
-dbus-daemon 1.16.2.
+required and why. The values were tested on a Raspberry Pi (arm64) running Debian 13
+with BlueZ 5.82 and dbus-daemon 1.16.2. There, the policy below blocked property writes
+for UID 10001 only, and scans, sensor reads and other accounts were unaffected.
 
 | Setting                                         | Required?                  |
 | ----------------------------------------------- | -------------------------- |
