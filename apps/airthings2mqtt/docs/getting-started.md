@@ -122,6 +122,13 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         The `:ro` socket mount and non-root user do not by themselves stop D-Bus
         writes; only the host's D-Bus/BlueZ policy does.
 
+    !!! info "Container health check"
+        The image ships a `HEALTHCHECK` that runs `airthings2mqtt health` every
+        60 seconds. The container turns `unhealthy` when the app stops writing its
+        health file or no reading has succeeded for about an hour. Docker only reports
+        this; `restart: unless-stopped` does not act on it. See
+        [Troubleshooting](troubleshooting.md#container-health-check).
+
 === "Manual (pip/uv)"
 
     Install airthings2mqtt directly on your Pi:
@@ -199,6 +206,7 @@ mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
       `bluetoothctl show` should list your controller
     - Check the sensor is in range:
       `bluetoothctl scan on` should show your Airthings device
+    - Still stuck? Work through [Troubleshooting](troubleshooting.md)
 
 ---
 
@@ -206,3 +214,4 @@ mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n
 
 - [Configure](configuration.md) MQTT connection, polling intervals, and logging
 - [MQTT Topics](mqtt-topics.md) --- full topic reference with payload schemas
+- [Troubleshooting](troubleshooting.md) --- an offline sensor and the operator runbook

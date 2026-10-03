@@ -62,4 +62,12 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
     [:octicons-arrow-right-24: Topics](mqtt-topics.md)
 
+-   :material-lifebuoy:{ .lg .middle } **Troubleshooting**
+
+    ---
+
+    Why the sensor went offline, and how to recover the adapter on the host.
+
+    [:octicons-arrow-right-24: Troubleshoot](troubleshooting.md)
+
 </div>
