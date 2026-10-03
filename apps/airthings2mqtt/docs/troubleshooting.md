@@ -137,6 +137,12 @@ docker inspect --format '{{.State.Health.Status}}' <container>
 docker compose exec airthings2mqtt airthings2mqtt health
 ```
 
+Each probe starts Python and imports the app. That takes a few seconds on a Raspberry Pi
+with `cpus: 0.5`, which is why the timeout is 30 seconds. If `.State.Health.Status`
+stays `starting`, or turns `unhealthy`, while the `exec` above prints `healthy`, time
+the probe with `time docker compose exec airthings2mqtt airthings2mqtt health`. If it
+takes close to the timeout, raise `healthcheck.timeout`.
+
 A single failed read does not make the container unhealthy. To include it, append
 `--fail-on stale --fail-on error` to the `healthcheck.test` in `compose.yml`. Repeat
 the flag: `--fail-on error` on its own replaces the default `stale` instead of adding to

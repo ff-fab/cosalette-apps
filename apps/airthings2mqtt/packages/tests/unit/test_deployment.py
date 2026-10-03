@@ -61,6 +61,27 @@ class TestComposePrivileges:
         assert compose.count("no-new-privileges:true") == 2
 
 
+class TestHealthcheckTiming:
+    """The compose healthcheck matches the image HEALTHCHECK and fits a Pi."""
+
+    def test_compose_healthcheck_matches_dockerfile(self) -> None:
+        """Interval, timeout, start period and retries agree; timeout is 30s.
+
+        Technique: Error Guessing — the probe imports the whole app, which took
+        longer than a 10s timeout on a Raspberry Pi limited to 0.5 CPU.
+        """
+        dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
+        compose = yaml.safe_load((_APP_DIR / "compose.yml").read_text(encoding="utf-8"))
+        check = compose["services"]["airthings2mqtt"]["healthcheck"]
+
+        expected = (
+            f"HEALTHCHECK --interval={check['interval']} --timeout={check['timeout']}"
+            f" --start-period={check['start_period']} --retries={check['retries']}"
+        )
+        assert expected in dockerfile
+        assert check["timeout"] == "30s"
+
+
 class TestBluezPolicy:
     """The opt-in host D-Bus policy targets the image UID and only BlueZ Set."""
 

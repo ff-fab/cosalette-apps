@@ -55,8 +55,10 @@ VOLUME /app/data
 # Liveness probe (cosalette ADR-083): the app rewrites this file every heartbeat;
 # `airthings2mqtt health` fails when it is too old (stalled event loop) or a
 # device is stale (no fresh reading within the derived stale_after window).
+# The probe imports the app: ~4 s at 0.5 CPU on amd64 and several times that on a
+# Raspberry Pi, so the timeout leaves room. Keep in sync with compose.yml.
 ENV COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json
-HEALTHCHECK --interval=60s --timeout=10s --start-period=180s --retries=3 \
+HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=3 \
     CMD ["airthings2mqtt", "health"]
 
 ENTRYPOINT ["airthings2mqtt"]

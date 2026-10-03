@@ -35,11 +35,12 @@ services:
     # also flag a failing read (a bare `--fail-on error` would drop `stale`).
     # Needs image 0.3.0 or later. Older images have no `health` command and start
     # a second app instance instead (same client ID if MQTT__CLIENT_ID is set).
-    # See docs/host-setup.md.
+    # See docs/host-setup.md. The probe imports the app, which takes several seconds
+    # on a Raspberry Pi, hence the 30s timeout.
     healthcheck:
       test: ['CMD', 'airthings2mqtt', 'health']
       interval: 60s
-      timeout: 10s
+      timeout: 30s
       start_period: 180s
       retries: 3
 
