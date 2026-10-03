@@ -130,7 +130,7 @@ unexpectedly.
 **Topic:** `gas2mqtt/error`
 
 Published (not retained) when a device encounters an error. The cosalette framework
-deduplicates consecutive identical errors.
+deduplicates consecutive identical telemetry errors: a persisting error is republished as a reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) carrying `details.count` and `details.first_seen`; count `1` marks a new incident.
 
 ```json
 {

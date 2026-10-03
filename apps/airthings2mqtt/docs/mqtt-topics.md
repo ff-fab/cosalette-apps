@@ -159,7 +159,7 @@ unexpectedly.
 **Topic:** `airthings2mqtt/error`
 
 Published (not retained) when an error occurs. The cosalette framework deduplicates
-consecutive errors of the same type, so a persistent failure is reported once, at onset.
+consecutive errors of the same type: a persisting error is republished as a reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) carrying `details.count` and `details.first_seen`; count `1` marks a new incident.
 BLE-specific errors (connection failures, read timeouts) are the most common.
 
 ```json
@@ -169,7 +169,7 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
   "device": "airthings",
   "timestamp": "2026-10-01T18:34:58+00:00",
   "id": "c0ffee000001",
-  "details": {}
+  "details": {"count": 1, "first_seen": "2026-10-01T18:34:58+00:00"}
 }
 ```
 
@@ -180,7 +180,7 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
 | `device`     | string | Device that raised the error                         |
 | `timestamp`  | string | ISO 8601 time when the error occurred                |
 | `id`         | string | Correlation id, matching the local log line          |
-| `details`    | object | Additional context (usually empty)                   |
+| `details`    | object | `count` and `first_seen` of the current error streak |
 
 | `error_type`           | Meaning                                                   | Retried |
 | ---------------------- | --------------------------------------------------------- | ------- |

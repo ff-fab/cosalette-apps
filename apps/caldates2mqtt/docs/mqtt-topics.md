@@ -148,7 +148,7 @@ unexpectedly.
 **Topic:** `caldates2mqtt/error`
 
 Published (not retained) when an error occurs. The cosalette framework deduplicates
-consecutive identical errors. CalDAV-specific errors (authentication failures, connection
+consecutive identical errors: a persisting error is republished as a reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) carrying `details.count` and `details.first_seen`; count `1` marks a new incident. CalDAV-specific errors (authentication failures, connection
 timeouts) are the most common.
 
 ```json
