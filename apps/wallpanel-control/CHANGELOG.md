@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.8](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.3.7...wallpanel-control-v0.3.8) (2026-10-03)
+
+
+### Bug Fixes
+
+* **deps:** upgrade apps to cosalette 0.11.0 ([#319](https://github.com/ff-fab/cosalette-apps/issues/319)) ([2c35f5d](https://github.com/ff-fab/cosalette-apps/commit/2c35f5dc366abeae84f6ed9f2d11e27755ab4be3))
+
 ## [0.3.7](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.3.6...wallpanel-control-v0.3.7) (2026-10-02)
 
 
