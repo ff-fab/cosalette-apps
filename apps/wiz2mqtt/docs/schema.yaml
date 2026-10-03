@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: wiz2mqtt
   version: 0.2.10 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  exampleAvailability:
+    address: wiz2mqtt/example/availability
+    x-cosalette-app: wiz2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   exampleCommand:
     address: wiz2mqtt/example/set
     x-cosalette-app: wiz2mqtt
@@ -135,6 +151,7 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   colorMode: HSB
+                  formatBeforePublish: '{"hsb":"%1$d,%2$d,%3$d"}'
                 channel_type: color
                 item_type: Color
             effect_speed:
@@ -340,6 +357,7 @@ channels:
               x-cosalette-openhab:
                 channel_params:
                   colorMode: HSB
+                  formatBeforePublish: '{"hsb":"%1$d,%2$d,%3$d"}'
                 channel_type: color
                 item_type: Color
             effect:
@@ -531,6 +549,10 @@ channels:
     x-cosalette-archetype: telemetry
     x-cosalette-summary: 'Per-bulb state publisher: retained state, availability debounce'
 operations:
+  publishExampleAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/exampleAvailability'
   publishExampleState:
     action: send
     channel:

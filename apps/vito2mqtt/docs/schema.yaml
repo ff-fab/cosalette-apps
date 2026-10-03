@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: vito2mqtt
   version: 0.2.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  burnerAvailability:
+    address: vito2mqtt/burner/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   burnerState:
     address: vito2mqtt/burner/state
     x-cosalette-app: vito2mqtt
@@ -89,6 +105,22 @@ channels:
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read burner temperature, modulation and runtime data via
       Optolink
+  diagnosisAvailability:
+    address: vito2mqtt/diagnosis/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   diagnosisState:
     address: vito2mqtt/diagnosis/state
     x-cosalette-app: vito2mqtt
@@ -135,6 +167,22 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read diagnostic error codes and system health data via Optolink
+    x-cosalette-discoverable: false
+  heating_floorAvailability:
+    address: vito2mqtt/heating_floor/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
     x-cosalette-discoverable: false
   heating_floorCommand:
     address: vito2mqtt/heating_floor/set
@@ -206,6 +254,22 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Floor heating circuit temperatures and pump status via Optolink
+  heating_radiatorAvailability:
+    address: vito2mqtt/heating_radiator/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   heating_radiatorCommand:
     address: vito2mqtt/heating_radiator/set
     x-cosalette-app: vito2mqtt
@@ -267,6 +331,22 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Radiator heating temperatures and pump status via Optolink
+  hot_waterAvailability:
+    address: vito2mqtt/hot_water/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   hot_waterCommand:
     address: vito2mqtt/hot_water/set
     x-cosalette-app: vito2mqtt
@@ -308,6 +388,22 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read hot water temperature sensors via Optolink serial
+  legionellaAvailability:
+    address: vito2mqtt/legionella/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   legionellaState:
     address: vito2mqtt/legionella/state
     x-cosalette-app: vito2mqtt
@@ -316,6 +412,22 @@ channels:
         payload:
           type: object
     x-cosalette-archetype: device
+    x-cosalette-discoverable: false
+  outdoorAvailability:
+    address: vito2mqtt/outdoor/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
     x-cosalette-discoverable: false
   outdoorState:
     address: vito2mqtt/outdoor/state
@@ -356,6 +468,22 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
     x-cosalette-summary: Read outdoor temperature sensors via Optolink serial
+  systemAvailability:
+    address: vito2mqtt/system/availability
+    x-cosalette-app: vito2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   systemCommand:
     address: vito2mqtt/system/set
     x-cosalette-app: vito2mqtt
@@ -424,40 +552,72 @@ channels:
     x-cosalette-summary: Read Vitotronic system status and operational parameters
       via Optolink
 operations:
+  publishBurnerAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/burnerAvailability'
   publishBurnerState:
     action: send
     channel:
       $ref: '#/channels/burnerState'
     summary: Read burner temperature, modulation and runtime data via Optolink
+  publishDiagnosisAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/diagnosisAvailability'
   publishDiagnosisState:
     action: send
     channel:
       $ref: '#/channels/diagnosisState'
     summary: Read diagnostic error codes and system health data via Optolink
+  publishHeatingFloorAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/heating_floorAvailability'
   publishHeatingFloorState:
     action: send
     channel:
       $ref: '#/channels/heating_floorState'
     summary: Floor heating circuit temperatures and pump status via Optolink
+  publishHeatingRadiatorAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/heating_radiatorAvailability'
   publishHeatingRadiatorState:
     action: send
     channel:
       $ref: '#/channels/heating_radiatorState'
     summary: Radiator heating temperatures and pump status via Optolink
+  publishHotWaterAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/hot_waterAvailability'
   publishHotWaterState:
     action: send
     channel:
       $ref: '#/channels/hot_waterState'
     summary: Read hot water temperature sensors via Optolink serial
+  publishLegionellaAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/legionellaAvailability'
   publishLegionellaState:
     action: send
     channel:
       $ref: '#/channels/legionellaState'
+  publishOutdoorAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/outdoorAvailability'
   publishOutdoorState:
     action: send
     channel:
       $ref: '#/channels/outdoorState'
     summary: Read outdoor temperature sensors via Optolink serial
+  publishSystemAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/systemAvailability'
   publishSystemState:
     action: send
     channel:

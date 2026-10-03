@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: suncast
   version: 0.2.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  shadowAvailability:
+    address: suncast/shadow/availability
+    x-cosalette-app: suncast
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   shadowState:
     address: suncast/shadow/state
     x-cosalette-app: suncast
@@ -17,6 +33,10 @@ channels:
     x-cosalette-archetype: telemetry
     x-cosalette-discoverable: false
 operations:
+  publishShadowAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/shadowAvailability'
   publishShadowState:
     action: send
     channel:

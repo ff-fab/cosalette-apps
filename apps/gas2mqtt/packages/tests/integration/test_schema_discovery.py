@@ -35,6 +35,7 @@ from cosalette.testing import assert_discovery_topics_published
 from gas2mqtt.settings import Gas2MqttSettings
 from ha_discovery import (
     BRIDGE_OBJECT_ID,
+    app_channels,
     configs_by_object_id,
     entities_without_bridge,
     load_ha_discovery_payloads,
@@ -241,7 +242,7 @@ class TestDiscoveryOptOut:
         import yaml
 
         document = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
-        channels: dict[str, Any] = document["channels"]
+        channels: dict[str, Any] = app_channels(document)
         return channels
 
     def test_opted_out_channels_are_exactly_the_documented_set(

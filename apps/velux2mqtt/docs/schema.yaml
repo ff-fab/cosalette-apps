@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: velux2mqtt
   version: 0.2.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  blindAvailability:
+    address: velux2mqtt/blind/availability
+    x-cosalette-app: velux2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   blindState:
     address: velux2mqtt/blind/state
     x-cosalette-app: velux2mqtt
@@ -33,6 +49,22 @@ channels:
     x-cosalette-effects: &id004
     - Presses GPIO pins (up/stop/down) via GpioSwitchPort
     - Publishes cover position state to MQTT
+  windowAvailability:
+    address: velux2mqtt/window/availability
+    x-cosalette-app: velux2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   windowState:
     address: velux2mqtt/window/state
     x-cosalette-app: velux2mqtt
@@ -48,11 +80,19 @@ channels:
     x-cosalette-behavior: *id003
     x-cosalette-effects: *id004
 operations:
+  publishBlindAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/blindAvailability'
   publishBlindState:
     action: send
     channel:
       $ref: '#/channels/blindState'
     summary: 'Velux cover: GPIO-driven open/close/stop/position control'
+  publishWindowAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/windowAvailability'
   publishWindowState:
     action: send
     channel:

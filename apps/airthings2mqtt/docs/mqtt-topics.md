@@ -85,18 +85,21 @@ as scheduled polls.
 **Topic:** `airthings2mqtt/airthings/availability`
 
 Managed automatically by the cosalette framework and retained by the broker. Retryable
-BLE failures are retried first; `"offline"` is published only when those failures exhaust
+BLE failures are retried first; `"offline"` is published when those failures exhaust
 the configured retry budget. A later successful read publishes `"online"` again.
 
 Retryable failures are connection errors (including a sensor that is not found because
 it stopped advertising or is out of range, a BlueZ D-Bus error, or a powered-off
 adapter) and timeouts. A non-retryable `BleReadError` (a missing GATT characteristic or a
-malformed frame) publishes an error without retrying and leaves availability `"online"`,
-because unreadable data does not necessarily mean the device is unreachable.
+malformed frame) publishes an error without retrying and does not immediately mark
+the sensor unreachable. Independently, cosalette 0.11 tracks successful telemetry
+cycles: repeated read failures or a stalled task eventually publish `"offline"`
+when the derived freshness window expires. The next successful cycle clears that
+freshness mark.
 
 ```text
-"online"     # no retryable reachability failure has exhausted its retry budget
-"offline"    # retryable failures exhausted the configured retry budget
+"online"     # no availability source currently marks the entity offline
+"offline"    # retry exhaustion, stale telemetry, or a stopped task/app
 ```
 
 This is the telemetry entity's availability, not a continuous Bluetooth adapter health
@@ -106,10 +109,11 @@ between polls.
 !!! warning "Availability alone does not prove the reading is fresh"
 
     The last good reading stays retained on `airthings2mqtt/airthings/state`, and
-    availability only turns `"offline"` after a retryable failure exhausts its retries.
-    A `BleReadError` that repeats every poll, or a bridge whose telemetry task has
-    stopped, keeps availability `"online"` while the value goes stale. Guard the
-    consumer as well, sized to about two poll intervals:
+    the framework freshness watchdog turns availability `"offline"` after the
+    derived window: two poll intervals plus the retry/timeout/backoff budget.
+    Repeated `BleReadError` failures and stalled telemetry therefore become stale
+    even while the health reporter runs. Guard the consumer as well if it needs a
+    tighter publication-age limit, sized to about two poll intervals:
 
     - **openHAB:** add `expire` metadata to each item, so a value that is not refreshed
       becomes `UNDEF`. With the default 25-minute poll interval:
@@ -125,8 +129,8 @@ between polls.
       `airthings2mqtt/airthings/state` is older than about an hour. Also monitor
       `devices.airthings.status` and heartbeat recency in
       [`airthings2mqtt/status`](#status-heartbeat), but do not use them as the
-      only freshness signal: the telemetry loop can stop while the health reporter
-      remains healthy.
+      only publication-age signal: freshness tracks successful handler cycles,
+      which can differ from publication time.
 
 ### Status (Heartbeat)
 
@@ -139,9 +143,15 @@ unexpectedly.
 ```json
 {
   "status": "online",
-  "uptime_s": 3600.0,
+  "uptime_s": 3600,
   "devices": {
-    "airthings": { "status": "ok" }
+    "airthings": {
+      "status": "ok",
+      "last_success_at": "2026-10-01T18:34:58+00:00",
+      "consecutive_failures": 0,
+      "last_error": null,
+      "failing_since": null
+    }
   },
   "version": "0.2.7"
 }
@@ -150,16 +160,23 @@ unexpectedly.
 | Field      | Type   | Description                                                                  |
 | ---------- | ------ | ---------------------------------------------------------------------------- |
 | `status`   | string | `"online"` or `"offline"`                                                    |
-| `uptime_s` | float  | Seconds since application start                                              |
-| `devices`  | object | Per-device status: `"ok"`, `"error"`, `"unavailable"` or `"circuit_open"`    |
+| `uptime_s` | integer | Seconds since application start                                             |
+| `devices`  | object | Per-device status: `"ok"`, `"error"`, `"unavailable"`, `"circuit_open"` or `"stale"` |
 | `version`  | string | Application version                                                          |
+
+Telemetry entries include `last_success_at` (ISO 8601 string, or `null` before
+the first success), `consecutive_failures` (integer), `last_error` (machine-readable
+error type, or `null`) and `failing_since` (ISO 8601 string, or `null`). The last two
+values are populated only during a failure streak and reset to `null` on recovery.
+`"stale"` takes precedence over other device statuses while freshness is expired.
+Untracked device and command entries omit these four fields.
 
 ### Error
 
 **Topic:** `airthings2mqtt/error`
 
 Published (not retained) when an error occurs. The cosalette framework deduplicates
-consecutive errors of the same type, so a persistent failure is reported once, at onset.
+consecutive errors of the same type: a persisting error is republished as a reminder (2nd, 4th, 8th, ... failure in the first hour, then hourly) carrying `details.count` and `details.first_seen`; count `1` marks a new incident.
 BLE-specific errors (connection failures, read timeouts) are the most common.
 
 ```json
@@ -169,7 +186,7 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
   "device": "airthings",
   "timestamp": "2026-10-01T18:34:58+00:00",
   "id": "c0ffee000001",
-  "details": {}
+  "details": {"count": 1, "first_seen": "2026-10-01T18:34:58+00:00"}
 }
 ```
 
@@ -180,7 +197,7 @@ BLE-specific errors (connection failures, read timeouts) are the most common.
 | `device`     | string | Device that raised the error                         |
 | `timestamp`  | string | ISO 8601 time when the error occurred                |
 | `id`         | string | Correlation id, matching the local log line          |
-| `details`    | object | Additional context (usually empty)                   |
+| `details`    | object | `count` and `first_seen` of the current error streak |
 
 | `error_type`           | Meaning                                                   | Retried |
 | ---------------------- | --------------------------------------------------------- | ------- |

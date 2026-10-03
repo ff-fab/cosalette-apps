@@ -27,6 +27,7 @@ from cosalette.testing import AppHarness, assert_discovery_topics_published
 
 from ha_discovery import (
     BRIDGE_OBJECT_ID,
+    app_channels,
     configs_by_object_id,
     entities_without_bridge,
     load_ha_discovery_payloads,
@@ -224,7 +225,7 @@ class TestDiscoveryOptOut:
         import yaml
 
         document = yaml.safe_load(SCHEMA_PATH.read_text(encoding="utf-8"))
-        channels: dict[str, Any] = document["channels"]
+        channels: dict[str, Any] = app_channels(document)
         return channels
 
     def test_opted_out_channels_are_exactly_the_documented_set(
@@ -236,6 +237,8 @@ class TestDiscoveryOptOut:
         - ``systemActionCommand``: fire-and-forget power verbs
           (wake / suspend / hibernate).
         - ``systemActionState``: command acknowledgement, not a datapoint.
+        - ``restore_answersState``: startup re-publisher of the saved answers
+          (MQTT 5 expiry, #291); it owns no entity of its own.
         """
         opted_out = {
             name
@@ -243,6 +246,7 @@ class TestDiscoveryOptOut:
             if channel.get("x-cosalette-discoverable") is False
         }
         assert opted_out == {
+            "restore_answersState",
             "systemActionCommand",
             "systemActionState",
         }
@@ -257,6 +261,7 @@ class TestDiscoveryOptOut:
         """
         for name, channel in schema_channels.items():
             if name in {
+                "restore_answersState",
                 "systemActionCommand",
                 "systemActionState",
             }:

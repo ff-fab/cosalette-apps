@@ -210,30 +210,42 @@ unexpectedly.
 ```json title="Heartbeat"
 {
   "status": "online",
-  "uptime": 3600.0,
+  "uptime_s": 3600,
   "version": "0.0.0",
   "devices": {
-    "blind": { "status": "online" },
-    "window": { "status": "online" }
+    "blind": { "status": "ok" },
+    "window": { "status": "ok" }
   }
 }
 ```
+
+Heartbeat device statuses are `"ok"`, `"error"`, `"unavailable"` or
+`"circuit_open"`. `uptime_s` is an integer. Covers are long-running device
+handlers, so their entries omit telemetry freshness and failure-streak fields.
 
 ### Error
 
 **Topic:** `velux2mqtt/error`
 
-Published (not retained) when a device encounters an error. The cosalette framework
-deduplicates consecutive identical errors.
+Published (not retained) when a device encounters an error. Covers use long-running
+device handlers, so telemetry failure-streak reminders and `details.count` /
+`details.first_seen` do not apply to these errors.
 
 ```json
 {
-  "type": "OSError",
-  "message": "GPIO access failed",
+  "error_type": "error",
+  "message": "OSError",
   "device": "blind",
-  "timestamp": 1700000000.0
+  "timestamp": "2026-10-01T18:34:58+00:00",
+  "id": "c0ffee000001",
+  "details": {}
 }
 ```
+
+`error_type` is the machine-readable identifier: unmapped exceptions such as
+`OSError` use `"error"` and disclose only the exception class name by default.
+`timestamp` is ISO 8601, `id` matches the local log correlation id, and `details`
+is an object. Device-handler errors normally have empty `details`.
 
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to

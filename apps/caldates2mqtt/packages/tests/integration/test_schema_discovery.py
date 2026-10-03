@@ -70,6 +70,7 @@ from caldates2mqtt.adapters.fake import FakeCalDavReader
 from ha_discovery import (
     _INHERITED_ENV_VARS,
     BRIDGE_OBJECT_ID,
+    app_channels,
     configs_by_object_id,
     entities_without_bridge,
     parse_ha_discovery,
@@ -119,7 +120,7 @@ def _config_payload(harness: AppHarness, topic: str) -> dict[str, Any]:
 def schema_channels() -> dict[str, Any]:
     """Return the ``channels`` mapping from the committed docs/schema.yaml."""
     doc = yaml.safe_load(SCHEMA_PATH.read_text())
-    return doc["channels"]
+    return app_channels(doc)
 
 
 @pytest.fixture(scope="module")

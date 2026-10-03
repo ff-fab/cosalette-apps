@@ -14,6 +14,14 @@ you need.
 
 ---
 
+## openHAB bindings
+
+Configure MQTT bindings manually using the [topic and payload reference](mqtt-topics.md).
+The display's composite light entity is supported by Home Assistant discovery only
+(cosalette ADR-057). `task wallpanel-control:schema:openhab` cannot export the display;
+its failure is an unsupported-target diagnostic. Use the documented MQTT state and
+command payloads for openHAB instead.
+
 ## Settings Reference
 
 ### MQTT

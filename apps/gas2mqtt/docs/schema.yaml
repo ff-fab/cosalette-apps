@@ -2,8 +2,24 @@ asyncapi: 3.0.0
 info:
   title: gas2mqtt
   version: 0.2.7 # x-release-please-version
-  x-cosalette-contract-version: '1'
+  x-cosalette-contract-version: '2'
 channels:
+  consumptionAvailability:
+    address: gas2mqtt/consumption/availability
+    x-cosalette-app: gas2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   consumptionCommand:
     address: gas2mqtt/consumption/set
     x-cosalette-app: gas2mqtt
@@ -34,6 +50,22 @@ channels:
     x-cosalette-summary: Override the accumulated consumption_m3 value for the gas
       counter
     x-cosalette-effects: *id001
+    x-cosalette-discoverable: false
+  gas_counterAvailability:
+    address: gas2mqtt/gas_counter/availability
+    x-cosalette-app: gas2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
     x-cosalette-discoverable: false
   gas_counterState:
     address: gas2mqtt/gas_counter/state
@@ -80,6 +112,22 @@ channels:
     x-cosalette-effects:
     - Publishes counter, trigger state, and optionally consumption_m3 to MQTT
     - Persists counter and consumption_m3 to JsonFileStore on every state change
+  magnetometerAvailability:
+    address: gas2mqtt/magnetometer/availability
+    x-cosalette-app: gas2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
   magnetometerState:
     address: gas2mqtt/magnetometer/state
     x-cosalette-app: gas2mqtt
@@ -89,6 +137,22 @@ channels:
           additionalProperties: true
           type: object
     x-cosalette-archetype: telemetry
+    x-cosalette-discoverable: false
+  temperatureAvailability:
+    address: gas2mqtt/temperature/availability
+    x-cosalette-app: gas2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
     x-cosalette-discoverable: false
   temperatureState:
     address: gas2mqtt/temperature/state
@@ -110,21 +174,37 @@ channels:
           type: object
     x-cosalette-archetype: telemetry
 operations:
+  publishConsumptionAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/consumptionAvailability'
   publishConsumptionState:
     action: send
     channel:
       $ref: '#/channels/consumptionState'
     summary: Override the accumulated consumption_m3 value for the gas counter
+  publishGasCounterAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/gas_counterAvailability'
   publishGasCounterState:
     action: send
     channel:
       $ref: '#/channels/gas_counterState'
     summary: 'Domestic gas meter counter: pulse counting via QMC5883L Schmitt trigger
       detection'
+  publishMagnetometerAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/magnetometerAvailability'
   publishMagnetometerState:
     action: send
     channel:
       $ref: '#/channels/magnetometerState'
+  publishTemperatureAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/temperatureAvailability'
   publishTemperatureState:
     action: send
     channel:

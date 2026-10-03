@@ -6,7 +6,7 @@ MQTT bridge for controlling a wall-panel display and system via SSH and Wake-on-
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.10.0 release.
+on the 0.11.0 release.
 
 ## Home Assistant
 
@@ -18,6 +18,14 @@ cleared automatically.
 See the composition root (`packages/src/wallpanel_control/main.py`, monorepo
 [ADR-004](../../docs/adr/ADR-004-runtime-home-assistant-discovery-adoption.md)) and
 `packages/tests/integration/test_schema_discovery.py`.
+
+## openHAB
+
+Use manual MQTT bindings following the
+[topic and payload reference](docs/mqtt-topics.md). The display uses a Home Assistant
+composite light entity; cosalette composites are Home Assistant-only (framework
+ADR-057), so `task wallpanel-control:schema:openhab` does not support exporting this
+app's display bindings.
 
 ## Contributing
 
