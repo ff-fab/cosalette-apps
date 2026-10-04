@@ -49,6 +49,15 @@ taskfiles/
 - The decision and rationale live in
   [docs/adr/ADR-009-mqtt-5-retained-message-expiry-posture.md](docs/adr/ADR-009-mqtt-5-retained-message-expiry-posture.md).
 
+## Container Health
+
+- Do not add a Docker `HEALTHCHECK` or compose `healthcheck:`, and do not set
+  `COSALETTE_HEALTH_FILE` in images. MQTT (status heartbeat, availability, LWT) is the
+  health signal; a non-zero exit plus `restart: unless-stopped` heals.
+- Decide `exit_after_stale` / `restart_on_stale` per app.
+- The decision and rationale live in
+  [docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md](docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md).
+
 ## Tooling
 
 - **Use `task <name>` for all operations** (`task --list` to discover). Fall back to
