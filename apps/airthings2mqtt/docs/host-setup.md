@@ -72,6 +72,17 @@ The `ls` should show `10001 10001` for every file. For a bind mount you can inst
 run `sudo chown -R 10001:10001 <host data directory>` on the host. With several
 airthings2mqtt services, repeat the `chown` for each service name.
 
+The app sets the data directory to mode `0700` every time it saves the store. If
+configuration management (Ansible, Salt and similar) creates a bind-mounted data
+directory, make it owner `10001:10001` and mode `0700`. Any other mode flip-flops
+between the app and the next configuration run.
+
+Keep the order: stop, then `chown`, then `up`. If you `chown` while a 0.2.x container is
+still running, its shutdown save logs
+`PermissionError: [Errno 1] Operation not permitted: '/app/data'` with a traceback,
+because it can no longer `chmod` the directory. The error is harmless: `store.json` stays
+unchanged.
+
 ---
 
 ## Capabilities and `no-new-privileges`

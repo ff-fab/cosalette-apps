@@ -151,8 +151,11 @@ long-term average has fallen below a quarter of its previous value (at least 20 
 ## Container Health Check
 
 The image sets `COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json` and checks it
-with `airthings2mqtt health` every 60 seconds, starting 180 seconds after the container
-starts. The check fails when:
+with `airthings2mqtt health`. During the 180-second start period, Docker 25 and later
+probes every `start_interval` (5 seconds by default) and does not count failures. The
+container turns `healthy` at the first successful probe, about 35 seconds after start on
+a Raspberry Pi 4 with `cpus: 0.5`. From then on Docker probes every 60 seconds. The
+check fails when:
 
 - the health file is missing or older than three heartbeat intervals, so the event loop
   has stalled; or
@@ -163,11 +166,20 @@ docker inspect --format '{{.State.Health.Status}}' <container>
 docker compose exec airthings2mqtt airthings2mqtt health
 ```
 
-Each probe starts Python and imports the app. That takes a few seconds on a Raspberry Pi
-with `cpus: 0.5`, which is why the timeout is 30 seconds. If `.State.Health.Status`
+Each probe starts a new Python interpreter and imports the framework and the app. On a
+Raspberry Pi 4 with `cpus: 0.5`, images up to 0.3.0 took 11 to 13 seconds per probe,
+because they shipped without precompiled bytecode. Later images include it, so the probe
+is faster. The timeout of 30 seconds leaves room for both. If `.State.Health.Status`
 stays `starting`, or turns `unhealthy`, while the `exec` above prints `healthy`, time
 the probe with `time docker compose exec airthings2mqtt airthings2mqtt health`. If it
 takes close to the timeout, raise `healthcheck.timeout`.
+
+!!! caution "Do not probe by hand while Docker probes"
+
+    A manual `docker exec ... airthings2mqtt health` runs in the container and shares
+    its CPU quota with Docker's own probe. If the two overlap, both take about twice
+    as long, and Docker can record a timeout. Check `.State.Health.Log` for the time
+    of the last probe and run the manual one between two scheduled probes.
 
 A single failed read does not make the container unhealthy. To include it, append
 `--fail-on stale --fail-on error` to the `healthcheck.test` in `compose.yml`. Repeat
