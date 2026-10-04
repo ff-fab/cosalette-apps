@@ -1,7 +1,7 @@
 # Troubleshooting
 
 What to do when `airthings2mqtt/airthings/availability` shows `"offline"` or the
-container reports `unhealthy`. The examples use the default topic prefix
+heartbeat on `airthings2mqtt/status` reports the sensor `"stale"`. The examples use the default topic prefix
 (`airthings2mqtt`) and device name (`airthings`).
 
 ---
@@ -18,9 +18,11 @@ fails, airthings2mqtt:
    `airthings2mqtt/airthings/error`. The next successful read publishes `"online"`.
 3. **Reports staleness.** If no read succeeds for the derived `stale_after` window
    (about 62 minutes with the defaults), the device status in `airthings2mqtt/status`
-   becomes `"stale"` and the container health check fails.
-4. **Tries again at the next poll.** It keeps polling at `POLL_INTERVAL`. Nothing
-   else changes.
+   becomes `"stale"` and the availability topic shows `"offline"`.
+4. **Tries again at the next poll.** It keeps polling at `POLL_INTERVAL`.
+5. **Exits after a long stale period.** If the sensor stays stale for
+   `EXIT_AFTER_STALE` (5 hours by default), the app exits with code 5 and the restart
+   policy starts it again. See [Restarts and Exit Codes](#restarts-and-exit-codes).
 
 The `error_type` says which step failed:
 
@@ -115,8 +117,9 @@ ownership step is missing. See [Host Setup](host-setup.md#container-user-uid-100
 
 ### 3. Restart the Container
 
-A container restart only helps when the app itself is stuck, which the health check
-reports as a stale health file. It does not fix a sensor or adapter fault.
+A container restart only helps when the app itself is stuck, for example when
+`airthings2mqtt/status` shows the retained last will `"offline"` while the container is
+still running. It does not fix a sensor or adapter fault.
 
 ```bash
 docker compose restart airthings2mqtt
@@ -148,55 +151,61 @@ long-term average has fallen below a quarter of its previous value (at least 20 
 
 ---
 
-## Container Health Check
+## Recognising a Stale or Offline App
 
-The image sets `COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json` and checks it
-with `airthings2mqtt health`. During the 180-second start period, Docker 25 and later
-probes every `start_interval` (5 seconds by default) and does not count failures. The
-container turns `healthy` at the first successful probe, about 35 seconds after start on
-a Raspberry Pi 4 with `cpus: 0.5`. From then on Docker probes every 60 seconds. The
-check fails when:
+MQTT is the health signal. The image ships no Docker health check, so `docker ps` shows
+no health status
+([ADR-010](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md)).
+Watch these topics instead:
 
-- the health file is missing or older than three heartbeat intervals, so the event loop
-  has stalled; or
-- the device status is `"stale"`, so no reading succeeded within `stale_after`.
+| What you see                                          | Meaning                                                              |
+| ----------------------------------------------------- | -------------------------------------------------------------------- |
+| `airthings2mqtt/airthings/availability` = `"offline"` | A read failed for good, or no read succeeded within `stale_after`    |
+| `devices.airthings.status` = `"stale"` in the heartbeat | No read succeeded within `stale_after` (about 62 minutes)          |
+| `airthings2mqtt/status` = `"offline"` (plain string)  | The last will: the app died or its event loop has been blocked for about 90 seconds |
 
 ```bash
-docker inspect --format '{{.State.Health.Status}}' <container>
-docker compose exec airthings2mqtt airthings2mqtt health
+mosquitto_sub -h localhost -v -t 'airthings2mqtt/status' -t 'airthings2mqtt/+/availability'
 ```
 
-Each probe starts a new Python interpreter and imports the framework and the app. On a
-Raspberry Pi 4 with `cpus: 0.5`, images up to 0.3.0 took 11 to 13 seconds per probe,
-because they shipped without precompiled bytecode. Later images include it, so the probe
-is faster. The timeout of 30 seconds leaves room for both. If `.State.Health.Status`
-stays `starting`, or turns `unhealthy`, while the `exec` above prints `healthy`, time
-the probe with `time docker compose exec airthings2mqtt airthings2mqtt health`. If it
-takes close to the timeout, raise `healthcheck.timeout`.
+Alert on these in Home Assistant or your monitoring. See
+[MQTT Topics](mqtt-topics.md#availability) for the payloads.
 
-!!! caution "Do not probe by hand while Docker probes"
+---
 
-    A manual `docker exec ... airthings2mqtt health` runs in the container and shares
-    its CPU quota with Docker's own probe. If the two overlap, both take about twice
-    as long, and Docker can record a timeout. Check `.State.Health.Log` for the time
-    of the last probe and run the manual one between two scheduled probes.
+## Restarts and Exit Codes
 
-A single failed read does not make the container unhealthy. To include it, append
-`--fail-on stale --fail-on error` to the `healthcheck.test` in `compose.yml`. Repeat
-the flag: `--fail-on error` on its own replaces the default `stale` instead of adding to
-it.
+Only a process exit makes Docker restart a container; `restart: unless-stopped` then
+starts it again. airthings2mqtt exits with a non-zero code when it cannot recover by
+itself:
 
-!!! danger "The health check needs image 0.3.0 or later"
+| Exit code | Cause                                                                    |
+| --------- | ------------------------------------------------------------------------ |
+| `3`       | An unexpected exception                                                  |
+| `4`       | A framework task kept crashing and used up its restart budget            |
+| `5`       | The sensor stayed stale for `EXIT_AFTER_STALE` seconds (5 hours by default) |
 
-    Older images have no `health` command. There, `airthings2mqtt health` starts a
-    second instance of the app. With a fixed `MQTT__CLIENT_ID` it uses the same client
-    ID, and the two instances keep disconnecting each other. Upgrade the image before you add the `healthcheck` block. See
-    [Host Setup](host-setup.md#health-check-needs-030-or-later).
+```bash
+docker inspect --format '{{.State.ExitCode}} {{.RestartCount}}' <container>
+docker compose logs airthings2mqtt | grep CRITICAL
+```
 
-!!! warning "Docker does not restart unhealthy containers"
+**A dead sensor causes one harmless restart about every 6 hours.** The sensor turns
+stale about 62 minutes after the last good reading, and the app exits 5 hours after
+that. After the restart the count starts again. Each restart shows on MQTT as the last
+will `"offline"` and then `"online"`. A restart cannot fix a missing sensor or a radio
+fault on the host, so work through the [Operator Runbook](#operator-runbook) when you
+see exit code 5 more than once. To turn the exit off, set `EXIT_AFTER_STALE=0`; see
+[Configuration](configuration.md).
 
-    `restart: unless-stopped` only restarts a container whose process has exited. An
-    `unhealthy` status is reported and nothing more. To act on it, run a watchdog
-    such as [autoheal](https://github.com/willfarrell/docker-autoheal), or alert on
-    it from your monitoring. A restart cannot fix a missing sensor, so alert first and
-    automate restarts only for a stalled app.
+**Not yet covered:** a blocked event loop. The last will reports it after about 90
+seconds, but the app does not exit by itself, so restart the container by hand (step 3
+of the runbook).
+
+!!! warning "Remove your own health check override"
+
+    Images 0.3.x shipped a `HEALTHCHECK` that ran `airthings2mqtt health`. If you
+    copied the `healthcheck:` block into your own compose file, remove it: the image no
+    longer writes the health file, so the probe always reports `unhealthy`, and each
+    probe costs several seconds of CPU on a Raspberry Pi. To switch off the probe of a
+    0.3.x image before you upgrade, add `healthcheck: {disable: true}` to the service.

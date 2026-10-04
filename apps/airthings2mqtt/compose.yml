@@ -4,6 +4,8 @@ services:
       context: ../..
       dockerfile: apps/airthings2mqtt/Dockerfile
     image: ghcr.io/ff-fab/airthings2mqtt:latest
+    # MQTT carries health; there is no healthcheck (docs/adr/ADR-010). The
+    # restart policy recovers every non-zero exit, e.g. 5 for a stale sensor.
     restart: unless-stopped
     # BLE requires access to the host Bluetooth stack via D-Bus.
     # network_mode: host is the simplest approach on a Raspberry Pi.
@@ -24,25 +26,13 @@ services:
       AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
       # AIRTHINGS2MQTT_DEVICE_MAC: "XX:XX:XX:XX:XX:XX"
       # AIRTHINGS2MQTT_POLL_INTERVAL: "1500"
+      # AIRTHINGS2MQTT_EXIT_AFTER_STALE: "18000"
     volumes:
       - airthings2mqtt-data:/app/data
       # D-Bus socket for BlueZ communication
       - /var/run/dbus:/var/run/dbus:ro
     depends_on:
       - mosquitto
-    # Same probe as the image HEALTHCHECK. Docker only reports "unhealthy"; it
-    # never restarts on it. Append `--fail-on stale --fail-on error` to the test to
-    # also flag a failing read (a bare `--fail-on error` would drop `stale`).
-    # Needs image 0.3.0 or later. Older images have no `health` command and start
-    # a second app instance instead (same client ID if MQTT__CLIENT_ID is set).
-    # See docs/host-setup.md. The probe imports the app, which takes several seconds
-    # on a Raspberry Pi, hence the 30s timeout.
-    healthcheck:
-      test: ['CMD', 'airthings2mqtt', 'health']
-      interval: 60s
-      timeout: 30s
-      start_period: 180s
-      retries: 3
 
   # --- Multi-device example (uncomment and duplicate as needed) ---
   # Every instance needs its own topic prefix and device name. Instances that

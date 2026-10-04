@@ -73,3 +73,15 @@ class Airthings2MqttSettings(cosalette.Settings):
             "window. 0 disables the provisional phase (ADR-004)."
         ),
     )
+    exit_after_stale: float = Field(
+        default=18000.0,
+        ge=0,
+        description=(
+            "Seconds the sensor may stay stale before the app exits with code 5 "
+            "so the container restart policy restarts it (cosalette ADR-083). "
+            "Counted from the moment the sensor went stale, which is stale_after "
+            "(about 62 min with the defaults) after the last good reading, so the "
+            "default restarts the app about 6 h after the last good reading. "
+            "0 disables the exit."
+        ),
+    )

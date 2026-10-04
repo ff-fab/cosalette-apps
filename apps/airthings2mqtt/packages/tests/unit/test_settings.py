@@ -168,3 +168,33 @@ class TestAirthings2MqttSettingsValidation:
         """
         with pytest.raises(ValidationError):
             make_airthings2mqtt_settings(lta_settle_days=-1)
+
+    def test_default_exit_after_stale_restarts_after_about_six_hours(self) -> None:
+        """Stale window plus exit_after_stale is about 6 h with the defaults.
+
+        Technique: Specification-based — docs/configuration.md promises one
+        restart about every 6 h for a dead sensor. cosalette counts
+        exit_after_stale from the stale transition, and the derived stale_after
+        is 2 x poll_interval + 4 x poll_timeout + 3 x 72 s (main.py).
+        """
+        settings = make_airthings2mqtt_settings()
+        stale_after = 2 * settings.poll_interval + 4 * settings.poll_timeout + 3 * 72
+
+        assert settings.exit_after_stale == 18000.0
+        assert 5.5 * 3600 < stale_after + settings.exit_after_stale < 6.5 * 3600
+
+    def test_exit_after_stale_accepts_zero(self) -> None:
+        """Zero disables the exit on a stale sensor.
+
+        Technique: Boundary Value Analysis — the inclusive lower bound.
+        """
+        settings = make_airthings2mqtt_settings(exit_after_stale=0)
+        assert settings.exit_after_stale == 0
+
+    def test_exit_after_stale_rejects_negative(self) -> None:
+        """A negative duration is rejected (ge=0).
+
+        Technique: Boundary Value Analysis — just below the lower bound.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(exit_after_stale=-1)

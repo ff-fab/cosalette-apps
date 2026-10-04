@@ -505,6 +505,43 @@ class TestAppRestartConfig:
 
 
 @pytest.mark.unit
+class TestExitAfterStale:
+    """Verify a stale sensor ends the app for the restart policy (monorepo ADR-010)."""
+
+    def test_app_starts_with_the_settings_default(self) -> None:
+        """The App carries the field default until CLI settings load.
+
+        Technique: Specification-based — schema generation and ``--help``
+        import the module without resolving runtime settings.
+        """
+        from airthings2mqtt.main import app
+        from airthings2mqtt.settings import Airthings2MqttSettings
+
+        default = Airthings2MqttSettings.model_fields["exit_after_stale"].default
+        assert app._exit_after_stale == default
+
+    @pytest.mark.parametrize(
+        ("configured", "expected"), [(7200.0, 7200.0), (0.0, None)]
+    )
+    def test_settings_override_the_limit(
+        self, configured: float, expected: float | None
+    ) -> None:
+        """The on_configure hook applies the setting; 0 disables the exit.
+
+        Technique: Equivalence Partitioning — an override and the off value.
+        """
+        from airthings2mqtt.main import _configure_exit_after_stale, app
+
+        _configure_exit_after_stale(
+            make_airthings2mqtt_settings(exit_after_stale=configured)
+        )
+        try:
+            assert app._exit_after_stale == expected
+        finally:
+            _configure_exit_after_stale(make_airthings2mqtt_settings())
+
+
+@pytest.mark.unit
 class TestLogRedaction:
     """Verify the app scrubs sensor MACs from everything it logs (ADR-085)."""
 
@@ -531,8 +568,9 @@ class TestHealthProbeEntryPoint:
     ) -> None:
         """``airthings2mqtt health`` runs the probe instead of starting the app.
 
-        Technique: Specification-based — the Dockerfile HEALTHCHECK calls this
-        subcommand; a missing health file must exit 1 (unhealthy).
+        Technique: Specification-based — the image ships no HEALTHCHECK
+        (monorepo ADR-010), but operators may run this probe; a missing health file must
+        exit 1 (unhealthy).
         """
         from airthings2mqtt.main import main
 
