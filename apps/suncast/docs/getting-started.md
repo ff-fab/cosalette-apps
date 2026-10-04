@@ -92,7 +92,8 @@ visualizations flow to your MQTT broker.
         to pin the deployment.
 
     See the full [compose.yml reference](https://github.com/ff-fab/cosalette-apps/blob/main/apps/suncast/compose.yml)
-    for health checks and volume details.
+    for volume details. Health is reported over MQTT on `suncast/status`; there is
+    no container health check.
 
 === "Manual (pip/uv)"
 
