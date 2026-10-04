@@ -343,7 +343,10 @@ COPY apps/$NAME/README.md apps/$NAME/
 COPY apps/$NAME/packages/src/ apps/$NAME/packages/src/
 
 # Install the application using locked dependencies (no cache to keep image small)
-RUN uv pip install --system --no-cache ./apps/$NAME
+RUN uv pip install --system --no-cache --compile-bytecode ./apps/$NAME
+
+# Compile the standard library too; the python:alpine image ships without its .pyc files.
+RUN python -m compileall -q -j0 "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')"
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \\

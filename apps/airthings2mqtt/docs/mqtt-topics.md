@@ -106,20 +106,22 @@ or when the long-term average falls below a quarter of a previous value of at le
     device name (`AIRTHINGS2MQTT_DEVICE_NAME`), set `reset_tracker.reset_at` to the
     time of the reset, as an ISO 8601 timestamp with a time zone:
 
+    Add or update only `reset_at` under the device's existing `reset_tracker`; do not
+    replace the rest of the store. For a new tracker, the minimal entry is:
+
     ```json
     {
       "airthings": {
         "reset_tracker": {
-          "last_lta": 122,
-          "reset_at": "2026-10-02T05:50:00+00:00",
-          "lta_before_reset": null,
-          "reset_count": 0
+          "reset_at": "2026-10-02T05:50:00+00:00"
         }
       }
     }
     ```
 
-    Leave the other fields as they are, then start the container. The next reading is
+    Do not seed `last_lta`: it is updated from each reading and can make the next
+    reading look like another reset, replacing the timestamp you entered. Then start
+    the container. The next reading is
     `provisional` until `LTA_SETTLE_DAYS` after `reset_at`. A timestamp without a time
     zone, or any other invalid value, makes the app discard the whole `reset_tracker`
     and start from an empty one.
