@@ -503,6 +503,14 @@ class TestAppRestartConfig:
 
         assert BleakAirthingsReader.restartable is False
 
+    def test_fake_reader_matches_bleak_restart_opt_out(self) -> None:
+        """FakeAirthingsReader declares restartable = False like the real reader.
+
+        Technique: Error Guessing — without it ``--dry-run`` warns that the
+        adapter is "health-checkable but not restartable".
+        """
+        assert FakeAirthingsReader.restartable is False
+
 
 @pytest.mark.unit
 class TestExitAfterStale:
