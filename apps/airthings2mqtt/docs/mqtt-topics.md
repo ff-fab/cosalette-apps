@@ -94,6 +94,38 @@ or when the long-term average falls below a quarter of a previous value of at le
 (`AIRTHINGS2MQTT_STORE_PATH`), so detection survives a restart, and logs each reset at
 `INFO` with the long-term average the reset wiped.
 
+!!! warning "A reset before the upgrade or with an empty store goes undetected"
+
+    The app compares each reading with the previous one in its store. A reset that
+    happened before the upgrade to 0.3.0, or while the store was empty, leaves no
+    `0/0` reading and no collapse to compare against. The app then reports `ok`,
+    although the long-term average covers only the days since the reset.
+
+    To mark such a reset by hand, stop the container and edit the store file
+    (`AIRTHINGS2MQTT_STORE_PATH`, default `/app/data/store.json`). Under the
+    device name (`AIRTHINGS2MQTT_DEVICE_NAME`), set `reset_tracker.reset_at` to the
+    time of the reset, as an ISO 8601 timestamp with a time zone:
+
+    Add or update only `reset_at` under the device's existing `reset_tracker`; do not
+    replace the rest of the store. For a new tracker, the minimal entry is:
+
+    ```json
+    {
+      "airthings": {
+        "reset_tracker": {
+          "reset_at": "2026-10-02T05:50:00+00:00"
+        }
+      }
+    }
+    ```
+
+    Do not seed `last_lta`: it is updated from each reading and can make the next
+    reading look like another reset, replacing the timestamp you entered. Then start
+    the container. The next reading is
+    `provisional` until `LTA_SETTLE_DAYS` after `reset_at`. A timestamp without a time
+    zone, or any other invalid value, makes the app discard the whole `reset_tracker`
+    and start from an empty one.
+
 !!! note "Radon can be `null`"
 
     A radon field is JSON `null` while the sensor warms up after a reset, and when a

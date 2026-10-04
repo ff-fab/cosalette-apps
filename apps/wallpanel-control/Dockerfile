@@ -28,10 +28,16 @@ COPY apps/wallpanel-control/packages/src/ apps/wallpanel-control/packages/src/
 # security floors (aiohttp>=3.14.3 and friends), and uv rejects any unpinned
 # requirement in that mode. The exported file still pins every version with == and
 # carries every hash, so the image gets the locked graph either way.
+#
+# --compile-bytecode writes the .pyc files at build time. The app runs as a
+# non-root user that cannot write into root-owned site-packages, so without them
+# every start and every health probe recompiles all imports. compileall does the
+# same for the standard library, whose .pyc the python:alpine base image strips.
 RUN uv export --frozen --no-dev --no-emit-workspace --package wallpanel-control \
       --format requirements-txt >/tmp/requirements.txt \
-    && uv pip install --system --no-cache -r /tmp/requirements.txt \
-    && uv pip install --system --no-cache --no-deps ./apps/wallpanel-control \
+    && uv pip install --system --no-cache --compile-bytecode -r /tmp/requirements.txt \
+    && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/wallpanel-control \
+    && python -m compileall -q -j0 "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
     && rm /tmp/requirements.txt
 
 # Prepare persistence directory and non-root user
