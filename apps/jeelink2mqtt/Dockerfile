@@ -1,8 +1,5 @@
 FROM python:3.14-alpine
 
-# Install uv for fast dependency resolution
-COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
-
 WORKDIR /app
 
 # Copy monorepo root lockfile and workspace config for reproducible builds.
@@ -33,10 +30,15 @@ COPY apps/jeelink2mqtt/packages/src/ apps/jeelink2mqtt/packages/src/
 # non-root user that cannot write into root-owned site-packages, so without them
 # every start and every CLI call recompiles all imports. compileall does the
 # same for the standard library, whose .pyc the python:alpine base image strips.
-RUN uv export --frozen --no-dev --no-emit-workspace --package jeelink2mqtt \
+#
+# uv is bind-mounted for this step only and pip is uninstalled: the app needs
+# neither at runtime, and together they would add about 53 MB to the image.
+RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
+    uv export --frozen --no-dev --no-emit-workspace --package jeelink2mqtt \
       --format requirements-txt >/tmp/requirements.txt \
     && uv pip install --system --no-cache --compile-bytecode -r /tmp/requirements.txt \
     && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/jeelink2mqtt \
+    && uv pip uninstall --system pip \
     && python -m compileall -q -j0 "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
     && rm /tmp/requirements.txt
 

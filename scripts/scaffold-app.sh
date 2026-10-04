@@ -330,9 +330,6 @@ cp "LICENSES/${LICENSE}.txt" "$APP/LICENSE"
 cat > "$APP/Dockerfile" <<EOF
 FROM python:3.14-alpine
 
-# Install uv for fast dependency resolution
-COPY --from=ghcr.io/astral-sh/uv:0.6 /uv /usr/local/bin/uv
-
 WORKDIR /app
 
 # Copy monorepo root lockfile and workspace config for reproducible builds.
@@ -342,8 +339,12 @@ COPY apps/$NAME/pyproject.toml apps/$NAME/
 COPY apps/$NAME/README.md apps/$NAME/
 COPY apps/$NAME/packages/src/ apps/$NAME/packages/src/
 
-# Install the application using locked dependencies (no cache to keep image small)
-RUN uv pip install --system --no-cache --compile-bytecode ./apps/$NAME
+# Install the application using locked dependencies (no cache to keep image small).
+# uv is bind-mounted for this step only and pip is uninstalled: the app needs
+# neither at runtime, and together they would add about 53 MB to the image.
+RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \\
+    uv pip install --system --no-cache --compile-bytecode ./apps/$NAME \\
+    && uv pip uninstall --system pip
 
 # Compile the standard library too; the python:alpine image ships without its .pyc files.
 RUN python -m compileall -q -j0 "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')"
