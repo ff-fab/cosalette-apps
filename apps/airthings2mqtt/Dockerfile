@@ -34,10 +34,14 @@ COPY apps/airthings2mqtt/packages/src/ apps/airthings2mqtt/packages/src/
 # security floors (aiohttp>=3.14.3 and friends), and uv rejects any unpinned
 # requirement in that mode. The exported file still pins every version with == and
 # carries every hash, so the image gets the locked graph either way.
+#
+# --compile-bytecode writes the .pyc files at build time. The app runs as a
+# non-root user that cannot write into root-owned site-packages, so without them
+# every start and every health probe recompiles all imports.
 RUN uv export --frozen --no-dev --no-emit-workspace --package airthings2mqtt \
       --format requirements-txt >/tmp/requirements.txt \
-    && uv pip install --system --no-cache -r /tmp/requirements.txt \
-    && uv pip install --system --no-cache --no-deps ./apps/airthings2mqtt \
+    && uv pip install --system --no-cache --compile-bytecode -r /tmp/requirements.txt \
+    && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/airthings2mqtt \
     && rm /tmp/requirements.txt
 
 # Prepare persistence directory and a dedicated non-root user. The fixed UID/GID
