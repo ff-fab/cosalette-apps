@@ -7,6 +7,18 @@
 * honor `AIRTHINGS2MQTT_DEVICE_NAME` for state, set, error, and availability topics, correcting routing for non-default device names
 * check BlueZ adapter power over the system D-Bus for bounded, read-only operational health reporting instead of probing for `/sys/class/bluetooth/hci0`
 
+## [0.3.1](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.3.0...airthings2mqtt-v0.3.1) (2026-10-04)
+
+
+### Features
+
+* drop Docker HEALTHCHECK, MQTT is the health signal (ADR-010) ([#328](https://github.com/ff-fab/cosalette-apps/issues/328)) ([13d3cd8](https://github.com/ff-fab/cosalette-apps/commit/13d3cd8b278286079c39c3c5e4a4bdf73546e2c6))
+
+
+### Bug Fixes
+
+* compile Python bytecode in app images ([e09cefd](https://github.com/ff-fab/cosalette-apps/commit/e09cefdc4979f4818d19216a985446e294a75e9a))
+
 ## [0.3.0](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.2.7...airthings2mqtt-v0.3.0) (2026-10-04)
 
 

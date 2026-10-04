@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.9](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.8...vito2mqtt-v0.2.9) (2026-10-04)
+
+
+### Features
+
+* drop Docker HEALTHCHECK, MQTT is the health signal (ADR-010) ([#328](https://github.com/ff-fab/cosalette-apps/issues/328)) ([13d3cd8](https://github.com/ff-fab/cosalette-apps/commit/13d3cd8b278286079c39c3c5e4a4bdf73546e2c6))
+
+
+### Bug Fixes
+
+* compile Python bytecode in app images ([e09cefd](https://github.com/ff-fab/cosalette-apps/commit/e09cefdc4979f4818d19216a985446e294a75e9a))
+
 ## [0.2.8](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.7...vito2mqtt-v0.2.8) (2026-10-04)
 
 
