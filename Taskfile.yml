@@ -218,6 +218,7 @@ tasks:
       - bash scripts/tests/test_qa_scripts.sh
       - bash scripts/tests/test_gpl_headers.sh
       - bash scripts/tests/test_beads_recover.sh
+      - bash scripts/tests/test_ci_helpers.sh
 
   pre-pr:
     desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + security)

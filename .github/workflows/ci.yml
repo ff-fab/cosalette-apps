@@ -116,12 +116,11 @@ jobs:
           run-cmd: task check:agents:test
           token: ${{ secrets.GITHUB_TOKEN }}
 
-  # Repo-root packages/tests/ suite (cap-890). Framework-contract and
-  # cross-app-convention tests (e.g. the ADR-006 MQTT TLS posture check reads
-  # every app's compose.yml/.env.example) — a change scoped to a single
-  # apps/<name>/** path can break these without touching the `shared` path
-  # filter above, so this runs unconditionally rather than joining that job.
-  # ~3s locally (`task test:unit`), so the always-on cost is negligible.
+  # Repo-root unit and script regression suites (cap-890, cap-w1cr).
+  # Framework-contract and cross-app-convention tests (e.g. the ADR-006 MQTT
+  # TLS posture check reads every app's compose.yml/.env.example), plus shell
+  # helper tests, can be broken by app-scoped changes without touching the
+  # `shared` path filter above, so these run unconditionally.
   root-tests:
     needs: detect
     if: needs.detect.result == 'success'
@@ -133,10 +132,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Run repo-root unit test suite inside devcontainer
+      - name: Run repo-root unit and script test suites inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
-          run-cmd: task test:unit
+          run-cmd: task test:unit && task test:scripts
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues
