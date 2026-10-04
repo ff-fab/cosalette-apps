@@ -54,8 +54,10 @@ The script returns a single JSON object whose exact structure is defined in
 Key points about the schema:
 
 - All `author` fields are plain strings (GitHub login), **not** objects.
-- `ci_status.state` is an aggregate computed from both legacy commit statuses and modern
-  check runs.
+- `ci_status.state` is an aggregate computed from legacy commit statuses and the
+  check runs of `ci_status.head_sha`. Check runs from an older attempt of the same
+  workflow (e.g. a run cancelled and replaced) carry `superseded: true`; they stay in
+  the list for history but do not affect `state`.
 
 Confirm you received all keys: `metadata`, `changed_files`, `reviews`,
 `review_comments`, `conversation_comments`, `ci_status`. If any key is missing or empty,

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "PR Feedback",
-  "description": "Schema for the JSON output of fetch-pr-feedback.sh. All 'author' fields are plain strings (GitHub login), not objects. The ci_status.state is an aggregate computed from both legacy commit statuses and modern check runs.",
+  "description": "Schema for the JSON output of fetch-pr-feedback.sh. All 'author' fields are plain strings (GitHub login), not objects. The ci_status.state is an aggregate computed from legacy commit statuses and the non-superseded check runs.",
   "type": "object",
   "required": ["metadata", "changed_files", "reviews", "review_comments", "conversation_comments", "ci_status"],
   "additionalProperties": false,
@@ -100,7 +100,8 @@
       "type": "object",
       "required": ["state", "statuses", "check_runs"],
       "properties": {
-        "state": { "type": "string", "enum": ["success", "failure", "pending", "unknown"] },
+        "state": { "type": "string", "enum": ["success", "failure", "pending", "unknown"], "description": "Aggregate of legacy statuses and non-superseded check runs" },
+        "head_sha": { "type": "string", "description": "PR head commit the checks belong to" },
         "statuses": {
           "type": "array",
           "items": {
@@ -121,6 +122,8 @@
             "required": ["name", "status", "conclusion", "html_url", "output"],
             "properties": {
               "name": { "type": "string" },
+              "check_suite_id": { "type": ["integer", "null"] },
+              "superseded": { "type": "boolean", "description": "True when a newer attempt of the same workflow (file + event) ran on this SHA; excluded from state, kept for history" },
               "status": { "type": "string" },
               "conclusion": { "type": ["string", "null"] },
               "html_url": { "type": "string", "format": "uri" },
