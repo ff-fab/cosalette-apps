@@ -543,6 +543,27 @@ class TestBleakAirthingsReader:
 
         assert reading.temperature == -5.0
 
+    @pytest.mark.parametrize(
+        "radon_raw, expected",
+        [(16383, 16383), (16384, None), (0xFFFF, None)],
+    )
+    def test_radon_out_of_range_becomes_none(
+        self, radon_raw: int, expected: int | None
+    ) -> None:
+        """1st-gen radon outside 0–16383 decodes to None, as on Wave 2.
+
+        Technique: Boundary Value Analysis — same bound as the Wave 2 path
+        (proposal 5.3, criterion 8).
+        """
+        from airthings2mqtt.adapters.bleak import _parse_wave1
+
+        encoded = self._encode_reading(radon_24h=radon_raw, radon_lta=radon_raw)
+
+        reading = _parse_wave1(*encoded.values())
+
+        assert reading.radon_24h_avg == expected
+        assert reading.radon_long_term_avg == expected
+
 
 @pytest.mark.unit
 class TestBleakAirthingsReaderScan:
