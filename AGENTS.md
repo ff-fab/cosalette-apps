@@ -205,7 +205,8 @@ until `git push` succeeds.
    git push
    git status  # MUST show "up to date with origin"
    ```
-5. **Create PR** (if new branch): `task pr:create TITLE="..." BODY="..."`
+5. **Create PR** (if new branch): `task pr:create TITLE="..." BODY="..."`, or
+   `BODY_FILE=path` for a long Markdown body
 6. **Wait for CI** (if a PR exists):
 
    ```bash

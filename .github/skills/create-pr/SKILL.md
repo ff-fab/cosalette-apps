@@ -38,6 +38,11 @@ Use same conventional commit prefix as branch/commits.
    ```
    task pr:create TITLE="<title>" BODY="<rendered body>"
    ```
+   For a long body, write it to a scratch file and pass the path instead; backticks,
+   quotes and newlines then reach `gh` untouched:
+   ```
+   task pr:create TITLE="<title>" BODY_FILE=<path/to/body.md>
+   ```
 5. **Report** PR URL.
 
 ## Rules
