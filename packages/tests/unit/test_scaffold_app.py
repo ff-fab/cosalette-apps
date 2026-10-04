@@ -1,4 +1,11 @@
-"""Regression checks for generated app deployment defaults."""
+"""Regression checks for generated app deployment defaults.
+
+Test Techniques Used:
+- Specification-based: the generated Dockerfile must install from the frozen
+  lockfile and compile bytecode during the build.
+- Error Guessing: build-only tools must not leak into the runtime image, and a
+  scaffolded image must not resolve fresh dependency versions at build time.
+"""
 
 from __future__ import annotations
 
