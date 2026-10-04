@@ -6,6 +6,14 @@
 # IN_PROGRESS / PENDING / QUEUED. Then prints a summary table with
 # pass/fail status and links to failed runs for easy debugging.
 #
+# Stale-result guards:
+#   - The wait is pinned to an expected head SHA: CI_WAIT_EXPECTED_SHA if set,
+#     else the local branch's pushed commit (@{push}) when the current branch is
+#     the PR head, else the first head observed. Until the PR head matches it,
+#     checks are ignored — they would belong to the previous revision.
+#   - After checks finish, their signature must remain unchanged for the
+#     registration grace period. Changes and pending checks restart the timer.
+#
 # Exit codes:
 #   0 — all checks passed (or skipped)
 #   1 — one or more checks failed
@@ -16,6 +24,7 @@ set -euo pipefail
 
 INTERVAL="${CI_WAIT_INTERVAL:-5}"
 TIMEOUT="${CI_WAIT_TIMEOUT:-1800}"  # 30 minutes default
+REGISTRATION_GRACE="${CI_WAIT_REGISTRATION_GRACE:-60}"
 
 # ── Prerequisite checks ─────────────────────────────────────────────
 
@@ -43,6 +52,14 @@ if [ -z "$PR" ]; then
     echo "Auto-detected PR #${PR}"
 fi
 
+EXPECTED_SHA="${CI_WAIT_EXPECTED_SHA:-}"
+if [ -z "$EXPECTED_SHA" ]; then
+    head_ref=$(gh pr view "$PR" --json headRefName --jq '.headRefName' 2>/dev/null || true)
+    if [ -n "$head_ref" ] && [ "$(git rev-parse --abbrev-ref HEAD 2>/dev/null)" = "$head_ref" ]; then
+        EXPECTED_SHA=$(git rev-parse --verify -q '@{push}' 2>/dev/null || true)
+    fi
+fi
+
 # ── Poll loop ────────────────────────────────────────────────────────
 
 MAX_API_FAILURES="${CI_WAIT_MAX_API_FAILURES:-5}"
@@ -52,12 +69,45 @@ echo ""
 
 START=$(date +%s)
 api_failures=0
+settled=""
+settled_since=""
+
+api_failure() {
+    api_failures=$((api_failures + 1))
+    if [ "$api_failures" -ge "$MAX_API_FAILURES" ]; then
+        echo "" >&2
+        echo "Error: ${api_failures} consecutive API failures." >&2
+        echo "The gh auth token may have expired. Try: gh auth status" >&2
+        exit 3
+    fi
+    echo "$(date +%H:%M:%S) — $1, retrying (${api_failures}/${MAX_API_FAILURES})..."
+}
 
 while true; do
     ELAPSED=$(( $(date +%s) - START ))
     if [ "$ELAPSED" -ge "$TIMEOUT" ]; then
         echo "Timed out after ${ELAPSED}s waiting for CI checks." >&2
         exit 1
+    fi
+
+    head=$(gh pr view "$PR" --json headRefOid --jq '.headRefOid' 2>/dev/null) || head=""
+    if [ -z "$head" ]; then
+        settled=""
+        settled_since=""
+        api_failure "could not read PR head"
+        sleep "$INTERVAL"
+        continue
+    fi
+    if [ -z "$EXPECTED_SHA" ]; then
+        EXPECTED_SHA="$head"
+    fi
+    if [ "$head" != "$EXPECTED_SHA" ]; then
+        api_failures=0
+        settled=""
+        settled_since=""
+        echo "$(date +%H:%M:%S) — PR head is ${head:0:12}, waiting for ${EXPECTED_SHA:0:12}..."
+        sleep "$INTERVAL"
+        continue
     fi
 
     checks=$(gh pr checks "$PR" --json name,state,link 2>&1) || true
@@ -71,6 +121,8 @@ while true; do
     # JSON response (which always starts with '[') can never false-match.
     if printf '%s' "$checks" | grep -qi "^no checks reported"; then
         api_failures=0
+        settled=""
+        settled_since=""
         echo "$(date +%H:%M:%S) — no checks reported yet, waiting for CI to register..."
         sleep "$INTERVAL"
         continue
@@ -80,14 +132,9 @@ while true; do
     # Bail out after MAX_API_FAILURES consecutive failures — a persistent
     # non-JSON response usually means the gh auth token has expired.
     if [ -z "$checks" ] || ! echo "$checks" | jq empty 2>/dev/null; then
-        api_failures=$((api_failures + 1))
-        if [ "$api_failures" -ge "$MAX_API_FAILURES" ]; then
-            echo "" >&2
-            echo "Error: ${api_failures} consecutive API failures." >&2
-            echo "The gh auth token may have expired. Try: gh auth status" >&2
-            exit 3
-        fi
-        echo "$(date +%H:%M:%S) — API returned non-JSON, retrying (${api_failures}/${MAX_API_FAILURES})..."
+        settled=""
+        settled_since=""
+        api_failure "API returned non-JSON"
         sleep "$INTERVAL"
         continue
     fi
@@ -98,10 +145,23 @@ while true; do
     pending=$(echo "$checks" | jq '[.[] | select(.state == "IN_PROGRESS" or .state == "PENDING" or .state == "QUEUED")] | length')
 
     if [ "$pending" -eq 0 ]; then
-        break
+        signature=$(echo "$checks" | jq -c '[.[] | [.name, .state]] | sort')
+        if [ "$signature" = "$settled" ]; then
+            now=$(date +%s)
+            if [ $((now - settled_since)) -ge "$REGISTRATION_GRACE" ]; then
+                break
+            fi
+            echo "$(date +%H:%M:%S) — checks unchanged; waiting for late registrations (${REGISTRATION_GRACE}s grace)..."
+        else
+            settled="$signature"
+            settled_since=$(date +%s)
+            echo "$(date +%H:%M:%S) — checks finished, waiting for late registrations (${REGISTRATION_GRACE}s grace)..."
+        fi
+    else
+        settled=""
+        settled_since=""
+        echo "$(date +%H:%M:%S) — ${pending} check(s) still running..."
     fi
-
-    echo "$(date +%H:%M:%S) — ${pending} check(s) still running..."
     sleep "$INTERVAL"
 done
 
@@ -109,7 +169,7 @@ done
 
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "  CI Results for PR #${PR}"
+echo "  CI Results for PR #${PR} @ ${EXPECTED_SHA:0:12}"
 echo "════════════════════════════════════════════════════════════════"
 
 parsed=$(echo "$checks" | jq -r '.[] | [.name, .state, .link] | @tsv')
