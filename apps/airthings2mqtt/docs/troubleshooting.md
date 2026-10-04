@@ -124,6 +124,30 @@ docker compose restart airthings2mqtt
 
 ---
 
+## Replacing the Batteries
+
+A battery change resets the sensor: it forgets its radon averages and computes them from
+scratch.
+
+1. Replace the batteries. The app needs no restart: it reads the sensor again at the
+   next poll once the sensor advertises.
+2. Check that the sensor advertises. `bluetoothctl --timeout 20 scan on` on the host
+   should list its address within about 20 seconds. Right after power-up the sensor can
+   advertise without a name, so look for the address.
+3. Expect `measurement_state: "warming_up"` and `null` for both radon fields until the
+   sensor has computed its first 24-hour average. After that, expect `"provisional"`
+   for `LTA_SETTLE_DAYS` days (30 by default), then `"ok"`. See
+   [Measurement state](mqtt-topics.md#measurement-state).
+4. The long-term average starts again from zero. `sensor_reset_at` in the state payload
+   records when the app detected the reset. The value before the reset is in the `INFO`
+   log line (`Airthings sensor reset detected ...: long-term average 113 -> 0`) and in
+   the store as `reset_tracker.lta_before_reset`.
+
+If the app was not running for the whole warm-up, it still detects the reset when the
+long-term average has fallen below a quarter of its previous value (at least 20 Bq/m³).
+
+---
+
 ## Container Health Check
 
 The image sets `COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json` and checks it

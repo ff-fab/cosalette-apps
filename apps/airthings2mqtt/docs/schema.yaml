@@ -88,6 +88,40 @@ channels:
               x-cosalette-ha-discovery:
                 extra:
                   entity_category: diagnostic
+            measurement_state:
+              default: ok
+              enum:
+              - warming_up
+              - provisional
+              - ok
+              title: Measurement State
+              type: string
+              x-cosalette-consumer:
+                display_name: Measurement state
+                device_class: enum
+              x-cosalette-ha-discovery:
+                extra:
+                  entity_category: diagnostic
+                  options:
+                  - warming_up
+                  - provisional
+                  - ok
+            sensor_reset_at:
+              anyOf:
+              - format: date-time
+                type: string
+              - type: 'null'
+              default: null
+              title: Sensor Reset At
+              x-cosalette-consumer:
+                display_name: Sensor reset
+                device_class: timestamp
+              x-cosalette-ha-discovery:
+                extra:
+                  entity_category: diagnostic
+              x-cosalette-openhab:
+                channel_type: datetime
+                item_type: DateTime
           required:
           - temperature
           - humidity

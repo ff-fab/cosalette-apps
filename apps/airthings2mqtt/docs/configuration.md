@@ -95,7 +95,9 @@ broker by itself.
 | Device name    | `AIRTHINGS2MQTT_DEVICE_NAME`       | `airthings`    | Friendly name for the sensor in MQTT topics         |
 | Device MAC     | `AIRTHINGS2MQTT_DEVICE_MAC`        | _(required)_   | Bluetooth MAC address of the Airthings Wave sensor  |
 | Poll interval  | `AIRTHINGS2MQTT_POLL_INTERVAL`     | `1500`         | Polling interval in seconds (minimum 60)            |
+| Poll timeout   | `AIRTHINGS2MQTT_POLL_TIMEOUT`      | `120.0`        | Timeout per BLE poll in seconds (minimum 5)         |
 | Trigger min interval | `AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL` | `30.0`  | Minimum seconds between on-demand `/set` re-reads    |
+| LTA settle days | `AIRTHINGS2MQTT_LTA_SETTLE_DAYS` | `30`          | Days the long-term average is `provisional` after a sensor reset; `0` disables the phase |
 
 The MQTT entity topics use the configured values as
 `{prefix}/{device_name}/{channel}`. For example, setting
@@ -128,6 +130,15 @@ The MQTT entity topics use the configured values as
     reopens. **Raise it** for a flakier sensor or to conserve battery; **lower it** for
     snappier on-demand reads at the cost of more frequent BLE connects. Keep it well
     below `POLL_INTERVAL` so it never throttles the scheduled cadence. Must be `> 0`.
+
+!!! note "Long-term average after a sensor reset (`LTA_SETTLE_DAYS`)"
+    When the sensor loses power, for example during a battery change, it starts its
+    radon averages from scratch. airthings2mqtt detects this, publishes radon as `null`
+    while the sensor still reports its `0/0` placeholder, and then marks readings
+    `provisional` in `measurement_state` for `LTA_SETTLE_DAYS` days, because the new
+    long-term average covers only a few days. Set it to `0` to report `ok` as soon as
+    the first values arrive. See [MQTT Topics](mqtt-topics.md#measurement-state) and
+    [ADR-004](adr/ADR-004-withhold-radon-placeholders-after-a-sensor-reset-and-publish-measurement-state.md).
 
 ---
 
@@ -172,8 +183,19 @@ AIRTHINGS2MQTT_DEVICE_MAC=XX:XX:XX:XX:XX:XX
 # Polling interval in seconds, minimum 60 (default: 1500 = 25 minutes)
 # AIRTHINGS2MQTT_POLL_INTERVAL=1500
 
-# Minimum seconds between on-demand /set re-reads, must be > 0 (default: 30)
+# Per-invocation BLE poll timeout in seconds (default: 120)
+# AIRTHINGS2MQTT_POLL_TIMEOUT=120.0
+
+# Minimum seconds between on-demand /set re-reads, must be > 0 (default: 30).
+# Raise for a flakier sensor or to save battery; lower for snappier re-reads.
 # AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL=30.0
+
+# Days the radon long-term average is marked provisional after a sensor reset
+# (battery change), 0 disables the phase (default: 30). See docs/adr/ADR-004.
+# AIRTHINGS2MQTT_LTA_SETTLE_DAYS=30
+
+# Store path for persisting state across restarts (default: XDG_STATE_HOME)
+# AIRTHINGS2MQTT_STORE_PATH=/app/data/store.json
 ```
 
 Uncomment and modify any line to override the default.

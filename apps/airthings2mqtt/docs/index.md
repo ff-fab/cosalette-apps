@@ -16,7 +16,7 @@ to an MQTT broker — ready for Home Assistant or any MQTT consumer.
 
 - **BLE sensor polling** — connects to Airthings Wave (1st-gen) and Wave 2 / Wave Radon (2nd-gen) sensors via BlueZ, auto-detecting the GATT protocol per connection
 - **On-demand re-read** — publish to MQTT `/set` to refresh readings between scheduled polls
-- **Radon monitoring** — publishes 24-hour and long-term average radon concentrations
+- **Radon monitoring** — publishes 24-hour and long-term average radon concentrations, and withholds the placeholder zeros a sensor reports after a battery change
 - **Temperature & humidity** — ambient readings alongside air quality data
 - **Health reporting** — automatic heartbeats, per-device availability, and LWT
 - **Simple `.env` configuration** — all settings via environment variables or a `.env` file, powered by [cosalette](https://github.com/ff-fab/cosalette)

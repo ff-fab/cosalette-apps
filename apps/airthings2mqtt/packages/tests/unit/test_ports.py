@@ -82,7 +82,10 @@ class TestAirthingsReading:
         assert reading.radon_long_term_avg is None
 
     def test_read_health_fields_default(self) -> None:
-        """last_read defaults to an aware UTC now; rssi defaults to None.
+        """Health and lifecycle fields default to publishable values.
+
+        last_read is an aware UTC now, rssi and sensor_reset_at are None, and
+        measurement_state is ok.
 
         Technique: Specification-based — a reading built without an
         advertisement or explicit stamp is still publishable.
@@ -93,6 +96,8 @@ class TestAirthingsReading:
         )
         assert before <= reading.last_read <= datetime.now(UTC)
         assert reading.rssi is None
+        assert reading.measurement_state == "ok"
+        assert reading.sensor_reset_at is None
 
     def test_last_read_excluded_from_equality(self) -> None:
         """Readings with the same values but different read times are equal.
