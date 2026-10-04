@@ -276,8 +276,8 @@ docker stats vito2mqtt vito2mqtt-mosquitto
 ### Connect to Container Shell
 
 ```bash
-# Run interactive bash in vito2mqtt container
-docker exec -it vito2mqtt bash
+# Open a shell in the vito2mqtt container (Alpine has sh, not bash)
+docker exec -it vito2mqtt sh
 
 # Run a command directly
 docker exec vito2mqtt vito2mqtt --version
@@ -298,28 +298,24 @@ docker compose logs mosquitto
 
 ## Resource Limits
 
-`compose.yml` defines resource limits to prevent the app from consuming excessive CPU/memory:
+The shipped `compose.yml` sets no resource limits. To cap CPU or memory, add a `deploy`
+block to the `vito2mqtt` service:
 
 ```yaml
 deploy:
   resources:
     limits:
-      cpus: '1'
-      memory: 512M
-    reservations:
-      memory: 256M
+      cpus: '0.5'
+      memory: 128M
 ```
 
-**Adjust for your hardware:**
-
-- **Raspberry Pi 4B**: Set `cpus` to 2–3, `memory` to 256–512M
-- **x86 NAS/server**: Can increase limits if supporting other workloads
-- **Low-power systems**: Reduce to `0.5` CPU, 128M memory
+Memory limits need the memory cgroup. Some hosts disable it at boot (Raspberry Pi OS
+kernels with `cgroup_disable=memory`); `docker info` then warns about missing memory
+limit support, and the limit has no effect.
 
 Apply changes:
 
 ```bash
-nano compose.yml
 docker compose up -d
 ```
 
