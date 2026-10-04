@@ -104,6 +104,18 @@ The MQTT entity topics use the configured values as
 `AIRTHINGS2MQTT_DEVICE_NAME=living-room` with the default prefix produces
 `airthings2mqtt/living-room/state`, `/set`, `/error`, and `/availability` topics.
 
+!!! warning "Several sensors: one instance each, with its own prefix and device name"
+    One instance reads one sensor. For a second sensor, run a second service, as in the
+    multi-device example in `compose.yml`. Give every instance its own
+    `AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX` and `AIRTHINGS2MQTT_DEVICE_NAME`. Instances that
+    share a prefix share the retained `{prefix}/status` heartbeat and its last-will
+    message, so one instance going offline marks the other offline too. If you set
+    `AIRTHINGS2MQTT_MQTT__CLIENT_ID`, make it unique per instance as well.
+
+    Even with separate prefixes, all instances publish the same Home Assistant
+    discovery config for the *Bridge* connectivity entity, so Home Assistant shows only
+    the instance that published last. The per-sensor entities are not affected.
+
 !!! note "Finding your device MAC address"
     Use `bluetoothctl` to scan for your Airthings Wave sensor:
 
