@@ -63,3 +63,13 @@ class Airthings2MqttSettings(cosalette.Settings):
             "well under poll_interval so it never throttles the scheduled cadence."
         ),
     )
+    lta_settle_days: int = Field(
+        default=30,
+        ge=0,
+        description=(
+            "Days after a detected sensor reset (battery change or power loss) "
+            "during which the radon long-term average is published with "
+            "measurement_state 'provisional', because it is built from a short "
+            "window. 0 disables the provisional phase (ADR-004)."
+        ),
+    )

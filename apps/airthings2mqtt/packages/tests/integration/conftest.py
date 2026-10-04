@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from cosalette import App, MockMqttClient, setting_ref
+from cosalette import App, MockMqttClient, SaveOnChange, setting_ref
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, ManualClock
 from pydantic import Field
@@ -65,6 +65,7 @@ def build_integration_app(
     adapter: type | object = FakeAirthingsReader,
     *,
     min_interval: float | None = _TRIGGER_MIN_INTERVAL_SECONDS,
+    store: MemoryStore | None = None,
 ) -> App:
     """Construct a fully-wired App with the given reader adapter.
 
@@ -78,6 +79,7 @@ def build_integration_app(
             value; tests that assert throttle *behaviour* pass a fraction of a
             second so they stay fast, and the negative control passes
             ``None`` explicitly to disable the throttle.
+        store: Backend to inspect after the run; a fresh MemoryStore if None.
     """
     test_app = App(
         name="airthings2mqtt",
@@ -88,7 +90,7 @@ def build_integration_app(
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across
         # every test in the session and made CI flake (cap-9mud).
-        store=MemoryStore(),
+        store=MemoryStore() if store is None else store,
     )
     test_app.telemetry(
         lambda settings: [settings.device_name],
@@ -100,6 +102,7 @@ def build_integration_app(
         retry_on=RETRY_ON,
         unavailable_on=UNAVAILABLE_ON,
         state_model=AirthingsReading,
+        persist=SaveOnChange(),
     )(_telemetry)
     return test_app
 
@@ -108,6 +111,7 @@ def make_harness(
     *,
     adapter: type | object = FakeAirthingsReader,
     settings: Airthings2MqttSettings | None = None,
+    store: MemoryStore | None = None,
 ) -> AppHarness:
     """Construct an AppHarness wrapping the app with the given reader adapter.
 
@@ -116,9 +120,10 @@ def make_harness(
             FakeAirthingsReader).
         settings: Optional settings override; defaults to fast-poll test
             settings (poll_interval=1).
+        store: Optional store backend, see :func:`build_integration_app`.
     """
     return AppHarness(
-        app=build_integration_app(adapter=adapter),
+        app=build_integration_app(adapter=adapter, store=store),
         mqtt=MockMqttClient(),
         clock=ManualClock(),
         settings=settings

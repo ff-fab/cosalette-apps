@@ -147,3 +147,24 @@ class TestAirthings2MqttSettingsValidation:
         """
         with pytest.raises(ValidationError):
             make_airthings2mqtt_settings(trigger_min_interval=-1.0)
+
+    def test_default_lta_settle_days(self) -> None:
+        """The long-term average is provisional for 30 days after a reset."""
+        settings = make_airthings2mqtt_settings()
+        assert settings.lta_settle_days == 30
+
+    def test_lta_settle_days_accepts_zero(self) -> None:
+        """Zero disables the provisional phase.
+
+        Technique: Boundary Value Analysis — the inclusive lower bound.
+        """
+        settings = make_airthings2mqtt_settings(lta_settle_days=0)
+        assert settings.lta_settle_days == 0
+
+    def test_lta_settle_days_rejects_negative(self) -> None:
+        """A negative settle period is rejected (ge=0).
+
+        Technique: Boundary Value Analysis — just below the lower bound.
+        """
+        with pytest.raises(ValidationError):
+            make_airthings2mqtt_settings(lta_settle_days=-1)

@@ -431,7 +431,7 @@ class TestReadHealthFields:
     @pytest.mark.slow
     @pytest.mark.parametrize("rssi", [-60, None])
     async def test_payload_appends_last_read_and_rssi(self, rssi: int | None) -> None:
-        """The four sensor keys keep their order; last_read and rssi follow.
+        """The four sensor keys keep their order; health and lifecycle fields follow.
 
         ``last_read`` is ISO 8601 in UTC, taken during this run; a reader
         without an advertisement publishes ``rssi`` as an explicit ``null``.
@@ -464,6 +464,8 @@ class TestReadHealthFields:
             "radon_long_term_avg",
             "last_read",
             "rssi",
+            "measurement_state",
+            "sensor_reset_at",
         ]
         assert latest["rssi"] == rssi
         last_read = datetime.fromisoformat(latest["last_read"])

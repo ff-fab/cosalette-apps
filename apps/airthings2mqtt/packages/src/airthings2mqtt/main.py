@@ -10,9 +10,10 @@ import asyncio
 import logging
 import weakref
 from dataclasses import replace
+from datetime import timedelta
 
 import cosalette
-from cosalette import setting_ref
+from cosalette import DeviceStore, SaveOnChange, setting_ref
 
 from airthings2mqtt import __version__
 from airthings2mqtt.adapters.bleak import (
@@ -27,6 +28,7 @@ from airthings2mqtt.errors import (
     BleTimeoutError,
     error_type_map,
 )
+from airthings2mqtt.lifecycle import ResetState, track
 from airthings2mqtt.ports import AirthingsReaderPort, AirthingsReading
 from airthings2mqtt.settings import Airthings2MqttSettings
 
@@ -124,6 +126,9 @@ def _configure_trigger_min_interval(settings: Airthings2MqttSettings) -> None:
 
 app.on_configure(_configure_trigger_min_interval)
 
+_STORE_KEY = "reset_tracker"
+"""Device-store key holding the :class:`ResetState` (ADR-004)."""
+
 
 @app.telemetry(
     lambda settings: [settings.device_name],
@@ -140,25 +145,43 @@ app.on_configure(_configure_trigger_min_interval)
     # + 3 x 72 s backoff = 3696 s (~62 min) with the defaults.
     summary="Read Airthings BLE sensor values (temperature, humidity, radon)",
     state_model=AirthingsReading,
+    persist=SaveOnChange(),
 )
 async def _telemetry(
     reader: AirthingsReaderPort,
     settings: Airthings2MqttSettings,
     trigger: cosalette.TriggerPayload,
     logger: logging.Logger,
+    store: DeviceStore,
 ) -> AirthingsReading:
     """Read all sensor values and return the reading.
 
-    The reader already yields an :class:`AirthingsReading`, which is the
-    handler's ``state_model``; returning it directly keeps the return
-    annotation and ``state_model=`` in agreement (cosalette 0.9.0
-    ADR-068) and restores static checking of the wire contract.
+    The reading passes through the reset tracker (ADR-004) first: radon
+    placeholders after a battery change are withheld and the lifecycle fields
+    are set. The tracker state lives in the device store, so a restart
+    neither loses a reset nor reports it twice.
     """
     if trigger.is_triggered:
         logger.info("On-demand Airthings re-read triggered")
 
     async with _get_read_lock():
-        return await reader.read(settings.device_mac)
+        raw = await reader.read(settings.device_mac)
+
+    state = ResetState.from_dict(store.get(_STORE_KEY))
+    reading, new_state, reset = track(
+        raw, state, timedelta(days=settings.lta_settle_days)
+    )
+    if reset:
+        logger.info(
+            "Airthings sensor reset detected (battery change or power loss): "
+            "long-term average %s -> %s; radon is withheld while the sensor "
+            "reports 0/0",
+            new_state.lta_before_reset,
+            raw.radon_long_term_avg,
+        )
+    if new_state != state:
+        store[_STORE_KEY] = new_state.to_dict()  # saved by persist=SaveOnChange()
+    return reading
 
 
 def main() -> None:

@@ -29,7 +29,9 @@ Published after each successful BLE poll. Contains all four sensor readings from
 Airthings Wave, decoded from whichever GATT layout the unit uses — the 1st-gen
 four-characteristic set or the Wave 2 / Wave Radon (2nd-gen) single "current values"
 characteristic. The payload shape is identical either way. Two read-health fields
-follow the readings: when the read happened and how strongly the sensor was heard.
+follow the readings: when the read happened and how strongly the sensor was heard. Two
+lifecycle fields close the payload: whether the radon averages can be trusted, and when
+the sensor was last reset.
 
 ```json
 {
@@ -38,7 +40,9 @@ follow the readings: when the read happened and how strongly the sensor was hear
   "radon_24h_avg": 42,
   "radon_long_term_avg": 38,
   "last_read": "2026-10-01T18:34:58.123456Z",
-  "rssi": -71
+  "rssi": -71,
+  "measurement_state": "ok",
+  "sensor_reset_at": null
 }
 ```
 
@@ -50,6 +54,8 @@ follow the readings: when the read happened and how strongly the sensor was hear
 | `radon_long_term_avg`| integer \| null | Bq/m3  | Long-term average radon concentration        |
 | `last_read`          | string          | —      | ISO 8601 UTC time of the successful BLE read |
 | `rssi`               | integer \| null | dBm    | Signal strength of the sensor's advertisement |
+| `measurement_state`  | string          | —      | `warming_up`, `provisional` or `ok`; see [Measurement state](#measurement-state) |
+| `sensor_reset_at`    | string \| null  | —      | ISO 8601 UTC time of the last detected sensor reset, `null` if none |
 
 `last_read` lets a consumer see a value's age without tracking publication time:
 the retained payload keeps the time of its own read, so an old `last_read` exposes a
@@ -58,20 +64,44 @@ advertisement that the pre-connect scan observed; record it to spot a weakening 
 (range, battery, obstruction) before reads start failing. It is `null` only when the
 reader has no advertisement to report.
 
-Both `last_read` and `rssi` are always included in published state. Their model defaults
-can make them optional in the generated validation schema; that does not mean the app
+All eight keys are always included in published state. Model defaults can make the
+last four optional in the generated validation schema; that does not mean the app
 omits them from runtime payloads.
 
-Both fields are discovered as diagnostic entities: in Home Assistant as a `timestamp`
-sensor and a `signal_strength` sensor (dBm); in openHAB (`cosalette schema openhab`) as a
-`DateTime` item on a `datetime` channel and a `Number` item.
+`last_read`, `rssi`, `measurement_state` and `sensor_reset_at` are discovered as
+diagnostic entities. In Home Assistant they are a `timestamp` sensor, a
+`signal_strength` sensor (dBm), an `enum` sensor and another `timestamp` sensor. In
+openHAB (`cosalette schema openhab`) the two timestamps are `DateTime` items on a
+`datetime` channel, `measurement_state` is a `String` item and `rssi` is a `Number`
+item.
+
+#### Measurement state
+
+When the sensor loses power, for example during a battery change, it forgets its radon
+averages. Until it has new ones it reports `0` for both. Those zeros are placeholders,
+not measurements, so airthings2mqtt withholds them
+([ADR-004](adr/ADR-004-withhold-radon-placeholders-after-a-sensor-reset-and-publish-measurement-state.md)):
+
+| `measurement_state` | When                                                   | Radon fields          |
+| ------------------- | ------------------------------------------------------ | --------------------- |
+| `warming_up`        | The sensor reports `0/0` after a reset                 | both `null`           |
+| `provisional`       | Less than `LTA_SETTLE_DAYS` (default 30) since the reset | published; the long-term average covers only a few days |
+| `ok`                | Normal operation                                       | published             |
+
+A reset is detected when the sensor reports `0/0` after a non-zero long-term average,
+or when the long-term average falls below a quarter of a previous value of at least
+20 Bq/m³. The app keeps the previous long-term average in its store
+(`AIRTHINGS2MQTT_STORE_PATH`), so detection survives a restart, and logs each reset at
+`INFO` with the long-term average the reset wiped.
 
 !!! note "Radon can be `null`"
 
-    On a Wave 2 / Wave Radon unit, a radon value that decodes outside the plausible
-    0–16383 Bq/m³ range (a garbled BLE frame) is published as JSON `null` rather than
-    a false reading — the key is always present. The 1st-gen path always yields an
-    integer.
+    A radon field is JSON `null` while the sensor warms up after a reset, and when a
+    value decodes outside the plausible 0–16383 Bq/m³ range (a garbled BLE frame) on
+    either sensor generation. The key is always present. Home Assistant shows `null` as
+    *unknown*; in openHAB the JSONPATH transformation yields no value, so map it to
+    `UNDEF` if a rule depends on it. Do not store `null` as `0` in a database or
+    statistic: it would reintroduce the false zeros the app withholds.
 
 !!! info "Polling frequency"
     Airthings Wave sensors update their internal readings approximately every 5 minutes.

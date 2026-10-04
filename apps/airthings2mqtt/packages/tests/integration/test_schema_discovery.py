@@ -9,7 +9,7 @@ filesystem — not hermetic enough for the unit suite.
 Test Techniques Used:
 - Specification-based: schema enrichment must yield the documented HA entities
 - Equivalence Partitioning: typed (device_class) vs untyped (radon) sensors
-- Parametrize: all six payload fields declared once, no duplication
+- Parametrize: all eight payload fields declared once, no duplication
 - Cross-check: every state_topic is verified against topics the
   real app (fakes for hardware only) actually publishes at runtime, not just
   a string independently derived from the same schema.
@@ -75,7 +75,7 @@ class TestHaDiscoveryGeneration:
     def test_generates_one_sensor_per_reading_field(
         self, entity_payloads: list[dict[str, Any]]
     ) -> None:
-        """All six AirthingsReading fields yield a discovery payload.
+        """All eight AirthingsReading fields yield a discovery payload.
 
         Technique: Specification-based — count matches schema properties.
         """
@@ -87,6 +87,8 @@ class TestHaDiscoveryGeneration:
             "airthings_radon_long_term_avg",
             "airthings_last_read",
             "airthings_rssi",
+            "airthings_measurement_state",
+            "airthings_sensor_reset_at",
         }
         # Act
         object_ids = {p["config"]["object_id"] for p in entity_payloads}
@@ -168,6 +170,23 @@ class TestHaDiscoveryGeneration:
                     "unit_of_measurement": "Bq/m³",
                     "state_class": "measurement",
                     "value_template": "{{ value_json.radon_long_term_avg }}",
+                },
+            ),
+            (
+                "airthings_measurement_state",
+                {
+                    "device_class": "enum",
+                    "options": ["warming_up", "provisional", "ok"],
+                    "entity_category": "diagnostic",
+                    "value_template": "{{ value_json.measurement_state }}",
+                },
+            ),
+            (
+                "airthings_sensor_reset_at",
+                {
+                    "device_class": "timestamp",
+                    "entity_category": "diagnostic",
+                    "value_template": "{{ value_json.sensor_reset_at }}",
                 },
             ),
             (

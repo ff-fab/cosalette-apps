@@ -60,8 +60,8 @@ _RADON_MAX = 16383
 """Upper bound on a plausible radon reading (Bq/m³).
 
 Matches the community ``airthings-ble`` library's own sanity check. A garbled
-Wave 2 frame that unpacks to a wild uint16 (``0xFFFF`` == 65535) is dropped to
-``None`` rather than published as a false radon spike.
+frame of either generation that unpacks to a wild uint16 (``0xFFFF`` == 65535)
+is dropped to ``None`` rather than published as a false radon spike.
 """
 
 _BLEAK_ERROR_MAP: dict[type[BaseException], type[AirthingsError]] = {
@@ -133,8 +133,8 @@ def _parse_wave1(
     return AirthingsReading(
         temperature=struct.unpack("<h", raw_temp)[0] / 100.0,
         humidity=struct.unpack("<H", raw_hum)[0] / 100.0,
-        radon_24h_avg=struct.unpack("<H", raw_radon_24h)[0],
-        radon_long_term_avg=struct.unpack("<H", raw_radon_lta)[0],
+        radon_24h_avg=_bounded_radon(struct.unpack("<H", raw_radon_24h)[0]),
+        radon_long_term_avg=_bounded_radon(struct.unpack("<H", raw_radon_lta)[0]),
     )
 
 
@@ -145,9 +145,8 @@ def _parse_wave2(raw: Buffer) -> AirthingsReading:
     (``val[4]``/``val[5]``) and temperature (``val[6]``) are fitted on this
     hardware; the trailing shorts are Wave Plus slots left at ``0xFFFF``.
     ``val[0]`` is a format-version byte, logged at DEBUG so a future firmware
-    layout change is visible.  Radon is bounds-checked (:func:`_bounded_radon`);
-    temperature and humidity mirror the 1st-gen path and are passed through
-    unbounded.
+    layout change is visible.  As on the 1st-gen path, radon is bounds-checked
+    (:func:`_bounded_radon`) and temperature and humidity pass through unbounded.
     """
     val = struct.unpack(_WAVE2_STRUCT, raw)
     logger.debug(

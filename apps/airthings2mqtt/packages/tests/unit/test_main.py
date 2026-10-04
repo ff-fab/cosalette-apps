@@ -6,6 +6,7 @@ Test Techniques Used:
 - Error Guessing: BLE errors propagate through handler (not swallowed)
 - Equivalence Partitioning: Duplicate readings are not deduplicated
 - Branch Coverage: Scheduled and triggered telemetry paths (caplog assertions)
+- State Transition: Sensor reset tracked across a simulated restart
 """
 
 from __future__ import annotations
@@ -17,6 +18,8 @@ from pathlib import Path
 
 import cosalette
 import pytest
+from cosalette import DeviceStore
+from cosalette.stores import MemoryStore
 
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
 from airthings2mqtt.errors import BleConnectionError
@@ -29,6 +32,13 @@ def _telemetry_registration() -> object:
     from airthings2mqtt.main import _telemetry, app
 
     return next(r for r in app.telemetry_registrations if r.func is _telemetry)
+
+
+def _device_store(backend: MemoryStore | None = None) -> DeviceStore:
+    """Return a loaded device store, as the framework injects it."""
+    store = DeviceStore(backend or MemoryStore(), "airthings")
+    store.load()
+    return store
 
 
 @pytest.mark.unit
@@ -61,6 +71,7 @@ class TestTelemetryHandler:
             settings=settings,
             trigger=trigger,
             logger=logger,
+            store=_device_store(),
         )
 
         # Assert
@@ -85,6 +96,7 @@ class TestTelemetryHandler:
             settings=settings,
             trigger=trigger,
             logger=logger,
+            store=_device_store(),
         )
 
         # Assert
@@ -116,6 +128,7 @@ class TestTelemetryHandlerErrorPropagation:
                 settings=settings,
                 trigger=trigger,
                 logger=logger,
+                store=_device_store(),
             )
 
 
@@ -150,17 +163,110 @@ class TestTelemetryDuplicateReadings:
             settings=settings,
             trigger=trigger,
             logger=logger,
+            store=_device_store(),
         )
         second = await _telemetry(
             reader=reader,
             settings=settings,
             trigger=trigger,
             logger=logger,
+            store=_device_store(),
         )
 
         # Assert
         assert first == expected
         assert second == expected
+
+
+@pytest.mark.unit
+class TestTelemetrySensorReset:
+    """The handler runs readings through the reset tracker (ADR-004)."""
+
+    async def test_reset_is_logged_once_and_survives_a_restart(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A reset logs one INFO line, persists, and is not re-reported.
+
+        Technique: State Transition — normal -> reset -> restart -> warming_up,
+        with a fresh DeviceStore over the same backend standing in for a
+        container restart (proposal criteria 1, 2 and 6).
+        """
+        from airthings2mqtt.main import _telemetry
+
+        # Arrange
+        reader = FakeAirthingsReader()
+        reader.readings = [
+            AirthingsReading(
+                temperature=31.6,
+                humidity=33.5,
+                radon_24h_avg=127,
+                radon_long_term_avg=113,
+            ),
+            AirthingsReading(
+                temperature=31.0, humidity=43.5, radon_24h_avg=0, radon_long_term_avg=0
+            ),
+        ]
+        backend = MemoryStore()
+        kwargs = {
+            "reader": reader,
+            "settings": make_airthings2mqtt_settings(),
+            "trigger": cosalette.TriggerPayload.scheduled(),
+            "logger": logging.getLogger(__name__),
+        }
+
+        # Act
+        store = _device_store(backend)
+        await _telemetry(**kwargs, store=store)
+        with caplog.at_level(logging.INFO):
+            reset = await _telemetry(**kwargs, store=store)
+        store.save()
+        restarted = _device_store(backend)
+        reader.readings = [reader.readings[1]]
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            again = await _telemetry(**kwargs, store=restarted)
+
+        # Assert
+        assert reset.radon_24h_avg is None
+        assert reset.measurement_state == "warming_up"
+        assert again.measurement_state == "warming_up"
+        assert again.sensor_reset_at == reset.sensor_reset_at
+        assert restarted["reset_tracker"]["lta_before_reset"] == 113
+        assert restarted["reset_tracker"]["reset_count"] == 1
+        assert "reset detected" not in caplog.text
+
+    async def test_reset_log_names_the_lost_long_term_average(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """The INFO line carries the long-term average the reset wiped.
+
+        Technique: Specification-based — operator-facing log contract.
+        """
+        from airthings2mqtt.main import _telemetry
+
+        # Arrange
+        reader = FakeAirthingsReader()
+        reader.readings = [
+            AirthingsReading(
+                temperature=31.0, humidity=43.5, radon_24h_avg=0, radon_long_term_avg=0
+            )
+        ]
+        store = _device_store()
+        store["reset_tracker"] = {"last_lta": 113}
+
+        # Act
+        with caplog.at_level(logging.INFO):
+            await _telemetry(
+                reader=reader,
+                settings=make_airthings2mqtt_settings(),
+                trigger=cosalette.TriggerPayload.scheduled(),
+                logger=logging.getLogger(__name__),
+                store=store,
+            )
+
+        # Assert
+        assert "sensor reset detected" in caplog.text
+        assert "long-term average 113 -> 0" in caplog.text
 
 
 @pytest.mark.unit
@@ -189,6 +295,7 @@ class TestTelemetryTrigger:
                 settings=settings,
                 trigger=trigger,
                 logger=logger,
+                store=_device_store(),
             )
 
         # Assert
@@ -219,6 +326,7 @@ class TestTelemetryTrigger:
                 settings=settings,
                 trigger=trigger,
                 logger=logger,
+                store=_device_store(),
             )
 
         # Assert
@@ -264,10 +372,22 @@ class TestReadLockSerialization:
         logger = logging.getLogger(__name__)
 
         t1 = asyncio.create_task(
-            _telemetry(reader=reader, settings=settings, trigger=trigger, logger=logger)
+            _telemetry(
+                reader=reader,
+                settings=settings,
+                trigger=trigger,
+                logger=logger,
+                store=_device_store(),
+            )
         )
         t2 = asyncio.create_task(
-            _telemetry(reader=reader, settings=settings, trigger=trigger, logger=logger)
+            _telemetry(
+                reader=reader,
+                settings=settings,
+                trigger=trigger,
+                logger=logger,
+                store=_device_store(),
+            )
         )
 
         # Wait for the first task to enter reader.read and block on the gate.

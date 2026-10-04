@@ -24,11 +24,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
-from typing import Annotated, Any, Protocol, runtime_checkable
+from typing import Annotated, Any, Literal, Protocol, get_args, runtime_checkable
 
 from cosalette import HealthCheckable
 from cosalette.schema import consumer, ha_discovery, merge, openhab
 from pydantic import Field
+
+MeasurementState = Literal["warming_up", "provisional", "ok"]
+"""Radon measurement lifecycle phase after a sensor reset (ADR-004)."""
 
 
 def _radon(display_name: str) -> dict[str, Any]:
@@ -67,11 +70,11 @@ class AirthingsReading:
         humidity: Relative humidity as a percentage.
         radon_24h_avg: 24-hour average radon level in Bq/m³, or ``None`` when
             the decoded value falls outside the plausible 0–16383 range (a
-            garbled BLE frame — Wave 2 path only; the 1st-gen path always
-            yields an ``int``). ``None`` is published as an explicit JSON
-            ``null`` on the state topic, not an omitted key.
+            garbled BLE frame) or the sensor has not computed it yet
+            (``measurement_state == "warming_up"``). ``None`` is published as
+            an explicit JSON ``null`` on the state topic, not an omitted key.
         radon_long_term_avg: Long-term average radon level in Bq/m³, or
-            ``None`` under the same out-of-range guard as ``radon_24h_avg``.
+            ``None`` under the same rules as ``radon_24h_avg``.
         last_read: UTC time the reading was taken, published as ISO 8601.
             Defaults to construction time, which the adapter reaches right
             after the GATT reads succeed. Excluded from equality: two readings
@@ -79,6 +82,12 @@ class AirthingsReading:
         rssi: Signal strength (dBm) of the advertisement the pre-connect scan
             observed, or ``None`` when the reader has no advertisement to
             report (published as JSON ``null``).
+        measurement_state: Where the radon averages stand after a sensor
+            reset (ADR-004): ``warming_up`` (not computed yet, published as
+            ``null``), ``provisional`` (long-term average still settling) or
+            ``ok``.
+        sensor_reset_at: UTC time the app last detected a sensor reset
+            (battery change or power loss), or ``None`` if it never did.
     """
 
     temperature: Annotated[
@@ -128,6 +137,30 @@ class AirthingsReading:
                     state_class="measurement",
                 ),
                 _DIAGNOSTIC,
+            )
+        ),
+    ] = None
+    measurement_state: Annotated[
+        MeasurementState,
+        Field(
+            json_schema_extra=merge(
+                consumer(display_name="Measurement state", device_class="enum"),
+                ha_discovery(
+                    extra={
+                        "entity_category": "diagnostic",
+                        "options": list(get_args(MeasurementState)),
+                    }
+                ),
+            )
+        ),
+    ] = "ok"
+    sensor_reset_at: Annotated[
+        datetime | None,
+        Field(
+            json_schema_extra=merge(
+                consumer(display_name="Sensor reset", device_class="timestamp"),
+                _DIAGNOSTIC,
+                openhab(item_type="DateTime", channel_type="datetime"),
             )
         ),
     ] = None
