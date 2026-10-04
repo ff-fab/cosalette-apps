@@ -231,3 +231,22 @@ class TestResetStateRoundTrip:
         Technique: Equivalence Partitioning — absent, empty and wrong-type input.
         """
         assert ResetState.from_dict(stored) == ResetState()
+
+    @pytest.mark.parametrize(
+        "stored",
+        [
+            {"reset_at": "not-a-timestamp"},
+            {"reset_at": "2026-10-02T06:03:07"},
+            {"reset_at": 123},
+            {"last_lta": "113"},
+            {"last_lta": True},
+            {"lta_before_reset": "113"},
+            {"lta_before_reset": False},
+            {"reset_count": "2"},
+            {"reset_count": True},
+            {"reset_count": -1},
+        ],
+    )
+    def test_malformed_fields_are_default_state(self, stored: object) -> None:
+        """Malformed persisted values are discarded instead of raising or coercing."""
+        assert ResetState.from_dict(stored) == ResetState()

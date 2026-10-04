@@ -47,11 +47,35 @@ class ResetState:
         if not isinstance(data, dict):
             return cls()
         fields = cast("dict[str, Any]", data)
-        keys = ("last_lta", "lta_before_reset", "reset_count")
-        state = cls(**{k: fields[k] for k in keys if k in fields})
-        if reset_at := fields.get("reset_at"):
-            state = replace(state, reset_at=datetime.fromisoformat(reset_at))
-        return state
+        last_lta = fields.get("last_lta")
+        lta_before_reset = fields.get("lta_before_reset")
+        reset_count = fields.get("reset_count", 0)
+        reset_at_value = fields.get("reset_at")
+
+        if (
+            (last_lta is not None and type(last_lta) is not int)
+            or (lta_before_reset is not None and type(lta_before_reset) is not int)
+            or type(reset_count) is not int
+            or reset_count < 0
+            or (reset_at_value is not None and not isinstance(reset_at_value, str))
+        ):
+            return cls()
+
+        reset_at = None
+        if reset_at_value is not None:
+            try:
+                reset_at = datetime.fromisoformat(reset_at_value)
+            except ValueError:
+                return cls()
+            if reset_at.tzinfo is None or reset_at.utcoffset() is None:
+                return cls()
+
+        return cls(
+            last_lta=last_lta,
+            reset_at=reset_at,
+            lta_before_reset=lta_before_reset,
+            reset_count=reset_count,
+        )
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serialisable form for the device store."""
