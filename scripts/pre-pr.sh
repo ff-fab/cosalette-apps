@@ -100,6 +100,7 @@ run_step "reuse:lint"              "$TIMEOUT_LINT"        task reuse:lint       
 run_step "lint:all"                "$TIMEOUT_LINT"        task lint:all              &&
 run_step "typecheck:all"           "$TIMEOUT_TYPECHECK"   task typecheck:all         &&
 run_step "test:all"                "$TIMEOUT_TEST"        task test:all              &&
+run_step "test:scripts"            "$TIMEOUT_TEST"        task test:scripts          &&
 run_step "complexity"              "$TIMEOUT_COMPLEXITY"  task complexity            &&
 run_step "similarity"              "$TIMEOUT_SIMILARITY"  task similarity            &&
 run_step "security:audit"          "$TIMEOUT_SECURITY"    task security:audit        ||

@@ -11,8 +11,8 @@
 #     else the local branch's pushed commit (@{push}) when the current branch is
 #     the PR head, else the first head observed. Until the PR head matches it,
 #     checks are ignored — they would belong to the previous revision.
-#   - A finished result must be seen on two consecutive polls with the same set
-#     of checks, so workflows that register late are not missed.
+#   - After checks finish, their signature must remain unchanged for the
+#     registration grace period. Changes and pending checks restart the timer.
 #
 # Exit codes:
 #   0 — all checks passed (or skipped)
@@ -24,6 +24,7 @@ set -euo pipefail
 
 INTERVAL="${CI_WAIT_INTERVAL:-5}"
 TIMEOUT="${CI_WAIT_TIMEOUT:-1800}"  # 30 minutes default
+REGISTRATION_GRACE="${CI_WAIT_REGISTRATION_GRACE:-60}"
 
 # ── Prerequisite checks ─────────────────────────────────────────────
 
@@ -69,6 +70,7 @@ echo ""
 START=$(date +%s)
 api_failures=0
 settled=""
+settled_since=""
 
 api_failure() {
     api_failures=$((api_failures + 1))
@@ -90,6 +92,8 @@ while true; do
 
     head=$(gh pr view "$PR" --json headRefOid --jq '.headRefOid' 2>/dev/null) || head=""
     if [ -z "$head" ]; then
+        settled=""
+        settled_since=""
         api_failure "could not read PR head"
         sleep "$INTERVAL"
         continue
@@ -100,6 +104,7 @@ while true; do
     if [ "$head" != "$EXPECTED_SHA" ]; then
         api_failures=0
         settled=""
+        settled_since=""
         echo "$(date +%H:%M:%S) — PR head is ${head:0:12}, waiting for ${EXPECTED_SHA:0:12}..."
         sleep "$INTERVAL"
         continue
@@ -117,6 +122,7 @@ while true; do
     if printf '%s' "$checks" | grep -qi "^no checks reported"; then
         api_failures=0
         settled=""
+        settled_since=""
         echo "$(date +%H:%M:%S) — no checks reported yet, waiting for CI to register..."
         sleep "$INTERVAL"
         continue
@@ -126,6 +132,8 @@ while true; do
     # Bail out after MAX_API_FAILURES consecutive failures — a persistent
     # non-JSON response usually means the gh auth token has expired.
     if [ -z "$checks" ] || ! echo "$checks" | jq empty 2>/dev/null; then
+        settled=""
+        settled_since=""
         api_failure "API returned non-JSON"
         sleep "$INTERVAL"
         continue
@@ -139,12 +147,19 @@ while true; do
     if [ "$pending" -eq 0 ]; then
         signature=$(echo "$checks" | jq -c '[.[] | [.name, .state]] | sort')
         if [ "$signature" = "$settled" ]; then
-            break
+            now=$(date +%s)
+            if [ $((now - settled_since)) -ge "$REGISTRATION_GRACE" ]; then
+                break
+            fi
+            echo "$(date +%H:%M:%S) — checks unchanged; waiting for late registrations (${REGISTRATION_GRACE}s grace)..."
+        else
+            settled="$signature"
+            settled_since=$(date +%s)
+            echo "$(date +%H:%M:%S) — checks finished, waiting for late registrations (${REGISTRATION_GRACE}s grace)..."
         fi
-        settled="$signature"
-        echo "$(date +%H:%M:%S) — checks finished, confirming no further checks register..."
     else
         settled=""
+        settled_since=""
         echo "$(date +%H:%M:%S) — ${pending} check(s) still running..."
     fi
     sleep "$INTERVAL"

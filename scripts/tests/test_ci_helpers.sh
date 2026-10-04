@@ -21,6 +21,10 @@ assert_eq() {
     if [[ "$2" == "$3" ]]; then _pass "$1"; else _fail "$1 — expected=$2 got=$3"; fi
 }
 
+assert_ge() {
+    if (( $3 >= $2 )); then _pass "$1"; else _fail "$1 — expected at least $2 got $3"; fi
+}
+
 assert_contains() {
     if grep -qF "$2" <<<"$3"; then _pass "$1"; else _fail "$1 — missing '$2'"; fi
 }
@@ -70,8 +74,9 @@ fixture() {
 }
 
 run_ci_wait() {
-    OUTPUT=$(cd "$TEST_DIR" && PATH="$TEST_DIR/bin:$PATH" CI_WAIT_INTERVAL=0 \
+    OUTPUT=$(cd "$TEST_DIR" && PATH="$TEST_DIR/bin:$PATH" CI_WAIT_INTERVAL="${INTERVAL:-0}" \
         CI_WAIT_TIMEOUT="${TIMEOUT:-10}" CI_WAIT_EXPECTED_SHA="${EXPECTED:-}" \
+        CI_WAIT_REGISTRATION_GRACE="${GRACE:-0}" \
         bash "$CI_WAIT" 1 2>&1)
     RC=$?
 }
@@ -98,12 +103,15 @@ assert_contains "timeout message" "Timed out" "$OUTPUT"
 echo "ci-wait: waits for workflows that register after the first finished poll"
 fixture late-registration
 echo new > "$GH_FIXTURE/heads"
-printf '%s\n%s\n' '[{"name":"detect","state":"SUCCESS","link":"u"}]' \
+printf '%s\n%s\n%s\n%s\n' '[{"name":"detect","state":"SUCCESS","link":"u"}]' \
+    '[{"name":"detect","state":"SUCCESS","link":"u"}]' \
+    '[{"name":"detect","state":"SUCCESS","link":"u"}]' \
     '[{"name":"detect","state":"SUCCESS","link":"u"},{"name":"ci-gate","state":"FAILURE","link":"u"}]' \
     > "$GH_FIXTURE/checks"
-run_ci_wait
+GRACE=3 INTERVAL=1 run_ci_wait
 assert_eq "late failure is reported" 1 "$RC"
 assert_contains "failed check listed" "ci-gate" "$OUTPUT"
+assert_ge "multiple identical success snapshots observed before late failure" 4 "$(cat "$GH_FIXTURE/checks.n")"
 
 echo "ci-wait: pins the first observed head when none is expected"
 fixture first-head
@@ -130,7 +138,7 @@ EOF
     cat > "$GH_FIXTURE/workflow-runs.json" <<'EOF'
 {"workflow_runs": [
   {"check_suite_id": 1, "path": ".github/workflows/ci.yml", "event": "pull_request", "created_at": "2026-10-03T15:54:53Z"},
-  {"check_suite_id": 2, "path": ".github/workflows/ci.yml", "event": "pull_request", "created_at": "2026-10-03T15:54:55Z"}
+  {"check_suite_id": 2, "path": ".github/workflows/ci.yml", "event": "pull_request", "created_at": "2026-10-03T15:54:55Z", "status": "completed", "conclusion": "success", "name": "CI", "html_url": "u"}
 ]}
 EOF
 }
@@ -151,6 +159,27 @@ fixture latest-failure
 write_runs failure
 run_feedback
 assert_eq "state" failure "$(jq -r '.ci_status.state' <<<"$OUTPUT")"
+
+echo "pr:feedback: newest workflow state counts before check runs register"
+fixture workflow-before-checks
+echo '{"total_count": 0, "check_runs": []}' > "$GH_FIXTURE/check-runs.json"
+cat > "$GH_FIXTURE/workflow-runs.json" <<'EOF'
+{"workflow_runs": [{"check_suite_id": 22, "path": ".github/workflows/ci.yml", "event": "pull_request", "created_at": "2026-10-04T10:00:00Z", "status": "queued", "conclusion": null, "name": "CI", "html_url": "u"}]}
+EOF
+run_feedback
+assert_eq "queued workflow is pending" pending "$(jq -r '.ci_status.state' <<<"$OUTPUT")"
+assert_eq "queued workflow status retained" queued "$(jq -r '.ci_status.workflow_runs[0].status' <<<"$OUTPUT")"
+cat > "$GH_FIXTURE/workflow-runs.json" <<'EOF'
+{"workflow_runs": [{"check_suite_id": 22, "path": ".github/workflows/ci.yml", "event": "pull_request", "created_at": "2026-10-04T10:00:00Z", "status": "in_progress", "conclusion": null, "name": "CI", "html_url": "u"}]}
+EOF
+run_feedback
+assert_eq "running workflow is pending" pending "$(jq -r '.ci_status.state' <<<"$OUTPUT")"
+assert_eq "workflow status retained" in_progress "$(jq -r '.ci_status.workflow_runs[0].status' <<<"$OUTPUT")"
+cat > "$GH_FIXTURE/workflow-runs.json" <<'EOF'
+{"workflow_runs": [{"check_suite_id": 22, "path": ".github/workflows/ci.yml", "event": "pull_request", "created_at": "2026-10-04T10:00:00Z", "status": "completed", "conclusion": "success", "name": "CI", "html_url": "u"}]}
+EOF
+run_feedback
+assert_eq "completed workflow is success" success "$(jq -r '.ci_status.state' <<<"$OUTPUT")"
 
 echo ""
 echo "Results: ${PASS} passed, ${FAIL} failed"

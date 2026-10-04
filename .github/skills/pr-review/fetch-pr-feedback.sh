@@ -116,7 +116,7 @@ echo "  [6/6] CI status checks..." >&2
 # Combine both commit statuses and check runs for full coverage.
 HEAD_SHA=$(gh api "repos/${REPO}/pulls/${PR_NUMBER}" --jq '.head.sha' 2>/dev/null || echo "")
 
-CI_STATUS='{"state": "unknown", "statuses": [], "check_runs": []}'
+CI_STATUS='{"state": "unknown", "statuses": [], "check_runs": [], "workflow_runs": []}'
 if [[ -n "$HEAD_SHA" ]]; then
     # Commit status endpoint returns {state, statuses: [...]}
     STATUSES=$(gh api "repos/${REPO}/commits/${HEAD_SHA}/status" \
@@ -136,8 +136,13 @@ if [[ -n "$HEAD_SHA" ]]; then
     # runs from older attempts are kept for history but marked superseded and
     # excluded from the aggregate state. Non-Actions checks are never superseded.
     WORKFLOW_RUNS=$(gh api "repos/${REPO}/actions/runs?head_sha=${HEAD_SHA}&per_page=100" \
-        --jq '[.workflow_runs[]? | {check_suite_id, path, event, created_at}]' \
+        --jq '[.workflow_runs[]? | {check_suite_id, path, event, created_at, status, conclusion, name, html_url}]' \
         2>/dev/null || echo '[]')
+    LATEST_WORKFLOWS=$(jq '
+        group_by([.path, .event])
+        | map(max_by([.created_at, .check_suite_id]))
+        | map({check_suite_id, path, event, created_at, status, conclusion, name, html_url})
+        ' <<<"$WORKFLOW_RUNS" 2>/dev/null || echo '[]')
     CHECK_RUNS=$(jq --argjson runs "$WORKFLOW_RUNS" '
         ($runs | group_by([.path, .event]) | map(max_by([.created_at, .check_suite_id]))
             | map(.check_suite_id)) as $latest |
@@ -149,23 +154,27 @@ if [[ -n "$HEAD_SHA" ]]; then
     STATUS_STATE=$(echo "$STATUSES" | jq -r '.state' 2>/dev/null || echo 'unknown')
     STATUS_ARRAY=$(echo "$STATUSES" | jq '.statuses' 2>/dev/null || echo '[]')
 
-    # Compute aggregate state from legacy statuses and non-superseded check runs.
+    # Compute aggregate from legacy statuses, newest workflow runs, and
+    # non-superseded check runs. Workflow runs may appear before their checks.
     # Priority: failure > pending > success > unknown
     STATE=$(jq -nr \
         --arg status_state "$STATUS_STATE" \
         --argjson statuses "$STATUS_ARRAY" \
         --argjson all_runs "$CHECK_RUNS" \
+        --argjson workflows "$LATEST_WORKFLOWS" \
         '
         ($all_runs | map(select(.superseded != true))) as $check_runs |
         def has_failure:
             ($statuses | any(.state == "failure" or .state == "error")) or
-            ($check_runs | any(.conclusion == "failure" or .conclusion == "action_required"));
+            ($check_runs | any(.conclusion == "failure" or .conclusion == "action_required" or .conclusion == "timed_out")) or
+            ($workflows | any(.conclusion == "failure" or .conclusion == "action_required" or .conclusion == "timed_out"));
         def has_pending:
             ($status_state == "pending" and ($statuses | length) > 0) or
-            ($check_runs | any(.status != "completed"));
+            ($check_runs | any(.status != "completed")) or
+            ($workflows | any(.status == "queued" or .status == "in_progress"));
         if has_failure then "failure"
         elif has_pending then "pending"
-        elif (($statuses | length) + ($check_runs | length)) == 0 then "unknown"
+        elif (($statuses | length) + ($check_runs | length) + ($workflows | length)) == 0 then "unknown"
         else "success"
         end
         ' 2>/dev/null || echo 'unknown')
@@ -175,8 +184,9 @@ if [[ -n "$HEAD_SHA" ]]; then
         --arg head_sha "$HEAD_SHA" \
         --argjson statuses "$STATUS_ARRAY" \
         --argjson check_runs "$CHECK_RUNS" \
-        '{state: $state, head_sha: $head_sha, statuses: $statuses, check_runs: $check_runs}' \
-        2>/dev/null || echo '{"state": "unknown", "statuses": [], "check_runs": []}')
+        --argjson workflow_runs "$LATEST_WORKFLOWS" \
+        '{state: $state, head_sha: $head_sha, statuses: $statuses, check_runs: $check_runs, workflow_runs: $workflow_runs}' \
+        2>/dev/null || echo '{"state": "unknown", "statuses": [], "check_runs": [], "workflow_runs": []}')
 fi
 
 # ---------- assemble final output ----------
