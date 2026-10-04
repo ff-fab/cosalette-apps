@@ -7,6 +7,27 @@
 * honor `AIRTHINGS2MQTT_DEVICE_NAME` for state, set, error, and availability topics, correcting routing for non-default device names
 * check BlueZ adapter power over the system D-Bus for bounded, read-only operational health reporting instead of probing for `/sys/class/bluetooth/hci0`
 
+## [0.3.0](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.2.7...airthings2mqtt-v0.3.0) (2026-10-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* **airthings2mqtt:** the host needs a system account for UID 10001, because dbus-daemon refuses connections from a UID without a host account, and existing data volumes or bind mounts must be chowned to 10001:10001. See docs/host-setup.md.
+
+### Features
+
+* **airthings2mqtt:** add last_read and rssi to the state payload ([#321](https://github.com/ff-fab/cosalette-apps/issues/321)) ([d68a664](https://github.com/ff-fab/cosalette-apps/commit/d68a66479415c17cf0c975bcb3ceaace4f768c8b))
+* **airthings2mqtt:** add pre-connect advertiser scan ([dc8e103](https://github.com/ff-fab/cosalette-apps/commit/dc8e103c7c1bd685cb71ddebd230dc03d445c1b7))
+* **airthings2mqtt:** cosalette 0.11 freshness, health check, dedicated UID and host D-Bus hardening ([#323](https://github.com/ff-fab/cosalette-apps/issues/323)) ([8ecaafb](https://github.com/ff-fab/cosalette-apps/commit/8ecaafbc1755729bcb42e551089ec2c33c100efa))
+* **airthings2mqtt:** detect sensor reset, withhold radon placeholders, publish measurement_state ([#324](https://github.com/ff-fab/cosalette-apps/issues/324)) ([e6ebfab](https://github.com/ff-fab/cosalette-apps/commit/e6ebfabdb013ef490fe98708496e1fed834b0ea1))
+
+
+### Bug Fixes
+
+* **airthings2mqtt:** declare BLE reader not restartable; ADR-003 no adapter power-cycling ([#322](https://github.com/ff-fab/cosalette-apps/issues/322)) ([1eedda3](https://github.com/ff-fab/cosalette-apps/commit/1eedda3434e338000c20d5866be27f7ccef2bd46))
+* **airthings2mqtt:** retry and redact BLE device-not-found failures (early-adopter feedback) ([#316](https://github.com/ff-fab/cosalette-apps/issues/316)) ([b97fce1](https://github.com/ff-fab/cosalette-apps/commit/b97fce1d1ee7aff26b2babf904c39571828bdd94))
+* **deps:** upgrade apps to cosalette 0.11.0 ([#319](https://github.com/ff-fab/cosalette-apps/issues/319)) ([2c35f5d](https://github.com/ff-fab/cosalette-apps/commit/2c35f5dc366abeae84f6ed9f2d11e27755ab4be3))
+
 ## [0.2.7](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.2.6...airthings2mqtt-v0.2.7) (2026-10-02)
 
 

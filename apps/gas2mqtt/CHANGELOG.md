@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.8](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.2.7...gas2mqtt-v0.2.8) (2026-10-04)
+
+
+### Bug Fixes
+
+* **deps:** upgrade apps to cosalette 0.11.0 ([#319](https://github.com/ff-fab/cosalette-apps/issues/319)) ([2c35f5d](https://github.com/ff-fab/cosalette-apps/commit/2c35f5dc366abeae84f6ed9f2d11e27755ab4be3))
+
 ## [0.2.7](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.2.6...gas2mqtt-v0.2.7) (2026-10-02)
 
 
