@@ -98,6 +98,7 @@ broker by itself.
 | Poll timeout   | `AIRTHINGS2MQTT_POLL_TIMEOUT`      | `120.0`        | Timeout per BLE poll in seconds (minimum 5)         |
 | Trigger min interval | `AIRTHINGS2MQTT_TRIGGER_MIN_INTERVAL` | `30.0`  | Minimum seconds between on-demand `/set` re-reads    |
 | LTA settle days | `AIRTHINGS2MQTT_LTA_SETTLE_DAYS` | `30`          | Days the long-term average is `provisional` after a sensor reset; `0` disables the phase |
+| Exit after stale | `AIRTHINGS2MQTT_EXIT_AFTER_STALE` | `18000`      | Seconds the sensor may stay stale before the app exits with code 5; `0` disables the exit |
 
 The MQTT entity topics use the configured values as
 `{prefix}/{device_name}/{channel}`. For example, setting
@@ -152,6 +153,22 @@ The MQTT entity topics use the configured values as
     the first values arrive. See [MQTT Topics](mqtt-topics.md#measurement-state) and
     [ADR-004](adr/ADR-004-withhold-radon-placeholders-after-a-sensor-reset-and-publish-measurement-state.md).
 
+!!! note "Restart on a stale sensor (`AIRTHINGS2MQTT_EXIT_AFTER_STALE`)"
+    The sensor turns `stale` when no read has succeeded for `stale_after`, about 62
+    minutes with the default poll settings. If it then stays stale for
+    `AIRTHINGS2MQTT_EXIT_AFTER_STALE` more seconds (default `18000`, 5 hours), the app logs a
+    `CRITICAL` line and exits with code 5. `restart: unless-stopped` starts it again.
+    With the defaults that is one restart about 6 hours after the last good reading.
+
+    The counter starts again after each restart, so a sensor that stays dead causes
+    one harmless restart about every 6 hours. A restart cannot fix a missing sensor
+    or a radio fault on the host; it recovers an app that is stuck, for example a
+    wedged BlueZ connection. Changing `POLL_INTERVAL` or `POLL_TIMEOUT` changes
+    `stale_after` and therefore the total. Set `0` to never exit. The app ships no
+    Docker health check; MQTT carries the health signal
+    ([ADR-010](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md)).
+    See [Troubleshooting](troubleshooting.md#restarts-and-exit-codes).
+
 ---
 
 ## `.env` Example
@@ -205,6 +222,11 @@ AIRTHINGS2MQTT_DEVICE_MAC=XX:XX:XX:XX:XX:XX
 # Days the radon long-term average is marked provisional after a sensor reset
 # (battery change), 0 disables the phase (default: 30). See docs/adr/ADR-004.
 # AIRTHINGS2MQTT_LTA_SETTLE_DAYS=30
+
+# Seconds the sensor may stay stale before the app exits with code 5 and the
+# restart policy restarts it; 0 disables the exit (default: 18000 = 5 h, so a
+# dead sensor restarts the app about every 6 h). See docs/adr/ADR-010.
+# AIRTHINGS2MQTT_EXIT_AFTER_STALE=18000
 
 # Store path for persisting state across restarts (default: XDG_STATE_HOME)
 # AIRTHINGS2MQTT_STORE_PATH=/app/data/store.json

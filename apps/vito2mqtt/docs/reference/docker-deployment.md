@@ -323,23 +323,27 @@ nano compose.yml
 docker compose up -d
 ```
 
-## Health Checks
+## Health Monitoring
 
-The `Dockerfile` includes a basic health check (executes every 30s):
+The image ships no Docker `HEALTHCHECK`, so `docker ps` shows no health status. MQTT is
+the health signal
+([ADR-010](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md)):
 
-```dockerfile
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-    CMD python -c "import sys; sys.exit(0)" || exit 1
-```
-
-View health status:
+- `vito2mqtt/status` carries the periodic heartbeat. The broker publishes the retained
+  last will `offline` there when the app dies or stops answering keepalives.
+- `vito2mqtt/{group}/availability` turns `offline` when reads fail or no fresh
+  reading arrives in time.
 
 ```bash
-docker inspect --format='{{.State.Health.Status}}' vito2mqtt
-docker ps  # Shows "healthy" or "unhealthy" in the STATUS column
+mosquitto_sub -h localhost -v -t 'vito2mqtt/status' -t 'vito2mqtt/+/availability'
 ```
 
-**Future:** Expand health check to verify MQTT connectivity and device communication.
+When the app cannot recover, it exits with a non-zero code and `restart: unless-stopped`
+starts it again:
+
+```bash
+docker inspect --format '{{.State.ExitCode}} {{.RestartCount}}' vito2mqtt
+```
 
 ## Production Setup
 

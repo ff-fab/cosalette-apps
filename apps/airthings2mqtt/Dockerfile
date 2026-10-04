@@ -37,7 +37,7 @@ COPY apps/airthings2mqtt/packages/src/ apps/airthings2mqtt/packages/src/
 #
 # --compile-bytecode writes the .pyc files at build time. The app runs as a
 # non-root user that cannot write into root-owned site-packages, so without them
-# every start and every health probe recompiles all imports. compileall does the
+# every start and every CLI call recompiles all imports. compileall does the
 # same for the standard library, whose .pyc the python:alpine base image strips.
 RUN uv export --frozen --no-dev --no-emit-workspace --package airthings2mqtt \
       --format requirements-txt >/tmp/requirements.txt \
@@ -58,13 +58,6 @@ USER 10001:10001
 
 VOLUME /app/data
 
-# Liveness probe (cosalette ADR-083): the app rewrites this file every heartbeat;
-# `airthings2mqtt health` fails when it is too old (stalled event loop) or a
-# device is stale (no fresh reading within the derived stale_after window).
-# The probe imports the app: ~4 s at 0.5 CPU on amd64 and several times that on a
-# Raspberry Pi, so the timeout leaves room. Keep in sync with compose.yml.
-ENV COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json
-HEALTHCHECK --interval=60s --timeout=30s --start-period=180s --retries=3 \
-    CMD ["airthings2mqtt", "health"]
-
+# No HEALTHCHECK (docs/adr/ADR-010): MQTT carries health (heartbeat, availability,
+# LWT), and a stale sensor exits with code 5 for the restart policy.
 ENTRYPOINT ["airthings2mqtt"]

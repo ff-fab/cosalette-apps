@@ -19,11 +19,6 @@ services:
       - ./geometry.yaml:/app/geometry.yaml:ro
     depends_on:
       - mosquitto
-    healthcheck:
-      test: ['CMD', 'pgrep', '-f', 'suncast']
-      interval: 30s
-      timeout: 5s
-      retries: 3
 
   shadow-web:
     image: nginx:alpine

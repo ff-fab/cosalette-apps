@@ -35,7 +35,7 @@ COPY apps/suncast/packages/src/ apps/suncast/packages/src/
 #
 # --compile-bytecode writes the .pyc files at build time. The app runs as a
 # non-root user that cannot write into root-owned site-packages, so without them
-# every start and every health probe recompiles all imports. compileall does the
+# every start and every CLI call recompiles all imports. compileall does the
 # same for the standard library, whose .pyc the python:alpine base image strips.
 RUN uv export --frozen --no-dev --no-emit-workspace --package suncast --extra png --extra http \
       --format requirements-txt >/tmp/requirements.txt \

@@ -7,7 +7,8 @@ deployment silently.
 Test Techniques Used:
 - Specification-based: the Dockerfile pins the documented UID/GID, which the host
   D-Bus policy repeats; compose adds no capabilities.
-- Error Guessing: the commented compose example drifting from the live service.
+- Error Guessing: the commented compose example drifting from the live service; a
+  Docker health probe returning (monorepo ADR-010).
 """
 
 from __future__ import annotations
@@ -67,25 +68,31 @@ class TestComposePrivileges:
         assert service["security_opt"] == ["no-new-privileges:true"]
 
 
-class TestHealthcheckTiming:
-    """The compose healthcheck matches the image HEALTHCHECK and fits a Pi."""
+class TestNoHealthcheck:
+    """MQTT carries health; no Docker probe in image or compose (monorepo ADR-010)."""
 
-    def test_compose_healthcheck_matches_dockerfile(self) -> None:
-        """Interval, timeout, start period and retries agree; timeout is 30s.
+    def test_image_has_no_healthcheck_or_health_file(self) -> None:
+        """The Dockerfile sets neither HEALTHCHECK nor COSALETTE_HEALTH_FILE.
 
-        Technique: Error Guessing — the probe imports the whole app, which took
-        longer than a 10s timeout on a Raspberry Pi limited to 0.5 CPU.
+        Technique: Error Guessing — the probe imported the whole app every
+        minute and nothing read its result.
         """
         dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
-        compose = yaml.safe_load((_APP_DIR / "compose.yml").read_text(encoding="utf-8"))
-        check = compose["services"]["airthings2mqtt"]["healthcheck"]
 
-        expected = (
-            f"HEALTHCHECK --interval={check['interval']} --timeout={check['timeout']}"
-            f" --start-period={check['start_period']} --retries={check['retries']}"
-        )
-        assert expected in dockerfile
-        assert check["timeout"] == "30s"
+        assert not re.search(r"^HEALTHCHECK\b", dockerfile, re.MULTILINE)
+        assert "COSALETTE_HEALTH_FILE" not in dockerfile
+
+    def test_compose_has_no_healthcheck_and_restarts(self) -> None:
+        """The service has no healthcheck and restarts on a non-zero exit.
+
+        Technique: Specification-based — exit code 5 (exit_after_stale) only
+        heals when the restart policy brings the container back.
+        """
+        compose = yaml.safe_load((_APP_DIR / "compose.yml").read_text(encoding="utf-8"))
+        service = compose["services"]["airthings2mqtt"]
+
+        assert "healthcheck" not in service
+        assert service["restart"] == "unless-stopped"
 
 
 class TestBluezPolicy:

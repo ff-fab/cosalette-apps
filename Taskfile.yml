@@ -566,15 +566,27 @@ tasks:
           )'
 
   pr:create:
-    desc: 'Create a PR. Pass TITLE and BODY as task vars (not CLI args).'
-    preconditions:
-      - sh: '[ -n "{{.TITLE}}" ]'
-        msg: 'Usage: task pr:create TITLE="feat: title" BODY="## Summary ..."'
+    desc: 'Create a PR. Pass TITLE and BODY (or BODY_FILE=path for a long body) as task vars.'
+    # Values reach the shell through env only, never templated into a command,
+    # so quotes, backticks and newlines in TITLE or BODY are passed verbatim.
     env:
       PR_TITLE: '{{.TITLE}}'
       PR_BODY: '{{.BODY}}'
+      PR_BODY_FILE: '{{.BODY_FILE}}'
+    preconditions:
+      - sh: '[ -n "$PR_TITLE" ]'
+        msg: 'Usage: task pr:create TITLE="feat: title" BODY="## Summary ..." (or BODY_FILE=path)'
+      - sh: '[ -z "$PR_BODY_FILE" ] || [ -f "$PR_BODY_FILE" ]'
+        msg: 'BODY_FILE does not exist'
+      - sh: '[ -z "$PR_BODY_FILE" ] || [ -z "$PR_BODY" ]'
+        msg: 'Pass BODY or BODY_FILE, not both'
     cmds:
-      - gh pr create --title "$PR_TITLE" --body "$PR_BODY"
+      - |
+        if [ -n "$PR_BODY_FILE" ]; then
+          gh pr create --title "$PR_TITLE" --body-file "$PR_BODY_FILE"
+        else
+          gh pr create --title "$PR_TITLE" --body "$PR_BODY"
+        fi
 
   pr:diff:
     desc: 'Show PR diff (e.g.: task pr:diff -- 42, or task pr:diff -- 42 --name-only)'

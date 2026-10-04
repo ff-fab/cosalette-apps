@@ -10,7 +10,6 @@ for UID 10001 only, and scans, sensor reads and other accounts were unaffected.
 | [Host account for UID 10001](#container-user-uid-10001) | **Yes**, from 0.3.0 |
 | [No added capabilities, `no-new-privileges`](#capabilities-and-no-new-privileges) | Recommended |
 | [Deny BlueZ property writes](#optional-deny-bluez-property-writes) | Optional |
-| [Image 0.3.0+ before adding the health check](#health-check-needs-030-or-later) | **Yes**, with the `healthcheck` block |
 
 ---
 
@@ -119,34 +118,6 @@ docker exec "$C" grep -E '^Cap(Eff|Bnd)' /proc/1/status
 
 `CapEff` must be all zeros. `CapBnd` should no longer include bit 12 (`0x1000`,
 `cap_net_admin`) or bit 21 (`0x200000`, `cap_sys_admin`).
-
----
-
-## Health Check Needs 0.3.0 or Later
-
-The image and the shipped `compose.yml` run `airthings2mqtt health` every 60 seconds.
-The `health` command first ships in 0.3.0, the release that contains
-[PR #323](https://github.com/ff-fab/cosalette-apps/pull/323). Upgrade the image before
-you copy the `healthcheck` block into your own compose file.
-
-This matters if you pin a tag. The 0.2.x CLI ignores its arguments, so
-`airthings2mqtt health` on an old image does not check anything: it starts a **second
-instance** of the app inside the container. Both instances poll the sensor and publish
-to the broker. If you set `MQTT__CLIENT_ID`, the second instance uses the same client
-ID, so the broker keeps disconnecting one instance in favour of the other. Docker marks
-the probe as failed after `timeout`, but the stray process can keep running, and a new
-one starts every `interval`.
-
-Check the image before enabling the health check:
-
-```bash
-docker compose run --rm --no-deps airthings2mqtt health
-# 0.3.0+: "unhealthy: ... does not exist" (exit 1) in a fresh container. Good.
-# 0.2.x: app startup logs and an MQTT connection. Press Ctrl+C and upgrade first.
-```
-
-The image's own `HEALTHCHECK` only exists from 0.3.0, so an old image without the
-compose block is not affected.
 
 ---
 

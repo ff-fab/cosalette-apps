@@ -55,6 +55,8 @@ app = cosalette.App(
     # bleak/BlueZ log records embed the full sensor MAC; scrub them like the
     # adapter already scrubs error text (cosalette ADR-085).
     redact=redact_macs_in,
+    # Replaced by _configure_exit_after_stale once CLI settings load.
+    exit_after_stale=Airthings2MqttSettings.model_fields["exit_after_stale"].default,
 )
 
 RETRY_ON = (BleConnectionError, BleTimeoutError, TimeoutError)
@@ -126,6 +128,20 @@ def _configure_trigger_min_interval(settings: Airthings2MqttSettings) -> None:
 
 app.on_configure(_configure_trigger_min_interval)
 
+
+def _configure_exit_after_stale(settings: Airthings2MqttSettings) -> None:
+    """Apply the CLI-loaded ``exit_after_stale`` before the watchdog starts.
+
+    A stale sensor ends the app with exit code 5 and ``restart: unless-stopped``
+    restarts it (monorepo ADR-010). ``0`` disables the exit. cosalette reads
+    the value when it starts the freshness watchdog, after the ``on_configure``
+    hooks.
+    """
+    app._exit_after_stale = settings.exit_after_stale or None
+
+
+app.on_configure(_configure_exit_after_stale)
+
 _STORE_KEY = "reset_tracker"
 """Device-store key holding the :class:`ResetState` (ADR-004)."""
 
@@ -185,10 +201,12 @@ async def _telemetry(
 
 
 def main() -> None:
-    """Start the application, or run a CLI subcommand such as ``health``.
+    """Start the application, or run a CLI subcommand such as ``schema``.
 
-    ``cli()`` rather than ``run()``: the container HEALTHCHECK calls
-    ``airthings2mqtt health`` (cosalette ADR-083), and the cosalette flags
-    (``--dry-run``, ``--env-file``, ``--version``) come with it.
+    ``cli()`` rather than ``run()``: it keeps the ``schema`` and ``health``
+    subcommands and the cosalette flags (``--dry-run``, ``--env-file``,
+    ``--version``). The image ships no HEALTHCHECK (monorepo ADR-010);
+    ``health`` stays for operators who run their own probe with
+    ``COSALETTE_HEALTH_FILE`` set.
     """
     app.cli()
