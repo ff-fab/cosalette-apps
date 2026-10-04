@@ -58,6 +58,10 @@ USER 10001:10001
 
 VOLUME /app/data
 
+# The user has no home directory, so the framework default store path
+# (~/.local/state/...) is not writable. Keep the device store on the volume.
+ENV AIRTHINGS2MQTT_STORE_PATH=/app/data/store.json
+
 # No HEALTHCHECK (docs/adr/ADR-010): MQTT carries health (heartbeat, availability,
 # LWT), and a stale sensor exits with code 5 for the restart policy.
 ENTRYPOINT ["airthings2mqtt"]

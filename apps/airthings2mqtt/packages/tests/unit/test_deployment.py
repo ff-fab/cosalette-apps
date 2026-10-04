@@ -36,6 +36,21 @@ class TestDockerfileIdentity:
         assert f"adduser -D -H -u {_APP_UID} " in dockerfile
         assert f"addgroup -g {_APP_UID} " in dockerfile
 
+    def test_image_stores_state_on_the_data_volume(self) -> None:
+        """The store path defaults to the volume, not the missing home directory.
+
+        Technique: Error Guessing — ``adduser -H`` creates no home, so the
+        framework's ``~/.local/state`` default fails every save.
+        """
+        dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
+
+        assert re.search(r"^VOLUME /app/data$", dockerfile, re.MULTILINE)
+        assert re.search(
+            r"^ENV AIRTHINGS2MQTT_STORE_PATH=/app/data/store\.json$",
+            dockerfile,
+            re.MULTILINE,
+        )
+
 
 class TestComposePrivileges:
     """Shipped compose services add no capabilities and forbid privilege gain."""
