@@ -153,10 +153,10 @@ The MQTT entity topics use the configured values as
     the first values arrive. See [MQTT Topics](mqtt-topics.md#measurement-state) and
     [ADR-004](adr/ADR-004-withhold-radon-placeholders-after-a-sensor-reset-and-publish-measurement-state.md).
 
-!!! note "Restart on a stale sensor (`EXIT_AFTER_STALE`)"
+!!! note "Restart on a stale sensor (`AIRTHINGS2MQTT_EXIT_AFTER_STALE`)"
     The sensor turns `stale` when no read has succeeded for `stale_after`, about 62
     minutes with the default poll settings. If it then stays stale for
-    `EXIT_AFTER_STALE` more seconds (default `18000`, 5 hours), the app logs a
+    `AIRTHINGS2MQTT_EXIT_AFTER_STALE` more seconds (default `18000`, 5 hours), the app logs a
     `CRITICAL` line and exits with code 5. `restart: unless-stopped` starts it again.
     With the defaults that is one restart about 6 hours after the last good reading.
 

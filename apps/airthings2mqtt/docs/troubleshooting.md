@@ -21,8 +21,8 @@ fails, airthings2mqtt:
    becomes `"stale"` and the availability topic shows `"offline"`.
 4. **Tries again at the next poll.** It keeps polling at `POLL_INTERVAL`.
 5. **Exits after a long stale period.** If the sensor stays stale for
-   `EXIT_AFTER_STALE` (5 hours by default), the app exits with code 5 and the restart
-   policy starts it again. See [Restarts and Exit Codes](#restarts-and-exit-codes).
+   `AIRTHINGS2MQTT_EXIT_AFTER_STALE` (5 hours by default), the app exits with code 5 and
+   the restart policy starts it again. See [Restarts and Exit Codes](#restarts-and-exit-codes).
 
 The `error_type` says which step failed:
 
@@ -183,7 +183,7 @@ itself:
 | --------- | ------------------------------------------------------------------------ |
 | `3`       | An unexpected exception                                                  |
 | `4`       | A framework task kept crashing and used up its restart budget            |
-| `5`       | The sensor stayed stale for `EXIT_AFTER_STALE` seconds (5 hours by default) |
+| `5`       | The sensor stayed stale for `AIRTHINGS2MQTT_EXIT_AFTER_STALE` seconds (5 hours by default) |
 
 ```bash
 docker inspect --format '{{.State.ExitCode}} {{.RestartCount}}' <container>
@@ -195,8 +195,8 @@ stale about 62 minutes after the last good reading, and the app exits 5 hours af
 that. After the restart the count starts again. Each restart shows on MQTT as the last
 will `"offline"` and then `"online"`. A restart cannot fix a missing sensor or a radio
 fault on the host, so work through the [Operator Runbook](#operator-runbook) when you
-see exit code 5 more than once. To turn the exit off, set `EXIT_AFTER_STALE=0`; see
-[Configuration](configuration.md).
+see exit code 5 more than once. To turn the exit off, set
+`AIRTHINGS2MQTT_EXIT_AFTER_STALE=0`; see [Configuration](configuration.md).
 
 **Not yet covered:** a blocked event loop. The last will reports it after about 90
 seconds, but the app does not exit by itself, so restart the container by hand (step 3
