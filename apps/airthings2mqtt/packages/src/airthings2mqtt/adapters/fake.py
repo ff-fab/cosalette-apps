@@ -35,6 +35,9 @@ class FakeAirthingsReader:
         raise_on_next: Exception to raise on next read(), cleared after use.
     """
 
+    restartable = False
+    """Mirror the production reader so ``--dry-run`` logs its opt-out (ADR-003)."""
+
     def __init__(self) -> None:
         self.readings: list[AirthingsReading] = [_DEFAULT_READING]
         self.calls: list[str] = []

@@ -228,7 +228,7 @@ AIRTHINGS2MQTT_DEVICE_MAC=XX:XX:XX:XX:XX:XX
 # dead sensor restarts the app about every 6 h). See docs/adr/ADR-010.
 # AIRTHINGS2MQTT_EXIT_AFTER_STALE=18000
 
-# Store path for persisting state across restarts (default: XDG_STATE_HOME)
+# Device store path; the image defaults it to the data volume (/app/data/store.json)
 # AIRTHINGS2MQTT_STORE_PATH=/app/data/store.json
 ```
 
