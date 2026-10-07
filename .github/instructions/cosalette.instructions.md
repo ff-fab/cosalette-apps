@@ -520,8 +520,9 @@ fallback. See `cosalette ai help health`.
 
 > **Downstream note: not from the shipped template; re-add after `ai init`.**
 >
-> **Every app image ships the native probe (ADR-011)**, also where no orchestrator acts on
-> it; this overrides "Add a probe only where an orchestrator acts on it" above. Set
+> **Apps adopt the native probe in the staged rollout (ADR-011)**, also where no
+> orchestrator acts on it. Apps not yet adopted keep MQTT as their health signal and
+> ship no image probe. For each adopting app, set
 > `ENV COSALETTE_HEALTH_FILE=/tmp/<app>-health.json` and
 > `HEALTHCHECK --interval=60s --timeout=5s --start-period=<per app> --retries=3 CMD ["cosalette-health"]`
 > in the Dockerfile, never in compose, and never probe with `<app> health`. The probe

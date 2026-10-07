@@ -34,9 +34,9 @@ With the cost gone, the consumer argument is weaker than ADR-010 stated. `docker
 
 ## Decision
 
-Use the native `cosalette-health` binary as the default Docker `HEALTHCHECK` in every app image, with `COSALETTE_HEALTH_FILE` set in the image, because it costs about 0.1 % of a Raspberry Pi 4 core and makes container health visible on the host; MQTT (status heartbeat, availability, LWT) stays the primary health signal, and healing stays with process exits (1, 3, 4, 5, 6) plus `restart: unless-stopped`, so an `unhealthy` status restarts nothing and the repository ships no autoheal.
+Adopt the native `cosalette-health` binary as the default Docker `HEALTHCHECK` in each app image through a staged per-app rollout, with `COSALETTE_HEALTH_FILE` set in each adopting image. It costs about 0.1 % of a Raspberry Pi 4 core and makes container health visible on the host. Until an app adopts it, MQTT (status heartbeat, availability, LWT) remains that app's health signal and its image ships no probe. For adopted apps, MQTT remains primary and healing stays with process exits (1, 3, 4, 5, 6) plus `restart: unless-stopped`, so an `unhealthy` status restarts nothing and the repository ships no autoheal.
 
-The rules for every app:
+The target rules for each app after adoption:
 
 1. **The probe lives in the Dockerfile**, in exec form, and runs only `cosalette-health`. Never `<app> health` (0.5 to 0.9 s CPU with 0.11.1) and never the Python fallback. The image must install the native wheel; a cross-app unit test checks the Dockerfile.
 2. **Defaults:** `--interval=60s --timeout=5s --retries=3`. `--start-period` is set per app to the time to the first health-file write on a Raspberry Pi, with margin. `COSALETTE_HEALTH_FILE=/tmp/<app>-health.json`.
@@ -45,7 +45,7 @@ The rules for every app:
 5. **Compose files define no `healthcheck:`.** The image is the single source. An operator disables the probe with `healthcheck: {disable: true}` and enables autoheal or an orchestrator on their own.
 6. **Carried over from ADR-010 unchanged:** each app decides `exit_after_stale` and `restart_on_stale`, and the loop-stall watchdog (`COSALETTE_LOOP_STALL_TIMEOUT`, set in `compose.yml`) stays a per-app opt-in with a value recorded in the app's docs.
 
-Each app adopts the probe in its epic cap-fjop task, together with its freshness and watchdog decisions. `packages/tests/unit/test_container_health_defaults.py` lists the apps that have adopted it; an app that is not on the list must not have a probe yet.
+Each app adopts the probe in its epic cap-fjop task, together with its freshness and watchdog decisions. `packages/tests/unit/test_container_health_defaults.py` lists the apps that have adopted it; an app that is not on the list must not have a probe yet. This staged rollout is intentional: until adoption, MQTT remains the health signal and the Dockerfile has neither `HEALTHCHECK` nor `COSALETTE_HEALTH_FILE`.
 
 ```dockerfile
 # Health: MQTT is the primary signal; the probe only makes it visible on the host.

@@ -51,8 +51,8 @@ taskfiles/
 
 ## Container Health
 
-- Every app image ships the native probe:
-  `ENV COSALETTE_HEALTH_FILE=/tmp/<app>-health.json` and
+- Apps adopt the native probe in the staged rollout recorded in ADR-011. For each
+  adopting app, the image ships: `ENV COSALETTE_HEALTH_FILE=/tmp/<app>-health.json` and
   `HEALTHCHECK --interval=60s --timeout=5s --start-period=<per app> --retries=3 CMD ["cosalette-health"]`.
   Never probe with `<app> health` or the Python fallback, and do not add a compose
   `healthcheck:`.
@@ -63,6 +63,7 @@ taskfiles/
   devices), `exit_after_stale` / `restart_on_stale` and the loop-stall watchdog
   (`COSALETTE_LOOP_STALL_TIMEOUT`, set in `compose.yml`). An app that adopts the probe
   moves to `_PROBE_APP_DIRS` in `packages/tests/unit/test_container_health_defaults.py`.
+  Apps not yet adopted keep MQTT as their health signal and ship no image probe.
 - The decision and rationale live in
   [docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md](docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md).
 

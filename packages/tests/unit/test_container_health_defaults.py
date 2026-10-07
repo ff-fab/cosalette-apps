@@ -61,12 +61,32 @@ def test_dockerfile_ships_native_probe(app_dir: str) -> None:
     ), f"{app_dir}: set COSALETTE_HEALTH_FILE=/tmp/{app_dir}-health.json"
     match = _HEALTHCHECK.search(contents)
     assert match, f"{app_dir}: HEALTHCHECK must use the exec form CMD [...]"
-    options = match["options"]
-    for option in ("--interval=60s", "--timeout=5s", "--retries=3"):
-        assert option in options, f"{app_dir}: HEALTHCHECK needs {option}"
-    assert "--start-period=" in options, f"{app_dir}: set a per-app --start-period"
+    options = match["options"].replace("\\\n", " ").split()
+    for name, expected in (
+        ("--interval=", "--interval=60s"),
+        ("--timeout=", "--timeout=5s"),
+        ("--retries=", "--retries=3"),
+    ):
+        actual = [option for option in options if option.startswith(name)]
+        assert actual == [expected], (
+            f"{app_dir}: HEALTHCHECK needs {expected} exactly once"
+        )
+    start_periods = [
+        option for option in options if option.startswith("--start-period=")
+    ]
+    assert len(start_periods) == 1, f"{app_dir}: set one per-app --start-period"
+    assert not any(
+        option == "--max-age" or option.startswith("--max-age=") for option in options
+    ), f"{app_dir}: leave --max-age at the framework default"
     cmd = json.loads(match["cmd"])
     assert cmd[0] == "cosalette-health", f"{app_dir}: probe only with cosalette-health"
+    assert not any(
+        arg == "--max-age" or arg.startswith("--max-age=") for arg in cmd[1:]
+    ), f"{app_dir}: leave --max-age at the framework default"
+    assert cmd[1:] == [] or cmd[1] == "--fail-on", (
+        f"{app_dir}: only a per-app --fail-on override is allowed"
+    )
+    assert len(cmd[1:]) in (0, 2), f"{app_dir}: --fail-on requires one value"
 
 
 @pytest.mark.unit
