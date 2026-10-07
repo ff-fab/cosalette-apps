@@ -23,7 +23,7 @@ _APP_DIRS = {
 }
 # Apps that ship the native probe. Each app moves here in its epic cap-fjop task;
 # when every app is listed, drop the set and require the probe everywhere.
-_PROBE_APP_DIRS: set[str] = set()
+_PROBE_APP_DIRS = {"gas2mqtt"}
 
 _HEALTHCHECK = re.compile(
     r"(?im)^\s*HEALTHCHECK\s+(?P<options>(?:--\S+\s+(?:\\\s*)?)*)CMD\s+(?P<cmd>\[.*\])\s*$"

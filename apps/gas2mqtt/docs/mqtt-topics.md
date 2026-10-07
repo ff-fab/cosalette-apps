@@ -150,8 +150,12 @@ string, or `null` before the first success), `consecutive_failures` (integer),
 on success. Device statuses are `"ok"`, `"error"`, `"unavailable"`,
 `"circuit_open"` or `"stale"`; stale freshness takes precedence. The freshness
 watchdog marks named telemetry offline after the derived window of two poll
-intervals plus the retry/timeout/backoff budget. A successful handler cycle
-clears that freshness mark, even when an unchanged value is not republished.
+intervals plus the retry/timeout/backoff budget: 186 s for `gas_counter` and
+`magnetometer`, 2016 s for `temperature` with the default intervals. A successful
+handler cycle clears that freshness mark, even when an unchanged value is not
+republished. An entity that stays `"stale"` for 300 s stops gas2mqtt with exit code 5
+so the restart policy recovers it; see
+[Configuration > Health and recovery](configuration.md#health-and-recovery).
 
 ### Error
 
