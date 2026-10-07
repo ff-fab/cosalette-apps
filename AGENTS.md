@@ -54,7 +54,8 @@ taskfiles/
 - Do not add a Docker `HEALTHCHECK` or compose `healthcheck:`, and do not set
   `COSALETTE_HEALTH_FILE` in images. MQTT (status heartbeat, availability, LWT) is the
   health signal; a non-zero exit plus `restart: unless-stopped` heals.
-- Decide `exit_after_stale` / `restart_on_stale` per app.
+- Decide `exit_after_stale` / `restart_on_stale` and the loop-stall watchdog
+  (`COSALETTE_LOOP_STALL_TIMEOUT`, set in `compose.yml`) per app.
 - The decision and rationale live in
   [docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md](docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md).
 
@@ -299,9 +300,10 @@ the downstream `paths:` this repo adds — is preserved
 (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
 **comments inside the frontmatter**, and **the entire body**, which is replaced by the
 shipped template. Every repo-specific body note must be re-added afterwards; grep the
-file for `Downstream note` to find them. There are currently two: the MQTT TLS posture
-note under Configuration, and the `discoverable=`/channel-merge note under "Opting a
-channel out of discovery". Run `cosalette ai init --check` first to see the diff.
+file for `Downstream note` to find them. There are currently three: the MQTT TLS posture
+note under Configuration, the no-probe (ADR-010) note after "Container liveness", and
+the `discoverable=`/channel-merge note under "Opting a channel out of discovery". Run
+`cosalette ai init --check` first to see the diff.
 
 A refresh also rewrites `.vscode/mcp.json`, pointing the cosalette server at
 `uv run --package cosalette`. That fails here — `cosalette` is a dependency, not a

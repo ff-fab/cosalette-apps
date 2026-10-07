@@ -8,9 +8,10 @@ description: 'cosalette framework development guidance for AI agents'
 # (`_package_cli/_ai_init.py::_merge_instruction_content`). Template-owned keys are
 # updated; every other top-level key, `paths:` included, survives verbatim. Two things do
 # not: these comments, and the entire body below. Re-add every downstream body note
-# after a refresh — grep for "Downstream note"; there are two, one under Configuration
-# (MQTT TLS posture) and one under "Opting a channel out of discovery". Run
-# `cosalette ai init --check` first to preview the diff.
+# after a refresh — grep for "Downstream note"; there are three, one under Configuration
+# (MQTT TLS posture), one after "Container liveness" (no probe, ADR-010) and one
+# under "Opting a channel out of discovery". Run `cosalette ai init --check` first to
+# preview the diff.
 applyTo: '**/*.py'
 paths:
   - '**/*.py'
@@ -343,7 +344,7 @@ so restart after changing either; a running MQTT 3.1.1 connection never gains MQ
 topic beyond that limit raises `RuntimeError` until an existing retained topic is
 cleared with an empty payload.
 
-**`mqtt.topic_prefix` is transport, `App(name=...)` is identity (ADR-072).** Every topic resolves as `settings.mqtt.topic_prefix or App(name=...)` — the app name is the fallback, never an override. Multi-segment prefixes are supported (`MQTT__TOPIC_PREFIX=house/wiz` → `house/wiz/desk/state`). The name stays the identity regardless: it is the `x-cosalette-app` tag, the HA `node_id`, and what schema enforcement filters an app's slice by. Never use one where the other belongs. Generated AsyncAPI composes addresses from the prefix and records it in `info.x-cosalette-topic-prefix` (only when it differs from the app name; readers fall back to `info.title`), so `schema acl` / `ha-discovery` / `openhab` stay correct when reading a dumped document. Device names and HA `object_id`/`unique_id` are derived *past* the prefix, so changing the prefix never orphans existing entities.
+**`mqtt.topic_prefix` is transport, `App(name=...)` is identity (ADR-072).** Every topic resolves as `settings.mqtt.topic_prefix or App(name=...)` — the app name is the fallback, never an override. Multi-segment prefixes are supported (`MQTT__TOPIC_PREFIX=house/wiz` → `house/wiz/desk/state`). The name stays the identity regardless: it is the `x-cosalette-app` tag, the HA `node_id`, and what schema enforcement filters an app's slice by. Never use one where the other belongs. Generated AsyncAPI composes addresses from the prefix and records it in `info.x-cosalette-topic-prefix` (only when it differs from the app name; readers fall back to `info.title`), so `schema acl` / `ha-discovery` / `openhab` stay correct when reading a dumped document. Device names and HA `object_id`/`unique_id` are derived *past* the prefix, so changing the prefix never orphans existing entities. Because the prefix never changes identity, give each instance of an app that runs more than once on one broker its own `MQTT__INSTANCE_ID`: it replaces the app name in HA discovery and openHAB ids (ADR-089).
 
 See `cosalette ai help configuration`.
 
@@ -505,6 +506,28 @@ ledger is bounded to 1,000 topics and 16 MiB of UTF-8 topic and payload data; a 
 that exceeds either bound raises `RuntimeError`.
 
 See `cosalette ai help availability`.
+
+Container liveness (ADR-083): alert on the MQTT signals above and recover with
+`restart: unless-stopped` plus `exit_after_stale` (exit 5) and `on_task_failure`
+(exit 4). `COSALETTE_LOOP_STALL_TIMEOUT=300` (ADR-088) exits with 6 when the event
+loop has not run for 300 s, which `exit_after_stale` cannot detect; never block the
+loop with synchronous I/O (use `asyncio.to_thread`). Add a probe only where an orchestrator acts on it (Kubernetes, Swarm,
+autoheal): set `COSALETTE_HEALTH_FILE` and probe with `["CMD", "cosalette-health"]`
+(ADR-087), not `myapp health`. It is a native binary in platform wheels and a
+stdlib-only script elsewhere; a source build still needs Rust for the existing
+PyO3 extension. Set `UV_COMPILE_BYTECODE=1` in the image for the Python
+fallback. See `cosalette ai help health`.
+
+> **Downstream note: not from the shipped template; re-add after `ai init`.**
+>
+> **This monorepo ships no probe (ADR-010).** No compose service in `apps/` runs under an
+> orchestrator that acts on container health, so do not add a Docker `HEALTHCHECK`, a
+> compose `healthcheck:` or `COSALETTE_HEALTH_FILE` to an app image; the probe paragraph
+> above does not apply here. `COSALETTE_LOOP_STALL_TIMEOUT`, `exit_after_stale` and
+> `restart_on_stale` are per-app decisions: set them in the app's `compose.yml` or
+> `App(...)` only with a value recorded in that app's docs, never as a blanket default.
+> ADR-010 lives in
+> `docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md`.
 
 ## Ports & Adapters
 
