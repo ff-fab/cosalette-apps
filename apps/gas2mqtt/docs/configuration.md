@@ -159,8 +159,8 @@ By default, gas2mqtt saves gas counter ticks and consumption data to the XDG sta
 Set `GAS2MQTT_STATE_FILE` to override that location explicitly.
 
 !!! tip "Docker deployments" The `compose.yml` maps a `gas2mqtt-data` volume to
-`/app/data`. Set `GAS2MQTT_STATE_FILE=/app/data/state.json` in your `.env` to persist
-state across container restarts.
+`/app/data` and sets `GAS2MQTT_STATE_FILE=/app/data/state.json`, so state persists
+across container restarts. Set the variable only to use a different path.
 
 ---
 
@@ -217,8 +217,7 @@ GAS2MQTT_MQTT__PORT=1883
 
 # --- State Persistence ---
 # Persist counter and consumption across restarts.
-# Default: $XDG_STATE_HOME/gas2mqtt/state.json or ~/.local/state/gas2mqtt/state.json
-# Override for Docker volume mounts:
+# Docker Compose defaults to /app/data/state.json. Set this only to override it.
 # GAS2MQTT_STATE_FILE=/app/data/state.json
 
 # --- Debug ---
