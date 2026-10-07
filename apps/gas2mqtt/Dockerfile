@@ -52,8 +52,10 @@ VOLUME /app/data
 # Health: MQTT is the primary signal; the probe only makes it visible on the host.
 # An unhealthy status restarts nothing. Exits 1, 3, 4, 5 and 6 heal through
 # restart: unless-stopped (docs/adr/ADR-011). One sensor feeds every entity, so
-# the default --fail-on stale applies. The first health-file write follows the
-# Python imports, which take up to 30 s on a Raspberry Pi.
+# the default --fail-on stale applies. The start period allows for the Pi 4
+# startup proxy measured for airthings2mqtt 0.3.0 (28.6 s at --cpus 0.5), giving
+# roughly 2x margin. The native probe does not measure gas2mqtt startup, which
+# has not been measured on a Pi.
 ENV COSALETTE_HEALTH_FILE=/tmp/gas2mqtt-health.json
 HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
   CMD ["cosalette-health"]

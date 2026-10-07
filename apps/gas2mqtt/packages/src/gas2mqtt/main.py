@@ -47,9 +47,8 @@ def create_app() -> cosalette.App:
             MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
         },
         # No restart_on_stale: it needs a health-checkable adapter, and a health
-        # check would only repeat the 1 s poll. stale_after stays derived
-        # (ADR-080): 186 s for the 1 s pollers, 2016 s for temperature.
-        # See docs/configuration.md > Health and recovery.
+        # check would only repeat the 1 s poll. stale_after stays framework-derived
+        # (ADR-080); see docs/configuration.md > Health and recovery.
         exit_after_stale=EXIT_AFTER_STALE,
     )
 

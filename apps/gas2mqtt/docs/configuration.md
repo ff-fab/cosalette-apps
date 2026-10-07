@@ -168,9 +168,10 @@ MQTT is the primary health signal: the `gas2mqtt/status` heartbeat and last will
 each entity's `availability` topic (see [MQTT Topics](mqtt-topics.md)). Recovery comes
 from process exits and the `restart: unless-stopped` policy in `compose.yml`.
 
-**Freshness.** Every entity uses the `stale_after` bound that cosalette derives from
-its interval, timeout, retries and backoff. A poll that returns no change still counts
-as fresh, so a quiet meter never turns stale.
+**Freshness.** Each enabled telemetry entity uses the `stale_after` bound that
+cosalette derives from its interval, timeout, retries and backoff. Commands do not
+have a freshness bound. A telemetry poll that returns no change still counts as fresh,
+so a quiet meter never turns stale.
 
 | Entity         | Interval | Derived `stale_after`                 |
 | -------------- | -------- | ------------------------------------- |
@@ -178,7 +179,12 @@ as fresh, so a quiet meter never turns stale.
 | `magnetometer` | `1 s`    | 186 s (only with the debug device)    |
 | `temperature`  | `300 s`  | `2 x 300 + 300 x 4 + 72 x 3` = 2016 s |
 
-The bound scales with `GAS2MQTT_POLL_INTERVAL` and `GAS2MQTT_TEMPERATURE_INTERVAL`.
+The bounds scale with `GAS2MQTT_POLL_INTERVAL` and
+`GAS2MQTT_TEMPERATURE_INTERVAL`. The Docker healthcheck uses a 60 s start period,
+roughly twice the 28.6 s startup observation for airthings2mqtt 0.3.0 on a Pi 4 at
+`--cpus 0.5`. That old-version observation is a proxy accepted for gas2mqtt, not a
+direct gas2mqtt measurement; gas2mqtt startup has not been measured on a Pi. The
+native probe does not measure application startup.
 
 **Exit after stale.** When an entity stays `stale` for 300 s, gas2mqtt logs a
 `CRITICAL` line and exits with code 5. The restart opens the I2C bus again and writes

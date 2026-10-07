@@ -34,8 +34,8 @@ _DERIVED_STALE_AFTER = 2 * 1 + 1 * 4 + 60 * 3
 _CHECK_INTERVAL = 60
 """The freshness watchdog's check cadence: min(heartbeat, 60 s, stale_after)."""
 
-_STALE_AT = 240
-"""The first check past the derived bound."""
+_STALE_AT = (_DERIVED_STALE_AFTER // _CHECK_INTERVAL + 1) * _CHECK_INTERVAL
+"""The first watchdog check past the derived bound."""
 
 _STATUS_TOPIC = "gas2mqtt/status"
 
@@ -89,6 +89,34 @@ async def test_dead_sensor_goes_stale_then_exits_for_restart() -> None:
         await advance_to(_STALE_AT + int(EXIT_AFTER_STALE) + _CHECK_INTERVAL)
         with pytest.raises(StaleTelemetryError):
             await asyncio.wait_for(task, timeout=2.0)
+    finally:
+        harness.shutdown_event.set()
+        if not task.done():
+            task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+
+
+@pytest.mark.integration
+async def test_successful_unchanged_polls_keep_quiet_sensor_fresh() -> None:
+    """Repeated successful reads with no counter change keep the app alive."""
+    harness = AppHarness(
+        app=build_full_integration_app(FakeMagnetometer),
+        mqtt=MockMqttClient(),
+        clock=ManualClock(),
+        settings=make_gas2mqtt_settings(temperature_interval=3600),
+        shutdown_event=asyncio.Event(),
+    )
+    task = asyncio.create_task(harness.run())
+    try:
+        await harness.wait_for_publish_count(_STATUS_TOPIC, 1)
+
+        # Go beyond the gas_counter stale bound plus the exit backstop. Every
+        # successful unchanged poll must refresh liveness despite OnChange.
+        for _ in range(_STALE_AT + int(EXIT_AFTER_STALE) + _CHECK_INTERVAL):
+            await harness.advance_time(1)
+
+        assert not task.done()
+        assert _gas_counter_status(harness) == "ok"
     finally:
         harness.shutdown_event.set()
         if not task.done():
