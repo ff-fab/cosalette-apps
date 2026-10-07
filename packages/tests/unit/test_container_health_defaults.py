@@ -1,7 +1,8 @@
-"""Cross-app regression tests for the MQTT-only container health posture (ADR-010)."""
+"""Cross-app regression tests for the container health posture (ADR-011)."""
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -20,28 +21,58 @@ _APP_DIRS = {
     "wallpanel-control",
     "wiz2mqtt",
 }
+# Apps that ship the native probe. Each app moves here in its epic cap-fjop task;
+# when every app is listed, drop the set and require the probe everywhere.
+_PROBE_APP_DIRS: set[str] = set()
+
+_HEALTHCHECK = re.compile(
+    r"(?im)^\s*HEALTHCHECK\s+(?P<options>(?:--\S+\s+(?:\\\s*)?)*)CMD\s+(?P<cmd>\[.*\])\s*$"
+)
+
+
+def _dockerfile(app_dir: str) -> str:
+    return (_REPO_ROOT / "apps" / app_dir / "Dockerfile").read_text(encoding="utf-8")
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize("app_dir", sorted(_APP_DIRS))
-def test_dockerfile_does_not_configure_container_health(app_dir: str) -> None:
-    """MQTT is the health signal; images must not define a Docker health probe."""
-    dockerfile = _REPO_ROOT / "apps" / app_dir / "Dockerfile"
-    contents = dockerfile.read_text(encoding="utf-8")
+@pytest.mark.parametrize("app_dir", sorted(_APP_DIRS - _PROBE_APP_DIRS))
+def test_dockerfile_without_probe_until_adopted(app_dir: str) -> None:
+    """An app adopts the probe only together with its _PROBE_APP_DIRS entry."""
+    contents = _dockerfile(app_dir)
 
     assert re.search(r"(?im)^\s*HEALTHCHECK(?:\s|$)", contents) is None, (
-        f"{dockerfile} must not define HEALTHCHECK"
+        f"{app_dir}: add the app to _PROBE_APP_DIRS when it adopts HEALTHCHECK"
     )
     health_file = r"(?im)^\s*(?:ENV|ARG)\s+COSALETTE_HEALTH_FILE\b"
     assert re.search(health_file, contents) is None, (
-        f"{dockerfile} must not set COSALETTE_HEALTH_FILE"
+        f"{app_dir}: add the app to _PROBE_APP_DIRS when it sets COSALETTE_HEALTH_FILE"
     )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("app_dir", sorted(_PROBE_APP_DIRS))
+def test_dockerfile_ships_native_probe(app_dir: str) -> None:
+    """The image probes with the native binary and the ADR-011 defaults."""
+    contents = _dockerfile(app_dir)
+
+    assert re.search(
+        rf"(?im)^\s*ENV\s+COSALETTE_HEALTH_FILE=/tmp/{re.escape(app_dir)}-health\.json\s*$",
+        contents,
+    ), f"{app_dir}: set COSALETTE_HEALTH_FILE=/tmp/{app_dir}-health.json"
+    match = _HEALTHCHECK.search(contents)
+    assert match, f"{app_dir}: HEALTHCHECK must use the exec form CMD [...]"
+    options = match["options"]
+    for option in ("--interval=60s", "--timeout=5s", "--retries=3"):
+        assert option in options, f"{app_dir}: HEALTHCHECK needs {option}"
+    assert "--start-period=" in options, f"{app_dir}: set a per-app --start-period"
+    cmd = json.loads(match["cmd"])
+    assert cmd[0] == "cosalette-health", f"{app_dir}: probe only with cosalette-health"
 
 
 @pytest.mark.unit
 @pytest.mark.parametrize("app_dir", sorted(_APP_DIRS))
 def test_compose_services_do_not_configure_healthchecks(app_dir: str) -> None:
-    """No shipped compose service may override the MQTT health signal."""
+    """The image is the single source of the probe; compose must not override it."""
     compose_path = _REPO_ROOT / "apps" / app_dir / "compose.yml"
     compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
     services = compose.get("services") if isinstance(compose, dict) else None

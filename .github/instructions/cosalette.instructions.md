@@ -9,7 +9,7 @@ description: 'cosalette framework development guidance for AI agents'
 # updated; every other top-level key, `paths:` included, survives verbatim. Two things do
 # not: these comments, and the entire body below. Re-add every downstream body note
 # after a refresh — grep for "Downstream note"; there are three, one under Configuration
-# (MQTT TLS posture), one after "Container liveness" (no probe, ADR-010) and one
+# (MQTT TLS posture), one after "Container liveness" (default probe, ADR-011) and one
 # under "Opting a channel out of discovery". Run `cosalette ai init --check` first to
 # preview the diff.
 applyTo: '**/*.py'
@@ -520,15 +520,19 @@ fallback. See `cosalette ai help health`.
 
 > **Downstream note: not from the shipped template; re-add after `ai init`.**
 >
-> **This monorepo ships no probe (ADR-010).** No compose service in `apps/` runs under an
-> orchestrator that acts on container health, so do not add a Docker `HEALTHCHECK`, a
-> compose `healthcheck:` or `COSALETTE_HEALTH_FILE` to an app image; the probe paragraph
-> above does not apply here. `COSALETTE_LOOP_STALL_TIMEOUT` is a per-app decision: set
-> it in the app's `compose.yml` environment only with a value recorded in that app's
-> docs, never as a blanket default. `exit_after_stale` and `restart_on_stale` are also
-> per-app decisions and belong in `App(...)`.
-> ADR-010 lives in
-> `docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md`.
+> **Every app image ships the native probe (ADR-011)**, also where no orchestrator acts on
+> it; this overrides "Add a probe only where an orchestrator acts on it" above. Set
+> `ENV COSALETTE_HEALTH_FILE=/tmp/<app>-health.json` and
+> `HEALTHCHECK --interval=60s --timeout=5s --start-period=<per app> --retries=3 CMD ["cosalette-health"]`
+> in the Dockerfile, never in compose, and never probe with `<app> health`. The probe
+> only makes health visible on the host: `unhealthy` restarts nothing, and healing stays
+> with exit codes plus `restart: unless-stopped`. Pass `--fail-on ""` when the app has
+> several independent devices and one stale device is normal. `COSALETTE_LOOP_STALL_TIMEOUT`
+> is a per-app decision: set it in the app's `compose.yml` environment only with a value
+> recorded in that app's docs, never as a blanket default. `exit_after_stale` and
+> `restart_on_stale` are also per-app decisions and belong in `App(...)`.
+> ADR-011 lives in
+> `docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md`.
 
 ## Ports & Adapters
 

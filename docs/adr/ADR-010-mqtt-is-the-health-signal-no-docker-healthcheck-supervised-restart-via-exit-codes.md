@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Superseded by ADR-011
 date: 2026-10-04
 impact: moderate
 tags: [health, mqtt, lifecycle, configuration]
@@ -9,7 +9,7 @@ tags: [health, mqtt, lifecycle, configuration]
 
 ## Status
 
-Accepted **Date:** 2026-10-04 | Amended **Date:** 2026-10-07
+Superseded by ADR-011 **Date:** 2026-10-04 | Amended **Date:** 2026-10-07
 
 ## Context
 
