@@ -161,9 +161,12 @@ string, or `null` before the first success), `consecutive_failures` (integer),
 `null`). The last two values are populated during failures and reset to `null`
 on success. Device statuses are `"ok"`, `"error"`, `"unavailable"`,
 `"circuit_open"` or `"stale"`; stale freshness takes precedence. The freshness
-watchdog marks named telemetry offline after the derived window of two poll
-intervals plus the retry/timeout/backoff budget. A successful handler cycle
-clears that freshness mark, even when an unchanged value is not republished.
+watchdog marks a calendar offline after the derived window of two schedule gaps
+plus the retry/backoff budget: 14616 s (about 4 h 4 min) for the default
+two-hour schedule. A successful handler cycle clears that freshness mark, even
+when an unchanged value is not republished. A stale calendar does not stop
+caldates2mqtt; see
+[Configuration > Health and recovery](configuration.md#health-and-recovery).
 
 ### Error
 

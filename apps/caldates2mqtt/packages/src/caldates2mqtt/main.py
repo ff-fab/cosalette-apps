@@ -129,6 +129,12 @@ app = cosalette.App(
         CalDavPort: (CalDavReader, FakeCalDavReader),
     },
     error_type_map=error_type_map,
+    # No exit_after_stale or restart_on_stale: the reader keeps no connection,
+    # so a restart cannot heal a stale calendar (a server or credential fault),
+    # and one stale calendar would restart them all. No redact=: caldav strips
+    # URL userinfo and passwords never reach a message. stale_after stays
+    # derived from each schedule (ADR-080); see docs/configuration.md > Health
+    # and recovery.
 )
 
 # ADR-004: runtime HA discovery, generated from the live per-calendar registry.

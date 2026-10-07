@@ -49,4 +49,16 @@ USER appuser
 
 VOLUME /app/data
 
+# Health: MQTT is the primary signal; the probe only makes it visible on the host.
+# An unhealthy status restarts nothing. Exits 1, 3, 4 and 6 heal through
+# restart: unless-stopped (docs/adr/ADR-011); caldates2mqtt sets no
+# exit_after_stale. Calendars are independently configured, so one stale
+# calendar must not make the whole container unhealthy.
+# The first health-file write came 2.5 to 2.8 s after start on amd64 at
+# --cpus 0.5; ADR-011's Pi 4 factor (about 3.5x) gives about 10 s, so the 60 s
+# start period leaves a wide margin. Not measured on a Pi.
+ENV COSALETTE_HEALTH_FILE=/tmp/caldates2mqtt-health.json
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+  CMD ["cosalette-health", "--fail-on", ""]
+
 ENTRYPOINT ["caldates2mqtt"]
