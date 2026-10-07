@@ -25,6 +25,7 @@ you need.
 | Password           | `AIRTHINGS2MQTT_MQTT__PASSWORD`             | ---          | Broker password                                        |
 | Client ID          | `AIRTHINGS2MQTT_MQTT__CLIENT_ID`            | _(auto)_     | MQTT client identifier (auto-generated if empty)       |
 | Topic prefix       | `AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX`         | _(app name)_ | Root prefix for all MQTT topics                        |
+| Instance ID | `AIRTHINGS2MQTT_MQTT__INSTANCE_ID` | _(app name)_ | Home Assistant discovery identity; set a unique value per instance when several instances share a broker |
 | Reconnect interval | `AIRTHINGS2MQTT_MQTT__RECONNECT_INTERVAL`   | `5.0`        | Initial reconnect delay (seconds, exponential backoff) |
 | Reconnect max      | `AIRTHINGS2MQTT_MQTT__RECONNECT_MAX_INTERVAL`| `300.0`     | Upper bound for reconnect backoff (seconds)            |
 | Protocol version   | `AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
@@ -113,9 +114,19 @@ The MQTT entity topics use the configured values as
     message, so one instance going offline marks the other offline too. If you set
     `AIRTHINGS2MQTT_MQTT__CLIENT_ID`, make it unique per instance as well.
 
-    Even with separate prefixes, all instances publish the same Home Assistant
-    discovery config for the *Bridge* connectivity entity, so Home Assistant shows only
-    the instance that published last. The per-sensor entities are not affected.
+    Also give every additional instance its own `AIRTHINGS2MQTT_MQTT__INSTANCE_ID`
+    (lowercase letters, digits and single underscores, starting with a letter, for
+    example `airthings_bedroom`). The topic prefix never changes the Home Assistant
+    identity, so without an instance ID all instances publish the same discovery config
+    for the *Bridge* connectivity entity and Home Assistant shows only the instance that
+    published last. Since cosalette 0.11.1 the app logs a warning at startup when the
+    prefix differs from `airthings2mqtt` and no instance ID is set.
+
+    Setting an instance ID on a running instance changes the Home Assistant IDs of all
+    its entities once: Home Assistant creates new entities and keeps the old ones as
+    orphans. Delete the old device in Home Assistant (Settings, Devices) after the
+    restart. Leave the ID unset on the first instance, which keeps the default prefix,
+    so its entities and their history stay as they are.
 
 !!! note "Finding your device MAC address"
     Use `bluetoothctl` to scan for your Airthings Wave sensor:

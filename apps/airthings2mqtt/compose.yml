@@ -35,7 +35,8 @@ services:
       - mosquitto
 
   # --- Multi-device example (uncomment and duplicate as needed) ---
-  # Every instance needs its own topic prefix and device name. Instances that
+  # Every instance needs its own topic prefix and device name, and every added
+  # instance its own instance ID (Home Assistant identity). Instances that
   # share a prefix share the retained {prefix}/status heartbeat and its LWT, so
   # one instance going offline marks the other offline too. Do not set
   # AIRTHINGS2MQTT_MQTT__CLIENT_ID in the shared .env; set it per service.
@@ -51,6 +52,7 @@ services:
   #     AIRTHINGS2MQTT_MQTT__TLS: ${AIRTHINGS2MQTT_MQTT__TLS:-false}
   #     AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION: ${AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION:-5}
   #     AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX: airthings2mqtt-bedroom
+  #     AIRTHINGS2MQTT_MQTT__INSTANCE_ID: airthings_bedroom
   #     AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
   #     AIRTHINGS2MQTT_DEVICE_MAC: "AA:BB:CC:DD:EE:FF"
   #     AIRTHINGS2MQTT_DEVICE_NAME: "bedroom"
