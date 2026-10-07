@@ -181,9 +181,11 @@ itself:
 
 | Exit code | Cause                                                                    |
 | --------- | ------------------------------------------------------------------------ |
+| `1`       | With the watchdog enabled, a C call held the GIL and blocked the event loop for twice the configured timeout; the faulthandler backstop exited the process |
 | `3`       | An unexpected exception                                                  |
 | `4`       | A framework task kept crashing and used up its restart budget            |
 | `5`       | The sensor stayed stale for `AIRTHINGS2MQTT_EXIT_AFTER_STALE` seconds (5 hours by default) |
+| `6`       | Only with `COSALETTE_LOOP_STALL_TIMEOUT` set: the event loop did not run for that many seconds (see below) |
 
 ```bash
 docker inspect --format '{{.State.ExitCode}} {{.RestartCount}}' <container>
@@ -198,9 +200,12 @@ fault on the host, so work through the [Operator Runbook](#operator-runbook) whe
 see exit code 5 more than once. To turn the exit off, set
 `AIRTHINGS2MQTT_EXIT_AFTER_STALE=0`; see [Configuration](configuration.md).
 
-**Not yet covered:** a blocked event loop. The last will reports it after about 90
-seconds, but the app does not exit by itself, so restart the container by hand (step 3
-of the runbook).
+**Not covered by default:** a blocked event loop. The last will reports it after about
+90 seconds, but the app does not exit by itself, so restart the container by hand (step
+3 of the runbook). Since cosalette 0.11.1 you can opt in to a watchdog: set
+`COSALETTE_LOOP_STALL_TIMEOUT` (seconds, for example `"300"`) in the service's
+`environment`, and the app exits with code 6 when its event loop has not run for that
+long, so the restart policy restarts it. The shipped `compose.yml` does not set it.
 
 !!! warning "Remove your own health check override"
 

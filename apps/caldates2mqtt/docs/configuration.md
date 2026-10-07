@@ -25,6 +25,7 @@ you need.
 | Password           | `CALDATES2MQTT_MQTT__PASSWORD`              | ---          | Broker password                                        |
 | Client ID          | `CALDATES2MQTT_MQTT__CLIENT_ID`             | _(auto)_     | MQTT client identifier (auto-generated if empty)       |
 | Topic prefix       | `CALDATES2MQTT_MQTT__TOPIC_PREFIX`          | _(app name)_ | Root prefix for all MQTT topics                        |
+| Instance ID | `CALDATES2MQTT_MQTT__INSTANCE_ID` | _(app name)_ | Home Assistant discovery identity; set a unique value per instance when several instances share a broker |
 | Reconnect interval | `CALDATES2MQTT_MQTT__RECONNECT_INTERVAL`    | `5.0`        | Initial reconnect delay (seconds, exponential backoff) |
 | Reconnect max      | `CALDATES2MQTT_MQTT__RECONNECT_MAX_INTERVAL`| `300.0`      | Upper bound for reconnect backoff (seconds)            |
 | Protocol version   | `CALDATES2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |

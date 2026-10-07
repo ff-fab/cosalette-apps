@@ -7,7 +7,7 @@ and radon data to MQTT.
 [![Python](https://img.shields.io/badge/python-%E2%89%A53.14-blue)](https://www.python.org/)
 
 Built on the [cosalette](https://github.com/ff-fab/cosalette) IoT framework, currently
-on the 0.11.0 release.
+on the 0.11.1 release.
 
 ## Home Assistant Discovery
 

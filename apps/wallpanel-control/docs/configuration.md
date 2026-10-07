@@ -33,6 +33,7 @@ command payloads for openHAB instead.
 | Username | `WALLPANEL_CONTROL_MQTT__USERNAME`          | --           | Broker username                    |
 | Password | `WALLPANEL_CONTROL_MQTT__PASSWORD`          | --           | Broker password                    |
 | Topic prefix | `WALLPANEL_CONTROL_MQTT__TOPIC_PREFIX`  | `wallpanel-control` | Root prefix for all MQTT topics |
+| Instance ID | `WALLPANEL_CONTROL_MQTT__INSTANCE_ID` | _(app name)_ | Home Assistant and openHAB discovery identity; set a unique value per instance when several instances share a broker |
 | TLS          | `WALLPANEL_CONTROL_MQTT__TLS`           | `true` (see note)   | Enable TLS for broker connection |
 | TLS CA file  | `WALLPANEL_CONTROL_MQTT__TLS_CA_FILE`   | --                  | CA bundle for broker certificate verification |
 | TLS cert     | `WALLPANEL_CONTROL_MQTT__TLS_CERT_FILE` | --                  | Client certificate for mutual TLS |

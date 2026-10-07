@@ -176,6 +176,7 @@ model. Common environment variables are:
 | Username | `WIZ2MQTT_MQTT__USERNAME` | unset |
 | Password | `WIZ2MQTT_MQTT__PASSWORD` | unset |
 | Topic prefix | `WIZ2MQTT_MQTT__TOPIC_PREFIX` | `wiz2mqtt` |
+| Instance ID | `WIZ2MQTT_MQTT__INSTANCE_ID` | unset (the app name is the Home Assistant identity) |
 | TLS | `WIZ2MQTT_MQTT__TLS` | `true` (set to `false` by the shipped deployment) |
 | Protocol version | `WIZ2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose |
 | Message expiry | `WIZ2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` (seconds, valid only with protocol `5`) |
