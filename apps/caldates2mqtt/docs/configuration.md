@@ -135,17 +135,20 @@ comes from process exits and the `restart: unless-stopped` policy in `compose.ym
 
 **Freshness.** Each calendar uses the `stale_after` bound that cosalette derives from
 the longest gap in its `schedule`: `2 x gap + 72 x 3`. A cron schedule has no handler
-timeout, and each of the 3 retries adds 72 s (the 60 s backoff cap plus 20 % jitter).
-A read that returns the same events, or a `/set` re-read, also counts as fresh.
+timeout, and each of the 3 retries adds up to 72 s of backoff (the 60 s backoff cap
+plus 20 % jitter). A read that returns the same events, or a `/set` re-read, also
+counts as fresh.
 
 | `schedule`               | Longest gap | Derived `stale_after`  |
 | ------------------------ | ----------- | ---------------------- |
 | `0 0 0/2 * * ?` (default) | 2 h        | 14616 s (about 4 h 4 min)  |
 | `0 0 6 * * ?` (daily)    | 24 h        | 173016 s (about 48 h 4 min) |
 
-A calendar is therefore stale only after two scheduled reads in a row fail. Each read
-is one CalDAV request, so the 216 s retry budget covers four attempts at the default
-30 s `CALDATES2MQTT_CALDAV_TIMEOUT` (about 140 s with the backoff sleeps).
+A calendar is therefore stale only after two scheduled reads in a row fail. The
+`stale_after` allowance includes the framework's retry backoff, but it is not a hard
+upper bound on a CalDAV read: `date_search` can be followed by an HTTP request for each
+event without inline data, so a read can make multiple requests. The configured
+`CALDATES2MQTT_CALDAV_TIMEOUT` applies per request.
 
 **No exit after stale.** caldates2mqtt sets neither `exit_after_stale` nor
 `restart_on_stale`. The reader opens a new connection for every read, so a restart
@@ -162,10 +165,12 @@ in the shell or `.env` to change the value; remove the line from `compose.yml` t
 disable the watchdog.
 
 **Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
-`cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. The
-status turns `unhealthy` when a calendar is `stale` or when the health file is older
-than 180 s. An `unhealthy` status restarts nothing: the exit codes below do. With a
-read-only root filesystem, mount a tmpfs on `/tmp` for the health file.
+`cosalette-health --fail-on ""` every 60 s, so `docker ps` shows `healthy` or `unhealthy`.
+This checks probe-file freshness without making one stale calendar mark the whole
+container unhealthy. A stale calendar remains visible through MQTT; the container
+status turns `unhealthy` when the health file is older than 180 s. An `unhealthy`
+status restarts nothing: the exit codes below do. With a read-only root filesystem,
+mount a tmpfs on `/tmp` for the health file.
 
 | Exit code | Cause                                                                 |
 | --------- | --------------------------------------------------------------------- |

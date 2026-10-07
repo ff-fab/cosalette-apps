@@ -1,4 +1,4 @@
-"""Unit tests for the shipped compose file.
+"""Unit tests for the shipped deployment files.
 
 Test Techniques Used:
 - Specification-based: compose arms the loop-stall watchdog with the value that
@@ -7,6 +7,8 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import json
+import re
 from pathlib import Path
 
 import pytest
@@ -28,3 +30,13 @@ def test_compose_arms_loop_stall_watchdog() -> None:
     assert environment["COSALETTE_LOOP_STALL_TIMEOUT"] == (
         "${COSALETTE_LOOP_STALL_TIMEOUT:-300}"
     )
+
+
+@pytest.mark.unit
+def test_docker_health_probe_ignores_individual_calendar_staleness() -> None:
+    """One failed calendar must not make the multi-calendar container unhealthy."""
+    dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
+    match = re.search(r"(?m)^\s*CMD\s+(\[.*\])\s*$", dockerfile)
+
+    assert match is not None
+    assert json.loads(match.group(1)) == ["cosalette-health", "--fail-on", ""]
