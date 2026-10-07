@@ -31,6 +31,7 @@ from gas2mqtt.devices.gas_counter import (
 )
 from gas2mqtt.devices.magnetometer import magnetometer
 from gas2mqtt.devices.temperature import TemperatureReading, make_pt1, temperature
+from gas2mqtt.main import EXIT_AFTER_STALE
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
@@ -57,6 +58,7 @@ def build_full_integration_app(
         settings_class=Gas2MqttSettings,
         store=MemoryStore(),
         adapters={MagnetometerPort: magnetometer_adapter},
+        exit_after_stale=EXIT_AFTER_STALE,
     )
 
     @app.state

@@ -4,6 +4,7 @@ Test Techniques Used:
 - Specification-based: retry and retry_on metadata matches declared configuration
   for all three telemetry handlers (gas_counter, temperature, magnetometer)
 - Decision Table: exact retry_on tuple check prevents unintended broadening
+- Specification-based: the stale exit policy on the production app
 """
 
 from __future__ import annotations
@@ -44,3 +45,19 @@ class TestHandlerRetryConfig:
 
         reg = next(r for r in app.telemetry_registrations if r.name == handler_name)
         assert reg.unavailable_on == (OSError,)
+
+
+@pytest.mark.unit
+class TestStalePolicy:
+    """Verify the stale exit policy on the production app."""
+
+    def test_app_exits_after_stale_backstop(self) -> None:
+        """create_app() passes EXIT_AFTER_STALE and no restart_on_stale.
+
+        Technique: Specification-based — the integration fixture mirrors these
+        values, so the production app must carry them too.
+        """
+        from gas2mqtt.main import EXIT_AFTER_STALE, app
+
+        assert app._exit_after_stale == EXIT_AFTER_STALE
+        assert app._restart_on_stale is False

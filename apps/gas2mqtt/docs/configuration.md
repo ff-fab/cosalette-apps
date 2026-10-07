@@ -162,6 +162,62 @@ Set `GAS2MQTT_STATE_FILE` to override that location explicitly.
 `/app/data` and sets `GAS2MQTT_STATE_FILE=/app/data/state.json`, so state persists
 across container restarts. Set the variable only to use a different path.
 
+### Health and recovery
+
+MQTT is the primary health signal: the `gas2mqtt/status` heartbeat and last will, and
+each entity's `availability` topic (see [MQTT Topics](mqtt-topics.md)). Recovery comes
+from process exits and the `restart: unless-stopped` policy in `compose.yml`.
+
+**Freshness.** Every entity uses the `stale_after` bound that cosalette derives from
+its interval, timeout, retries and backoff. A poll that returns no change still counts
+as fresh, so a quiet meter never turns stale.
+
+| Entity         | Interval | Derived `stale_after`                 |
+| -------------- | -------- | ------------------------------------- |
+| `gas_counter`  | `1 s`    | `2 x 1 + 1 x 4 + 60 x 3` = 186 s      |
+| `magnetometer` | `1 s`    | 186 s (only with the debug device)    |
+| `temperature`  | `300 s`  | `2 x 300 + 300 x 4 + 72 x 3` = 2016 s |
+
+The bound scales with `GAS2MQTT_POLL_INTERVAL` and `GAS2MQTT_TEMPERATURE_INTERVAL`.
+
+**Exit after stale.** When an entity stays `stale` for 300 s, gas2mqtt logs a
+`CRITICAL` line and exits with code 5. The restart opens the I2C bus again and writes
+the sensor's control registers again. A sensor that stops answering therefore causes a
+restart 8 to 10 minutes after its last good read. gas2mqtt does not use
+`restart_on_stale`: it needs an adapter health check, which would only repeat the 1 s
+poll.
+
+**Loop-stall watchdog.** The I2C read runs in the event loop. If the bus hangs inside
+the kernel driver, nothing else runs, including the freshness checks. `compose.yml`
+sets `COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds, far above a normal read (about
+10 ms) and the kernel's I2C timeout (about 1 s). After 120 s without a loop turn,
+gas2mqtt prints every thread's stack and exits with code 6. Set
+`COSALETTE_LOOP_STALL_TIMEOUT` in the shell or `.env` to change the value; remove the
+line from `compose.yml` to disable the watchdog.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. The
+status turns `unhealthy` when an entity is `stale` or when the health file is older
+than 180 s. An `unhealthy` status restarts nothing: the exit codes below do. With a
+read-only root filesystem, mount a tmpfs on `/tmp` for the health file.
+
+| Exit code | Cause                                                                |
+| --------- | -------------------------------------------------------------------- |
+| `1`       | Startup failure, or the event loop stalled while holding the GIL     |
+| `3`       | Unexpected exception                                                 |
+| `4`       | A framework task exhausted its restart budget                        |
+| `5`       | An entity stayed `stale` for 300 s                                   |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
+
+**Several meters.** Run one gas2mqtt instance per meter. When two instances share a
+broker, give each its own `GAS2MQTT_MQTT__TOPIC_PREFIX` and
+`GAS2MQTT_MQTT__INSTANCE_ID`. Setting the instance ID changes the Home Assistant
+unique IDs once, so set it before the first start.
+
+**Log redaction.** gas2mqtt does not set `App(redact=)`. Its logs and error payloads
+carry the I2C bus, the I2C address and counter values, but no device identifiers or
+secrets.
+
 ---
 
 ## `.env` Example
@@ -222,6 +278,10 @@ GAS2MQTT_MQTT__PORT=1883
 
 # --- Debug ---
 # GAS2MQTT_ENABLE_DEBUG_DEVICE=false
+
+# --- Health (read by compose.yml; see docs/configuration.md) ---
+# Seconds without an event-loop turn before exit code 6.
+# COSALETTE_LOOP_STALL_TIMEOUT=120
 ```
 
 Uncomment and modify any line to override the default.

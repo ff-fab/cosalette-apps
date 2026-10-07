@@ -23,6 +23,13 @@ from gas2mqtt.devices.temperature import TemperatureReading, make_pt1, temperatu
 from gas2mqtt.ports import MagnetometerPort
 from gas2mqtt.settings import Gas2MqttSettings
 
+EXIT_AFTER_STALE = 300.0
+"""Seconds a stale entity may stay stale before the app exits with code 5.
+
+The restart re-opens the I2C bus and re-writes the control registers. With the
+derived 186 s bound, a dead sensor exits 8 to 10 minutes after its last read.
+"""
+
 
 def _make_store(settings: Gas2MqttSettings) -> cosalette.Store:
     store_path = settings.state_file or resolve_store_path()
@@ -39,6 +46,11 @@ def create_app() -> cosalette.App:
         adapters={
             MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
         },
+        # No restart_on_stale: it needs a health-checkable adapter, and a health
+        # check would only repeat the 1 s poll. stale_after stays derived
+        # (ADR-080): 186 s for the 1 s pollers, 2016 s for temperature.
+        # See docs/configuration.md > Health and recovery.
+        exit_after_stale=EXIT_AFTER_STALE,
     )
 
     # ADR-004: runtime HA discovery
