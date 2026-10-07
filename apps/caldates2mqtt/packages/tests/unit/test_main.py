@@ -3,6 +3,7 @@
 Test Techniques Used:
 - Specification-based: Verify declared retry configuration on the telemetry registration
 - Round-trip Testing: Render the live HA attributes template against a real payload
+- Specification-based: the stale policy on the production app
 """
 
 from __future__ import annotations
@@ -220,3 +221,19 @@ class TestTriggerThrottleRegistration:
         )
 
         assert _resolve_trigger_min_interval(bare_app) == _TRIGGER_MIN_INTERVAL_SECONDS
+
+
+@pytest.mark.unit
+class TestStalePolicy:
+    """Verify that a stale calendar never stops the production app."""
+
+    def test_app_has_no_stale_exit_or_restart(self) -> None:
+        """The app sets neither exit_after_stale nor restart_on_stale.
+
+        Technique: Specification-based — a restart cannot repair a stale
+        calendar, and one stale calendar must not restart the others.
+        """
+        from caldates2mqtt.main import app
+
+        assert app._exit_after_stale is None
+        assert app._restart_on_stale is False

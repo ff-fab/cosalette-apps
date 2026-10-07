@@ -127,6 +127,64 @@ Each entry in the `CALDATES2MQTT_CALENDARS` JSON list supports these fields:
     Each calendar's `key` must be unique --- it becomes the MQTT device name and topic
     segment. For example, `"key": "garbage"` publishes to `caldates2mqtt/garbage/state`.
 
+### Health and recovery
+
+MQTT is the primary health signal: the `caldates2mqtt/status` heartbeat and last will,
+and each calendar's `availability` topic (see [MQTT Topics](mqtt-topics.md)). Recovery
+comes from process exits and the `restart: unless-stopped` policy in `compose.yml`.
+
+**Freshness.** Each calendar uses the `stale_after` bound that cosalette derives from
+the longest gap in its `schedule`: `2 x gap + 72 x 3`. A cron schedule has no handler
+timeout, and each of the 3 retries adds 72 s (the 60 s backoff cap plus 20 % jitter).
+A read that returns the same events, or a `/set` re-read, also counts as fresh.
+
+| `schedule`               | Longest gap | Derived `stale_after`  |
+| ------------------------ | ----------- | ---------------------- |
+| `0 0 0/2 * * ?` (default) | 2 h        | 14616 s (about 4 h 4 min)  |
+| `0 0 6 * * ?` (daily)    | 24 h        | 173016 s (about 48 h 4 min) |
+
+A calendar is therefore stale only after two scheduled reads in a row fail. Each read
+is one CalDAV request, so the 216 s retry budget covers four attempts at the default
+30 s `CALDATES2MQTT_CALDAV_TIMEOUT` (about 140 s with the backoff sleeps).
+
+**No exit after stale.** caldates2mqtt sets neither `exit_after_stale` nor
+`restart_on_stale`. The reader opens a new connection for every read, so a restart
+cannot repair a stale calendar: the cause is the server, the network or the
+credentials. One stale calendar would also restart all the other calendars. A stale
+calendar stays `offline` on MQTT and marks the container `unhealthy` until a read
+succeeds.
+
+**Loop-stall watchdog.** The CalDAV requests run in a worker thread, so nothing should
+block the event loop. `compose.yml` sets `COSALETTE_LOOP_STALL_TIMEOUT` to `300`
+seconds as a guard against a defect. After 300 s without a loop turn, caldates2mqtt
+prints every thread's stack and exits with code 6. Set `COSALETTE_LOOP_STALL_TIMEOUT`
+in the shell or `.env` to change the value; remove the line from `compose.yml` to
+disable the watchdog.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. The
+status turns `unhealthy` when a calendar is `stale` or when the health file is older
+than 180 s. An `unhealthy` status restarts nothing: the exit codes below do. With a
+read-only root filesystem, mount a tmpfs on `/tmp` for the health file.
+
+| Exit code | Cause                                                                 |
+| --------- | --------------------------------------------------------------------- |
+| `1`       | Startup failure, or the event loop stalled while holding the GIL      |
+| `3`       | Unexpected exception                                                  |
+| `4`       | A framework task exhausted its restart budget                         |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
+
+**Several accounts.** One instance reads any number of calendars from any number of
+servers and accounts, because each calendar has its own `url`, `username` and
+`password`. Run one instance per broker. If a second instance shares the broker, give
+each its own `CALDATES2MQTT_MQTT__TOPIC_PREFIX` and `CALDATES2MQTT_MQTT__INSTANCE_ID`.
+Setting the instance ID changes the Home Assistant unique IDs once, so set it before
+the first start.
+
+**Log redaction.** caldates2mqtt does not set `App(redact=)`. Passwords go only into
+the HTTP authentication, caldav removes user information from URLs, and error
+messages carry only the scheme, host, path and calendar name.
+
 ---
 
 ## `.env` Example
@@ -168,8 +226,16 @@ CALDATES2MQTT_CALENDARS='[{"key":"garbage","url":"https://cloud.example.com/remo
 # HTTP timeout for CalDAV requests in seconds (default: 30)
 # CALDATES2MQTT_CALDAV_TIMEOUT=30
 
-# Minimum seconds between on-demand /set re-fetches, must be > 0 (default: 60)
+# Minimum seconds between on-demand /set re-fetches, must be > 0 (default: 60).
+# Raise for a stricter/shared CalDAV server; lower for snappier refreshes.
 # CALDATES2MQTT_TRIGGER_MIN_INTERVAL=60
+
+# Store path for persisting state across restarts (default: XDG_STATE_HOME)
+# CALDATES2MQTT_STORE_PATH=/app/data/store.json
+
+# --- Health (read by compose.yml; see docs/configuration.md) ---
+# Seconds without an event-loop turn before exit code 6.
+# COSALETTE_LOOP_STALL_TIMEOUT=300
 ```
 
 Uncomment and modify any line to override the default.
