@@ -9,7 +9,7 @@ tags: [health, mqtt, lifecycle, configuration]
 
 ## Status
 
-Accepted **Date:** 2026-10-04
+Accepted **Date:** 2026-10-04 | Amended **Date:** 2026-10-07
 
 ## Context
 
@@ -101,4 +101,23 @@ _Scale: 1 (poor) to 5 (excellent)_
 - A dead airthings2mqtt sensor causes one harmless restart about every 6 h, visible as LWT `offline` then `online`
 - `docker ps` shows no health status for these apps
 
-_2026-10-04_
+## Amendment (2026-10-07) — Additive
+
+**Rationale:** cosalette 0.11.1 ships the two upstream pieces this ADR waited for or rejected as missing. The loop-stall watchdog (upstream ADR-088) closes the gap recorded under Negative consequences: a wedged event loop can now end in an exit. A native `cosalette-health` probe (upstream ADR-087) makes a probe cheap (about 1 ms per run). This amendment records how both fit the decision, which itself is unchanged.
+
+### Additional Sub-Decision: Loop-stall watchdog is a per-app opt-in, set in compose
+
+cosalette 0.11.1 adds `COSALETTE_LOOP_STALL_TIMEOUT` (seconds, unset means off). A thread outside the event loop exits the process with code 6 (`EXIT_LOOP_STALL`) when the loop has not run for that long, after writing every thread's stack to stderr. A stall inside C code that holds the GIL is caught by a faulthandler backstop after twice the timeout and exits with code 1. Both codes are restarted by `restart: unless-stopped`. The watchdog is armed only for the run phase, so a hang during startup or shutdown is still not detected. It is an environment variable, not an `App()` parameter, so an app adopts it in its `compose.yml` (and `.env.example` where present) with a value larger than its longest legitimate blocking call, documented in the app's docs. The value is decided per app and tracked in beads; there is no repository-wide default. The healing exit codes of this ADR become 1 (backstop), 3, 4, 5 and 6.
+
+### Additional Sub-Decision: The native probe does not change the decision
+
+Option 3 rejected a cheap probe because nothing reads Docker health status, not only because the readers did not exist. cosalette 0.11.1 ships `cosalette-health` as a native binary in its platform wheels and a stdlib-only script elsewhere, with a versioned health-file contract and exit codes limited to 0 and 1. That removes the cost argument but not the consumer argument, so apps still ship no `HEALTHCHECK` and do not set `COSALETTE_HEALTH_FILE`. An operator who runs an orchestrator that acts on container health can set both in their own deployment and probe with `["CMD", "cosalette-health"]`, not `<app> health`.
+
+### Additional Positive Consequences
+
+- An app that sets `COSALETTE_LOOP_STALL_TIMEOUT` heals a wedged event loop during the run phase through exit code 6 and the restart policy, which closes the gap this ADR recorded
+
+### Additional Negative Consequences
+
+- Apps that do not opt in keep the original gap: a wedged loop is reported by the LWT but not healed
+- A watchdog timeout shorter than an app's longest legitimate blocking call restarts the app on every such call, so each value needs a per-app justification
