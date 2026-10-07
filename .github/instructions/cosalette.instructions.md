@@ -523,9 +523,10 @@ fallback. See `cosalette ai help health`.
 > **This monorepo ships no probe (ADR-010).** No compose service in `apps/` runs under an
 > orchestrator that acts on container health, so do not add a Docker `HEALTHCHECK`, a
 > compose `healthcheck:` or `COSALETTE_HEALTH_FILE` to an app image; the probe paragraph
-> above does not apply here. `COSALETTE_LOOP_STALL_TIMEOUT`, `exit_after_stale` and
-> `restart_on_stale` are per-app decisions: set them in the app's `compose.yml` or
-> `App(...)` only with a value recorded in that app's docs, never as a blanket default.
+> above does not apply here. `COSALETTE_LOOP_STALL_TIMEOUT` is a per-app decision: set
+> it in the app's `compose.yml` environment only with a value recorded in that app's
+> docs, never as a blanket default. `exit_after_stale` and `restart_on_stale` are also
+> per-app decisions and belong in `App(...)`.
 > ADR-010 lives in
 > `docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md`.
 

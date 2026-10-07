@@ -181,6 +181,7 @@ itself:
 
 | Exit code | Cause                                                                    |
 | --------- | ------------------------------------------------------------------------ |
+| `1`       | With the watchdog enabled, a C call held the GIL and blocked the event loop for twice the configured timeout; the faulthandler backstop exited the process |
 | `3`       | An unexpected exception                                                  |
 | `4`       | A framework task kept crashing and used up its restart budget            |
 | `5`       | The sensor stayed stale for `AIRTHINGS2MQTT_EXIT_AFTER_STALE` seconds (5 hours by default) |
