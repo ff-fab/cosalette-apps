@@ -51,13 +51,21 @@ taskfiles/
 
 ## Container Health
 
-- Do not add a Docker `HEALTHCHECK` or compose `healthcheck:`, and do not set
-  `COSALETTE_HEALTH_FILE` in images. MQTT (status heartbeat, availability, LWT) is the
-  health signal; a non-zero exit plus `restart: unless-stopped` heals.
-- Decide `exit_after_stale` / `restart_on_stale` and the loop-stall watchdog
-  (`COSALETTE_LOOP_STALL_TIMEOUT`, set in `compose.yml`) per app.
+- Apps adopt the native probe in the staged rollout recorded in ADR-011. For each
+  adopting app, the image ships: `ENV COSALETTE_HEALTH_FILE=/tmp/<app>-health.json` and
+  `HEALTHCHECK --interval=60s --timeout=5s --start-period=<per app> --retries=3 CMD ["cosalette-health"]`.
+  Never probe with `<app> health` or the Python fallback, and do not add a compose
+  `healthcheck:`.
+- MQTT (status heartbeat, availability, LWT) stays the primary health signal. An
+  `unhealthy` status restarts nothing; a non-zero exit plus `restart: unless-stopped`
+  heals. Do not ship autoheal.
+- Decide per app: `--start-period`, `--fail-on` (`""` for apps with several independent
+  devices), `exit_after_stale` / `restart_on_stale` and the loop-stall watchdog
+  (`COSALETTE_LOOP_STALL_TIMEOUT`, set in `compose.yml`). An app that adopts the probe
+  moves to `_PROBE_APP_DIRS` in `packages/tests/unit/test_container_health_defaults.py`.
+  Apps not yet adopted keep MQTT as their health signal and ship no image probe.
 - The decision and rationale live in
-  [docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md](docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md).
+  [docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md](docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md).
 
 ## Tooling
 
@@ -301,8 +309,8 @@ the downstream `paths:` this repo adds — is preserved
 **comments inside the frontmatter**, and **the entire body**, which is replaced by the
 shipped template. Every repo-specific body note must be re-added afterwards; grep the
 file for `Downstream note` to find them. There are currently three: the MQTT TLS posture
-note under Configuration, the no-probe (ADR-010) note after "Container liveness", and
-the `discoverable=`/channel-merge note under "Opting a channel out of discovery". Run
+note under Configuration, the probe (ADR-011) note after "Container liveness", and the
+`discoverable=`/channel-merge note under "Opting a channel out of discovery". Run
 `cosalette ai init --check` first to see the diff.
 
 A refresh also rewrites `.vscode/mcp.json`, pointing the cosalette server at
