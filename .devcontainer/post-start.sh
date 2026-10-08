@@ -41,6 +41,11 @@ if command -v bd >/dev/null 2>&1; then
     # Start the beads dolt SQL server.
     # bd auto-starts dolt on demand, but starting it explicitly here ensures the
     # VSCode extension has a live server to connect to when it initialises.
+    # The port is pinned to 3317 (dolt_server_port in .beads/metadata.json,
+    # dolt.port in .beads/config.yaml), so bd never depends on the runtime
+    # .beads/dolt-server.port file, which could vanish while the server kept
+    # running (cap-fp5u). The container has its own network namespace, so the
+    # fixed port does not collide across devcontainers.
     if command -v dolt >/dev/null 2>&1; then
         if bd dolt start 2>/dev/null; then
             echo "✅ Beads dolt server started"

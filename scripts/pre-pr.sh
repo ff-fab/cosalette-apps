@@ -103,6 +103,7 @@ run_step "test:all"                "$TIMEOUT_TEST"        task test:all         
 run_step "test:scripts"            "$TIMEOUT_TEST"        task test:scripts          &&
 run_step "complexity"              "$TIMEOUT_COMPLEXITY"  task complexity            &&
 run_step "similarity"              "$TIMEOUT_SIMILARITY"  task similarity            &&
+run_step "docker:lint"             "$TIMEOUT_LINT"        task docker:lint           &&
 run_step "security:audit"          "$TIMEOUT_SECURITY"    task security:audit        ||
 _final_rc=$?
 

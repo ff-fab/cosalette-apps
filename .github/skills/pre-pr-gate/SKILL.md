@@ -34,7 +34,8 @@ task pre-pr
 ```
 
 This runs pre-commit hooks, lint, typecheck, tests, coverage thresholds, and
-complexity checks as a single deterministic pipeline.
+complexity, Dockerfile lint (skipped without Docker or a running daemon) and security
+checks as a single deterministic pipeline.
 
 **If any step fails:** identify the specific failure, fix it, and re-run
 `task pre-pr` from scratch. Do not skip failures. Do not move on until the

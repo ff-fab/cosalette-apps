@@ -104,13 +104,17 @@ _do_security_actions() {
 
 _do_docker_lint() {
     # Lint every Dockerfile in the monorepo (devcontainer + each app) via
-    # hadolint over Docker, no local install required. Pinned version for
-    # reproducibility; update via Renovate.
+    # hadolint over Docker, no local install required. Update this pinned
+    # version manually after reviewing a hadolint release.
     # failure-threshold=warning: exit on warning-level and above (error,
     # warning) but not info-level messages.
     local hadolint_version="${HADOLINT_VERSION:-2.15.1}"
     if ! command -v docker >/dev/null 2>&1; then
         echo "docker:lint: Docker not available — skipping" >&2
+        return 0
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        echo "docker:lint: Docker daemon unavailable — skipping" >&2
         return 0
     fi
     local dockerfiles=()
@@ -122,14 +126,10 @@ _do_docker_lint() {
         echo "docker:lint: no Dockerfiles found — skipping"
         return 0
     fi
-    local rc=0
-    for dockerfile in "${dockerfiles[@]}"; do
-        echo "==> [docker:lint] ${dockerfile}"
-        docker run --rm -i \
-            "ghcr.io/hadolint/hadolint:v${hadolint_version}" \
-            hadolint --no-color --failure-threshold warning - < "$dockerfile" || rc=$?
-    done
-    return $rc
+    # One container for all files: a run per file made pre-pr time out.
+    docker run --rm -v "$PWD:/repo:ro" -w /repo \
+        "ghcr.io/hadolint/hadolint:v${hadolint_version}" \
+        hadolint --config .hadolint.yaml --no-color --failure-threshold warning "${dockerfiles[@]}"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────

@@ -221,7 +221,7 @@ tasks:
       - bash scripts/tests/test_ci_helpers.sh
 
   pre-pr:
-    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + security)
+    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + docker lint + security)
     vars:
       PRE_PR_LOG: '{{.PRE_PR_LOG | default "/tmp/cosalette-pre-pr.log"}}'
       PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES | default "120"}}'

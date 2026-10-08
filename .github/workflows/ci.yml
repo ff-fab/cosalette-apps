@@ -156,6 +156,25 @@ jobs:
           run-cmd: task security:audit
           token: ${{ secrets.GITHUB_TOKEN }}
 
+  # hadolint over every Dockerfile (cap-jrpf). Runs on the runner, not inside
+  # the devcontainer, because it needs the Docker daemon. Cheap, so it runs
+  # unconditionally: the devcontainer Dockerfile is outside every path filter.
+  docker-lint:
+    needs: detect
+    if: needs.detect.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Task
+        uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+          checksum: 02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd # pragma: allowlist secret
+      - name: Lint Dockerfiles with hadolint
+        run: task docker:lint
+
   # Per-app CI dispatched via matrix
   app-ci:
     needs: detect
@@ -179,7 +198,7 @@ jobs:
   # Merge gate — the single required status check for branch protection.
   # Always runs; passes when all upstream jobs succeed or are skipped.
   ci-gate:
-    needs: [shared, security, app-ci, root-tests]
+    needs: [shared, security, app-ci, root-tests, docker-lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -199,6 +218,10 @@ jobs:
           fi
           if [[ "${{ needs.root-tests.result }}" == "failure" || "${{ needs.root-tests.result }}" == "cancelled" ]]; then
             echo "root-tests job failed or was cancelled"
+            exit 1
+          fi
+          if [[ "${{ needs.docker-lint.result }}" == "failure" || "${{ needs.docker-lint.result }}" == "cancelled" ]]; then
+            echo "docker-lint job failed or was cancelled"
             exit 1
           fi
           echo "All checks passed or were skipped"
