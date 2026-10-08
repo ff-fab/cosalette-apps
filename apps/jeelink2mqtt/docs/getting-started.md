@@ -70,7 +70,9 @@ jeelink2mqtt will automatically adopt incoming LaCrosse IDs to these names.
 ## Dry-Run Mode (No Hardware)
 
 No JeeLink receiver?  No problem.  Dry-run mode substitutes a fake adapter that
-generates synthetic sensor readings:
+opens no serial port.  It sends no readings, so only the framework topics appear,
+and the app exits with code 5 after about 16 minutes without a frame (see
+[Health and recovery](operations.md#health-and-recovery)):
 
 ```bash
 jeelink2mqtt --dry-run
@@ -79,8 +81,8 @@ jeelink2mqtt --dry-run
 This is useful for:
 
 - Validating your `.env` configuration
-- Testing MQTT topic structure and payloads
-- Developing home-automation rules before hardware arrives
+- Checking the broker connection and the framework topics (`status`, `_meta/registry`)
+- Checking the Home Assistant discovery entities before hardware arrives
 
 ---
 
