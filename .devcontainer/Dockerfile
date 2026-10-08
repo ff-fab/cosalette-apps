@@ -3,6 +3,9 @@
 
 FROM mcr.microsoft.com/devcontainers/python:3.14-bookworm
 
+# bash with pipefail, so a failing curl/echo piped into sha256sum fails the RUN.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Install uv (fast Python package manager)
 # renovate: datasource=docker depName=ghcr.io/astral-sh/uv
 COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
@@ -43,10 +46,9 @@ RUN set -eux; \
         curl -fsSL "${TASK_URL}" -o /tmp/task.tar.gz && break || sleep 5; \
     done; \
     echo "${EXPECTED_SHA}  /tmp/task.tar.gz" | sha256sum -c -; \
-    cd /tmp && tar -xzf task.tar.gz task && \
-    mv task /usr/local/bin/ && \
-    chmod +x /usr/local/bin/task && \
-    rm -f /tmp/task.tar.gz
+    tar -xzf /tmp/task.tar.gz -C /tmp task; \
+    install -m 755 /tmp/task /usr/local/bin/task; \
+    rm -f /tmp/task /tmp/task.tar.gz
 
 # Install dolt (versioned SQL database backend for the beads/bd issue tracker).
 # Baked into the image so the container starts reliably without a runtime download.

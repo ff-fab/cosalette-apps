@@ -1,0 +1,8 @@
+# hadolint config, read by `task docker:lint` (scripts/qa-task.sh).
+ignored:
+  # Unpinned apt-get / apk add. Debian and Alpine drop superseded package
+  # versions from their mirrors on point releases, so exact pins break image
+  # builds without warning. The base image tag fixes the distro release, and
+  # its security updates are what we want.
+  - DL3008
+  - DL3018

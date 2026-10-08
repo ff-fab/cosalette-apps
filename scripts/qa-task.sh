@@ -126,8 +126,9 @@ _do_docker_lint() {
     for dockerfile in "${dockerfiles[@]}"; do
         echo "==> [docker:lint] ${dockerfile}"
         docker run --rm -i \
+            -v "$PWD/.hadolint.yaml:/hadolint.yaml:ro" \
             "ghcr.io/hadolint/hadolint:v${hadolint_version}" \
-            hadolint --no-color --failure-threshold warning - < "$dockerfile" || rc=$?
+            hadolint --config /hadolint.yaml --no-color --failure-threshold warning - < "$dockerfile" || rc=$?
     done
     return $rc
 }
