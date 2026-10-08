@@ -152,6 +152,11 @@ tasks:
       # assertions (event-driven publication acceptance, MQTT TLS defaults).
       # It is not owned by any app, so nothing else would run it.
       - task: test:unit
+      - task: test:apps
+
+  test:apps:
+    desc: 'Run unit + integration tests for every app (or ONLY_APPS="a b")'
+    cmds:
       - task: _for-each-app
         vars: { TARGETS: 'test test:integration', LABEL: tests }
 
@@ -167,14 +172,22 @@ tasks:
       - task: _for-each-app
         vars: { TARGETS: typecheck, LABEL: typecheck }
 
+  complexity:all:
+    desc: 'Check complexity and duplication for every app (or ONLY_APPS="a b")'
+    cmds:
+      - task: _for-each-app
+        vars: { TARGETS: 'complexity similarity', LABEL: complexity }
+
+  # ONLY_APPS="a b" (a CLI var, e.g. `task lint:all ONLY_APPS="a b"`) narrows
+  # the loop to those apps; scripts/pre-pr.sh uses it for the scoped gate.
   _for-each-app:
     internal: true
-    desc: Run TARGETS for every app, collecting failures instead of aborting
+    desc: Run TARGETS for every app (or ONLY_APPS), collecting failures instead of aborting
     cmds:
       - cmd: |
           set -u
           failures=""
-          for app in {{range .APPS}}{{.}} {{end}}; do
+          for app in {{if .ONLY_APPS}}{{.ONLY_APPS}}{{else}}{{range .APPS}}{{.}} {{end}}{{end}}; do
             for target in {{.TARGETS}}; do
               if ! task "$app:$target"; then
                 failures="$failures $app:$target"
@@ -216,18 +229,37 @@ tasks:
     desc: Run shell regression tests for repository scripts
     cmds:
       - bash scripts/tests/test_qa_scripts.sh
+      - bash scripts/tests/test_pre_pr_scope.sh
       - bash scripts/tests/test_gpl_headers.sh
       - bash scripts/tests/test_beads_recover.sh
       - bash scripts/tests/test_ci_helpers.sh
 
+  # Change-scoped by default (ADR-012): apps changed since the merge-base with
+  # origin/main, or every app when a shared path (.github/ci-shared-paths.txt)
+  # changed. `task pre-pr APPS="a b"` picks the apps; `task pre-pr:full` checks
+  # everything. APPS here is a CLI override of the global list var, so only a
+  # string value (set on the command line) is forwarded.
   pre-pr:
-    desc: Run all pre-PR quality gates (pre-commit + lint + typecheck + tests + coverage + complexity + similarity + docker lint + security)
+    desc: 'Run the change-scoped pre-PR gate (APPS="a b" to pick apps; pre-pr:full for everything)'
     vars:
       PRE_PR_LOG: '{{.PRE_PR_LOG | default "/tmp/cosalette-pre-pr.log"}}'
       PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES | default "120"}}'
     env:
       PRE_PR_LOG: '{{.PRE_PR_LOG}}'
       PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES}}'
+      PRE_PR_APPS: '{{if kindIs "string" .APPS}}{{.APPS}}{{end}}'
+    cmds:
+      - bash scripts/pre-pr.sh
+
+  pre-pr:full:
+    desc: Run every pre-PR gate on every app and file (pre-commit --all-files, full security audit)
+    vars:
+      PRE_PR_LOG: '{{.PRE_PR_LOG | default "/tmp/cosalette-pre-pr.log"}}'
+      PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES | default "120"}}'
+    env:
+      PRE_PR_LOG: '{{.PRE_PR_LOG}}'
+      PRE_PR_TAIL_LINES: '{{.PRE_PR_TAIL_LINES}}'
+      PRE_PR_FULL: '1'
     cmds:
       - bash scripts/pre-pr.sh
 
@@ -431,16 +463,22 @@ tasks:
   # ===========================================================================
 
   lint:
-    desc: Run linting (ruff check + format check)
+    desc: Run linting on the root package, scripts/ and every tracked shell script
     cmds:
-      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
-      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
+      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
+      - task: lint:shell
+
+  lint:shell:
+    desc: Run shellcheck on every tracked *.sh file
+    cmds:
+      - git ls-files -z "*.sh" | xargs -0 uv run shellcheck
 
   lint:fix:
     desc: Fix linting issues automatically
     cmds:
-      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/
-      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
+      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
 
   typecheck:
     desc: Run type checking (ty)
@@ -513,9 +551,9 @@ tasks:
       - uvx --python 3.14 --with jinja2-time copier update --trust
 
   docker:lint:
-    desc: Lint Dockerfiles with hadolint (fails on DL-prefixed warnings)
+    desc: 'Lint Dockerfiles with hadolint (all, or: task docker:lint -- apps/x/Dockerfile)'
     cmds:
-      - bash scripts/qa-task.sh docker:lint
+      - bash scripts/qa-task.sh docker:lint {{.CLI_ARGS}}
 
   complexity:
     desc: Check all code complexity gates (cyclomatic + cognitive + duplication/similarity)

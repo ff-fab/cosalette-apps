@@ -168,14 +168,7 @@ async def bulb_set(
         # The bulb may have answered before the power cut, so no tick would
         # see it return: arm the return path that replays the queue.
         state.phase[config.name] = "reconnect"
-    queue_for_return = (
-        belief == "off" or state.last_availability.get(config.name) == "offline"
-    )
-    if (
-        queue_for_return
-        or config.name in state.pending_commands
-        or state.phase.get(config.name) == "reconnect"
-    ):
+    if intent.queues_for_return(state, config.name, belief):
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
         notify(config.name)
         return

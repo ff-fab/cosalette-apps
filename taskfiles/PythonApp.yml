@@ -71,17 +71,22 @@ tasks:
       - cmd: '{{if eq OS "darwin"}}open{{else}}xdg-open{{end}} htmlcov/index.html'
         ignore_error: true
 
+  # PY_FILES adds tracked Python outside packages/ (e.g. docs/_scripts/*.py).
+  # Not `ruff .`: ruff would also format code blocks in the docs Markdown.
   lint:
     desc: 'Lint {{.APP_NAME}}'
+    vars: &lint_vars
+      PY_FILES: '{{.PKG}}/src/ {{.PKG}}/tests/ $(git ls-files "*.py" ":(exclude){{.PKG}}")'
     cmds:
-      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
-      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff check {{.PY_FILES}}
+      - uv run ruff format --check {{.PY_FILES}}
 
   lint:fix:
     desc: 'Fix lint issues for {{.APP_NAME}}'
+    vars: *lint_vars
     cmds:
-      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/
-      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff check --fix {{.PY_FILES}}
+      - uv run ruff format {{.PY_FILES}}
 
   typecheck:
     desc: 'Type check {{.APP_NAME}}'

@@ -177,13 +177,7 @@ async def _handle_read_success(
     """Record a post-signal answer, run the return path, and render the payload."""
     name = config.name
     settings = cast(Wiz2MqttSettings, ctx.settings)
-    source = settings.power_source_of(name)
-    signal_at = (
-        state.source_signal_at.get(source.name, float("-inf"))
-        if source is not None
-        else float("-inf")
-    )
-    answered_after_signal = issued_at >= signal_at
+    answered_after_signal = issued_at >= _source_signal_at(settings, state, name)
     was_unreachable = state.bulb_answered.get(name) is False
     if answered_after_signal:
         state.consecutive_failures[name] = 0
@@ -202,11 +196,7 @@ async def _handle_read_success(
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a
     # boot event) also needs to run the return path when a desired state exists.
-    if (
-        was_unreachable
-        and state.phase.get(name) == "steady"
-        and intent.resolve_desired_state(state, store, name) is not None
-    ):
+    if was_unreachable and _has_desired_state_to_restore(state, store, name):
         state.phase[name] = "reconnect"
     if state.phase.get(name, "steady") == "reconnect":
         try:
@@ -226,6 +216,26 @@ async def _handle_read_success(
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, bulb_state, belief)
+
+
+def _source_signal_at(
+    settings: Wiz2MqttSettings, state: SharedState, name: str
+) -> float:
+    """When *name*'s power source last signalled; ``-inf`` without a source."""
+    source = settings.power_source_of(name)
+    if source is None:
+        return float("-inf")
+    return state.source_signal_at.get(source.name, float("-inf"))
+
+
+def _has_desired_state_to_restore(
+    state: SharedState, store: DeviceStore | None, name: str
+) -> bool:
+    """Whether a steady bulb holds a desired state its return path would restore."""
+    return (
+        state.phase.get(name) == "steady"
+        and intent.resolve_desired_state(state, store, name) is not None
+    )
 
 
 def _conflicts_with_restore_settle(
@@ -446,37 +456,15 @@ async def _run_return_path(
     so the next tick processes it instead of settling to steady.
     """
     now = time.time()
-    kwargs = intent.pop_valid(
-        state.pending_commands, name, settings.queued_command_ttl_for(name), now
+    kwargs, settle_target = _return_path_write(
+        config, state, store, settings, name, now
     )
-    settle_target = (
-        _active_restore_settle_state(state, name) if kwargs is None else None
-    )
-    if settle_target is not None:
-        # A confirmed queued command owns this short window too, even when
-        # restoring persisted state is disabled.  Reapply the complete
-        # read-back state so a foreign update cannot retain fields omitted by
-        # the original partial command.
-        kwargs = _bulb_state_to_set_state_kwargs(settle_target)
-    elif kwargs is None and config.restore_previous_state:
-        desired = intent.resolve_desired_state(state, store, name)
-        if desired is not None:
-            kwargs = intent.desired_state_to_set_state_kwargs(desired)
-
     if kwargs is None:
         observed = bulb_state
         confirmed = True
         intent.record_observation(state, store, name, observed, now)
     else:
-        if name in state.restore_retry_exhausted:
-            # Keep reconnect armed so this observation cannot replace the
-            # desired state, while the terminal cap prevents another write.
-            belief = _recompute_and_notify(settings, state, notify, name)
-            return _render(settings, state, name, bulb_state, belief)
-        retry_at = state.restore_retry_at.get(name)
-        if retry_at is not None and time.monotonic() < retry_at:
-            # firstBeat may repeat while a bulb starts.  Do not turn each
-            # broadcast into an immediate fresh three-write cycle.
+        if _restore_write_held(state, name):
             belief = _recompute_and_notify(settings, state, notify, name)
             return _render(settings, state, name, bulb_state, belief)
         observed, results, confirmed = await _write_and_verify(
@@ -487,45 +475,14 @@ async def _run_return_path(
             delays=settings.restore_retry_delays_for(name),
             sleep=ctx.sleep,
         )
-        attempts = len(results)
         state.last_applied[name] = intent.AppliedCommand(
-            kwargs=kwargs, at=time.time(), attempts=attempts, confirmed=confirmed
+            kwargs=kwargs, at=time.time(), attempts=len(results), confirmed=confirmed
         )
         if settle_target is None:
             _start_restore_settle(settings, state, name, observed, confirmed)
         if not confirmed:
-            cycles = state.restore_retry_cycles.get(name, 0) + 1
-            state.restore_retry_cycles[name] = cycles
-            terminal = cycles >= settings.restore_retry_limit_for(name)
-            if terminal:
-                state.restore_retry_exhausted.add(name)
-                state.restore_retry_at.pop(name, None)
-            else:
-                state.restore_retry_at[name] = time.monotonic() + _retry_delay(
-                    settings.restore_retry_delays_for(name), cycles
-                )
-            logger.warning(
-                "Bulb %s: return-path restore unconfirmed after %d attempts; %s",
-                name,
-                attempts,
-                (
-                    "retry cap reached"
-                    if terminal
-                    else "retaining desired state for retry"
-                ),
-            )
-            await ctx.publish(
-                "error",
-                json.dumps(
-                    {
-                        "error_type": RESTORE_UNCONFIRMED,
-                        "attempts": attempts,
-                        "attempt_results": results,
-                        "retry_cycles": cycles,
-                        "terminal": terminal,
-                        "state": dataclasses.asdict(observed),
-                    }
-                ),
+            await _report_unconfirmed_restore(
+                ctx, settings, state, name, observed, results
             )
     if confirmed:
         state.restore_retry_cycles.pop(name, None)
@@ -537,6 +494,94 @@ async def _run_return_path(
     return _render(settings, state, name, observed, belief)
 
 
+def _return_path_write(
+    config: BulbConfig,
+    state: SharedState,
+    store: DeviceStore | None,
+    settings: Wiz2MqttSettings,
+    name: str,
+    now: float,
+) -> tuple[SetStateKwargs | None, BulbState | None]:
+    """Pick the return-path write and the restore-settle state it re-applies.
+
+    A non-expired pending command wins; else an active restore-settle window
+    re-applies its confirmed state; else the stored desired state restores
+    when ``restore_previous_state`` is set. ``(None, None)`` means no write.
+    """
+    kwargs = intent.pop_valid(
+        state.pending_commands, name, settings.queued_command_ttl_for(name), now
+    )
+    if kwargs is not None:
+        return kwargs, None
+    settle_target = _active_restore_settle_state(state, name)
+    if settle_target is not None:
+        # A confirmed queued command owns this short window too, even when
+        # restoring persisted state is disabled.  Reapply the complete
+        # read-back state so a foreign update cannot retain fields omitted by
+        # the original partial command.
+        return intent.bulb_state_to_set_state_kwargs(settle_target), settle_target
+    if config.restore_previous_state:
+        desired = intent.resolve_desired_state(state, store, name)
+        if desired is not None:
+            return intent.desired_state_to_set_state_kwargs(desired), None
+    return None, None
+
+
+def _restore_write_held(state: SharedState, name: str) -> bool:
+    """Whether the retry cap or retry pacing forbids a return-path write now.
+
+    An exhausted cap keeps reconnect armed so the observation cannot replace
+    the desired state, while preventing another write. Pacing stops a
+    repeated firstBeat while a bulb starts from turning each broadcast into
+    an immediate fresh three-write cycle.
+    """
+    if name in state.restore_retry_exhausted:
+        return True
+    retry_at = state.restore_retry_at.get(name)
+    return retry_at is not None and time.monotonic() < retry_at
+
+
+async def _report_unconfirmed_restore(
+    ctx: cosalette.DeviceContext,
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    name: str,
+    observed: BulbState,
+    results: list[str],
+) -> None:
+    """Count an unconfirmed restore cycle, pace or cap retries, publish the error."""
+    attempts = len(results)
+    cycles = state.restore_retry_cycles.get(name, 0) + 1
+    state.restore_retry_cycles[name] = cycles
+    terminal = cycles >= settings.restore_retry_limit_for(name)
+    if terminal:
+        state.restore_retry_exhausted.add(name)
+        state.restore_retry_at.pop(name, None)
+    else:
+        state.restore_retry_at[name] = time.monotonic() + _retry_delay(
+            settings.restore_retry_delays_for(name), cycles
+        )
+    logger.warning(
+        "Bulb %s: return-path restore unconfirmed after %d attempts; %s",
+        name,
+        attempts,
+        "retry cap reached" if terminal else "retaining desired state for retry",
+    )
+    await ctx.publish(
+        "error",
+        json.dumps(
+            {
+                "error_type": RESTORE_UNCONFIRMED,
+                "attempts": attempts,
+                "attempt_results": results,
+                "retry_cycles": cycles,
+                "terminal": terminal,
+                "state": dataclasses.asdict(observed),
+            }
+        ),
+    )
+
+
 def _retry_delay(delays: Sequence[float], cycles: int) -> float:
     """Return the pacing delay after exhausted restore *cycles*.
 
@@ -545,19 +590,6 @@ def _retry_delay(delays: Sequence[float], cycles: int) -> float:
     later tick just as it does between attempts within a cycle.
     """
     return 0.0 if not delays else delays[min(cycles - 1, len(delays) - 1)]
-
-
-def _bulb_state_to_set_state_kwargs(bulb_state: BulbState) -> SetStateKwargs:
-    """Translate a confirmed read-back into a complete reapply command."""
-    return {
-        "state": bulb_state.state,
-        "brightness": bulb_state.brightness,
-        "hue": bulb_state.hue,
-        "saturation": bulb_state.saturation,
-        "color_temp_kelvin": bulb_state.color_temp_kelvin,
-        "scene": bulb_state.scene,
-        "speed": bulb_state.effect_speed,
-    }
 
 
 def _start_restore_settle(

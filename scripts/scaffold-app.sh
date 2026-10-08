@@ -34,6 +34,7 @@ done
 [[ -f pyproject.toml ]] || die "run from repo root (pyproject.toml not found)"
 [[ "$NAME" =~ ^[a-z][a-z0-9-]*$ ]] || die "name must be lowercase alphanumeric + hyphens"
 [[ "$DESC" =~ [\"\\\`] ]] && die "description must not contain quotes, backslashes, or backticks"
+# shellcheck disable=SC2016  # a literal "$(" is what we reject
 [[ "$DESC" == *'$('* ]] && die "description must not contain command substitutions"
 [[ "$LICENSE" == "MIT" || "$LICENSE" == "GPL-3.0-or-later" ]] || die "license must be MIT or GPL-3.0-or-later"
 [[ -d "apps/$NAME" ]] && die "apps/$NAME already exists"

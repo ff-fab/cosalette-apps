@@ -52,6 +52,11 @@ _NO_CHANGE: SetStateKwargs = {
 }
 
 
+def off_kwargs() -> SetStateKwargs:
+    """Return a fresh OFF write: ``state=False`` and no appearance."""
+    return {**_NO_CHANGE, "state": False}
+
+
 def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
     """Translate a validated set-command into ``WizBulbPort.set_state`` kwargs.
 
@@ -81,7 +86,7 @@ def to_set_state_kwargs(cmd: BulbSetCommand) -> SetStateKwargs:
         if brightness is None:
             brightness = hsb_brightness
     if brightness == 0:
-        return {**_NO_CHANGE, "state": False}
+        return off_kwargs()
 
     scene = effect_name_to_scene_id(cmd.effect) if cmd.effect is not None else None
     kwargs: SetStateKwargs = {

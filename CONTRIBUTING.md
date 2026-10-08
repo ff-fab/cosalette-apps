@@ -43,7 +43,9 @@ task <app>:docs:serve     # Serve app documentation site locally
 task test:all             # Run tests for all apps
 task lint:all             # Lint all apps
 task check:all            # Run all checks for all apps
-task pre-pr               # Full pre-PR quality gate
+task pre-pr               # Pre-PR quality gate, scoped to the apps you changed
+task pre-pr APPS="a b"    # Gate exactly these apps
+task pre-pr:full          # Every app and every file
 
 # Root documentation
 task docs:serve           # Serve root documentation site locally
@@ -345,7 +347,10 @@ This project follows **GitHub Flow**:
 1. Create a feature branch from `main`
 2. Make changes with [conventional commits](https://www.conventionalcommits.org/)
    (`feat:`, `fix:`, `docs:`, `chore:`, etc.). Scope by app: `feat(gas2mqtt): ...`
-3. Run `task pre-pr` to pass all quality gates
+3. Run `task pre-pr` to pass all quality gates. It checks only the apps your branch
+   changed (every app when a shared path in `.github/ci-shared-paths.txt` changed); use
+   `APPS="a b"` to pick apps, or `task pre-pr:full` to check everything (see
+   [ADR-012](docs/adr/ADR-012-change-scoped-pre-pr-gate-with-a-shared-path-fallback.md))
 4. Open a pull request -- never push directly to `main`
 
 ## Documentation Preview

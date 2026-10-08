@@ -33,9 +33,30 @@ git branch --show-current
 task pre-pr
 ```
 
-This runs pre-commit hooks, lint, typecheck, tests, coverage thresholds, and
-complexity, Dockerfile lint (skipped without Docker or a running daemon) and security
-checks as a single deterministic pipeline.
+This runs pre-commit hooks, lint, typecheck, tests, coverage thresholds,
+complexity and duplication, Dockerfile lint (skipped without Docker or a running
+daemon) and security checks in two phases: the cheap and I/O-bound checks run in
+parallel, then the app tests run alone so they never share the CPU with heavy
+steps. Every step runs, so one pass reports every failure; result lines print in
+a fixed order and each step group keeps its own log under
+`/tmp/cosalette-pre-pr.log.steps/`. `PRE_PR_JOBS=1 task pre-pr` runs the same
+steps one at a time with live progress, for debugging.
+
+It is **change-scoped** (ADR-012). It diffs against the merge-base with
+`origin/main`, plus uncommitted and untracked files, then:
+
+- checks every app under `apps/<app>/` that changed;
+- checks every app when a shared path in `.github/ci-shared-paths.txt` changed.
+
+Its first lines print the selected apps and the reason. Root unit tests always run.
+Secrets are scanned only in changed files. pip-audit runs only when `uv.lock` or a
+`pyproject.toml` changed.
+
+- `task pre-pr APPS="a b"` checks exactly those apps.
+- `task pre-pr:full` checks every app and every file and runs the full security
+  audit. Use it after changing shared tooling you suspect the scoping misses, or
+  when the scope output looks wrong. A missing `origin/main` falls back to the full
+  run automatically.
 
 **If any step fails:** identify the specific failure, fix it, and re-run
 `task pre-pr` from scratch. Do not skip failures. Do not move on until the

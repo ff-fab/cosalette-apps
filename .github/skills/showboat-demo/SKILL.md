@@ -72,6 +72,7 @@ This is the part most easily under-done — a demo of bare command output withou
 commentary does not explain why the work is correct.
 
 **Choose proof commands that demonstrate _this_ work, not generic health**: `task pre-pr`
+(change-scoped; `task pre-pr:full` when the proof must cover every app)
 or targeted tests for code changes, `git diff main...HEAD --stat` for scope, plus
 feature-specific commands (API calls, CLI output). Always use the three-dot form in
 proof blocks so they stay reproducible after `main` advances.

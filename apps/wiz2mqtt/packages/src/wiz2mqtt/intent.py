@@ -13,12 +13,14 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, cast
 
+from wiz2mqtt.commands import off_kwargs
 from wiz2mqtt.models import EMPTY_BULB_STATE, BulbState
 
 if TYPE_CHECKING:
     from cosalette import DeviceStore
 
     from wiz2mqtt.commands import SetStateKwargs
+    from wiz2mqtt.power import Belief
     from wiz2mqtt.state import SharedState
 
 logger = logging.getLogger(__name__)
@@ -95,15 +97,7 @@ def desired_state_to_set_state_kwargs(desired: DesiredState) -> SetStateKwargs:
     appearance in the same call, mirroring :meth:`DesiredState.as_bulb_state`.
     """
     if desired.state == "OFF":
-        return {
-            "state": False,
-            "brightness": None,
-            "hue": None,
-            "saturation": None,
-            "color_temp_kelvin": None,
-            "scene": None,
-            "speed": None,
-        }
+        return off_kwargs()
     appearance = desired.appearance
     return {
         "state": True,
@@ -364,8 +358,8 @@ def _pending_as_bulb_state(command: PendingCommand | None) -> BulbState:
     )
 
 
-def _pending_kwargs(bulb_state: BulbState) -> SetStateKwargs:
-    """Translate the merged state back to its pending representation."""
+def bulb_state_to_set_state_kwargs(bulb_state: BulbState) -> SetStateKwargs:
+    """Translate a bulb state into a complete ``set_state`` write."""
     return {
         "state": bulb_state.state,
         "brightness": bulb_state.brightness,
@@ -380,15 +374,7 @@ def _pending_kwargs(bulb_state: BulbState) -> SetStateKwargs:
 def pending_write_kwargs(kwargs: SetStateKwargs) -> SetStateKwargs:
     """Keep queued appearance for a later ON, but never send it with OFF."""
     if kwargs.get("state") is False:
-        return {
-            "state": False,
-            "brightness": None,
-            "hue": None,
-            "saturation": None,
-            "color_temp_kelvin": None,
-            "scene": None,
-            "speed": None,
-        }
+        return off_kwargs()
     return kwargs
 
 
@@ -432,7 +418,7 @@ def merge_pending(
         scene=kwargs.get("scene"),
         effect_speed=kwargs.get("speed"),
     )
-    return PendingCommand(kwargs=_pending_kwargs(merged), queued_at=now)
+    return PendingCommand(kwargs=bulb_state_to_set_state_kwargs(merged), queued_at=now)
 
 
 def enqueue(
@@ -457,3 +443,17 @@ def pop_valid(
         logger.info("Dropping expired pending command for bulb %s", name)
         return None
     return pending_write_kwargs(command.kwargs)
+
+
+def queues_for_return(state: SharedState, name: str, belief: Belief | None) -> bool:
+    """Whether a command must queue for the return path instead of the wire.
+
+    True when the power source is believed off, the bulb is offline, a queue
+    already exists (keeps FIFO order) or the reconnect return path is armed.
+    """
+    return (
+        belief == "off"
+        or state.last_availability.get(name) == "offline"
+        or name in state.pending_commands
+        or state.phase.get(name) == "reconnect"
+    )

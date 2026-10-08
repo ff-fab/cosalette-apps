@@ -32,6 +32,16 @@ repos:
       - id: detect-private-key
         name: Detect private keys
 
+  # detect-secrets: block new secrets in the files being committed. Same
+  # locked tool and audited baseline as `task security:secrets` (CI scans
+  # every file; `task pre-pr` scans only the changed ones through this hook).
+  - repo: local
+    hooks:
+      - id: detect-secrets
+        name: detect-secrets (against .secrets.baseline)
+        entry: uv run detect-secrets-hook --baseline .secrets.baseline
+        language: system
+
   # Codespell: Catch common misspellings across the entire repo
   - repo: https://github.com/codespell-project/codespell
     rev: v2.4.3

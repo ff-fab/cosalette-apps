@@ -60,14 +60,18 @@ jobs:
           fi
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
-      # Build dorny/paths-filter config dynamically from discovered apps
+      # Build dorny/paths-filter config dynamically from discovered apps.
+      # The shared list lives in .github/ci-shared-paths.txt, which
+      # scripts/pre-pr-scope.sh reads too, so local and CI scoping agree.
       - name: Build path filters
         id: build-filters
         env:
           DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
-          filters="shared:"$'\n'"  - 'pyproject.toml'"$'\n'"  - 'uv.lock'"$'\n'"  - '.github/**'"$'\n'"  - 'taskfiles/**'"$'\n'"  - '.pre-commit-config.yaml'"$'\n'"  - 'REUSE.toml'"
-          filters="$filters"$'\n'"  - 'Taskfile.yml'"$'\n'"  - 'scripts/**'"$'\n'"  - 'packages/**'"
+          filters="shared:"
+          while IFS= read -r pattern; do
+            filters="$filters"$'\n'"  - '${pattern}'"
+          done < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/ci-shared-paths.txt)
           for app in $(printf '%s' "$DISCOVERED_APPS" | jq -r '.[]'); do
             filters="$filters"$'\n'"${app}:"$'\n'"  - 'apps/${app}/**'"
           done
@@ -82,7 +86,15 @@ jobs:
         id: apps
         env:
           FILTER_CHANGES: ${{ steps.filter.outputs.changes }}
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}
+          DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
+          # A shared change (uv.lock, root pyproject, shared fixtures under
+          # packages/, taskfiles, ...) can break any app, so it runs every app.
+          if [ "$SHARED_CHANGED" = "true" ]; then
+            echo "apps=$DISCOVERED_APPS" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # dorny/paths-filter outputs a JSON array of all matched filter names.
           # Remove 'shared' since it is not an app — it has its own dedicated job.
           apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "shared")]')
@@ -120,7 +132,9 @@ jobs:
   # Framework-contract and cross-app-convention tests (e.g. the ADR-006 MQTT
   # TLS posture check reads every app's compose.yml/.env.example), plus shell
   # helper tests, can be broken by app-scoped changes without touching the
-  # `shared` path filter above, so these run unconditionally.
+  # `shared` path filter above, so these run unconditionally. `task lint` also
+  # runs here: ruff on the root package and scripts/, shellcheck on every
+  # tracked *.sh (some, like .devcontainer/*.sh, sit outside the shared list).
   root-tests:
     needs: detect
     if: needs.detect.result == 'success'
@@ -132,10 +146,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Run repo-root unit and script test suites inside devcontainer
+      - name: Run repo-root lint, unit and script test suites inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
-          run-cmd: task test:unit && task test:scripts
+          run-cmd: task lint && task test:unit && task test:scripts
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues

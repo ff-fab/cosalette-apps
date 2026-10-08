@@ -39,7 +39,7 @@ jobs:
       - name: Discover doc-enabled apps
         id: discover
         run: |
-          apps=$(ls -d apps/*/zensical.toml 2>/dev/null | xargs -I{} dirname {} | xargs -I{} basename {} | tr '\n' ' ')
+          apps=$(for f in apps/*/zensical.toml; do [ -f "$f" ] && basename "$(dirname "$f")"; done | tr '\n' ' ')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
       - name: Prepare runner for devcontainer
@@ -126,7 +126,7 @@ jobs:
           while IFS= read -r file; do
             url=""
             case "$file" in
-              docs/*.md|docs/**/*.md)
+              docs/*.md)  # case globs: * also matches /
                 # docs/adr/ADR-002.md → /adr/ADR-002/
                 slug="${file#docs/}"
                 slug="${slug%.md}"
@@ -134,11 +134,11 @@ jobs:
                 [[ "$slug" == */index ]] && url="/${slug%/index}/"
                 [[ -z "$url" ]] && url="/${slug}/"
                 ;;
-              apps/*/docs/*.md|apps/*/docs/**/*.md)
+              apps/*/docs/*.md)
                 # apps/gas2mqtt/docs/index.md → /gas2mqtt/
                 app="${file#apps/}"
                 app="${app%%/*}"
-                slug="${file#apps/${app}/docs/}"
+                slug="${file#apps/"${app}"/docs/}"
                 slug="${slug%.md}"
                 [[ "$slug" == "index" ]] && url="/${app}/"
                 [[ "$slug" == */index ]] && url="/${app}/${slug%/index}/"

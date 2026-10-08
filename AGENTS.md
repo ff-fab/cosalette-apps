@@ -89,7 +89,9 @@ task gas2mqtt:test:unit        # Run unit tests for one app
 task gas2mqtt:lint             # Lint one app
 task gas2mqtt:typecheck        # Type check one app
 task test:all                  # Run tests for all apps
-task pre-pr                    # Full quality gate
+task pre-pr                    # Quality gate, scoped to the apps you changed
+task pre-pr APPS="gas2mqtt"    # Gate exactly these apps
+task pre-pr:full               # Every app, every file (shared or risky changes)
 ```
 
 ## Workflow
@@ -200,7 +202,8 @@ item. The gate task references the TODO doc but contains no decision logic itsel
 until `git push` succeeds.
 
 1. **File issues for remaining work** — create beads tasks for anything unfinished
-2. **Run quality gates** (if code changed) — `task pre-pr`
+2. **Run quality gates** (if code changed) — `task pre-pr` (change-scoped; run
+   `task pre-pr:full` after shared-tooling changes or before a release-critical PR)
 3. **Close beads tasks and commit state** — beads state MUST be committed before
    pushing:
    ```bash
