@@ -214,11 +214,19 @@ independent, and an unavailable cover stays visible through MQTT. The container 
 nothing: the exit codes below do. With a read-only root filesystem, mount a tmpfs on
 `/tmp` for the health file.
 
+**Loop-stall watchdog.** GPIO pin operations use synchronous gpiozero calls inside
+the event loop. They normally complete immediately, but a stalled kernel GPIO call
+would also stop health-file updates and freshness checks. `compose.yml` sets
+`COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds; after that without an event-loop
+turn, cosalette prints thread stacks and exits with code 6 so the restart policy can
+recover. Set the variable in the shell or `.env` to override the value.
+
 | Exit code | Cause                                                            |
 | --------- | ---------------------------------------------------------------- |
 | `1`       | Startup failure                                                  |
 | `3`       | Unexpected exception                                             |
 | `4`       | A framework task exhausted its restart budget                    |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
 
 **Log redaction.** velux2mqtt does not set `App(redact=)`. Its logs carry cover names,
 GPIO pin numbers and command payloads, but no credentials or device identifiers.

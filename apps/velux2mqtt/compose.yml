@@ -18,6 +18,8 @@ services:
       # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
       VELUX2MQTT_MQTT__PROTOCOL_VERSION: ${VELUX2MQTT_MQTT__PROTOCOL_VERSION:-5}
       VELUX2MQTT_STORE_PATH: /app/data/store.json
+      # Exit 6 if a synchronous GPIO operation stalls the event loop.
+      COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
     volumes:
       - velux2mqtt-data:/app/data
     depends_on:
