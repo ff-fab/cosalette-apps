@@ -2,7 +2,7 @@
 
 Checks the sixteen validation criteria of
 ``docs/planning/cosalette-event-driven-publication-proposal.md`` against the
-installed wheel — 0.8.0 when the proposal shipped, 0.11.1 now.  ``TestParity``'s
+installed wheel — 0.8.0 when the proposal shipped, 0.11.2 now.  ``TestParity``'s
 two return-validation criteria were rewritten for the ADR-068 change 0.9.0
 made to that ordering; see their own docstrings for the before/after.  The
 criteria are framework contracts, not app behaviour,

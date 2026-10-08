@@ -149,8 +149,9 @@ sensor already goes `offline` through its own staleness timeout when frames stop
 a new pylacrosse reader thread. That thread stops for good when a serial read fails, for
 example after a USB reset, while the device file stays present. A silent JeeLink
 therefore causes a restart 15 to 16 minutes after its last frame with the default
-timeout. jeelink2mqtt does not set `restart_on_stale`: cosalette applies it to telemetry
-only, and the receiver is a stream.
+timeout. jeelink2mqtt does not set `restart_on_stale` yet. Since cosalette 0.11.2 it
+also covers streams and could reopen the serial port in place before the exit; its
+adoption is planned.
 
 !!! note "No sensors in range"
 
