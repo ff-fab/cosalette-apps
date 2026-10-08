@@ -207,11 +207,19 @@ when the health file is older than 180 s. An `unhealthy` status restarts nothing
 exit codes below do. With a read-only root filesystem, mount a tmpfs on `/tmp` for the
 health file.
 
+**Loop-stall watchdog.** SSH connects and commands are asynchronous and each has a
+5 s timeout, so no normal panel operation should block the event loop. `compose.yml`
+sets `COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds as a backstop for an unexpected
+event-loop wedge. Cosalette prints thread stacks and exits with code 6, after which
+`restart: unless-stopped` recovers the process. Set the variable in the shell or
+`.env` to override the value.
+
 | Exit code | Cause                                         |
 | --------- | --------------------------------------------- |
 | `1`       | Startup failure                               |
 | `3`       | Unexpected exception                          |
 | `4`       | A framework task exhausted its restart budget |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
 
 **Log redaction.** wallpanel-control does not set `App(redact=)`. No secret reaches
 log or error text: the SSH private key is handed to asyncssh as a file path and never
