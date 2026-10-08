@@ -56,7 +56,7 @@ _TYPE_TO_DEFINITION = {
 #
 # The type-guard checks below raise ValueError (not TypeError) by contract:
 # main() catches ValueError to print a friendly message + exit non-zero, and the
-# unit tests assert ValueError. Hence `# noqa: TRY004` on those isinstance guards.
+# unit tests assert ValueError, so those isinstance guards suppress TRY004.
 # ---------------------------------------------------------------------------
 
 

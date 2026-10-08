@@ -431,16 +431,16 @@ tasks:
   # ===========================================================================
 
   lint:
-    desc: Run linting (ruff check + format check)
+    desc: Run linting on the root package and scripts/ (ruff check + format check)
     cmds:
-      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/
-      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
+      - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
 
   lint:fix:
     desc: Fix linting issues automatically
     cmds:
-      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/
-      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/
+      - uv run ruff check --fix {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
+      - uv run ruff format {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
 
   typecheck:
     desc: Run type checking (ty)
