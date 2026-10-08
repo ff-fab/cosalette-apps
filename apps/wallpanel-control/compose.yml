@@ -24,6 +24,8 @@ services:
       WALLPANEL_CONTROL_STORE_PATH: /app/data/store.json
       WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
       WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
+      # Async SSH commands have 5 s timeouts; exit if the event loop wedges.
+      COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
     volumes:
       - wallpanel_control-data:/app/data
     secrets:

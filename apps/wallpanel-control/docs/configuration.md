@@ -179,6 +179,58 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
     The app will not start without `WALLPANEL_CONTROL_WOL_MAC`. Use the format
     `AA:BB:CC:DD:EE:FF`.
 
+### Health and recovery
+
+MQTT is the primary health signal: the `wallpanel-control/status` heartbeat and last
+will (see [MQTT Topics](mqtt-topics.md)). Each state payload also carries the panel's
+own availability. Recovery comes from process exits and the `restart: unless-stopped`
+policy in `compose.yml`.
+
+**No freshness watchdog.** `display` and `system/action` are command-driven devices.
+The app polls nothing on a timer and registers no telemetry or streams, so no entity
+ever turns `"stale"` and cosalette derives no `stale_after` bound. wallpanel-control
+therefore sets neither `exit_after_stale` nor `restart_on_stale`: both act only on
+stale telemetry or streams.
+
+**No adapter health check.** A powered-off, suspended or hibernating panel is a normal
+state, so SSH reachability says nothing about the app's health. A health check would
+mark both devices offline whenever the panel sleeps and spend the adapter restart
+budget, while `wake` must keep working exactly then. The SSH adapter connects lazily
+and drops its connection on any unreachable error, so the next command reconnects and
+it needs no `reset()`.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health --fail-on ""` every 60 s, so `docker ps` shows `healthy` or
+`unhealthy`. The probe checks only that the health file is fresh: the two devices are
+independent, and a sleeping panel is not a fault. The container turns `unhealthy`
+when the health file is older than 180 s. An `unhealthy` status restarts nothing: the
+exit codes below do. With a read-only root filesystem, mount a tmpfs on `/tmp` for the
+health file.
+
+**Loop-stall watchdog.** SSH connects and commands are asynchronous and each has a
+5 s timeout, so no normal panel operation should block the event loop. `compose.yml`
+sets `COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds as a backstop for an unexpected
+event-loop wedge. Cosalette prints thread stacks and exits with code 6, after which
+`restart: unless-stopped` recovers the process. Set the variable in the shell or
+`.env` to override the value.
+
+| Exit code | Cause                                         |
+| --------- | --------------------------------------------- |
+| `1`       | Startup failure                               |
+| `3`       | Unexpected exception                          |
+| `4`       | A framework task exhausted its restart budget |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
+
+**Log redaction.** wallpanel-control does not set `App(redact=)`. No secret reaches
+log or error text: the SSH private key is handed to asyncssh as a file path and never
+read into a message, the key carries no passphrase, and the MQTT password is a
+`SecretStr`. Logs and exception text can carry the SSH host, port and user, the
+backlight path and the wake-on-LAN MAC address. These are LAN configuration, not
+credentials, and they are what you need to debug a connection. The broker-visible
+error payload carries only the exception class name unless you set
+`WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true`, which publishes the full
+exception text, including the SSH host and user.
+
 ---
 
 ## `.env` File

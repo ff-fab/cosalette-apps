@@ -54,6 +54,9 @@ app = cosalette.App(
     # entities): kept for the runtime-discovery topic snapshot only, so
     # entities removed in a future release are cleared from Home Assistant
     # on the next startup (monorepo ADR-004).
+    # No exit_after_stale/restart_on_stale (no telemetry or streams), no adapter
+    # health_check (a sleeping panel is normal) and no redact= (no secrets reach
+    # log text). See docs/configuration.md > Health and recovery.
 )
 
 # ADR-004: runtime HA discovery

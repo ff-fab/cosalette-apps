@@ -60,7 +60,10 @@ class SshWallpanel:
         Raises:
             Unreachable errors propagate to caller for handling.
         """
-        if self._conn is not None:
+        # A connection the panel closed (reboot, shutdown) stays cached until
+        # replaced: reusing it fails every command with ChannelOpenError, which
+        # is not an unreachable error and would never clear it.
+        if self._conn is not None and not self._conn.is_closed():
             return self._conn
 
         self._conn = await asyncio.wait_for(

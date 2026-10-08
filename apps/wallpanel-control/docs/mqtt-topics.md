@@ -33,7 +33,9 @@ unknown fields are rejected with an error publication.
 !!! note "No periodic telemetry from hardware"
     wallpanel-control does not poll wallpanel hardware on a timer. State is published
     only in response to commands. The cosalette framework independently publishes its
-    own health/heartbeat to `{prefix}/status` regardless of command activity.
+    own health/heartbeat to `{prefix}/status` regardless of command activity. With
+    nothing polled, no device ever reports `stale` there; see
+    [Health and recovery](configuration.md#health-and-recovery).
 
 ---
 
@@ -160,12 +162,16 @@ or `wallpanel-control/system/action/error`.
 ```json
 {
     "error_type": "error",
-    "message": "SSH connection refused",
+    "message": "WallpanelUnreachableError",
     "device": "display",
     "timestamp": "2026-02-14T12:34:56+00:00",
     "details": {}
 }
 ```
+
+The `message` carries only the exception class name. The full exception text, which
+can include the SSH host and user, goes to the app log. Set
+`WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish it on the broker too.
 
 This topic carries transient error notifications. Do not rely on retained state from
 this topic -- it is never retained.

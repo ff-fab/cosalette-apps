@@ -29,6 +29,7 @@ _PROBE_APP_DIRS = {
     "jeelink2mqtt",
     "velux2mqtt",
     "vito2mqtt",
+    "wallpanel-control",
 }
 
 _HEALTHCHECK = re.compile(

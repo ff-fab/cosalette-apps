@@ -27,6 +27,13 @@ def _make_adapter(**overrides: object) -> SshWallpanel:
     return SshWallpanel(settings)
 
 
+def _mock_conn(*, closed: bool = False) -> AsyncMock:
+    """Create a mock SSHClientConnection; is_closed() is synchronous."""
+    conn = AsyncMock()
+    conn.is_closed = MagicMock(return_value=closed)
+    return conn
+
+
 def _mock_run_result(stdout: str = "") -> MagicMock:
     """Create a mock SSHCompletedProcess."""
     result = MagicMock()
@@ -69,7 +76,7 @@ class TestSshWallpanelReachable:
         """get_brightness reads from sysfs and returns int."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result("500"))
         adapter._conn = mock_conn
 
@@ -83,7 +90,7 @@ class TestSshWallpanelReachable:
         """get_max_brightness reads max_brightness from sysfs."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result("7812"))
         adapter._conn = mock_conn
 
@@ -97,7 +104,7 @@ class TestSshWallpanelReachable:
         """set_brightness writes value via tee command."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result())
         adapter._conn = mock_conn
 
@@ -114,7 +121,7 @@ class TestSshWallpanelReachable:
         """screen_on sends busctl command with PowerSaveMode 0."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result())
         adapter._conn = mock_conn
 
@@ -130,7 +137,7 @@ class TestSshWallpanelReachable:
         """screen_off sends busctl command with PowerSaveMode 1."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result())
         adapter._conn = mock_conn
 
@@ -146,7 +153,7 @@ class TestSshWallpanelReachable:
         """get_screen_state returns True when PowerSaveMode is 0."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result("i 0"))
         adapter._conn = mock_conn
 
@@ -160,7 +167,7 @@ class TestSshWallpanelReachable:
         """get_screen_state returns False when PowerSaveMode is 1."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result("i 1"))
         adapter._conn = mock_conn
 
@@ -182,7 +189,7 @@ class TestSshWallpanelReachable:
         """
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result(output))
         adapter._conn = mock_conn
 
@@ -196,7 +203,7 @@ class TestSshWallpanelReachable:
         """hibernate sends systemctl hibernate."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result())
         adapter._conn = mock_conn
 
@@ -211,7 +218,7 @@ class TestSshWallpanelReachable:
         """suspend sends systemctl suspend."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(return_value=_mock_run_result())
         adapter._conn = mock_conn
 
@@ -226,7 +233,7 @@ class TestSshWallpanelReachable:
         """is_reachable returns True when connection succeeds."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         adapter._conn = mock_conn
 
         # Act
@@ -242,7 +249,7 @@ class TestSshWallpanelReachable:
         """
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
 
         with patch(
             "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
@@ -273,7 +280,7 @@ class TestSshWallpanelUnreachable:
         """get_brightness returns None when connection is refused."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(side_effect=ConnectionRefusedError)
         adapter._conn = mock_conn
 
@@ -287,7 +294,7 @@ class TestSshWallpanelUnreachable:
         """get_screen_state returns None on timeout."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(side_effect=TimeoutError)
         adapter._conn = mock_conn
 
@@ -335,7 +342,7 @@ class TestSshWallpanelUnreachable:
         """Connection reference is cleared after unreachable error."""
         # Arrange
         adapter = _make_adapter()
-        mock_conn = AsyncMock()
+        mock_conn = _mock_conn()
         mock_conn.run = AsyncMock(side_effect=ConnectionRefusedError)
         adapter._conn = mock_conn
 
@@ -401,3 +408,36 @@ class TestSshWallpanelContextManager:
         mock_connect.assert_not_called()
         assert adapter._conn is None
         assert result is adapter
+
+
+@pytest.mark.unit
+class TestSshWallpanelClosedConnection:
+    """A connection the panel closed must not stay cached forever."""
+
+    async def test_closed_connection_is_replaced(self) -> None:
+        """A cached but closed connection is dropped and a fresh one opened.
+
+        Technique: State Transition — the panel reboots, asyncssh marks the
+        cached connection closed, and the next command must reconnect instead
+        of failing with ChannelOpenError on every call until a restart.
+        """
+        # Arrange
+        adapter = _make_adapter()
+        stale = _mock_conn(closed=True)
+        fresh = _mock_conn()
+        fresh.run = AsyncMock(return_value=_mock_run_result("500"))
+        adapter._conn = stale
+
+        with patch(
+            "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
+            new_callable=AsyncMock,
+            return_value=fresh,
+        ) as mock_connect:
+            # Act
+            result = await adapter.get_brightness()
+
+        # Assert
+        assert result == 500
+        mock_connect.assert_awaited_once()
+        stale.run.assert_not_called()
+        assert adapter._conn is fresh
