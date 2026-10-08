@@ -122,15 +122,10 @@ _do_docker_lint() {
         echo "docker:lint: no Dockerfiles found — skipping"
         return 0
     fi
-    local rc=0
-    for dockerfile in "${dockerfiles[@]}"; do
-        echo "==> [docker:lint] ${dockerfile}"
-        docker run --rm -i \
-            -v "$PWD/.hadolint.yaml:/hadolint.yaml:ro" \
-            "ghcr.io/hadolint/hadolint:v${hadolint_version}" \
-            hadolint --config /hadolint.yaml --no-color --failure-threshold warning - < "$dockerfile" || rc=$?
-    done
-    return $rc
+    # One container for all files: a run per file made pre-pr time out.
+    docker run --rm -v "$PWD:/repo:ro" -w /repo \
+        "ghcr.io/hadolint/hadolint:v${hadolint_version}" \
+        hadolint --config .hadolint.yaml --no-color --failure-threshold warning "${dockerfiles[@]}"
 }
 
 # ──────────────────────────────────────────────────────────────────────────────
