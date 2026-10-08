@@ -162,12 +162,16 @@ or `wallpanel-control/system/action/error`.
 ```json
 {
     "error_type": "error",
-    "message": "SSH connection refused",
+    "message": "WallpanelUnreachableError",
     "device": "display",
     "timestamp": "2026-02-14T12:34:56+00:00",
     "details": {}
 }
 ```
+
+The `message` carries only the exception class name. The full exception text, which
+can include the SSH host and user, goes to the app log. Set
+`WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish it on the broker too.
 
 This topic carries transient error notifications. Do not rely on retained state from
 this topic -- it is never retained.
