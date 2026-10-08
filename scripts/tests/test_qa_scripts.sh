@@ -100,23 +100,23 @@ assert_exit_eq "qa-task.sh: no-arg exits 1" "1" "$T3_RC"
 printf "\n=== pre-pr.sh ===\n"
 
 # Test: pre-pr.sh always emits pre-pr-exit= even when a step fails
-# We override the first step to exit nonzero to test that the EXIT trap fires.
+# The first step fails, so the EXIT trap must report the failure. The stub sits
+# on PATH: `timeout` execs a binary, so an exported shell function never reaches
+# it and the real pre-commit would run (and rewrite files) instead.
 T4_LOG=$(mktemp)
-# Create a wrapper that replaces pre-commit with a failing stub
-T4_WRAPPER=$(mktemp --suffix=.sh)
-cat > "$T4_WRAPPER" << 'EOF'
-#!/usr/bin/env bash
-pre-commit() { exit 42; }
-export -f pre-commit
-export TIMEOUT_PRECOMMIT=5 TIMEOUT_LINT=5 TIMEOUT_TYPECHECK=5
-export TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SIMILARITY=5 TIMEOUT_SECURITY=5
-source SCRIPT_PATH
-EOF
-sed -i "s|SCRIPT_PATH|$REPO_ROOT/scripts/pre-pr.sh|" "$T4_WRAPPER"
-T4_OUT=$(PRE_PR_LOG="$T4_LOG" bash "$T4_WRAPPER" 2>&1 || true)
-assert_contains "pre-pr.sh: emits pre-pr-exit= on failure" "pre-pr-exit=" "$T4_OUT"
+T4_BIN=$(mktemp -d)
+printf '#!/usr/bin/env bash\nexit 42\n' > "$T4_BIN/pre-commit"
+chmod +x "$T4_BIN/pre-commit"
+T4_OUT=$(
+    PATH="$T4_BIN:$PATH" \
+    PRE_PR_LOG="$T4_LOG" \
+    TIMEOUT_PRECOMMIT=5 \
+    bash "$REPO_ROOT/scripts/pre-pr.sh" 2>&1 || true
+)
 assert_contains "pre-pr.sh: emits [FAIL] on failure" "[FAIL]" "$T4_OUT"
-rm -f "$T4_LOG" "$T4_WRAPPER"
+assert_contains "pre-pr.sh: emits the failing step's rc" "pre-pr-exit=42" "$T4_OUT"
+rm -f "$T4_LOG"
+rm -rf "$T4_BIN"
 
 # Test: pre-pr.sh emits [DONE] and pre-pr-exit=0 when all steps succeed
 # We put stub binaries on PATH that always succeed.
