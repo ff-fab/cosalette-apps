@@ -54,7 +54,9 @@ on success. Device statuses are `"ok"`, `"error"`, `"unavailable"`,
 `"circuit_open"` or `"stale"`; stale freshness takes precedence. The freshness
 watchdog marks named telemetry offline after the derived window of two poll
 intervals plus the retry/timeout/backoff budget. A successful handler cycle
-clears that freshness mark, even when an unchanged value is not republished.
+clears that freshness mark, even when an unchanged value is not republished. For
+suncast's default 360 s poll interval the window is 1080 s; see
+[Health and recovery](configuration.md#health-and-recovery).
 
 ### Shadow SVG
 

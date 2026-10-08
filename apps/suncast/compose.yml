@@ -13,6 +13,9 @@ services:
       # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
       # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
       SUNCAST_MQTT__PROTOCOL_VERSION: ${SUNCAST_MQTT__PROTOCOL_VERSION:-5}
+      # Rendering and file output run on the event loop; exit if it wedges, for
+      # example on a hung /output mount (docs/configuration.md > Health and recovery).
+      COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
     volumes:
       - shadow-output:/output
       - suncast-data:/app/data

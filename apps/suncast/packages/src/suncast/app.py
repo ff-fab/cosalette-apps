@@ -105,6 +105,11 @@ app = cosalette.App(
     # warning for static apps (ADR-049); store=None additionally skips creating
     # the unused default store object.
     store=None,
+    # No exit_after_stale: a shadow cycle fails only on a computation or render
+    # error (delivery is best effort), which a restart repeats. No
+    # restart_on_stale: there is no adapter to restart. No redact=: no secret
+    # reaches log text. stale_after stays derived (3 x
+    # poll_interval); see docs/configuration.md > Health and recovery.
 )
 
 
