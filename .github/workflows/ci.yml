@@ -167,8 +167,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Install Task
+        uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+          checksum: 02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd # pragma: allowlist secret
       - name: Lint Dockerfiles with hadolint
-        run: bash scripts/qa-task.sh docker:lint
+        run: task docker:lint
 
   # Per-app CI dispatched via matrix
   app-ci:

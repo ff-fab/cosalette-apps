@@ -104,13 +104,17 @@ _do_security_actions() {
 
 _do_docker_lint() {
     # Lint every Dockerfile in the monorepo (devcontainer + each app) via
-    # hadolint over Docker, no local install required. Pinned version for
-    # reproducibility; update via Renovate.
+    # hadolint over Docker, no local install required. Update this pinned
+    # version manually after reviewing a hadolint release.
     # failure-threshold=warning: exit on warning-level and above (error,
     # warning) but not info-level messages.
     local hadolint_version="${HADOLINT_VERSION:-2.15.1}"
     if ! command -v docker >/dev/null 2>&1; then
         echo "docker:lint: Docker not available — skipping" >&2
+        return 0
+    fi
+    if ! docker info >/dev/null 2>&1; then
+        echo "docker:lint: Docker daemon unavailable — skipping" >&2
         return 0
     fi
     local dockerfiles=()
