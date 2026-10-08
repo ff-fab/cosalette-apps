@@ -73,8 +73,9 @@ app = cosalette.App(
     error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
-    # No restart_on_stale yet: cosalette 0.11.2 extends it to streams, adoption
-    # is planned (bead cap-fjop.10). See docs/operations.md > Health and recovery.
+    # Reopen the receiver adapter once on stream staleness; keep the exit as a
+    # backstop if frames do not resume.
+    restart_on_stale=True,
     exit_after_stale=EXIT_AFTER_STALE,
 )
 

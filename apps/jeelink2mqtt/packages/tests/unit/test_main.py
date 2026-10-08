@@ -490,8 +490,8 @@ class TestSensorEntityTrigger:
 class TestStalePolicy:
     """Verify the receiver freshness bound and stale exit on the production app."""
 
-    def test_app_exits_after_stale_without_restart_on_stale(self) -> None:
-        """create_app passes EXIT_AFTER_STALE and leaves restart_on_stale off.
+    def test_app_restarts_on_stale_and_keeps_exit_backstop(self) -> None:
+        """The production app reopens on stale and retains its exit backstop.
 
         Technique: Specification-based — the integration test mirrors these
         values, so the production app must carry them too.
@@ -499,7 +499,7 @@ class TestStalePolicy:
         from jeelink2mqtt.main import EXIT_AFTER_STALE, app
 
         assert app._exit_after_stale == EXIT_AFTER_STALE
-        assert app._restart_on_stale is False
+        assert app._restart_on_stale is True
 
     def test_receiver_stream_uses_the_stale_after_callable(self) -> None:
         """The root receiver stream declares receiver_stale_after and no feeds.
