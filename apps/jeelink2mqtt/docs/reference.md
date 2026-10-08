@@ -126,8 +126,9 @@ JEELINK2MQTT_SENSORS='[
 
 The `devices.receiver` entry of the heartbeat reports `"ok"` or `"stale"` for the serial
 receiver, with `last_success_at` and `consecutive_failures`. A receiver that stays
-`"stale"` for 300 s stops jeelink2mqtt with exit code 5 so that the restart policy
-recovers it. See [Operations > Health and recovery](operations.md#health-and-recovery).
+`"stale"` triggers one in-place serial adapter restart. If it remains stale for 300 s,
+jeelink2mqtt exits with code 5 so that the restart policy recovers it. See
+[Operations > Health and recovery](operations.md#health-and-recovery).
 
 ### Retention and Expiry
 

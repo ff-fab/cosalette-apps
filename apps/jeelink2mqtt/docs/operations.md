@@ -144,20 +144,27 @@ The receiver is a root stream, so it has no `availability` topic and sets no `fe
 A name would move `raw/state` and `mapping/*` under `jeelink2mqtt/receiver/`. Each
 sensor already goes `offline` through its own staleness timeout when frames stop.
 
-**Exit after stale.** When the receiver stays `"stale"` for 300 s, jeelink2mqtt logs a
-`CRITICAL` line and exits with code 5. The restart opens the serial port again and starts
-a new pylacrosse reader thread. That thread stops for good when a serial read fails, for
-example after a USB reset, while the device file stays present. A silent JeeLink
-therefore causes a restart 15 to 16 minutes after its last frame with the default
-timeout. jeelink2mqtt does not set `restart_on_stale` yet. Since cosalette 0.11.2 it
-also covers streams and could reopen the serial port in place before the exit; its
-adoption is planned.
+**Stale recovery.** When the receiver turns `"stale"`, `restart_on_stale=True` reopens the
+serial adapter once. The restart is logged as `Restarting adapter StreamablePort after
+stale stream 'receiver'`. Re-entry opens the serial port and starts a new pylacrosse
+reader thread, which can recover after a serial read failure such as a USB reset while
+the device file remains present. The new stream resumes on the next frame.
+
+If the receiver remains stale for 300 s from the stale transition, jeelink2mqtt logs a
+`CRITICAL` line and exits with code 5; Compose then starts a new process. This window is
+well above the recovery path: at most 60 s to the freshness check, the default 5 s
+restart cooldown, up to 2 s to close a serial read, a 15 s health-check timeout, and
+about 30 s for a sensor's next frame. `max_restarts=3` remains shared with adapter
+health-check restarts. Exhausting that adapter restart budget leaves the receiver
+offline while the app keeps running; it does not cause exit code 4. If the receiver
+remains stale, the 300 s backstop exits with code 5.
 
 !!! note "No sensors in range"
 
-    Without a LaCrosse sensor in range, the receiver gets no frames, so jeelink2mqtt
-    restarts about every 16 minutes with exit code 5. This also applies to `--dry-run`,
-    whose fake adapter sends no frames.
+    Without a LaCrosse sensor in range, the receiver gets no frames. The adapter is
+    reopened once when it turns stale, then the process exits with code 5 after the
+    300 s stale window. With the default 600 s bound, this is about 16 minutes after the
+    last frame. This also applies to `--dry-run`, whose fake adapter sends no frames.
 
 **Adapter health check.** Every 30 s, cosalette also checks that the serial device file
 (`JEELINK2MQTT_SERIAL_PORT`) exists. After 5 failed checks it restarts the adapter, at

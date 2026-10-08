@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import warnings
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -47,6 +48,18 @@ _EXIT_AT = _STALE_AT + int(_main.EXIT_AFTER_STALE)
 _STATUS_TOPIC = "jeelink2mqtt/status"
 
 
+class _CountingFakeJeeLinkAdapter(FakeJeeLinkAdapter):
+    """Fake adapter exposing lifecycle re-entry to freshness tests."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.entries = 0
+
+    async def __aenter__(self) -> _CountingFakeJeeLinkAdapter:
+        self.entries += 1
+        return await super().__aenter__()
+
+
 def _receiver_status(harness: AppHarness) -> str:
     payload = harness.messages_for(_STATUS_TOPIC)[-1][0]
     return json.loads(payload)["devices"]["receiver"]["status"]
@@ -63,11 +76,18 @@ def _frame() -> SensorReading:
 
 
 @asynccontextmanager
-async def _running() -> AsyncIterator[
-    tuple[AppHarness, FakeJeeLinkAdapter, Callable[[int], object], asyncio.Task[None]]
+async def _running(
+    *, restart_on_stale: bool = False
+) -> AsyncIterator[
+    tuple[
+        AppHarness,
+        _CountingFakeJeeLinkAdapter,
+        Callable[[int], object],
+        asyncio.Task[None],
+    ]
 ]:
     """Run the shared receiver wiring; yield the harness, clock driver and task."""
-    adapter = FakeJeeLinkAdapter()
+    adapter = _CountingFakeJeeLinkAdapter()
     clock = ManualClock()
     app = cosalette.App(
         name="jeelink2mqtt",
@@ -76,6 +96,7 @@ async def _running() -> AsyncIterator[
         store=MemoryStore(),
         adapters={StreamablePort[SensorReading]: lambda: adapter},
         exit_after_stale=_main.EXIT_AFTER_STALE,
+        restart_on_stale=restart_on_stale,
     )
     app.state(_main.shared_state)
     _main.configure_receiver(app)
@@ -110,8 +131,51 @@ async def _running() -> AsyncIterator[
     finally:
         harness.shutdown_event.set()
         if not task.done():
-            task.cancel()
-        await asyncio.gather(task, return_exceptions=True)
+            done, _ = await asyncio.wait({task}, timeout=2.0)
+            if not done:
+                task.cancel()
+                await asyncio.wait({task}, timeout=1.0)
+        if task.done():
+            await asyncio.gather(task, return_exceptions=True)
+        # Framework health checks may leave an idle default-executor worker.
+        # Bound its join so pytest's loop teardown cannot wait indefinitely.
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            await asyncio.get_running_loop().shutdown_default_executor(timeout=1.0)
+
+
+async def _wait_for_adapter_restart(
+    harness: AppHarness, adapter: _CountingFakeJeeLinkAdapter
+) -> None:
+    """Advance through the default cooldown until the stream restarts."""
+    for _ in range(300):
+        if adapter.entries == 2 and adapter._callback is not None:
+            return
+        await harness.advance_time(0.1)
+    msg = "stale receiver did not re-enter its adapter and register the stream"
+    raise AssertionError(msg)
+
+
+@pytest.mark.integration
+async def test_stale_receiver_restarts_adapter_and_recovers_on_next_frame() -> None:
+    """A stale root stream re-enters its adapter, then resumes on a frame."""
+    async with _running(restart_on_stale=True) as (
+        harness,
+        adapter,
+        advance_to,
+        task,
+    ):
+        adapter.inject(_frame())
+        await harness.wait_for_publish_count("jeelink2mqtt/raw/state", 1)
+        await advance_to(_STALE_AT)
+        await _wait_for_adapter_restart(harness, adapter)
+
+        assert adapter._callback is not None
+        assert not task.done()
+        adapter.inject(_frame())
+        await harness.wait_for_publish_count("jeelink2mqtt/raw/state", 2)
+        await advance_to(_STALE_AT + _CHECK_INTERVAL)
+        assert _receiver_status(harness) == "ok"
 
 
 @pytest.mark.integration
@@ -144,7 +208,14 @@ async def test_silent_receiver_exits_for_restart_after_backstop() -> None:
     Technique: Boundary Value Analysis — one check before ``_EXIT_AT`` the app
     still runs; one check later the run ends with ``StaleTelemetryError``.
     """
-    async with _running() as (_harness, _adapter, advance_to, task):
+    async with _running(restart_on_stale=True) as (
+        _harness,
+        adapter,
+        advance_to,
+        task,
+    ):
+        await advance_to(_STALE_AT)
+        await _wait_for_adapter_restart(_harness, adapter)
         await advance_to(_EXIT_AT - _CHECK_INTERVAL)
         assert not task.done()
 
@@ -156,7 +227,14 @@ async def test_silent_receiver_exits_for_restart_after_backstop() -> None:
 @pytest.mark.integration
 async def test_receiver_that_never_gets_its_first_frame_exits_after_backstop() -> None:
     """A dry-run receiver with no frames reaches stale and then exits for restart."""
-    async with _running() as (_harness, _adapter, advance_to, task):
+    async with _running(restart_on_stale=True) as (
+        _harness,
+        adapter,
+        advance_to,
+        task,
+    ):
+        await advance_to(_STALE_AT)
+        await _wait_for_adapter_restart(_harness, adapter)
         await advance_to(_EXIT_AT - _CHECK_INTERVAL)
         assert not task.done()
 

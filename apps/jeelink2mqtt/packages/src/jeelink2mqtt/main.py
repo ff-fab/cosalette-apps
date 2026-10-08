@@ -43,8 +43,9 @@ logger = logging.getLogger(__name__)
 EXIT_AFTER_STALE = 300.0
 """Seconds the receiver may stay stale before the app exits with code 5.
 
-The restart opens the serial port again and starts a new pylacrosse reader
-thread, which stops for good when a serial read raises.
+The in-place adapter restart can reopen the serial port and start a new
+pylacrosse reader thread after a serial read failure. This exit is the
+process-level backstop when frames do not resume.
 """
 
 
@@ -73,8 +74,9 @@ app = cosalette.App(
     error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
-    # No restart_on_stale yet: cosalette 0.11.2 extends it to streams, adoption
-    # is planned (bead cap-fjop.10). See docs/operations.md > Health and recovery.
+    # Reopen the receiver adapter once on stream staleness; keep the exit as a
+    # backstop if frames do not resume.
+    restart_on_stale=True,
     exit_after_stale=EXIT_AFTER_STALE,
 )
 

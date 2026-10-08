@@ -134,7 +134,8 @@ seeing and follow the fix.
     `docker ps` shows a restart about every 16 minutes.
 
     **Cause:** No frame arrived from any LaCrosse sensor for the longest staleness
-    timeout plus 300 s. See
+    timeout plus 300 s. The adapter is reopened once when the receiver first turns
+    stale; if no frame resumes, the process exits with code 5. See
     [Health and recovery](operations.md#health-and-recovery).
 
     **Checklist:**
