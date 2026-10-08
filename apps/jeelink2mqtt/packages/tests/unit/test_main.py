@@ -10,6 +10,8 @@ Test Techniques Used:
   persists registry; filter-bank reset observable via post-reset output.
 - Equivalence Partitioning: single vs. multiple events, with vs. without
   old_sensor_id, single vs. batch reassignment events.
+- Specification-based: the receiver freshness bound and the stale exit policy
+  on the production app.
 """
 
 from __future__ import annotations
@@ -482,3 +484,62 @@ class TestSensorEntityTrigger:
 
         assert timeouts == [_TICK_INTERVAL_SECONDS, _TICK_INTERVAL_SECONDS]
         assert seen == [True, False]
+
+
+@pytest.mark.unit
+class TestStalePolicy:
+    """Verify the receiver freshness bound and stale exit on the production app."""
+
+    def test_app_exits_after_stale_without_restart_on_stale(self) -> None:
+        """create_app passes EXIT_AFTER_STALE and leaves restart_on_stale off.
+
+        Technique: Specification-based — the integration test mirrors these
+        values, so the production app must carry them too.
+        """
+        from jeelink2mqtt.main import EXIT_AFTER_STALE, app
+
+        assert app._exit_after_stale == EXIT_AFTER_STALE
+        assert app._restart_on_stale is False
+
+    def test_receiver_stream_uses_the_stale_after_callable(self) -> None:
+        """The root receiver stream declares receiver_stale_after and no feeds.
+
+        Technique: Specification-based — the stream stays root, so its raw and
+        mapping topics keep their place.
+        """
+        from jeelink2mqtt.main import app, receiver_stale_after
+
+        (reg,) = app.stream_registrations
+        assert reg.is_root
+        assert reg.stale_after is receiver_stale_after
+        assert reg.feeds == ()
+
+    @pytest.mark.parametrize(
+        ("overrides", "expected"),
+        [
+            ((), 600.0),
+            ((None, None), 600.0),
+            ((300.0,), 600.0),
+            ((300.0, 900.0, None), 900.0),
+        ],
+    )
+    def test_stale_after_is_the_longest_sensor_timeout(
+        self, overrides: tuple[float | None, ...], expected: float
+    ) -> None:
+        """The bound is the global timeout or the longest per-sensor override.
+
+        Technique: Equivalence Partitioning — no sensors, no overrides, only
+        shorter overrides, and one longer override.
+        """
+        from jeelink2mqtt.main import receiver_stale_after
+        from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
+
+        settings = Jeelink2MqttSettings(
+            sensors=[
+                SensorConfigSettings(name=f"s{i}", staleness_timeout=timeout)
+                for i, timeout in enumerate(overrides)
+            ],
+            _env_file=None,  # type: ignore[call-arg]
+        )
+
+        assert receiver_stale_after(settings) == expected

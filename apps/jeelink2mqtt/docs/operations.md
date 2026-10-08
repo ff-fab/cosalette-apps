@@ -121,6 +121,82 @@ the environment is stable.
 
 ---
 
+## Health and recovery
+
+MQTT is the primary health signal: the retained `jeelink2mqtt/status` heartbeat and last
+will, and each sensor's `availability` topic. Recovery comes from process exits and the
+`restart: unless-stopped` policy in `compose.yml`.
+
+**Status heartbeat.** cosalette publishes `jeelink2mqtt/status` every 60 s. Its
+`devices.receiver` entry describes the serial receiver: `status` (`"ok"` or `"stale"`),
+`last_success_at` (the time of the last decoded frame) and `consecutive_failures`. The
+per-sensor entries describe the sensor devices; their availability follows the
+[staleness timeout](#staleness-detection).
+
+**Receiver freshness.** Every decoded frame keeps the receiver fresh, from any LaCrosse
+sensor in range, also from sensors that are not mapped. The receiver turns `"stale"` when
+no frame arrives for the longest configured staleness timeout: the larger of
+`staleness_timeout_seconds` and every per-sensor `staleness_timeout` (600 s by
+default). A stale receiver means that the JeeLink, its USB connection or the reader
+thread is dead, not one sensor.
+
+The receiver is a root stream, so it has no `availability` topic and sets no `feeds=`.
+A name would move `raw/state` and `mapping/*` under `jeelink2mqtt/receiver/`. Each
+sensor already goes `offline` through its own staleness timeout when frames stop.
+
+**Exit after stale.** When the receiver stays `"stale"` for 300 s, jeelink2mqtt logs a
+`CRITICAL` line and exits with code 5. The restart opens the serial port again and starts
+a new pylacrosse reader thread. That thread stops for good when a serial read fails, for
+example after a USB reset, while the device file stays present. A silent JeeLink
+therefore causes a restart 15 to 16 minutes after its last frame with the default
+timeout. jeelink2mqtt does not set `restart_on_stale`: cosalette applies it to telemetry
+only, and the receiver is a stream.
+
+!!! note "No sensors in range"
+
+    Without a LaCrosse sensor in range, the receiver gets no frames, so jeelink2mqtt
+    restarts about every 16 minutes with exit code 5. This also applies to `--dry-run`,
+    whose fake adapter sends no frames.
+
+**Adapter health check.** Every 30 s, cosalette also checks that the serial device file
+(`JEELINK2MQTT_SERIAL_PORT`) exists. After 5 failed checks it restarts the adapter, at
+most 3 times.
+
+**Loop-stall watchdog.** The serial port opens and closes in the event loop. A close
+waits for the reader thread, which is limited by the 2 s serial read timeout. If a USB
+driver hangs in one of these calls, nothing else runs, including the freshness checks.
+`compose.yml` sets `COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds, far above these
+steps. After 120 s without a loop turn, jeelink2mqtt prints every thread's stack and
+exits with code 6. Set `COSALETTE_LOOP_STALL_TIMEOUT` in the shell or `.env` to change
+the value. Remove the line from `compose.yml` to disable the watchdog.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. The status
+turns `unhealthy` when the receiver is `stale` or when the health file is older than
+180 s. One receiver feeds every sensor, so the default `--fail-on stale` applies. The
+60 s start period is roughly twice the 28.6 s startup of airthings2mqtt 0.3.0 on a Pi 4
+at `--cpus 0.5`. jeelink2mqtt startup has not been measured on a Pi. An `unhealthy`
+status restarts nothing: the exit codes below do. With a read-only root filesystem,
+mount a tmpfs on `/tmp` for the health file.
+
+| Exit code | Cause                                                                 |
+| --------- | --------------------------------------------------------------------- |
+| `1`       | Startup failure, or the event loop stalled while holding the GIL      |
+| `3`       | Unexpected exception                                                  |
+| `4`       | A framework task exhausted its restart budget                         |
+| `5`       | The receiver stayed `stale` for 300 s                                 |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
+
+**Several receivers.** Run one jeelink2mqtt instance per JeeLink stick. When two
+instances share a broker, give each its own `JEELINK2MQTT_MQTT__TOPIC_PREFIX` and
+`JEELINK2MQTT_MQTT__INSTANCE_ID`. Setting the instance ID changes the Home Assistant
+unique IDs once, so set it before the first start.
+
+**Log redaction.** jeelink2mqtt does not set `App(redact=)`. Its logs and error payloads
+carry the serial port, sensor IDs, sensor names and readings, but no secrets.
+
+---
+
 ## Persistence
 
 ### Registry State

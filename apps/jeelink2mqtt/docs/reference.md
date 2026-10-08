@@ -122,6 +122,12 @@ JEELINK2MQTT_SENSORS='[
 | `jeelink2mqtt/mapping/state` | Out | Yes | `{sensor_name: {sensor_id, mapped_at, last_seen}}` |
 | `jeelink2mqtt/mapping/event` | Out | No | `{event_type, sensor_name, old_sensor_id, new_sensor_id, timestamp, reason}` |
 | `jeelink2mqtt/mapping/set` | In | No | `{command, ...params}` |
+| `jeelink2mqtt/status` | Out | Yes | Heartbeat: `{status, uptime_s, devices, version}` every 60 s |
+
+The `devices.receiver` entry of the heartbeat reports `"ok"` or `"stale"` for the serial
+receiver, with `last_success_at` and `consecutive_failures`. A receiver that stays
+`"stale"` for 300 s stops jeelink2mqtt with exit code 5 so that the restart policy
+recovers it. See [Operations > Health and recovery](operations.md#health-and-recovery).
 
 ### Retention and Expiry
 

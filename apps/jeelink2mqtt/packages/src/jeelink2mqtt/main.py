@@ -40,6 +40,24 @@ from jeelink2mqtt.state import SharedState, build_shared_state_logged
 
 logger = logging.getLogger(__name__)
 
+EXIT_AFTER_STALE = 300.0
+"""Seconds the receiver may stay stale before the app exits with code 5.
+
+The restart opens the serial port again and starts a new pylacrosse reader
+thread, which stops for good when a serial read raises.
+"""
+
+
+def receiver_stale_after(settings: Jeelink2MqttSettings) -> float:
+    """Freshness bound of the receiver stream: the longest sensor timeout.
+
+    Every decoded frame counts, from any LaCrosse sensor in range. No frame
+    for as long as the slowest configured sensor may stay silent means the
+    JeeLink or its reader thread is dead.
+    """
+    overrides = [s.staleness_timeout for s in settings.sensors]
+    return max([settings.staleness_timeout_seconds, *filter(None, overrides)])
+
 
 def _make_adapter(settings: Jeelink2MqttSettings) -> PyLaCrosseAdapter:
     """Factory for the production JeeLink adapter."""
@@ -55,21 +73,22 @@ app = cosalette.App(
     error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
+    # No restart_on_stale: it restarts the adapters of stale telemetry only,
+    # and the receiver is a stream. See docs/operations.md > Health and recovery.
+    exit_after_stale=EXIT_AFTER_STALE,
 )
 
-# ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery `config`
-# payloads on the first successful MQTT connect, generated from the app's own
-# live, already-expanded registry — so the per-sensor `sensor_entity` names
-# (a callable `NameSpec` keyed off `settings.sensors`) resolve correctly
-# without a representative `.env.schema` profile. Entities come from the
-# `x-cosalette-consumer` metadata on `SensorStateModel` (see models.py).
+# ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery from the
+# live, expanded application registry.
 app.discovery()
 
 
-@app.state
 def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
     """State factory for SharedState with registry, filter bank, and sensor configs."""
     return build_shared_state_logged(settings)
+
+
+app.state(shared_state)
 
 
 def _persist_registry(store: DeviceStore, state: SharedState) -> None:
@@ -108,9 +127,6 @@ async def on_registry_events(
     _persist_registry(store, state)
 
 
-@app.stream(
-    summary="JeeLink LaCrosse serial receiver: read sensor frames and publish state",
-)
 async def receiver(  # pragma: no cover — composition root, tested via integration
     stream: cosalette.Stream[SensorReading],
     ctx: cosalette.DeviceContext,
@@ -161,6 +177,22 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
 
     finally:
         logger.info("Receiver stopped")
+
+
+def configure_receiver(application: cosalette.App) -> None:
+    """Register the root receiver stream."""
+    application.stream(
+        summary=(
+            "JeeLink LaCrosse serial receiver: read sensor frames and publish state"
+        ),
+        # Root on purpose: a name would move raw/state and mapping/* under
+        # receiver/, and feeds= needs one. Each sensor already goes offline through
+        # its own staleness timeout (sensor_entity_tick).
+        stale_after=receiver_stale_after,
+    )(receiver)
+
+
+configure_receiver(app)
 
 
 _TICK_INTERVAL_SECONDS: float = 1.0
