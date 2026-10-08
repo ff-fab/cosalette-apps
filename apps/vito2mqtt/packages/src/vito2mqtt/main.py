@@ -49,6 +49,9 @@ app = App(
     error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
+    # No exit_after_stale/restart_on_stale: every poll opens a fresh Optolink
+    # session, so neither adds recovery. See docs/reference/configuration.md >
+    # Health and recovery.
 )
 
 # ADR-004: runtime HA discovery

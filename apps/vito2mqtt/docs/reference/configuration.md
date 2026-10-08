@@ -163,6 +163,57 @@ Resolution order:
 
 Parent directories are created automatically on first write.
 
+### Health and recovery
+
+MQTT is the primary health signal: the `vito2mqtt/status` heartbeat and last will,
+and each group's `availability` topic (see
+[Health Topics](signals.md#health-topics)). Recovery comes from process exits and the
+`restart: unless-stopped` policy in `compose.yml`.
+
+**Freshness bound.** Each telemetry group turns `"stale"` in the heartbeat when it has
+not read successfully for longer than its `stale_after` bound. vito2mqtt keeps the
+bound cosalette derives from the polling interval (`retry=3`, no explicit timeout):
+`2 × interval + 4 × interval + 3 × 72 s`. The watchdog checks every 60 s, so a group
+turns stale at the first check past its bound.
+
+| Group | Default interval | Derived `stale_after` |
+| ----- | ---------------- | --------------------- |
+| `outdoor`, `hot_water`, `burner`, `heating_radiator`, `heating_floor`, `diagnosis` | 300 s | 2016 s (~34 min) |
+| `system` | 3600 s | 21816 s (~6 h) |
+
+Changing a `VITO2MQTT_POLLING_*` interval moves its bound with it. The `legionella`
+device is not polled telemetry and never turns stale.
+
+**No stale exit or restart.** vito2mqtt sets neither `exit_after_stale` nor
+`restart_on_stale`. Every poll already opens a fresh serial session and repeats the
+P300 handshake, which is all a process restart or adapter re-entry would do. A group
+that stays stale points at the boiler, the cable or a single bad signal, and
+restarting would only interrupt the healthy groups, pending commands and a running
+legionella treatment. A stale group stays visible in the heartbeat and on its
+`availability` topic.
+
+**Adapter health check.** Every 30 s, cosalette checks that the serial device
+(`VITO2MQTT_SERIAL_PORT`) exists. A failed check marks the Optolink groups `offline`.
+After 5 failed checks it re-enters the adapter, at most 3 times. The adapter is an async
+context manager that connects per poll, so it needs no `reset()`.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. The
+probe keeps the default `--fail-on stale`: all groups share one Optolink bus, so a
+stale group is a real fault worth flagging. The container also turns `unhealthy` when
+the health file is older than 180 s. An `unhealthy` status restarts nothing: the exit
+codes below do. With a read-only root filesystem, mount a tmpfs on `/tmp` for the
+health file.
+
+| Exit code | Cause                                         |
+| --------- | --------------------------------------------- |
+| `1`       | Startup failure                               |
+| `3`       | Unexpected exception                          |
+| `4`       | A framework task exhausted its restart budget |
+
+**Log redaction.** vito2mqtt does not set `App(redact=)`. Its logs carry the serial
+port path, signal names and boiler values, but no credentials or device identifiers.
+
 ---
 
 ## Complete `.env` Example
