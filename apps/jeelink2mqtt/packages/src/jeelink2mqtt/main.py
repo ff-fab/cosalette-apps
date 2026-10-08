@@ -73,8 +73,8 @@ app = cosalette.App(
     error_type_map=error_type_map,
     restart_after_failures=5,
     max_restarts=3,
-    # No restart_on_stale: it restarts the adapters of stale telemetry only,
-    # and the receiver is a stream. See docs/operations.md > Health and recovery.
+    # No restart_on_stale yet: cosalette 0.11.2 extends it to streams, adoption
+    # is planned (bead cap-fjop.10). See docs/operations.md > Health and recovery.
     exit_after_stale=EXIT_AFTER_STALE,
 )
 
