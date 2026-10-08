@@ -49,4 +49,14 @@ USER appuser
 
 VOLUME /app/data
 
+# Health: MQTT is the primary signal; the probe only makes it visible on the host.
+# An unhealthy status restarts nothing. Exits 1, 3, 4, 5 and 6 heal through
+# restart: unless-stopped (docs/adr/ADR-011). One receiver feeds every sensor,
+# so the default --fail-on stale applies. The start period allows for the Pi 4
+# startup proxy measured for airthings2mqtt 0.3.0 (28.6 s at --cpus 0.5), giving
+# roughly 2x margin. jeelink2mqtt startup has not been measured on a Pi.
+ENV COSALETTE_HEALTH_FILE=/tmp/jeelink2mqtt-health.json
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+  CMD ["cosalette-health"]
+
 ENTRYPOINT ["jeelink2mqtt"]

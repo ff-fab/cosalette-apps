@@ -128,6 +128,24 @@ seeing and follow the fix.
 
 ---
 
+!!! warning "Container restarts with exit code 5"
+
+    **Symptom:** The log shows a `CRITICAL` line for the stale `receiver`, and
+    `docker ps` shows a restart about every 16 minutes.
+
+    **Cause:** No frame arrived from any LaCrosse sensor for the longest staleness
+    timeout plus 300 s. See
+    [Health and recovery](operations.md#health-and-recovery).
+
+    **Checklist:**
+
+    - **USB connection** — make sure that the JeeLink is plugged in and that
+      `JEELINK2MQTT_SERIAL_PORT` points to it.
+    - **Sensors in range** — at least one LaCrosse sensor must transmit.
+    - **Dry run** — `--dry-run` sends no frames, so this restart is expected.
+
+---
+
 !!! note "MQTT connection issues"
 
     **Symptom:** Application starts but no messages appear on the broker.
