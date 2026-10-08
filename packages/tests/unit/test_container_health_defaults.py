@@ -27,6 +27,7 @@ _PROBE_APP_DIRS = {
     "caldates2mqtt",
     "gas2mqtt",
     "jeelink2mqtt",
+    "suncast",
     "velux2mqtt",
     "vito2mqtt",
     "wallpanel-control",

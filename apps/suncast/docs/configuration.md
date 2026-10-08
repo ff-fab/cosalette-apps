@@ -132,6 +132,7 @@ Key settings:
 | `mqtt.port`     | `SUNCAST_MQTT__PORT`       | `1883`      | MQTT broker port     |
 | `mqtt.username` | `SUNCAST_MQTT__USERNAME`   | —           | MQTT username        |
 | `mqtt.password` | `SUNCAST_MQTT__PASSWORD`   | —           | MQTT password        |
+| `mqtt.topic_prefix` | `SUNCAST_MQTT__TOPIC_PREFIX` | `suncast` | Topic root; unique per instance on a shared broker |
 | `mqtt.protocol_version` | `SUNCAST_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
 | `mqtt.message_expiry_interval` | `SUNCAST_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
 
@@ -178,6 +179,61 @@ a stopped process, disappears from the broker by itself.
   `suncast/shadow/svg` or `suncast/shadow/png` sees no visible change.
 - **The refresh ledger holds 16 MiB.** A retained publish that would exceed it fails, and
   suncast logs a warning and skips that image. The default SVG is about 5 KB.
+
+### Health and recovery
+
+MQTT is the primary health signal: the `suncast/status` heartbeat and last will, and
+the `suncast/shadow/availability` topic (see [MQTT Topics](mqtt-topics.md)). Recovery
+comes from process exits and the `restart: unless-stopped` policy in `compose.yml`.
+
+**Freshness.** `shadow` is suncast's only entity. cosalette derives its freshness bound
+from the poll interval and the implicit timeout of the same length:
+`stale_after = 3 x SUNCAST_POLL_INTERVAL`, `1080` s (18 minutes) for the default 360 s.
+The bound is three missed cycles: long enough that one slow or failed cycle never
+flaps the entity, short enough that a dashboard image older than about 20 minutes is
+flagged. It follows `SUNCAST_POLL_INTERVAL` without a separate setting.
+
+A cycle counts as fresh when the handler returns. Output delivery is best effort: a
+failed SVG or PNG file write (for example an unwritable `/output`), a failed PNG
+rasterization or a failed MQTT publish logs a warning, and the cycle still counts.
+Watch the logs for `Output delivery completed with N error(s)`. Only a handler that
+keeps raising, a computation or render error, turns `shadow` `"stale"` in the heartbeat
+and `offline`, and the built-in HTTP server keeps serving the last image.
+
+**No stale exit or restart.** suncast sets neither `exit_after_stale` nor
+`restart_on_stale`. A failing cycle is a computation or render error on the same
+geometry and settings, which a restart would repeat. suncast has no adapter, so there
+is nothing for `restart_on_stale` to restart.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. With
+`shadow` as the only entity, the probe keeps its default `--fail-on stale`: the
+container turns `unhealthy` when `shadow` is stale or the health file is older than
+180 s. An `unhealthy` status restarts nothing: the exit codes below do. With a
+read-only root filesystem, mount a tmpfs on `/tmp` for the health file.
+
+**Loop-stall watchdog.** Solar position, shadow computation, SVG rendering, PNG
+rasterization and the file writes run synchronously on the event loop, for about 50 ms
+(250 ms with PNG) per cycle. A write to a hung `/output` mount would block the loop for
+good, and the freshness watchdog runs on that loop too. `compose.yml` therefore sets
+`COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds. Cosalette prints thread stacks and
+exits with code 6, after which `restart: unless-stopped` recovers the process. Set the
+variable in the shell or `.env` to override the value.
+
+| Exit code | Cause                                                                 |
+| --------- | --------------------------------------------------------------------- |
+| `1`       | Startup failure                                                       |
+| `3`       | Unexpected exception                                                  |
+| `4`       | A framework task exhausted its restart budget                         |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
+
+**Several locations on one broker.** Give each suncast instance its own
+`SUNCAST_MQTT__TOPIC_PREFIX`. suncast publishes no Home Assistant discovery, so
+`SUNCAST_MQTT__INSTANCE_ID` has no effect and needs no value.
+
+**Log redaction.** suncast does not set `App(redact=)`. No secret reaches log or error
+text: the only credential is the MQTT password, a `SecretStr`. Logs carry file paths
+and the configured location.
 
 ---
 
@@ -236,4 +292,8 @@ SUNCAST_TIMEZONE=Europe/Berlin
 # SUNCAST_HTTP_ENABLED=false
 # SUNCAST_HTTP_HOST=0.0.0.0
 # SUNCAST_HTTP_PORT=8080
+
+# --- Health (read by compose.yml; see docs/configuration.md) ---
+# Seconds without an event-loop turn before exit code 6.
+# COSALETTE_LOOP_STALL_TIMEOUT=120
 ```
