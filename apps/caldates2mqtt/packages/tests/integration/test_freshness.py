@@ -85,7 +85,10 @@ async def test_dead_server_marks_calendar_stale_without_exit() -> None:
 
         reader.failure_sequence.clear()
         await harness.inject_command(None, {}, topic=f"{TOPIC_PREFIX}/garbage/set")
-        await harness.wait_for_publish_count(f"{TOPIC_PREFIX}/garbage/state", 1)
+        # A jittered retry backoff (at most 72 s) may still be pending; the
+        # read lands once it elapses, so advance past it before asserting.
+        await advance_to(elapsed + 2 * _CHECK_INTERVAL)
+        assert harness.messages_for(f"{TOPIC_PREFIX}/garbage/state")
         await advance_to(elapsed + _CHECK_INTERVAL)
         assert _garbage_status(harness) == "ok"
         assert not task.done()
