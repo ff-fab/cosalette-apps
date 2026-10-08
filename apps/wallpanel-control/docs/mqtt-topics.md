@@ -33,7 +33,9 @@ unknown fields are rejected with an error publication.
 !!! note "No periodic telemetry from hardware"
     wallpanel-control does not poll wallpanel hardware on a timer. State is published
     only in response to commands. The cosalette framework independently publishes its
-    own health/heartbeat to `{prefix}/status` regardless of command activity.
+    own health/heartbeat to `{prefix}/status` regardless of command activity. With
+    nothing polled, no device ever reports `stale` there; see
+    [Health and recovery](configuration.md#health-and-recovery).
 
 ---
 

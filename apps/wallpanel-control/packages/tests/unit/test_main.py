@@ -8,10 +8,14 @@ Test Techniques Used:
 - Structural: Verify commands (command/state) are exactly {display, system/action}
 - Structural: Verify no telemetry is registered
 - Specification-based: main() delegates to app.run() — verified with monkeypatch
+- Specification-based: stale, redaction and Docker probe policy (ADR-011)
 """
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
 from unittest.mock import MagicMock
 
 import cosalette
@@ -20,6 +24,8 @@ import pytest
 from wallpanel_control import __version__
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
+
+_APP_DIR = Path(__file__).resolve().parents[3]
 
 
 @pytest.mark.unit
@@ -220,3 +226,54 @@ class TestCommandUnavailableOnConfig:
 
         reg = next(r for r in app.commands if "action" in r.name)
         assert reg.unavailable_on == (WallpanelUnreachableError,)
+
+
+@pytest.mark.unit
+class TestHealthPolicy:
+    """Verify the production app's stale, redaction and Docker probe policy."""
+
+    def test_app_has_no_stale_exit_or_restart(self) -> None:
+        """The app sets neither exit_after_stale nor restart_on_stale.
+
+        Technique: Specification-based — display and system are command-only
+        devices with no telemetry or streams, so nothing can turn stale and
+        both options would be inert.
+        """
+        from wallpanel_control.main import app
+
+        assert app._streams == []
+        assert app._exit_after_stale is None
+        assert app._restart_on_stale is False
+
+    def test_app_sets_no_redactor(self) -> None:
+        """No App(redact=): no secret ever reaches log or error text.
+
+        Technique: Specification-based — the SSH key is passed as a path and
+        never read into text, and the MQTT password is a SecretStr.
+        """
+        from wallpanel_control.main import app
+
+        assert app._redactor is None
+
+    def test_ssh_adapter_has_no_health_check(self) -> None:
+        """A powered-off panel is normal, so SSH reachability is no health signal.
+
+        Technique: Specification-based — a health_check would mark both
+        devices offline and spend the restart budget whenever the panel sleeps,
+        while wake-on-LAN must keep working exactly then.
+        """
+        from wallpanel_control.adapters.ssh_adapter import SshWallpanel
+
+        assert not hasattr(SshWallpanel, "health_check")
+
+    def test_docker_health_probe_checks_file_freshness_only(self) -> None:
+        """The probe ignores per-device status.
+
+        Technique: Specification-based — monorepo ADR-011 sets --fail-on ""
+        for apps with several independent devices.
+        """
+        dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
+        match = re.search(r"(?m)^\s*CMD\s+(\[.*\])\s*$", dockerfile)
+
+        assert match is not None
+        assert json.loads(match.group(1)) == ["cosalette-health", "--fail-on", ""]

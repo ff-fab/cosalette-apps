@@ -51,4 +51,16 @@ USER appuser
 
 VOLUME /app/data
 
+# Health: MQTT is the primary signal; the probe only makes it visible on the host.
+# An unhealthy status restarts nothing. Exits 1, 3 and 4 heal through
+# restart: unless-stopped (docs/adr/ADR-011). wallpanel-control has no telemetry,
+# so it sets no exit_after_stale. The display and system devices are independent,
+# and a powered-off panel is a normal state, so the probe checks health-file
+# freshness only (--fail-on ""). The start period allows for the Pi 4 startup
+# proxy measured for airthings2mqtt 0.3.0 (28.6 s at --cpus 0.5), giving roughly
+# 2x margin. wallpanel-control startup has not been measured on a Pi.
+ENV COSALETTE_HEALTH_FILE=/tmp/wallpanel-control-health.json
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+    CMD ["cosalette-health", "--fail-on", ""]
+
 ENTRYPOINT ["wallpanel-control"]
