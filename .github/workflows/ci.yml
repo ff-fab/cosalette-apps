@@ -60,14 +60,18 @@ jobs:
           fi
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
-      # Build dorny/paths-filter config dynamically from discovered apps
+      # Build dorny/paths-filter config dynamically from discovered apps.
+      # The shared list lives in .github/ci-shared-paths.txt, which
+      # scripts/pre-pr-scope.sh reads too, so local and CI scoping agree.
       - name: Build path filters
         id: build-filters
         env:
           DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
-          filters="shared:"$'\n'"  - 'pyproject.toml'"$'\n'"  - 'uv.lock'"$'\n'"  - '.github/**'"$'\n'"  - 'taskfiles/**'"$'\n'"  - '.pre-commit-config.yaml'"$'\n'"  - 'REUSE.toml'"
-          filters="$filters"$'\n'"  - 'Taskfile.yml'"$'\n'"  - 'scripts/**'"$'\n'"  - 'packages/**'"
+          filters="shared:"
+          while IFS= read -r pattern; do
+            filters="$filters"$'\n'"  - '${pattern}'"
+          done < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/ci-shared-paths.txt)
           for app in $(printf '%s' "$DISCOVERED_APPS" | jq -r '.[]'); do
             filters="$filters"$'\n'"${app}:"$'\n'"  - 'apps/${app}/**'"
           done
@@ -82,7 +86,15 @@ jobs:
         id: apps
         env:
           FILTER_CHANGES: ${{ steps.filter.outputs.changes }}
+          SHARED_CHANGED: ${{ steps.filter.outputs.shared }}
+          DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
+          # A shared change (uv.lock, root pyproject, shared fixtures under
+          # packages/, taskfiles, ...) can break any app, so it runs every app.
+          if [ "$SHARED_CHANGED" = "true" ]; then
+            echo "apps=$DISCOVERED_APPS" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           # dorny/paths-filter outputs a JSON array of all matched filter names.
           # Remove 'shared' since it is not an app — it has its own dedicated job.
           apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "shared")]')

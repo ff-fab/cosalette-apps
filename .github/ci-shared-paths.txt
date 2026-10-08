@@ -1,0 +1,19 @@
+# Shared paths: a change to any of these can break every app, so CI
+# (.github/workflows/ci.yml, `shared` paths-filter) and `task pre-pr`
+# (scripts/pre-pr-scope.sh) both select ALL apps when one matches.
+# This file is the single source of truth for both.
+#
+# One pattern per line; blank lines and `#` comments are ignored. Only two
+# forms are allowed, because both dorny/paths-filter (picomatch) and bash
+# `[[ == ]]` must read them identically:
+#   a literal repo-root path    e.g. uv.lock
+#   a directory subtree         e.g. packages/**
+pyproject.toml
+uv.lock
+.github/**
+taskfiles/**
+.pre-commit-config.yaml
+REUSE.toml
+Taskfile.yml
+scripts/**
+packages/**
