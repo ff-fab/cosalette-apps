@@ -29,6 +29,8 @@ app = cosalette.App(
     settings_class=Velux2MqttSettings,
     restart_after_failures=5,
     max_restarts=3,
+    # No exit_after_stale/restart_on_stale: covers are devices, nothing turns
+    # stale. See docs/configuration.md > Health and recovery.
     adapters={
         GpioSwitchPort: (
             "velux2mqtt.adapters.gpiozero_adapter:GpiozeroAdapter",
