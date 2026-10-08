@@ -9,6 +9,8 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 SCOPE_SH="$REPO_ROOT/scripts/pre-pr-scope.sh"
+# Run under `task pre-pr:full` too: never inherit the outer gate's scope.
+unset PRE_PR_FULL PRE_PR_APPS PRE_PR_BASE_REF
 PASS=0
 FAIL=0
 
