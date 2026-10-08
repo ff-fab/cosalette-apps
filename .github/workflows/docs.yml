@@ -42,7 +42,7 @@ jobs:
       - name: Discover doc-enabled apps
         id: discover
         run: |
-          apps=$(ls -d apps/*/zensical.toml 2>/dev/null | xargs -I{} dirname {} | xargs -I{} basename {} | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          apps=$(for f in apps/*/zensical.toml; do [ -f "$f" ] && basename "$(dirname "$f")"; done | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
       # Build dorny/paths-filter config dynamically from discovered apps
@@ -170,11 +170,11 @@ jobs:
               # Root site — delete stale root files while preserving app subdirs.
               # Use the discovered app list (not merged/*/) to avoid excluding
               # root-owned directories like assets/ and stylesheets/.
-              excludes=""
+              excludes=()
               for app in $(echo "$all_apps" | jq -r '.[]'); do
-                excludes="$excludes --exclude=$app"
+                excludes+=("--exclude=$app")
               done
-              rsync -a --delete --exclude='.*' $excludes "$art_dir" merged/
+              rsync -a --delete --exclude='.*' "${excludes[@]}" "$art_dir" merged/
             else
               # App site — replace subpath entirely to remove stale pages
               rm -rf "merged/$name"
