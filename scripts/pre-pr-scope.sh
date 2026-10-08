@@ -57,6 +57,13 @@ scope_touches() {
     [ "$SCOPE_MODE" = full ] || scope_match "$@" >/dev/null
 }
 
+# These files can change how hooks validate every file, so pre-commit must
+# scan the whole tree when any of them changes.
+precommit_config_changed() {
+    scope_touches .pre-commit-config.yaml '.prettierrc*' .prettierignore \
+        .editorconfig .editorconfig-checker.json
+}
+
 # Print changed files that still exist and match any glob argument (all
 # changed files when called without arguments).
 scope_existing_files() {

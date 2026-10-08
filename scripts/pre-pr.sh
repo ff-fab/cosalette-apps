@@ -185,7 +185,7 @@ _precommit() {
     local skip="ruff,ruff-format,reuse"
     [ "$SCOPE_MODE" = full ] && skip="$skip,detect-secrets"
     skip="${SKIP:+$SKIP,}$skip"
-    if scope_touches .pre-commit-config.yaml; then
+    if precommit_config_changed; then
         run_step "pre-commit (all files)" "$TIMEOUT_PRECOMMIT" \
             env SKIP="$skip" pre-commit run --all-files
         return

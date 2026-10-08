@@ -69,6 +69,35 @@ echo z >> "$R/README.md"
 assert_eq "docs-only change: no app" "" "$(scope_field "$R" apps)"
 rm -rf "$R"
 
+# Hook configuration can invalidate unchanged files, so it must select the
+# all-files pre-commit path. Check every configured pattern independently so a
+# missing pattern cannot be hidden by an earlier match.
+R=$(make_repo)
+for config in .pre-commit-config.yaml .prettierrc.json .prettierrc.js \
+    .prettierignore .editorconfig .editorconfig-checker.json; do
+    (
+        cd "$R" || exit
+        # shellcheck disable=SC1090 # The script is sourced by absolute path from the checkout.
+        . "$SCOPE_SH"
+        SCOPE_MODE=scoped
+        SCOPE_FILES=("$config")
+        precommit_config_changed
+    )
+    assert_eq "hook configuration $config: pre-commit scans all files" "0" "$?"
+done
+(
+    cd "$R" || exit
+    # shellcheck disable=SC1090 # The script is sourced by absolute path from the checkout.
+    . "$SCOPE_SH"
+    # shellcheck disable=SC2034 # The sourced function reads these temporary scope globals.
+    SCOPE_MODE=scoped
+    # shellcheck disable=SC2034 # The sourced function reads these temporary scope globals.
+    SCOPE_FILES=(README.md)
+    precommit_config_changed
+)
+assert_eq "ordinary file change: pre-commit remains scoped" "1" "$?"
+rm -rf "$R"
+
 # Shared change: uv.lock selects every app.
 R=$(make_repo)
 touch "$R/uv.lock"
