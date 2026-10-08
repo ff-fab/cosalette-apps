@@ -153,10 +153,7 @@ long-term average has fallen below a quarter of its previous value (at least 20 
 
 ## Recognising a Stale or Offline App
 
-MQTT is the health signal. The image ships no Docker health check, so `docker ps` shows
-no health status
-([ADR-010](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md)).
-Watch these topics instead:
+MQTT is the health signal. Watch these topics:
 
 | What you see                                          | Meaning                                                              |
 | ----------------------------------------------------- | -------------------------------------------------------------------- |
@@ -171,6 +168,19 @@ mosquitto_sub -h localhost -v -t 'airthings2mqtt/status' -t 'airthings2mqtt/+/av
 Alert on these in Home Assistant or your monitoring. See
 [MQTT Topics](mqtt-topics.md#availability) for the payloads.
 
+The image's Docker `HEALTHCHECK` runs `cosalette-health` every 60 seconds and shows the
+same state on the host
+([ADR-011](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md)).
+`docker ps` reports `unhealthy` after three failed probes, when the sensor is stale or
+the app has not written its health file for three minutes. Startup gets 60 seconds of
+grace; the app starts in about 30 seconds on a Raspberry Pi 4. **An `unhealthy` status
+restarts nothing**: Docker only restarts a container whose process exits, so the
+recovery comes from the exit codes below.
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' <container>
+```
+
 ---
 
 ## Restarts and Exit Codes
@@ -181,11 +191,11 @@ itself:
 
 | Exit code | Cause                                                                    |
 | --------- | ------------------------------------------------------------------------ |
-| `1`       | With the watchdog enabled, a C call held the GIL and blocked the event loop for twice the configured timeout; the faulthandler backstop exited the process |
+| `1`       | Startup failed, or a C call held the GIL and blocked the event loop for twice `COSALETTE_LOOP_STALL_TIMEOUT`; the faulthandler backstop exited the process |
 | `3`       | An unexpected exception                                                  |
 | `4`       | A framework task kept crashing and used up its restart budget            |
 | `5`       | The sensor stayed stale for `AIRTHINGS2MQTT_EXIT_AFTER_STALE` seconds (5 hours by default) |
-| `6`       | Only with `COSALETTE_LOOP_STALL_TIMEOUT` set: the event loop did not run for that many seconds (see below) |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds (120 in the shipped `compose.yml`, see below) |
 
 ```bash
 docker inspect --format '{{.State.ExitCode}} {{.RestartCount}}' <container>
@@ -200,17 +210,17 @@ fault on the host, so work through the [Operator Runbook](#operator-runbook) whe
 see exit code 5 more than once. To turn the exit off, set
 `AIRTHINGS2MQTT_EXIT_AFTER_STALE=0`; see [Configuration](configuration.md).
 
-**Not covered by default:** a blocked event loop. The last will reports it after about
-90 seconds, but the app does not exit by itself, so restart the container by hand (step
-3 of the runbook). Since cosalette 0.11.1 you can opt in to a watchdog: set
-`COSALETTE_LOOP_STALL_TIMEOUT` (seconds, for example `"300"`) in the service's
-`environment`, and the app exits with code 6 when its event loop has not run for that
-long, so the restart policy restarts it. The shipped `compose.yml` does not set it.
+**A blocked event loop exits with code 6.** The last will reports it after about 90
+seconds. The shipped `compose.yml` sets `COSALETTE_LOOP_STALL_TIMEOUT` to 120 seconds,
+so the app exits with code 6 when its event loop has not run for that long, and the
+restart policy starts it again. All Bluetooth and D-Bus calls are asynchronous, so a
+healthy app never blocks the loop that long; a slow poll waits without blocking it. To
+change the limit, set `COSALETTE_LOOP_STALL_TIMEOUT` in `.env`; to turn the watchdog
+off, remove the line from `compose.yml`.
 
 !!! warning "Remove your own health check override"
 
-    Images 0.3.x shipped a `HEALTHCHECK` that ran `airthings2mqtt health`. If you
-    copied the `healthcheck:` block into your own compose file, remove it: the image no
-    longer writes the health file, so the probe always reports `unhealthy`, and each
-    probe costs several seconds of CPU on a Raspberry Pi. To switch off the probe of a
-    0.3.x image before you upgrade, add `healthcheck: {disable: true}` to the service.
+    Images 0.3.x shipped a `HEALTHCHECK` that ran `airthings2mqtt health`, which
+    imported the whole app on every probe. If you copied that `healthcheck:` block, or
+    added `healthcheck: {disable: true}`, into your own compose file, remove it. The
+    image's probe now runs `cosalette-health`, which only reads the health file.

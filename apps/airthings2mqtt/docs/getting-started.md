@@ -135,11 +135,12 @@ Look for a device name starting with **"Airthings"**. The MAC address format is
         enforces this is in
         [Host Setup](host-setup.md#optional-deny-bluez-property-writes).
 
-    !!! info "Health over MQTT, no container health check"
-        The image ships no Docker `HEALTHCHECK`. Watch `airthings2mqtt/status` and
-        `airthings2mqtt/airthings/availability` instead: they report a stale sensor
-        and a dead app. If the sensor stays stale for 5 hours, the app exits with
-        code 5 and `restart: unless-stopped` starts it again. See
+    !!! info "Health over MQTT, shown on the host by the image probe"
+        Watch `airthings2mqtt/status` and `airthings2mqtt/airthings/availability`:
+        they report a stale sensor and a dead app. The image's Docker `HEALTHCHECK`
+        shows the same state in `docker ps`, but an `unhealthy` container is not
+        restarted. If the sensor stays stale for 5 hours, the app exits with code 5
+        and `restart: unless-stopped` starts it again. See
         [Troubleshooting](troubleshooting.md#recognising-a-stale-or-offline-app).
 
 === "Manual (pip/uv)"

@@ -64,6 +64,13 @@ VOLUME /app/data
 # (~/.local/state/...) is not writable. Keep the device store on the volume.
 ENV AIRTHINGS2MQTT_STORE_PATH=/app/data/store.json
 
-# No HEALTHCHECK (docs/adr/ADR-010): MQTT carries health (heartbeat, availability,
-# LWT), and a stale sensor exits with code 5 for the restart policy.
+# Health: MQTT is the primary signal; the probe only makes it visible on the host.
+# An unhealthy status restarts nothing. Exits 1, 3, 4, 5 and 6 heal through
+# restart: unless-stopped (docs/adr/ADR-011). One instance reads one sensor, so
+# the default --fail-on stale applies: a stale sensor means the app is not doing
+# its job. The start period allows for the measured Pi 4 startup of
+# airthings2mqtt 0.3.0 (28.6 s at --cpus 0.5), giving roughly 2x margin.
+ENV COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health.json
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+  CMD ["cosalette-health"]
 ENTRYPOINT ["airthings2mqtt"]

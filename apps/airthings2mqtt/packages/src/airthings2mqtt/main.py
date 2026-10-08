@@ -133,9 +133,10 @@ def _configure_exit_after_stale(settings: Airthings2MqttSettings) -> None:
     """Apply the CLI-loaded ``exit_after_stale`` before the watchdog starts.
 
     A stale sensor ends the app with exit code 5 and ``restart: unless-stopped``
-    restarts it (monorepo ADR-010). ``0`` disables the exit. cosalette reads
+    restarts it (monorepo ADR-011). ``0`` disables the exit. cosalette reads
     the value when it starts the freshness watchdog, after the ``on_configure``
-    hooks.
+    hooks. There is no ``restart_on_stale``: the reader is not restartable,
+    because recovering the Bluetooth adapter is the host's job (ADR-003).
     """
     app._exit_after_stale = settings.exit_after_stale or None
 
@@ -205,8 +206,7 @@ def main() -> None:
 
     ``cli()`` rather than ``run()``: it keeps the ``schema`` and ``health``
     subcommands and the cosalette flags (``--dry-run``, ``--env-file``,
-    ``--version``). The image ships no HEALTHCHECK (monorepo ADR-010);
-    ``health`` stays for operators who run their own probe with
-    ``COSALETTE_HEALTH_FILE`` set.
+    ``--version``). The image probes with ``cosalette-health`` (monorepo
+    ADR-011); ``health`` stays for operators who run the probe through the app.
     """
     app.cli()
