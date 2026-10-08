@@ -569,7 +569,20 @@ VITO2MQTT_MQTT__INSTANCE_ID=vito2mqtt_boiler1
 !!! warning
     Two instances with the same topic prefix publish to the same topics and overwrite each other's retained messages.
 
-The instance ID (lowercase letters, digits and single underscores, starting with a letter) replaces the app name in the Home Assistant and openHAB discovery IDs. Without it, both instances publish discovery under the same IDs and overwrite each other's Home Assistant entities, and vito2mqtt logs a startup warning because the topic prefix differs from the app name. A single instance can leave it unset. Setting it on an existing instance changes its unique IDs once; the old retained discovery configs then become orphans, so remove those entities in Home Assistant.
+The instance ID (lowercase letters, digits and single underscores, starting with a letter) replaces the app name in the Home Assistant and openHAB discovery IDs. Without it, both instances publish discovery under the same IDs and overwrite each other's Home Assistant entities, and vito2mqtt logs a startup warning because the topic prefix differs from the app name. A single instance can leave it unset. Setting it on an existing instance changes its unique IDs once. Before changing it, note the old Home Assistant discovery topics under `homeassistant/.../config`. After the change, clear each old retained config by publishing an empty retained payload, then remove the old entities in Home Assistant:
+
+```bash
+MQTT_HOST='broker.example.com'
+OLD_TOPIC='homeassistant/sensor/vito2mqtt_boiler1_temperature/config'
+mosquitto_pub -h "$MQTT_HOST" -t "$OLD_TOPIC" -r -n
+```
+
+Repeat the command for every old `homeassistant/.../config` topic, replacing
+`OLD_TOPIC` with the exact topic recorded from your broker. `-n` sends an empty
+payload and `-r` marks it retained, which removes that retained config. Add your
+broker's authentication options if required.
+
+Deleting entities in Home Assistant alone does not clear their retained MQTT configs, so those entities would return after a reconnect or restart.
 
 ### External MQTT Broker
 
