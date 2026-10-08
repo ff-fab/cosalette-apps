@@ -24,7 +24,7 @@ from datetime import UTC, datetime
 
 import cosalette
 import pytest
-from cosalette import MockMqttClient, StreamablePort
+from cosalette import MockMqttClient, StaleTelemetryError, StreamablePort
 from cosalette.stores import MemoryStore
 from cosalette.testing import AppHarness, ManualClock
 
@@ -220,7 +220,8 @@ async def test_silent_receiver_exits_for_restart_after_backstop() -> None:
         assert not task.done()
 
         await advance_to(_EXIT_AT + _CHECK_INTERVAL)
-        await asyncio.wait_for(_harness.shutdown_event.wait(), timeout=1.0)
+        with pytest.raises(StaleTelemetryError):
+            await asyncio.wait_for(task, timeout=2.0)
 
 
 @pytest.mark.integration
@@ -238,4 +239,5 @@ async def test_receiver_that_never_gets_its_first_frame_exits_after_backstop() -
         assert not task.done()
 
         await advance_to(_EXIT_AT + _CHECK_INTERVAL)
-        await asyncio.wait_for(_harness.shutdown_event.wait(), timeout=1.0)
+        with pytest.raises(StaleTelemetryError):
+            await asyncio.wait_for(task, timeout=2.0)

@@ -155,7 +155,9 @@ If the receiver remains stale for 300 s from the stale transition, jeelink2mqtt 
 well above the recovery path: at most 60 s to the freshness check, the default 5 s
 restart cooldown, up to 2 s to close a serial read, a 15 s health-check timeout, and
 about 30 s for a sensor's next frame. `max_restarts=3` remains shared with adapter
-health-check restarts. Exhausting that budget causes exit code 4.
+health-check restarts. Exhausting that adapter restart budget leaves the receiver
+offline while the app keeps running; it does not cause exit code 4. If the receiver
+remains stale, the 300 s backstop exits with code 5.
 
 !!! note "No sensors in range"
 

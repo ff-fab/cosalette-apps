@@ -43,8 +43,9 @@ logger = logging.getLogger(__name__)
 EXIT_AFTER_STALE = 300.0
 """Seconds the receiver may stay stale before the app exits with code 5.
 
-The restart opens the serial port again and starts a new pylacrosse reader
-thread, which stops for good when a serial read raises.
+The in-place adapter restart can reopen the serial port and start a new
+pylacrosse reader thread after a serial read failure. This exit is the
+process-level backstop when frames do not resume.
 """
 
 
