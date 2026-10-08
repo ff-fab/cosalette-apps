@@ -54,6 +54,17 @@ from vito2mqtt.optolink.transport import DeviceError, P300Session
 
 logger = logging.getLogger(__name__)
 
+READ_TIMEOUT_SECONDS = 10.0
+"""Upper bound on a single serial read (seconds).
+
+An idle Optolink interface sends its 0x05 sync byte about every 2 s and answers
+a request within a fraction of a second at 4800 baud, so no healthy read waits
+anywhere near this long. Without a bound, a silent bus would block a read
+forever while holding the adapter lock, starving every telemetry group until
+the process restarts. A timed-out read surfaces as
+:class:`~vito2mqtt.errors.OptolinkTimeoutError`, which telemetry retries.
+"""
+
 
 def _consume_detached_flush_exception(task: asyncio.Task[Any]) -> None:
     """Retrieve a detached :meth:`OptolinkAdapter.write_signals` batch's result.
@@ -92,8 +103,9 @@ class _AsyncSerialPort:
         self._writer = writer
 
     async def read(self, n: int) -> bytes:
-        """Read exactly *n* bytes from the serial stream."""
-        return await self._reader.readexactly(n)
+        """Read exactly *n* bytes, or raise :class:`TimeoutError`."""
+        async with asyncio.timeout(READ_TIMEOUT_SECONDS):
+            return await self._reader.readexactly(n)
 
     async def write(self, data: bytes) -> None:
         """Write *data* to the serial stream and flush."""
@@ -288,9 +300,9 @@ class OptolinkAdapter:
         # independent 8-byte writes, and stopping between two of them leaves
         # some days written and others not. Shield the flush so an outer
         # cancel does not stop it mid-batch — but re-raise the CancelledError
-        # immediately rather than awaiting the flush: the serial path has no
-        # lower-level read timeout, so a wedged bus must still unwind the
-        # caller promptly instead of blocking the command backstop and
+        # immediately rather than awaiting the flush: a wedged bus can take
+        # several READ_TIMEOUT_SECONDS to fail the flush, and must still unwind
+        # the caller promptly instead of blocking the command backstop and
         # shutdown. On a healthy bus the shielded flush runs to completion in
         # the background under the lock, so every signal still lands; the next
         # command to this entity queues behind it. The TimeoutError reaches

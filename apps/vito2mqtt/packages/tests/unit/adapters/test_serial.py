@@ -756,3 +756,56 @@ class TestHealthCheck:
             result = await adapter.health_check()
 
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# Serial read timeout
+# ---------------------------------------------------------------------------
+
+
+class _SilentWriter:
+    """StreamWriter stand-in for a bus that accepts bytes but never answers."""
+
+    def write(self, data: bytes) -> None:
+        pass
+
+    async def drain(self) -> None:
+        pass
+
+    def close(self) -> None:
+        pass
+
+    async def wait_closed(self) -> None:
+        pass
+
+
+class TestSerialReadTimeout:
+    """A silent bus must fail a read instead of holding the lock forever."""
+
+    async def test_silent_bus_raises_timeout_and_releases_lock(
+        self,
+        vito2mqtt_settings: Vito2MqttSettings,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """A read with no reply → OptolinkTimeoutError, and the lock is free.
+
+        Technique: Error Guessing — a wedged Optolink bus sends nothing. Before
+        the bound, the handshake read blocked forever under the adapter lock
+        and starved every telemetry group.
+        """
+        import sys
+        import types
+
+        async def _open(*_args: Any, **_kwargs: Any) -> tuple[Any, Any]:
+            return asyncio.StreamReader(), _SilentWriter()
+
+        fake_module = types.ModuleType("serial_asyncio")
+        fake_module.open_serial_connection = _open  # type: ignore[attr-defined]
+        monkeypatch.setitem(sys.modules, "serial_asyncio", fake_module)
+        monkeypatch.setattr("vito2mqtt.adapters.serial.READ_TIMEOUT_SECONDS", 0.01)
+        adapter = OptolinkAdapter(vito2mqtt_settings)
+
+        with pytest.raises(OptolinkTimeoutError, match="Timeout"):
+            await asyncio.wait_for(adapter.read_signal("outdoor_temperature"), 2.0)
+
+        assert not adapter._lock.locked()

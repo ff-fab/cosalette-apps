@@ -190,7 +190,8 @@ P300 handshake, which is all a process restart or adapter re-entry would do. A g
 that stays stale points at the boiler, the cable or a single bad signal, and
 restarting would only interrupt the healthy groups, pending commands and a running
 legionella treatment. A stale group stays visible in the heartbeat and on its
-`availability` topic.
+`availability` topic. Each serial read is bounded at 10 s, so a silent bus fails the
+poll instead of blocking the adapter lock.
 
 **Adapter health check.** Every 30 s, cosalette checks that the serial device
 (`VITO2MQTT_SERIAL_PORT`) exists. A failed check marks the Optolink groups `offline`.
