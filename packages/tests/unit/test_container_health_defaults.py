@@ -30,6 +30,7 @@ _PROBE_APP_DIRS = {
     "velux2mqtt",
     "vito2mqtt",
     "wallpanel-control",
+    "wiz2mqtt",
 }
 
 _HEALTHCHECK = re.compile(
