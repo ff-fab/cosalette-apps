@@ -206,11 +206,19 @@ the health file is older than 180 s. An `unhealthy` status restarts nothing: the
 codes below do. With a read-only root filesystem, mount a tmpfs on `/tmp` for the
 health file.
 
+**Loop-stall watchdog.** Serial reads are bounded at 10 s and timed-out reads are
+retried, so `COSALETTE_LOOP_STALL_TIMEOUT` is set to `120` seconds in `compose.yml`.
+This leaves substantial margin for a healthy read while exiting if a future blocking
+operation wedges the event loop. Cosalette prints thread stacks and exits with code 6;
+`restart: unless-stopped` then recovers the process. Set the variable in the shell or
+`.env` to override the value.
+
 | Exit code | Cause                                         |
 | --------- | --------------------------------------------- |
 | `1`       | Startup failure                               |
 | `3`       | Unexpected exception                          |
 | `4`       | A framework task exhausted its restart budget |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
 
 **Log redaction.** vito2mqtt does not set `App(redact=)`. Its logs carry the serial
 port path, signal names and boiler values, but no credentials or device identifiers.
