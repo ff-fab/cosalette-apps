@@ -9,7 +9,7 @@ tags: [testing, security, ci, tooling]
 
 ## Status
 
-Accepted **Date:** 2026-10-08
+Accepted **Date:** 2026-10-08 | Amended **Date:** 2026-10-08
 
 ## Context
 
@@ -118,4 +118,27 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Risk: a shared file outside the list escapes app selection. Mitigation: the list errs broad (`.github/**`, `scripts/**`, `packages/**`, `taskfiles/**`, lockfile, root configs), any match selects every app, and a missing `origin/main` falls back to the full run.
 - Risk: CI and the local gate drift apart. Mitigation: both read `.github/ci-shared-paths.txt`, and `scripts/tests/test_pre_pr_scope.sh` fails if `ci.yml` stops reading it or hardcodes a shared path.
 
-_2026-10-08_
+## Amendment (2026-10-08) — Additive
+
+**Rationale:** Option 2 (parallelise the steps) was rejected as a replacement for scoping, but it combines with scoping. It was blocked on cap-0xkz because the caldates2mqtt integration tests are flaky under CPU load (cap-zh2o). Running the app tests alone in their own phase removes that conflict, so the gate now does both (cap-eh1m).
+
+### Additional Sub-Decision: Two-phase parallel execution
+
+`scripts/pre-pr.sh` runs the selected steps in two phases.
+
+- **Phase 1:** the cheap or I/O-bound step groups run concurrently, `PRE_PR_JOBS` at a time (default: `nproc`). These are pre-commit, reuse, lint, typecheck, root unit tests, script tests, complexity, Docker lint and security.
+- **Phase 2:** `test:apps` runs alone, so CPU-sensitive app tests (caldates2mqtt integration, cap-zh2o) never share the CPU with heavy phase-1 steps such as `complexity:all`.
+
+Every step runs, so one pass reports every failure, and the exit code is the code of the first failing step in the fixed order. Result lines print in that fixed order, not in completion order. Each step group keeps its own log under `PRE_PR_LOG.steps/`; those logs are appended to `PRE_PR_LOG` in the same order, and on failure the gate tails each failed group's log. Per-step timeouts, `[DONE]`/`[FAIL]` and `pre-pr-exit=<rc>` are unchanged. `PRE_PR_JOBS=1` runs the same steps one at a time with live progress, for debugging. pytest-xdist is not used.
+
+!!! note "Editorial note (2026-10-08)"
+    Measured on this branch (6 CPUs, all apps selected), three parallel runs each: `task pre-pr:full` took 149–160 s, against 224 s for a same-day `PRE_PR_JOBS=1` run (246 s before this change); the scoped `task pre-pr` took 149–150 s, against 251 s sequentially before this change. Phase 1 takes about 45 s; `test:apps` (about 105 s) is now the critical path.
+
+### Additional Positive Consequences
+
+- The gate is about 30 % faster on a full run, and a single run reports every failing step instead of stopping at the first.
+
+### Additional Negative Consequences
+
+- Risk: a failure in an early step no longer saves the time of the later steps. Mitigation: phase 1 is short, and `test:apps` is the only long step either way.
+- Risk: parallel steps contend for CPU and shared caches. Mitigation: the app tests run alone in phase 2, each step keeps its own log and timeout, and `PRE_PR_JOBS=1` reproduces a sequential run.
