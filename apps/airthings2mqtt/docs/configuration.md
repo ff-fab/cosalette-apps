@@ -175,9 +175,13 @@ The MQTT entity topics use the configured values as
     one harmless restart about every 6 hours. A restart cannot fix a missing sensor
     or a radio fault on the host; it recovers an app that is stuck, for example a
     wedged BlueZ connection. Changing `POLL_INTERVAL` or `POLL_TIMEOUT` changes
-    `stale_after` and therefore the total. Set `0` to never exit. The app ships no
-    Docker health check; MQTT carries the health signal
-    ([ADR-010](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md)).
+    `stale_after` and therefore the total. Set `0` to never exit. The app does not
+    restart the reader in place (`restart_on_stale`): a stale sensor is usually a
+    host-side adapter or BlueZ fault, which the app must not touch
+    ([ADR-003](adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md)),
+    and the exit already gives it a fresh process and BlueZ connection.
+    MQTT carries the health signal; the image's Docker probe only shows it on the host
+    ([ADR-011](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md)).
     See [Troubleshooting](troubleshooting.md#restarts-and-exit-codes).
 
 ---
@@ -236,8 +240,12 @@ AIRTHINGS2MQTT_DEVICE_MAC=XX:XX:XX:XX:XX:XX
 
 # Seconds the sensor may stay stale before the app exits with code 5 and the
 # restart policy restarts it; 0 disables the exit (default: 18000 = 5 h, so a
-# dead sensor restarts the app about every 6 h). See docs/adr/ADR-010.
+# dead sensor restarts the app about every 6 h). See docs/adr/ADR-011.
 # AIRTHINGS2MQTT_EXIT_AFTER_STALE=18000
+
+# --- Health (read by compose.yml; see docs/troubleshooting.md) ---
+# Seconds without an event-loop turn before exit code 6.
+# COSALETTE_LOOP_STALL_TIMEOUT=120
 
 # Device store path; the image defaults it to the data volume (/app/data/store.json)
 # AIRTHINGS2MQTT_STORE_PATH=/app/data/store.json

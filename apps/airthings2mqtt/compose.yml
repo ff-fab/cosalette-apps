@@ -4,8 +4,9 @@ services:
       context: ../..
       dockerfile: apps/airthings2mqtt/Dockerfile
     image: ghcr.io/ff-fab/airthings2mqtt:latest
-    # MQTT carries health; there is no healthcheck (docs/adr/ADR-010). The
-    # restart policy recovers every non-zero exit, e.g. 5 for a stale sensor.
+    # MQTT carries health; the image probe only shows it on the host and there is
+    # no compose healthcheck (docs/adr/ADR-011). The restart policy recovers every
+    # non-zero exit, e.g. 5 for a stale sensor and 6 for a stalled event loop.
     restart: unless-stopped
     # BLE requires access to the host Bluetooth stack via D-Bus.
     # network_mode: host is the simplest approach on a Raspberry Pi.
@@ -24,6 +25,9 @@ services:
       # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
       AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION: ${AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION:-5}
       AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
+      # Exit 6 if the event loop stalls; bleak and D-Bus calls are async, so
+      # nothing should block it. See docs/troubleshooting.md.
+      COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
       # AIRTHINGS2MQTT_DEVICE_MAC: "XX:XX:XX:XX:XX:XX"
       # AIRTHINGS2MQTT_POLL_INTERVAL: "1500"
       # AIRTHINGS2MQTT_EXIT_AFTER_STALE: "18000"
@@ -54,6 +58,7 @@ services:
   #     AIRTHINGS2MQTT_MQTT__TOPIC_PREFIX: airthings2mqtt-bedroom
   #     AIRTHINGS2MQTT_MQTT__INSTANCE_ID: airthings_bedroom
   #     AIRTHINGS2MQTT_STORE_PATH: /app/data/store.json
+  #     COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
   #     AIRTHINGS2MQTT_DEVICE_MAC: "AA:BB:CC:DD:EE:FF"
   #     AIRTHINGS2MQTT_DEVICE_NAME: "bedroom"
   #   volumes:

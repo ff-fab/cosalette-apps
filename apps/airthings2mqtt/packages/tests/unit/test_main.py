@@ -514,7 +514,7 @@ class TestAppRestartConfig:
 
 @pytest.mark.unit
 class TestExitAfterStale:
-    """Verify a stale sensor ends the app for the restart policy (monorepo ADR-010)."""
+    """Verify a stale sensor ends the app for the restart policy (monorepo ADR-011)."""
 
     def test_app_starts_with_the_settings_default(self) -> None:
         """The App carries the field default until CLI settings load.
@@ -576,9 +576,9 @@ class TestHealthProbeEntryPoint:
     ) -> None:
         """``airthings2mqtt health`` runs the probe instead of starting the app.
 
-        Technique: Specification-based — the image ships no HEALTHCHECK
-        (monorepo ADR-010), but operators may run this probe; a missing health file must
-        exit 1 (unhealthy).
+        Technique: Specification-based — operators may run the probe through
+        the app (the image uses cosalette-health, monorepo ADR-011); a missing
+        health file must exit 1 (unhealthy).
         """
         from airthings2mqtt.main import main
 

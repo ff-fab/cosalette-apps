@@ -7,8 +7,8 @@ deployment silently.
 Test Techniques Used:
 - Specification-based: the Dockerfile pins the documented UID/GID, which the host
   D-Bus policy repeats; compose adds no capabilities.
-- Error Guessing: the commented compose example drifting from the live service; a
-  Docker health probe returning (monorepo ADR-010).
+- Error Guessing: the commented compose example drifting from the live service; the
+  image probe drifting from monorepo ADR-011.
 """
 
 from __future__ import annotations
@@ -83,31 +83,43 @@ class TestComposePrivileges:
         assert service["security_opt"] == ["no-new-privileges:true"]
 
 
-class TestNoHealthcheck:
-    """MQTT carries health; no Docker probe in image or compose (monorepo ADR-010)."""
+class TestHealthProbe:
+    """The image ships the native probe; compose adds none (monorepo ADR-011)."""
 
-    def test_image_has_no_healthcheck_or_health_file(self) -> None:
-        """The Dockerfile sets neither HEALTHCHECK nor COSALETTE_HEALTH_FILE.
+    def test_image_probes_the_health_file(self) -> None:
+        """The Dockerfile sets the health file and runs cosalette-health.
 
-        Technique: Error Guessing — the probe imported the whole app every
-        minute and nothing read its result.
+        Technique: Specification-based — one sensor per instance, so the probe
+        keeps the default --fail-on stale; the start period covers the measured
+        28.6 s Pi 4 startup.
         """
         dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
 
-        assert not re.search(r"^HEALTHCHECK\b", dockerfile, re.MULTILINE)
-        assert "COSALETTE_HEALTH_FILE" not in dockerfile
+        assert re.search(
+            r"^ENV COSALETTE_HEALTH_FILE=/tmp/airthings2mqtt-health\.json$",
+            dockerfile,
+            re.MULTILINE,
+        )
+        assert re.search(
+            r'^HEALTHCHECK .*--start-period=60s .*\n\s+CMD \["cosalette-health"\]$',
+            dockerfile,
+            re.MULTILINE,
+        )
 
     def test_compose_has_no_healthcheck_and_restarts(self) -> None:
         """The service has no healthcheck and restarts on a non-zero exit.
 
-        Technique: Specification-based — exit code 5 (exit_after_stale) only
-        heals when the restart policy brings the container back.
+        Technique: Specification-based — exit codes 5 (exit_after_stale) and 6
+        (loop stall) only heal when the restart policy brings the container back.
         """
         compose = yaml.safe_load((_APP_DIR / "compose.yml").read_text(encoding="utf-8"))
         service = compose["services"]["airthings2mqtt"]
 
         assert "healthcheck" not in service
         assert service["restart"] == "unless-stopped"
+        assert service["environment"]["COSALETTE_LOOP_STALL_TIMEOUT"] == (
+            "${COSALETTE_LOOP_STALL_TIMEOUT:-120}"
+        )
 
 
 class TestBluezPolicy:

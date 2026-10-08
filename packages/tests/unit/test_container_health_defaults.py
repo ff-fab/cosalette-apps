@@ -24,6 +24,7 @@ _APP_DIRS = {
 # Apps that ship the native probe. Each app moves here in its epic cap-fjop task;
 # when every app is listed, drop the set and require the probe everywhere.
 _PROBE_APP_DIRS = {
+    "airthings2mqtt",
     "caldates2mqtt",
     "gas2mqtt",
     "jeelink2mqtt",
