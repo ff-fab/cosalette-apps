@@ -59,6 +59,23 @@ operator contract and the MQTT 3.1.1 fallback.
 
 ---
 
+## Health Topics
+
+| Topic                            | Payload                                      | Retain |
+| -------------------------------- | -------------------------------------------- | ------ |
+| `vito2mqtt/status`               | JSON heartbeat; retained last will `offline` | yes    |
+| `vito2mqtt/{group}/availability` | `online` / `offline`                         | yes    |
+| `vito2mqtt/{group}/error`        | JSON error event                             | no     |
+
+The heartbeat lists every group under `devices` with a `status` of `ok`, `error` or
+`stale`. A group turns `stale` when it has not read successfully within its derived
+`stale_after` bound (about 34 min for a 300 s interval). Stale groups are reported,
+never restarted. See
+[Health and recovery](configuration.md#health-and-recovery) for the bounds and the
+Docker health probe.
+
+---
+
 ## Framework Topics
 
 Alongside the device topics above, cosalette itself publishes two framework-owned

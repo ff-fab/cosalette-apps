@@ -321,25 +321,37 @@ docker compose up -d
 
 ## Health Monitoring
 
-The image ships no Docker `HEALTHCHECK`, so `docker ps` shows no health status. MQTT is
-the health signal
-([ADR-010](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-010-mqtt-is-the-health-signal-no-docker-healthcheck-supervised-restart-via-exit-codes.md)):
+MQTT is the primary health signal
+([ADR-011](https://github.com/ff-fab/cosalette-apps/blob/main/docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md)):
 
-- `vito2mqtt/status` carries the periodic heartbeat. The broker publishes the retained
-  last will `offline` there when the app dies or stops answering keepalives.
-- `vito2mqtt/{group}/availability` turns `offline` when reads fail or no fresh
-  reading arrives in time.
+- `vito2mqtt/status` carries the periodic heartbeat, with a per-group `status` of
+  `ok`, `error` or `stale`. The broker publishes the retained last will `offline`
+  there when the app dies or stops answering keepalives.
+- `vito2mqtt/{group}/availability` turns `offline` when reads fail or the group
+  turns stale.
 
 ```bash
 mosquitto_sub -h localhost -v -t 'vito2mqtt/status' -t 'vito2mqtt/+/availability'
 ```
 
-When the app cannot recover, it exits with a non-zero code and `restart: unless-stopped`
-starts it again:
+The image also ships a Docker `HEALTHCHECK` that runs `cosalette-health` every 60 s
+against the health file at `/tmp/vito2mqtt-health.json`, so `docker ps` shows
+`healthy` or `unhealthy`. The container turns `unhealthy` when any group is stale or
+the health file is older than 180 s:
+
+```bash
+docker inspect --format '{{.State.Health.Status}}' vito2mqtt
+```
+
+An `unhealthy` status restarts nothing. When the app cannot recover, it exits with a
+non-zero code and `restart: unless-stopped` starts it again:
 
 ```bash
 docker inspect --format '{{.State.ExitCode}} {{.RestartCount}}' vito2mqtt
 ```
+
+See [Health and recovery](configuration.md#health-and-recovery) for the stale bounds,
+the exit codes and why a stale group does not restart the app.
 
 ## Production Setup
 

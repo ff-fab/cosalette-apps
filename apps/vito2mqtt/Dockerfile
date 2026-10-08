@@ -50,4 +50,16 @@ USER appuser
 
 VOLUME /app/data
 
+# Health: MQTT is the primary signal; the probe only makes it visible on the host.
+# An unhealthy status restarts nothing. Exits 1, 3 and 4 heal through
+# restart: unless-stopped (docs/adr/ADR-011). vito2mqtt sets no exit_after_stale:
+# every poll opens a fresh Optolink session, so a restart adds no recovery. All
+# groups share one bus, so the probe keeps the default --fail-on stale. The start
+# period allows for the Pi 4 startup proxy measured for airthings2mqtt 0.3.0
+# (28.6 s at --cpus 0.5), giving roughly 2x margin. vito2mqtt startup has not
+# been measured on a Pi.
+ENV COSALETTE_HEALTH_FILE=/tmp/vito2mqtt-health.json
+HEALTHCHECK --interval=60s --timeout=5s --start-period=60s --retries=3 \
+    CMD ["cosalette-health"]
+
 ENTRYPOINT ["vito2mqtt"]

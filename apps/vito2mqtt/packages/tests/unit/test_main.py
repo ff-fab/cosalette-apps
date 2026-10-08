@@ -23,6 +23,10 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import json
+import re
+from pathlib import Path
+
 import pytest
 from cosalette import App
 
@@ -33,6 +37,8 @@ from vito2mqtt.devices import COMMAND_GROUPS, SIGNAL_GROUPS
 from vito2mqtt.devices.legionella import legionella_device
 from vito2mqtt.devices.telemetry import INTERVAL_ATTR
 from vito2mqtt.ports import OptolinkPort
+
+_APP_DIR = Path(__file__).resolve().parents[3]
 
 
 class TestAppConstruction:
@@ -577,3 +583,31 @@ class TestCommandTimeoutConfig:
         from vito2mqtt._registration import COMMAND_TIMEOUT_SECONDS
 
         assert COMMAND_TIMEOUT_SECONDS > 30.0
+
+
+class TestStalePolicy:
+    """Verify the production app's stale policy and Docker health probe."""
+
+    def test_app_has_no_stale_exit_or_restart(self) -> None:
+        """The app sets neither exit_after_stale nor restart_on_stale.
+
+        Technique: Specification-based — every poll already opens a fresh
+        serial session, so a restart adds no recovery; it would only interrupt
+        the healthy groups, commands and the legionella device.
+        """
+        from vito2mqtt.main import app
+
+        assert app._exit_after_stale is None
+        assert app._restart_on_stale is False
+
+    def test_docker_health_probe_fails_on_stale(self) -> None:
+        """The probe keeps the default --fail-on stale.
+
+        Technique: Specification-based — monorepo ADR-011: all groups share
+        one Optolink bus, so a stale group is a real fault worth flagging.
+        """
+        dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
+        match = re.search(r"(?m)^\s*CMD\s+(\[.*\])\s*$", dockerfile)
+
+        assert match is not None
+        assert json.loads(match.group(1)) == ["cosalette-health"]
