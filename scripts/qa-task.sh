@@ -12,13 +12,14 @@
 #   typecheck         Delegate to: task typecheck
 #   test              Delegate to: task test
 #   complexity        Delegate to: task complexity
-#   pre-pr            Delegate to: bash scripts/pre-pr.sh
+#   pre-pr            Delegate to: bash scripts/pre-pr.sh (change-scoped, ADR-012)
 #   security:audit    Orchestrate: deps + secrets + python + actions
 #   security:deps     Run pip-audit on the workspace
 #   security:secrets  Run detect-secrets audit against .secrets.baseline
 #   security:python   Run ruff --select S on root + all app source directories
 #   security:actions  Run actionlint + zizmor on .github/workflows
 #   docker:lint       Run hadolint on .devcontainer/Dockerfile and every apps/*/Dockerfile
+#                     (or only on the Dockerfiles given as arguments)
 
 set -euo pipefail
 
@@ -117,11 +118,14 @@ _do_docker_lint() {
         echo "docker:lint: Docker daemon unavailable — skipping" >&2
         return 0
     fi
-    local dockerfiles=()
-    [ -f ".devcontainer/Dockerfile" ] && dockerfiles+=(".devcontainer/Dockerfile")
-    for f in apps/*/Dockerfile; do
-        [ -f "$f" ] && dockerfiles+=("$f")
-    done
+    # Explicit file arguments (the scoped pre-pr gate) narrow the run.
+    local dockerfiles=("$@")
+    if [ ${#dockerfiles[@]} -eq 0 ]; then
+        [ -f ".devcontainer/Dockerfile" ] && dockerfiles+=(".devcontainer/Dockerfile")
+        for f in apps/*/Dockerfile; do
+            [ -f "$f" ] && dockerfiles+=("$f")
+        done
+    fi
     if [ ${#dockerfiles[@]} -eq 0 ]; then
         echo "docker:lint: no Dockerfiles found — skipping"
         return 0
@@ -172,7 +176,8 @@ case "$TASK_NAME" in
         ;;
 
     docker:lint)
-        run_task docker:lint _do_docker_lint
+        shift
+        run_task docker:lint _do_docker_lint "$@"
         ;;
 
     security:audit)

@@ -99,6 +99,9 @@ assert_exit_eq "qa-task.sh: no-arg exits 1" "1" "$T3_RC"
 
 printf "\n=== pre-pr.sh ===\n"
 
+# These three run the full chain (PRE_PR_FULL=1) so every step is reached
+# regardless of what the working tree has changed.
+
 # Test: pre-pr.sh always emits pre-pr-exit= even when a step fails
 # The first step fails, so the EXIT trap must report the failure. The stub sits
 # on PATH: `timeout` execs a binary, so an exported shell function never reaches
@@ -109,6 +112,7 @@ printf '#!/usr/bin/env bash\nexit 42\n' > "$T4_BIN/pre-commit"
 chmod +x "$T4_BIN/pre-commit"
 T4_OUT=$(
     PATH="$T4_BIN:$PATH" \
+    PRE_PR_FULL=1 \
     PRE_PR_LOG="$T4_LOG" \
     TIMEOUT_PRECOMMIT=5 \
     bash "$REPO_ROOT/scripts/pre-pr.sh" 2>&1 || true
@@ -130,9 +134,10 @@ printf '#!/usr/bin/env bash\nexit 0\n' > "$T5_BIN/task"
 chmod +x "$T5_BIN/task"
 T5_OUT=$(
     PATH="$T5_BIN:$PATH" \
+    PRE_PR_FULL=1 \
     PRE_PR_LOG="$T5_LOG" \
     TIMEOUT_PRECOMMIT=5 TIMEOUT_LINT=5 TIMEOUT_TYPECHECK=5 \
-    TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SIMILARITY=5 TIMEOUT_SECURITY=5 \
+    TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SECURITY=5 \
     bash "$REPO_ROOT/scripts/pre-pr.sh" 2>&1 || true
 )
 assert_contains "pre-pr.sh: emits [DONE] on success" "[DONE]" "$T5_OUT"
@@ -156,9 +161,10 @@ EOF
 chmod +x "$T6_BIN/task"
 T6_OUT=$(
     PATH="$T6_BIN:$PATH" \
+    PRE_PR_FULL=1 \
     PRE_PR_LOG="$T6_LOG" \
     TIMEOUT_PRECOMMIT=5 TIMEOUT_LINT=5 TIMEOUT_TYPECHECK=5 \
-    TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SIMILARITY=5 TIMEOUT_SECURITY=5 \
+    TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SECURITY=5 \
     bash "$REPO_ROOT/scripts/pre-pr.sh" 2>&1 || true
 )
 assert_contains "pre-pr.sh: mid-chain failure emits [FAIL]" "[FAIL]" "$T6_OUT"
