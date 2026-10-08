@@ -73,6 +73,10 @@ app = cosalette.App(
     settings_class=Wiz2MqttSettings,
     adapters={WizBulbPort: (WizBulbAdapter, FakeWizBulbAdapter)},
     error_type_map=error_type_map,
+    # No exit_after_stale/restart_on_stale: a stale bulb is a per-bulb fault that
+    # a process exit or adapter re-entry would not fix, and the adapter's
+    # health_check is constant. No redact= (no secrets reach log text). See
+    # docs/configuration.md > Health and recovery.
 )
 
 # cosalette ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery

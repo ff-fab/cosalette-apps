@@ -151,6 +151,12 @@ Payload values are `online` and `offline`. `offline` means a fault: the bulb
 must answer and does not. A bulb whose power source is believed `off` stays
 `online`.
 
+The framework-owned `wiz2mqtt/status` heartbeat reports each bulb and power source as
+`ok`, `error` or `stale`. A bulb turns `stale` only when its heartbeat tick keeps
+failing past its 300 s freshness bound; it then goes `offline` and the app keeps
+running. An unreachable bulb is not stale. See
+[Health and recovery](configuration.md#health-and-recovery).
+
 wiz2mqtt publishes immediately when a bulb push update arrives, and it also runs
 a 60-second heartbeat tick so a bulb that has gone silent still gets a
 liveness check.

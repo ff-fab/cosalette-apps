@@ -66,6 +66,7 @@ def build_integration_app(
     fake_adapter: FakeWizBulbAdapter,
     *,
     interval: float = _FAST_TICK_INTERVAL,
+    timeout: float | None = None,
     startup_connect_timeout: float | None = 10.0,
 ) -> App:
     """Construct a fully-wired App with FakeWizBulbAdapter.
@@ -104,6 +105,10 @@ def build_integration_app(
         _bulb_map,
         bulb_entity,
         interval=interval,
+        # As in main.py: the tick debounces reachability itself, and its
+        # backstop defaults to the interval (cosalette's own default).
+        unavailable_on=None,
+        timeout=interval if timeout is None else timeout,
         triggerable="local",
         publish=OnChange(),
         # As in main.py: the model turns the wire sentinels

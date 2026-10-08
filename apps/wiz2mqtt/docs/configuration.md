@@ -320,6 +320,64 @@ only — wiz2mqtt subscribes **no** trigger topic. The only inbound topic is eac
 bulb's `set` command topic documented in
 [mqtt-topics.md](mqtt-topics.md).
 
+## Health and recovery
+
+MQTT is the primary health signal: the `wiz2mqtt/status` heartbeat and last will, and
+each bulb's `availability` topic (see [MQTT Topics](mqtt-topics.md#availability-topic)).
+Recovery comes from process exits and the `restart: unless-stopped` policy in
+`compose.yml`.
+
+**Freshness.** cosalette derives a freshness bound for every telemetry entity from its
+interval and timeout: `300` s for each bulb (60 s tick, 180 s tick timeout) and `180` s
+for each power source. A cycle counts as fresh when the tick returns, whatever it
+publishes. An unreachable bulb still completes its tick: the tick debounces
+reachability itself and publishes `offline` after three failed reads, and a bulb on a
+power source believed `off` skips the read and stays `online`. Switching a circuit off
+at the wall therefore never turns a bulb stale. A bulb turns `"stale"` in the
+`status` heartbeat only when its tick keeps failing for another reason, such as an
+unexpected error or a tick that hits its 180 s timeout. cosalette then publishes the
+bulb `offline` and the rest of the app keeps running.
+
+**No stale exit or restart.** wiz2mqtt sets neither `exit_after_stale` nor
+`restart_on_stale`. The bulbs and power sources are independent: one stale bulb is a
+per-bulb fault, and restarting the process would drop every other bulb for nothing.
+`restart_on_stale` would re-enter the one shared bulb adapter, which closes the
+connections of every bulb, and the adapter has nothing to check: UDP is
+connectionless, so its health check always passes.
+
+**Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
+`cosalette-health --fail-on ""` every 60 s, so `docker ps` shows `healthy` or
+`unhealthy`. The probe checks only that the health file is fresh, because a stale or
+unreachable bulb is not an app fault. The container turns `unhealthy` when the health
+file is older than 180 s. An `unhealthy` status restarts nothing: the exit codes below
+do. With a read-only root filesystem, mount a tmpfs on `/tmp` for the health file.
+
+**Loop-stall watchdog.** Bulb I/O is asynchronous UDP with a 13 s pywizlight timeout,
+so no normal bulb operation should block the event loop. `compose.yml` sets
+`COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds as a backstop for an unexpected
+event-loop wedge. Cosalette prints thread stacks and exits with code 6, after which
+`restart: unless-stopped` recovers the process. Set the variable in the shell or `.env`
+to override the value.
+
+| Exit code | Cause                                                                 |
+| --------- | --------------------------------------------------------------------- |
+| `1`       | Startup failure                                                       |
+| `3`       | Unexpected exception                                                  |
+| `4`       | A framework task exhausted its restart budget                         |
+| `6`       | The event loop did not run for `COSALETTE_LOOP_STALL_TIMEOUT` seconds |
+
+**Instance ID.** Leave `WIZ2MQTT_MQTT__INSTANCE_ID` unset unless you change the topic
+prefix. wiz2mqtt binds UDP port 38900 for bulb pushes, so it runs once per host
+([ADR-004](adr/ADR-004-host-networking-requirement-udp-38900-one-process-per-host.md)); a second instance on another host
+needs its own topic prefix and instance ID.
+
+**Log redaction.** wiz2mqtt does not set `App(redact=)`. No secret reaches log or
+error text: bulbs need no credentials, and the MQTT password is a `SecretStr`. Logs
+and exception text can carry bulb names and IP addresses. These are LAN configuration,
+not credentials, and they are what you need to debug a bulb. The broker-visible error
+payload carries only the exception class name unless you set
+`WIZ2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true`.
+
 ## Consumer Integration
 
 Consumer wiring is derived from the bulb inventory and optional group membership.
