@@ -47,25 +47,6 @@ _EXIT_AT = _STALE_AT + int(_main.EXIT_AFTER_STALE)
 _STATUS_TOPIC = "jeelink2mqtt/status"
 
 
-def _build_app(adapter: FakeJeeLinkAdapter) -> cosalette.App:
-    """Mirror ``jeelink2mqtt.main``'s receiver wiring around *adapter*.
-
-    No sensors are configured, so the receiver only publishes raw frames and
-    never arms a per-sensor device.
-    """
-    app = cosalette.App(
-        name="jeelink2mqtt",
-        version="0.1.0",
-        settings_class=Jeelink2MqttSettings,
-        store=MemoryStore(),
-        adapters={StreamablePort[SensorReading]: lambda: adapter},
-        exit_after_stale=_main.EXIT_AFTER_STALE,
-    )
-    app.state(_main.shared_state)
-    app.stream(stale_after=_main.receiver_stale_after)(_main.receiver)
-    return app
-
-
 def _receiver_status(harness: AppHarness) -> str:
     payload = harness.messages_for(_STATUS_TOPIC)[-1][0]
     return json.loads(payload)["devices"]["receiver"]["status"]
@@ -85,11 +66,21 @@ def _frame() -> SensorReading:
 async def _running() -> AsyncIterator[
     tuple[AppHarness, FakeJeeLinkAdapter, Callable[[int], object], asyncio.Task[None]]
 ]:
-    """Run the mirror app; yield the harness, adapter, clock driver and task."""
+    """Run the shared receiver wiring; yield the harness, clock driver and task."""
     adapter = FakeJeeLinkAdapter()
     clock = ManualClock()
+    app = cosalette.App(
+        name="jeelink2mqtt",
+        version="0.1.0",
+        settings_class=Jeelink2MqttSettings,
+        store=MemoryStore(),
+        adapters={StreamablePort[SensorReading]: lambda: adapter},
+        exit_after_stale=_main.EXIT_AFTER_STALE,
+    )
+    app.state(_main.shared_state)
+    _main.configure_receiver(app)
     harness = AppHarness(
-        app=_build_app(adapter),
+        app=app,
         mqtt=MockMqttClient(),
         clock=clock,
         settings=Jeelink2MqttSettings(
@@ -115,8 +106,6 @@ async def _running() -> AsyncIterator[
         await harness.wait_for_publish_count(_STATUS_TOPIC, 1)
         # The framework registers the stream callback once the stream starts.
         await clock.settle(until=lambda: adapter._callback is not None)
-        adapter.inject(_frame())
-        await harness.wait_for_publish_count("jeelink2mqtt/raw/state", 1)
         yield harness, adapter, advance_to, task
     finally:
         harness.shutdown_event.set()
@@ -134,6 +123,8 @@ async def test_silent_receiver_goes_stale_and_the_next_frame_recovers_it() -> No
     (the heartbeat at the same tick as the check still has the old status).
     """
     async with _running() as (harness, adapter, advance_to, _task):
+        adapter.inject(_frame())
+        await harness.wait_for_publish_count("jeelink2mqtt/raw/state", 1)
         await advance_to(_STALE_AT - _CHECK_INTERVAL)
         assert _receiver_status(harness) == "ok"
 
@@ -153,6 +144,18 @@ async def test_silent_receiver_exits_for_restart_after_backstop() -> None:
     Technique: Boundary Value Analysis — one check before ``_EXIT_AT`` the app
     still runs; one check later the run ends with ``StaleTelemetryError``.
     """
+    async with _running() as (_harness, _adapter, advance_to, task):
+        await advance_to(_EXIT_AT - _CHECK_INTERVAL)
+        assert not task.done()
+
+        await advance_to(_EXIT_AT + _CHECK_INTERVAL)
+        with pytest.raises(StaleTelemetryError):
+            await asyncio.wait_for(task, timeout=2.0)
+
+
+@pytest.mark.integration
+async def test_receiver_that_never_gets_its_first_frame_exits_after_backstop() -> None:
+    """A dry-run receiver with no frames reaches stale and then exits for restart."""
     async with _running() as (_harness, _adapter, advance_to, task):
         await advance_to(_EXIT_AT - _CHECK_INTERVAL)
         assert not task.done()

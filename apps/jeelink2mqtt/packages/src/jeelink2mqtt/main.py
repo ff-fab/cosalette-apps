@@ -78,19 +78,17 @@ app = cosalette.App(
     exit_after_stale=EXIT_AFTER_STALE,
 )
 
-# ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery `config`
-# payloads on the first successful MQTT connect, generated from the app's own
-# live, already-expanded registry — so the per-sensor `sensor_entity` names
-# (a callable `NameSpec` keyed off `settings.sensors`) resolve correctly
-# without a representative `.env.schema` profile. Entities come from the
-# `x-cosalette-consumer` metadata on `SensorStateModel` (see models.py).
+# ADR-004 / ADR-059: publish retained Home Assistant MQTT discovery from the
+# live, expanded application registry.
 app.discovery()
 
 
-@app.state
 def shared_state(settings: Jeelink2MqttSettings) -> SharedState:
     """State factory for SharedState with registry, filter bank, and sensor configs."""
     return build_shared_state_logged(settings)
+
+
+app.state(shared_state)
 
 
 def _persist_registry(store: DeviceStore, state: SharedState) -> None:
@@ -129,13 +127,6 @@ async def on_registry_events(
     _persist_registry(store, state)
 
 
-@app.stream(
-    summary="JeeLink LaCrosse serial receiver: read sensor frames and publish state",
-    # Root on purpose: a name would move raw/state and mapping/* under
-    # receiver/, and feeds= needs one. Each sensor already goes offline through
-    # its own staleness timeout (sensor_entity_tick).
-    stale_after=receiver_stale_after,
-)
 async def receiver(  # pragma: no cover — composition root, tested via integration
     stream: cosalette.Stream[SensorReading],
     ctx: cosalette.DeviceContext,
@@ -186,6 +177,22 @@ async def receiver(  # pragma: no cover — composition root, tested via integra
 
     finally:
         logger.info("Receiver stopped")
+
+
+def configure_receiver(application: cosalette.App) -> None:
+    """Register the root receiver stream."""
+    application.stream(
+        summary=(
+            "JeeLink LaCrosse serial receiver: read sensor frames and publish state"
+        ),
+        # Root on purpose: a name would move raw/state and mapping/* under
+        # receiver/, and feeds= needs one. Each sensor already goes offline through
+        # its own staleness timeout (sensor_entity_tick).
+        stale_after=receiver_stale_after,
+    )(receiver)
+
+
+configure_receiver(app)
 
 
 _TICK_INTERVAL_SECONDS: float = 1.0
