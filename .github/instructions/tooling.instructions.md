@@ -27,6 +27,7 @@ Run `task --list` to see all available tasks. Key tasks for development:
 | Run tests with coverage       | `task test:cov`                                |
 | Lint (ruff check + format)    | `task lint`                                    |
 | Fix lint issues               | `task lint:fix`                                |
+| Shellcheck all *.sh files    | `task lint:shell` (part of `task lint`)        |
 | Type check (ty)               | `task typecheck`                               |
 | All checks (lint+type+test)   | `task check`                                   |
 | Complexity (all gates)        | `task complexity`                              |

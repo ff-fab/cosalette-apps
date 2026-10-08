@@ -194,15 +194,15 @@ check_output_style() {
 # it just for this check, so skip gracefully instead of failing CI in that environment.
 check_claude_plugin_validate() {
   if ! command -v claude >/dev/null 2>&1; then
-    printf "${YELLOW}⊘ SKIP:${NC} 'claude' binary not on PATH — skipping 'claude plugin validate .github'\n"
+    printf "%b⊘ SKIP:%b 'claude' binary not on PATH — skipping 'claude plugin validate .github'\n" "$YELLOW" "$NC"
     return
   fi
 
   local out
   if out=$(claude plugin validate .github 2>&1); then
-    printf "${GREEN}✓${NC} claude plugin validate .github\n"
+    printf '%b✓%b claude plugin validate .github\n' "$GREEN" "$NC"
   else
-    printf "${RED}✗ PLUGIN VALIDATE:${NC} claude plugin validate .github failed\n"
+    printf '%b✗ PLUGIN VALIDATE:%b claude plugin validate .github failed\n' "$RED" "$NC"
     printf '%s\n' "$out" | sed 's/^/    /'
     ((errors++))
   fi
@@ -231,7 +231,7 @@ check_union_tools() {
       [a-z]*) copilot=1 ;;
       [A-Z]*) claude=1 ;;
     esac
-  done < <(printf '%s\n' "$raw" | tr ', ' '\n\n')
+  done < <(printf '%s\n' "$raw" | tr ', ' '[\n*]')
 
   if [[ $copilot -eq 0 || $claude -eq 0 ]]; then
     printf "${RED}✗ TOOLS:${NC} %s is missing a vocabulary (copilot=%d claude=%d)\n" \
@@ -307,7 +307,7 @@ echo ""
 echo ""
 echo "───────────────────────────────────────────"
 if [[ $errors -eq 0 ]]; then
-  printf "${GREEN}✓ Agent config integrity checks passed${NC}\n"
+  printf '%b✓ Agent config integrity checks passed%b\n' "$GREEN" "$NC"
   exit 0
 else
   printf "${RED}✗ Agent config check FAILED: %d error(s)${NC}\n" "$errors"

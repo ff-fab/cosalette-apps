@@ -49,7 +49,8 @@ printf "\n=== qa-task.sh ===\n"
 T1_LOG=$(mktemp)
 T1_STATUS=$(mktemp)
 (
-    export QA_LOG_DIR="$(mktemp -d)"
+    QA_LOG_DIR="$(mktemp -d)"
+    export QA_LOG_DIR
     # Source just the run_with_log function by running it inline
     bash -c "
         set -uo pipefail

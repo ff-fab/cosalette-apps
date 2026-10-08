@@ -32,7 +32,7 @@ if [ -z "$TASK_JSON" ] || [ "$TASK_JSON" = "null" ] || [ "$TASK_JSON" = "[]" ]; 
 fi
 
 # Extract fields in a single jq call
-read -r STATUS PRIORITY <<< $(echo "$TASK_JSON" | jq -r '.[0] | [(.status // "unknown"), (.priority // "-")] | @tsv')
+read -r STATUS PRIORITY <<< "$(echo "$TASK_JSON" | jq -r '.[0] | [(.status // "unknown"), (.priority // "-")] | @tsv')"
 DESCRIPTION=$(echo "$TASK_JSON" | jq -r '.[0].description // ""')
 ACCEPTANCE=$(echo "$TASK_JSON" | jq -r '.[0].acceptance_criteria // ""')
 DESIGN=$(echo "$TASK_JSON" | jq -r '.[0].design // ""')

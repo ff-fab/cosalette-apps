@@ -226,4 +226,5 @@ dev = [
     # JSON schema (cap-ak7). Declared explicitly rather than relied on
     # transitively via cosalette[schema].
     "jsonschema>=4.26.0",
+    "shellcheck-py>=0.11",
 ]

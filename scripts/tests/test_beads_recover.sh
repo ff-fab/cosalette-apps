@@ -111,7 +111,7 @@ OUT=$(run_recover); RC=$?
 assert_eq 'healthy tracked server exits successfully' 0 "$RC"
 assert_contains 'healthy tracked server does not restart' 'nothing to recover' "$OUT"
 assert_eq 'healthy tracked server does not call start' 0 "$(start_count)"
-kill -0 "$SERVER_PID" 2>/dev/null && _pass 'healthy tracked server remains running' || _fail 'healthy tracked server was stopped'
+if kill -0 "$SERVER_PID" 2>/dev/null; then _pass 'healthy tracked server remains running'; else _fail 'healthy tracked server was stopped'; fi
 
 make_fixture orphan
 start_server
@@ -126,10 +126,10 @@ printf '999999\n' > "$FIXTURE/.beads/dolt-server.pid"
 printf 'invalid\n' > "$FIXTURE/.beads/dolt-server.port"
 OUT=$(run_recover); RC=$?
 assert_eq 'stale metadata recovers successfully' 0 "$RC"
-kill -0 "$ORPHAN_PID" 2>/dev/null && _fail 'matching orphan was stopped' || _pass 'matching orphan was stopped'
-kill -0 "$UNRELATED_PID" 2>/dev/null && _pass 'non-dolt process was not stopped' || _fail 'non-dolt process was stopped'
+if kill -0 "$ORPHAN_PID" 2>/dev/null; then _fail 'matching orphan was stopped'; else _pass 'matching orphan was stopped'; fi
+if kill -0 "$UNRELATED_PID" 2>/dev/null; then _pass 'non-dolt process was not stopped'; else _fail 'non-dolt process was stopped'; fi
 assert_eq 'recovery starts a new server once' 1 "$(start_count)"
-[[ ! -e "$FIXTURE/.beads/dolt-server.pid" && ! -e "$FIXTURE/.beads/dolt-server.port" ]] && _pass 'stale metadata is removed' || _fail 'stale metadata remains'
+if [[ ! -e "$FIXTURE/.beads/dolt-server.pid" && ! -e "$FIXTURE/.beads/dolt-server.port" ]]; then _pass 'stale metadata is removed'; else _fail 'stale metadata remains'; fi
 
 make_fixture timeout
 start_server ignore

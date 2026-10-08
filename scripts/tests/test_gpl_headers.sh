@@ -96,8 +96,9 @@ git -C "$T1" add .
 git -C "$T1" commit -m "init" -q
 OUT1=$(_run_check "$T1")
 RC1=$(_exit_code "$OUT1")
-[ -z "$RC1" ] && { _fail "Test 1: _run_check produced no EXIT code"; rm -rf "$T1"; } ||
-assert_exit_eq "GPL file missing header: exits 1" "1" "$RC1"
+if [ -z "$RC1" ]; then _fail "Test 1: _run_check produced no EXIT code"; rm -rf "$T1"; else
+    assert_exit_eq "GPL file missing header: exits 1" "1" "$RC1"
+fi
 assert_contains "GPL file missing header: names the file" "apps/gpl-app/main.py" "$OUT1"
 rm -rf "$T1"
 
@@ -116,8 +117,9 @@ git -C "$T2" add .
 git -C "$T2" commit -m "init" -q
 OUT2=$(_run_check "$T2")
 RC2=$(_exit_code "$OUT2")
-[ -z "$RC2" ] && { _fail "Test 2: _run_check produced no EXIT code"; rm -rf "$T2"; } ||
-assert_exit_eq "non-GPL file with GPL marker: exits 1" "1" "$RC2"
+if [ -z "$RC2" ]; then _fail "Test 2: _run_check produced no EXIT code"; rm -rf "$T2"; else
+    assert_exit_eq "non-GPL file with GPL marker: exits 1" "1" "$RC2"
+fi
 assert_contains "non-GPL file with GPL marker: names the file" "apps/mit-app/oops.py" "$OUT2"
 rm -rf "$T2"
 
@@ -138,8 +140,9 @@ git -C "$T3" add .
 git -C "$T3" commit -m "init" -q
 OUT3=$(_run_check "$T3")
 RC3=$(_exit_code "$OUT3")
-[ -z "$RC3" ] && { _fail "Test 3: _run_check produced no EXIT code"; rm -rf "$T3"; } ||
-assert_exit_eq "non-GPL file without GPL marker: exits 0" "0" "$RC3"
+if [ -z "$RC3" ]; then _fail "Test 3: _run_check produced no EXIT code"; rm -rf "$T3"; else
+    assert_exit_eq "non-GPL file without GPL marker: exits 0" "0" "$RC3"
+fi
 assert_not_contains "non-GPL file without GPL marker: not listed" "apps/mit-app/clean.py" "$OUT3"
 rm -rf "$T3"
 
@@ -160,8 +163,9 @@ git -C "$T4" add .
 git -C "$T4" commit -m "init" -q
 OUT4=$(_run_check "$T4")
 RC4=$(_exit_code "$OUT4")
-[ -z "$RC4" ] && { _fail "Test 4: _run_check produced no EXIT code"; rm -rf "$T4"; } ||
-assert_exit_eq "_version.py files skipped: exits 0" "0" "$RC4"
+if [ -z "$RC4" ]; then _fail "Test 4: _run_check produced no EXIT code"; rm -rf "$T4"; else
+    assert_exit_eq "_version.py files skipped: exits 0" "0" "$RC4"
+fi
 assert_not_contains "_version.py in GPL path not flagged" "_version.py" "$OUT4"
 rm -rf "$T4"
 
@@ -186,8 +190,9 @@ git -C "$T5" add .
 git -C "$T5" commit -m "init" -q
 OUT5=$(_run_check "$T5")
 RC5=$(_exit_code "$OUT5")
-[ -z "$RC5" ] && { _fail "Test 5: _run_check produced no EXIT code"; rm -rf "$T5"; } ||
-assert_exit_eq "MIT-only REUSE.toml with GPL marker: exits 1" "1" "$RC5"
+if [ -z "$RC5" ]; then _fail "Test 5: _run_check produced no EXIT code"; rm -rf "$T5"; else
+    assert_exit_eq "MIT-only REUSE.toml with GPL marker: exits 1" "1" "$RC5"
+fi
 assert_contains "MIT-only REUSE.toml with GPL marker: names the file" "apps/mit-app/oops.py" "$OUT5"
 rm -rf "$T5"
 
@@ -205,8 +210,9 @@ git -C "$T6" add .
 git -C "$T6" commit -m "init" -q
 OUT6=$(_run_check "$T6")
 RC6=$(_exit_code "$OUT6")
-[ -z "$RC6" ] && { _fail "Test 6: _run_check produced no EXIT code"; rm -rf "$T6"; } ||
-assert_exit_eq "GPL .sh file missing header: exits 1" "1" "$RC6"
+if [ -z "$RC6" ]; then _fail "Test 6: _run_check produced no EXIT code"; rm -rf "$T6"; else
+    assert_exit_eq "GPL .sh file missing header: exits 1" "1" "$RC6"
+fi
 assert_contains "GPL .sh file missing header: names the file" "apps/gpl-app/run.sh" "$OUT6"
 rm -rf "$T6"
 
@@ -224,8 +230,9 @@ git -C "$T7" add .
 git -C "$T7" commit -m "init" -q
 OUT7=$(_run_check "$T7")
 RC7=$(_exit_code "$OUT7")
-[ -z "$RC7" ] && { _fail "Test 7: _run_check produced no EXIT code"; rm -rf "$T7"; } ||
-assert_exit_eq "non-GPL .sh file with GPL marker: exits 1" "1" "$RC7"
+if [ -z "$RC7" ]; then _fail "Test 7: _run_check produced no EXIT code"; rm -rf "$T7"; else
+    assert_exit_eq "non-GPL .sh file with GPL marker: exits 1" "1" "$RC7"
+fi
 assert_contains "non-GPL .sh file with GPL marker: names the file" "apps/mit-app/oops.sh" "$OUT7"
 rm -rf "$T7"
 

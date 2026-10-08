@@ -65,7 +65,7 @@ detect_orphaned_tasks() {
 # Helper: build epic fzf lines                                                #
 # =========================================================================== #
 build_epic_lines() {
-    local ALL_EPICS CHILD_STATS MAX_TITLE
+    local ALL_EPICS MAX_TITLE
 
     fetch_all_tasks
 
@@ -149,7 +149,7 @@ build_epic_lines() {
         local orphan_count
         orphan_count=$(echo "$ORPHANED" | wc -l | tr -d ' ')
 
-        local orphan_bar_fill="" orphan_bar_empty=""
+        local orphan_bar_empty=""
         for ((i=0; i<BAR_WIDTH; i++)); do orphan_bar_empty+="░"; done
 
         local orphan_line

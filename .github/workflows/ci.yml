@@ -132,7 +132,9 @@ jobs:
   # Framework-contract and cross-app-convention tests (e.g. the ADR-006 MQTT
   # TLS posture check reads every app's compose.yml/.env.example), plus shell
   # helper tests, can be broken by app-scoped changes without touching the
-  # `shared` path filter above, so these run unconditionally.
+  # `shared` path filter above, so these run unconditionally. `task lint` also
+  # runs here: ruff on the root package and scripts/, shellcheck on every
+  # tracked *.sh (some, like .devcontainer/*.sh, sit outside the shared list).
   root-tests:
     needs: detect
     if: needs.detect.result == 'success'
@@ -144,10 +146,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Run repo-root unit and script test suites inside devcontainer
+      - name: Run repo-root lint, unit and script test suites inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
-          run-cmd: task test:unit && task test:scripts
+          run-cmd: task lint && task test:unit && task test:scripts
           token: ${{ secrets.GITHUB_TOKEN }}
 
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues

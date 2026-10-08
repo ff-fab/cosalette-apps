@@ -51,6 +51,7 @@ mkdir -p "$(dirname "$PRE_PR_LOG")"
 _script_start=$(date +%s)
 _final_rc=0
 
+# shellcheck disable=SC2329  # invoked by the EXIT trap below
 _on_exit() {
     local elapsed=$(( $(date +%s) - _script_start ))
     echo ""

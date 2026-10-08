@@ -463,10 +463,16 @@ tasks:
   # ===========================================================================
 
   lint:
-    desc: Run linting on the root package and scripts/ (ruff check + format check)
+    desc: Run linting on the root package, scripts/ and every tracked shell script
     cmds:
       - uv run ruff check {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
       - uv run ruff format --check {{.PKG}}/src/ {{.PKG}}/tests/ scripts/
+      - task: lint:shell
+
+  lint:shell:
+    desc: Run shellcheck on every tracked *.sh file
+    cmds:
+      - git ls-files -z "*.sh" | xargs -0 uv run shellcheck
 
   lint:fix:
     desc: Fix linting issues automatically
