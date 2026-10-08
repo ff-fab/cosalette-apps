@@ -36,7 +36,8 @@ Run `task --list` to see all available tasks. Key tasks for development:
 | Per-app tests                 | `task <app>:test:unit`                         |
 | Run all apps' tests           | `task test:all`                                |
 | Lint all apps                 | `task lint:all`                                |
-| Pre-PR quality gate           | `task pre-pr`                                  |
+| Pre-PR quality gate (scoped)  | `task pre-pr` (or `task pre-pr APPS="a b"`)    |
+| Pre-PR gate, everything       | `task pre-pr:full`                             |
 | Create a PR                   | `task pr:create TITLE="..." BODY="..."` (or `BODY_FILE=path`) |
 | Wait for CI on a PR           | `task ci:wait -- <pr-number>`                  |
 | Show PR diff                  | `task pr:diff -- <pr-number>`                  |
