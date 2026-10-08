@@ -183,6 +183,8 @@ site/
 
 # Shared doc assets copied into app docs dirs at build time (source of truth: docs/shared/)
 apps/*/docs/stylesheets/extra.css
+apps/*/docs/stylesheets/click-zoom.css
+apps/*/docs/javascripts/click-zoom.js
 apps/*/docs/javascripts/version-fetch.js
 apps/*/docs/javascripts/header-breadcrumb.js
 apps/*/docs/javascripts/palette-sync.js

@@ -221,7 +221,9 @@ unexpectedly.
 
 Heartbeat device statuses are `"ok"`, `"error"`, `"unavailable"` or
 `"circuit_open"`. `uptime_s` is an integer. Covers are long-running device
-handlers, so their entries omit telemetry freshness and failure-streak fields.
+handlers, so their entries omit telemetry freshness and failure-streak fields, and
+never report `"stale"`. See
+[Configuration > Health and recovery](configuration.md#health-and-recovery).
 
 ### Error
 

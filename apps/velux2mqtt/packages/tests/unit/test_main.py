@@ -6,9 +6,14 @@ Test Techniques Used:
 - Boundary Value Analysis: _cover_map with empty covers list
 - Specification-based: Velux2MqttSettings rejects duplicate cover names
 - Specification-based: cover_device registered directly with declarative metadata
+- Specification-based: stale policy and Docker health probe of the production app
 """
 
 from __future__ import annotations
+
+import json
+import re
+from pathlib import Path
 
 import cosalette
 import pytest
@@ -18,6 +23,8 @@ from velux2mqtt import __version__
 from velux2mqtt.devices.cover import cover_device
 from velux2mqtt.main import _cover_map, app
 from velux2mqtt.settings import CoverConfig, Velux2MqttSettings
+
+_APP_DIR = Path(__file__).resolve().parents[3]
 
 
 def _cover(name: str, pin_base: int) -> CoverConfig:
@@ -188,3 +195,29 @@ class TestStoreConfiguration:
         app.has_dynamic_entities is the public dynamic-entity predicate.
         """
         assert app.has_dynamic_entities is True
+
+
+@pytest.mark.unit
+class TestStalePolicy:
+    """Verify the production app's stale policy and Docker health probe."""
+
+    def test_app_has_no_stale_exit_or_restart(self) -> None:
+        """The app sets neither exit_after_stale nor restart_on_stale.
+
+        Technique: Specification-based — covers are devices without telemetry
+        or streams, so nothing can turn stale and both options would be inert.
+        """
+        assert app._exit_after_stale is None
+        assert app._restart_on_stale is False
+
+    def test_docker_health_probe_checks_file_freshness_only(self) -> None:
+        """The probe ignores per-cover status; covers are independent devices.
+
+        Technique: Specification-based — monorepo ADR-011 sets --fail-on ""
+        for apps with several independent devices.
+        """
+        dockerfile = (_APP_DIR / "Dockerfile").read_text(encoding="utf-8")
+        match = re.search(r"(?m)^\s*CMD\s+(\[.*\])\s*$", dockerfile)
+
+        assert match is not None
+        assert json.loads(match.group(1)) == ["cosalette-health", "--fail-on", ""]
