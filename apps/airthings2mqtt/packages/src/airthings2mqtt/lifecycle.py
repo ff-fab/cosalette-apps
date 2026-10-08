@@ -50,25 +50,17 @@ class ResetState:
         last_lta = fields.get("last_lta")
         lta_before_reset = fields.get("lta_before_reset")
         reset_count = fields.get("reset_count", 0)
-        reset_at_value = fields.get("reset_at")
-
-        if (
-            (last_lta is not None and type(last_lta) is not int)
-            or (lta_before_reset is not None and type(lta_before_reset) is not int)
-            or type(reset_count) is not int
-            or reset_count < 0
-            or (reset_at_value is not None and not isinstance(reset_at_value, str))
+        if not (
+            _is_optional_int(last_lta)
+            and _is_optional_int(lta_before_reset)
+            and type(reset_count) is int
+            and reset_count >= 0
         ):
             return cls()
-
-        reset_at = None
-        if reset_at_value is not None:
-            try:
-                reset_at = datetime.fromisoformat(reset_at_value)
-            except ValueError:
-                return cls()
-            if reset_at.tzinfo is None or reset_at.utcoffset() is None:
-                return cls()
+        try:
+            reset_at = _parse_aware_timestamp(fields.get("reset_at"))
+        except ValueError:
+            return cls()
 
         return cls(
             last_lta=last_lta,
@@ -82,6 +74,33 @@ class ResetState:
         data = asdict(self)
         data["reset_at"] = self.reset_at.isoformat() if self.reset_at else None
         return data
+
+
+def _is_optional_int(value: object) -> bool:
+    """Whether *value* is ``None`` or a plain ``int`` (``bool`` excluded)."""
+    return value is None or type(value) is int
+
+
+def _parse_aware_timestamp(value: object) -> datetime | None:
+    """Parse a stored ISO timestamp; raise ``ValueError`` unless it is tz-aware."""
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"timestamp must be a string, got {type(value).__name__}")
+    parsed = datetime.fromisoformat(value)
+    if parsed.utcoffset() is None:
+        raise ValueError(f"timestamp has no UTC offset: {value!r}")
+    return parsed
+
+
+def _collapsed(lta: int | None, last_lta: int | None) -> bool:
+    """Whether the long-term average fell so far that the sensor started over."""
+    return (
+        lta is not None
+        and last_lta is not None
+        and last_lta >= RESET_MIN_LTA
+        and lta < last_lta * RESET_DROP_RATIO
+    )
 
 
 def track(
@@ -100,12 +119,7 @@ def track(
     """
     lta = reading.radon_long_term_avg
     placeholder = reading.radon_24h_avg == 0 and lta == 0
-    collapsed = (
-        lta is not None
-        and state.last_lta is not None
-        and state.last_lta >= RESET_MIN_LTA
-        and lta < state.last_lta * RESET_DROP_RATIO
-    )
+    collapsed = _collapsed(lta, state.last_lta)
     # A 0/0 read after anything but another 0/0 read is a fresh reset.
     reset = (placeholder and state.last_lta != 0) or collapsed
     if reset:
