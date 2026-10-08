@@ -34,6 +34,11 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:schema:check
           token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check complexity and duplication inside devcontainer
+        uses: ./.github/actions/devcontainer-run
+        with:
+          run-cmd: task ${{ inputs.app }}:complexity && task ${{ inputs.app }}:similarity
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   typecheck:
     runs-on: ubuntu-latest
