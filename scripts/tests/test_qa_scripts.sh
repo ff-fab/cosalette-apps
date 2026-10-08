@@ -28,7 +28,7 @@ assert_eq() {
 
 assert_contains() {
     local desc="$1" needle="$2" haystack="$3"
-    if echo "$haystack" | grep -qF "$needle"; then
+    if echo "$haystack" | grep -qF -- "$needle"; then
         _pass "$desc"
     else
         _fail "$desc — '$needle' not found in output"
@@ -100,7 +100,7 @@ assert_exit_eq "qa-task.sh: no-arg exits 1" "1" "$T3_RC"
 
 printf "\n=== pre-pr.sh ===\n"
 
-# These three run the full chain (PRE_PR_FULL=1) so every step is reached
+# All pre-pr.sh tests run the full chain (PRE_PR_FULL=1) so every step is reached
 # regardless of what the working tree has changed.
 
 # Test: pre-pr.sh always emits pre-pr-exit= even when a step fails
@@ -111,16 +111,20 @@ T4_LOG=$(mktemp)
 T4_BIN=$(mktemp -d)
 printf '#!/usr/bin/env bash\nexit 42\n' > "$T4_BIN/pre-commit"
 chmod +x "$T4_BIN/pre-commit"
+# Every step runs (all failures are reported), so stub task too.
+printf '#!/usr/bin/env bash\nexit 0\n' > "$T4_BIN/task"
+chmod +x "$T4_BIN/task"
 T4_OUT=$(
     PATH="$T4_BIN:$PATH" \
     PRE_PR_FULL=1 \
     PRE_PR_LOG="$T4_LOG" \
-    TIMEOUT_PRECOMMIT=5 \
+    TIMEOUT_PRECOMMIT=5 TIMEOUT_LINT=5 TIMEOUT_TYPECHECK=5 \
+    TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SECURITY=5 \
     bash "$REPO_ROOT/scripts/pre-pr.sh" 2>&1 || true
 )
 assert_contains "pre-pr.sh: emits [FAIL] on failure" "[FAIL]" "$T4_OUT"
 assert_contains "pre-pr.sh: emits the failing step's rc" "pre-pr-exit=42" "$T4_OUT"
-rm -f "$T4_LOG"
+rm -rf "$T4_LOG" "$T4_LOG.steps"
 rm -rf "$T4_BIN"
 
 # Test: pre-pr.sh emits [DONE] and pre-pr-exit=0 when all steps succeed
@@ -143,11 +147,11 @@ T5_OUT=$(
 )
 assert_contains "pre-pr.sh: emits [DONE] on success" "[DONE]" "$T5_OUT"
 assert_contains "pre-pr.sh: emits pre-pr-exit=0 on success" "pre-pr-exit=0" "$T5_OUT"
-rm -f "$T5_LOG"
+rm -rf "$T5_LOG" "$T5_LOG.steps"
 rm -rf "$T5_BIN"
 
 # Test: pre-pr.sh sets _final_rc nonzero when a middle step fails
-# pre-commit succeeds, then task reuse:lint fails, rest should be skipped.
+# pre-commit succeeds, then task reuse:lint fails; the other steps still run.
 T6_LOG=$(mktemp)
 T6_BIN=$(mktemp -d)
 # pre-commit stub: always succeeds
@@ -174,8 +178,75 @@ if echo "$T6_OUT" | grep -q "pre-pr-exit=0"; then
 else
     _pass "pre-pr.sh: mid-chain failure exits with nonzero rc"
 fi
-rm -f "$T6_LOG"
+rm -rf "$T6_LOG" "$T6_LOG.steps"
 rm -rf "$T6_BIN"
+
+# Shared stub setup for the parallel-phase tests: pre-commit succeeds; the task
+# stub fails reuse:lint late (exit 99, after a sleep, so it finishes last),
+# fails security:audit (exit 7) and times out typecheck:all via TIMEOUT_TYPECHECK=1.
+_parallel_stubs() {
+    printf '#!/usr/bin/env bash\nexit 0\n' > "$1/pre-commit"
+    cat > "$1/task" << 'EOF2'
+#!/usr/bin/env bash
+case "${1:-}" in
+    reuse:lint) sleep 1; exit 99 ;;
+    security:audit) exit 7 ;;
+    typecheck:all) exec sleep 10 ;;
+esac
+exit 0
+EOF2
+    chmod +x "$1/pre-commit" "$1/task"
+}
+
+_run_parallel_case() { # bin log jobs
+    PATH="$1:$PATH" \
+    PRE_PR_FULL=1 \
+    PRE_PR_LOG="$2" \
+    PRE_PR_JOBS="$3" \
+    TIMEOUT_PRECOMMIT=5 TIMEOUT_LINT=5 TIMEOUT_TYPECHECK=1 \
+    TIMEOUT_TEST=5 TIMEOUT_COMPLEXITY=5 TIMEOUT_SECURITY=5 \
+    bash "$REPO_ROOT/scripts/pre-pr.sh" 2>&1 || true
+}
+
+# Result lines (OK/ERR/TIM) in output order, labels only.
+_result_order() {
+    echo "$1" | sed -n 's/^  \[\(...\)\] \([^ ]*\( (root)\)\{0,1\}\).*/\2/p' | tr '\n' ' '
+}
+
+# Test: parallel mode reports every failure, in a fixed order, and keeps
+# per-step timeouts and the first failing step's rc.
+T7_LOG=$(mktemp)
+T7_BIN=$(mktemp -d)
+_parallel_stubs "$T7_BIN"
+T7_OUT=$(_run_parallel_case "$T7_BIN" "$T7_LOG" 4)
+assert_contains "pre-pr.sh parallel: announces the parallel phase" "in parallel (PRE_PR_JOBS=4)" "$T7_OUT"
+assert_contains "pre-pr.sh parallel: reports reuse:lint failure" "[ERR] reuse:lint" "$T7_OUT"
+assert_contains "pre-pr.sh parallel: reports security:audit failure" "[ERR] security:audit" "$T7_OUT"
+assert_contains "pre-pr.sh parallel: per-step timeout still fires" "[TIM] typecheck:all" "$T7_OUT"
+assert_contains "pre-pr.sh parallel: rc of the first failing step" "pre-pr-exit=99" "$T7_OUT"
+assert_contains "pre-pr.sh parallel: tails each failed step log" "lines of $T7_LOG.steps/_security.log" "$T7_OUT"
+T7_ORDER=$(_result_order "$T7_OUT")
+assert_eq "pre-pr.sh parallel: results in fixed order, test:apps last" \
+    "pre-commit reuse:lint lint (root) lint:all typecheck:all test:unit (root) test:scripts complexity (root) complexity:all docker:lint security:audit test:apps " \
+    "$T7_ORDER"
+assert_contains "pre-pr.sh parallel: step logs appended to PRE_PR_LOG" "━━━ security:audit ━━━" "$(cat "$T7_LOG")"
+rm -rf "$T7_LOG" "$T7_LOG.steps" "$T7_BIN"
+
+# Test: PRE_PR_JOBS=1 runs the same steps sequentially with live progress
+T8_LOG=$(mktemp)
+T8_BIN=$(mktemp -d)
+_parallel_stubs "$T8_BIN"
+T8_OUT=$(_run_parallel_case "$T8_BIN" "$T8_LOG" 1)
+if echo "$T8_OUT" | grep -q "in parallel"; then
+    _fail "pre-pr.sh PRE_PR_JOBS=1: must not run in parallel"
+else
+    _pass "pre-pr.sh PRE_PR_JOBS=1: runs sequentially"
+fi
+assert_contains "pre-pr.sh PRE_PR_JOBS=1: live progress lines" "-->  reuse:lint ..." "$T8_OUT"
+assert_eq "pre-pr.sh PRE_PR_JOBS=1: same results in the same order" \
+    "$T7_ORDER" "$(_result_order "$T8_OUT")"
+assert_contains "pre-pr.sh PRE_PR_JOBS=1: rc of the first failing step" "pre-pr-exit=99" "$T8_OUT"
+rm -rf "$T8_LOG" "$T8_LOG.steps" "$T8_BIN"
 
 # ── Summary ──────────────────────────────────────────────────────────────────
 
