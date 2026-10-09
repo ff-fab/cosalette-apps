@@ -55,3 +55,11 @@ def test_scaffold_main_parses_the_command_line() -> None:
     assert "    app.cli()\n" in scaffold
     assert r"\`\`cli()\`\` rather than" in scaffold
     assert "    app.run()\n" not in scaffold
+
+
+def test_scaffold_dockerfile_leaves_no_uv_lock_in_app() -> None:
+    """Generated images bind-mount the workspace pyproject.toml and uv.lock."""
+    scaffold = (_REPO_ROOT / "scripts/scaffold-app.sh").read_text(encoding="utf-8")
+
+    assert "COPY pyproject.toml uv.lock" not in scaffold
+    assert "--mount=type=bind,source=uv.lock,target=/app/uv.lock" in scaffold

@@ -10,3 +10,18 @@ taskfiles/
 **/.env
 **/.env.*
 .envrc
+# Local build, test and cache output: never copied, only slows the build context
+.venv/
+node_modules/
+site/
+apps/*/site/
+**/.cache/
+**/.pytest_cache/
+**/.ruff_cache/
+**/.mypy_cache/
+**/.coverage
+**/.coverage.*
+**/htmlcov/
+**/coverage.xml
+**/coverage.json
+**/results-*.xml

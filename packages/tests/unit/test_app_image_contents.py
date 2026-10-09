@@ -6,6 +6,8 @@ Test Techniques Used:
 - Error Guessing: rich, pygments and markdown-it-py (about 14 MB) creeping back
   into the image through a re-resolve, or a Typer CLI crashing without them.
 - Error Guessing: bytecode for stdlib modules no app imports.
+- Error Guessing: the workspace pyproject.toml and uv.lock left under /app after
+  the install step, and local build output uploaded in the build context.
 """
 
 from __future__ import annotations
@@ -82,3 +84,37 @@ def test_dockerfile_skips_bytecode_for_unused_stdlib(app_dir: str) -> None:
         "compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\\.py$'"
         in contents
     )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("app_dir", _APP_DIRS)
+def test_dockerfile_leaves_no_uv_lock_in_app(app_dir: str) -> None:
+    """The workspace pyproject.toml and uv.lock are bind-mounted, never copied.
+
+    Technique: Error Guessing — ``COPY pyproject.toml uv.lock ./`` keeps about
+    0.5 MB under /app that nothing reads after the install step.
+    """
+    dockerfile = _REPO_ROOT / "apps" / app_dir / "Dockerfile"
+    contents = dockerfile.read_text(encoding="utf-8")
+
+    assert re.search(r"(?im)^\s*COPY\b[^\n]*\buv\.lock\b", contents) is None
+    assert re.search(r"(?im)^\s*COPY\s+pyproject\.toml\b", contents) is None
+    assert "--mount=type=bind,source=uv.lock,target=/app/uv.lock" in contents
+    assert (
+        "--mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml" in contents
+    )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "pattern", [".venv/", "apps/*/site/", "**/.cache/", "**/coverage.xml"]
+)
+def test_dockerignore_excludes_local_output(pattern: str) -> None:
+    """Local virtualenv, docs site, caches and coverage stay out of the context.
+
+    Technique: Error Guessing — none of them reach the image, but a local build
+    would upload them on every run.
+    """
+    lines = (_REPO_ROOT / ".dockerignore").read_text(encoding="utf-8").splitlines()
+
+    assert pattern in lines

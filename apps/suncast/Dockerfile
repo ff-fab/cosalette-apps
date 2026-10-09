@@ -5,9 +5,7 @@ RUN apk add --no-cache cairo libffi
 
 WORKDIR /app
 
-# Copy monorepo root lockfile and workspace config for reproducible builds.
 # Build context must be the repository root (docker build -f apps/suncast/Dockerfile .)
-COPY pyproject.toml uv.lock ./
 COPY apps/suncast/pyproject.toml apps/suncast/
 COPY apps/suncast/README.md apps/suncast/
 COPY apps/suncast/packages/src/ apps/suncast/packages/src/
@@ -46,7 +44,11 @@ COPY apps/suncast/packages/src/ apps/suncast/packages/src/
 #
 # uv is bind-mounted for this step only and pip is uninstalled: the app needs
 # neither at runtime, and together they would add about 53 MB to the image.
+# The workspace pyproject.toml and uv.lock are bind-mounted too, so they stay
+# out of the image (about 0.5 MB).
 RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
+    --mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml \
+    --mount=type=bind,source=uv.lock,target=/app/uv.lock \
     uv export --frozen --no-dev --no-emit-workspace --prune rich --package suncast --extra png --extra http \
       --format requirements-txt >/tmp/requirements.txt \
     && uv pip install --system --no-cache --compile-bytecode --no-deps -r /tmp/requirements.txt \
