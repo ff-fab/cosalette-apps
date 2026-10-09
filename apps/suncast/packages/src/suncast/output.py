@@ -27,6 +27,7 @@ Supports three delivery channels:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from dataclasses import dataclass, field
@@ -100,6 +101,10 @@ class OutputManager:
             ctx: cosalette DeviceContext for MQTT publishing.  ``None``
                 skips MQTT delivery.
 
+        Rasterization and file writes run in a worker thread
+        (:func:`asyncio.to_thread`) so a slow CairoSVG call or a hung output
+        mount never blocks the event loop.
+
         Returns:
             The *sun_state* dict, suitable as a telemetry return value.
         """
@@ -110,8 +115,8 @@ class OutputManager:
         png_bytes: bytes | None = None
         if s.png_enabled:
             try:
-                png_bytes = svg_to_png(
-                    svg_content, width=s.png_width, height=s.png_height
+                png_bytes = await asyncio.to_thread(
+                    svg_to_png, svg_content, width=s.png_width, height=s.png_height
                 )
             except RasterizationError as exc:
                 result.errors.append(str(exc))
@@ -119,9 +124,9 @@ class OutputManager:
 
         # -- Filesystem output ---------------------------------------------
         if s.output_path is not None:
-            self._write_file(s.output_path, "shadow.svg", svg_content, result)
-            if png_bytes is not None:
-                self._write_file(s.output_path, "shadow.png", png_bytes, result)
+            await asyncio.to_thread(
+                self._write_files, s.output_path, svg_content, png_bytes, result
+            )
 
         # -- MQTT output ---------------------------------------------------
         if ctx is not None:
@@ -135,6 +140,19 @@ class OutputManager:
         return sun_state
 
     # -- private helpers ---------------------------------------------------
+
+    @classmethod
+    def _write_files(
+        cls,
+        directory: Path,
+        svg_content: str,
+        png_bytes: bytes | None,
+        result: DeliveryResult,
+    ) -> None:
+        """Write ``shadow.svg`` and, if given, ``shadow.png`` to *directory*."""
+        cls._write_file(directory, "shadow.svg", svg_content, result)
+        if png_bytes is not None:
+            cls._write_file(directory, "shadow.png", png_bytes, result)
 
     @staticmethod
     def _write_file(

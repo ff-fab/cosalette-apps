@@ -25,6 +25,7 @@ Requires the ``http`` extra (``aiohttp``).  When aiohttp is not installed,
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
@@ -90,8 +91,8 @@ def _build_app(
         if svg is None:
             return web.Response(status=503, text="No shadow data available yet")
         try:
-            png_bytes = svg_to_png(
-                svg, width=settings.png_width, height=settings.png_height
+            png_bytes = await asyncio.to_thread(
+                svg_to_png, svg, width=settings.png_width, height=settings.png_height
             )
         except RasterizationError as exc:
             return web.Response(status=500, text=str(exc))

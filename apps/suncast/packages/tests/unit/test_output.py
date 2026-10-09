@@ -20,11 +20,13 @@ Test Techniques Used:
 - Equivalence Partitioning: PNG enabled/disabled, filesystem/MQTT paths
 - Error Guessing: Filesystem write failure, MQTT publish failure
 - Condition Coverage: All delivery channel combinations
+- Specification-based: blocking work runs off the event-loop thread
 """
 
 from __future__ import annotations
 
 import base64
+import threading
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -274,6 +276,50 @@ class TestOutputManagerErrorHandling:
         assert result is SAMPLE_SUN_STATE
         assert (tmp_path / "shadow.svg").exists()
         assert not (tmp_path / "shadow.png").exists()
+
+
+@pytest.mark.unit
+class TestDeliverOffloadsBlockingWork:
+    """Specification-based: rasterization and file writes leave the loop thread.
+
+    A slow CairoSVG call or a hung output mount must not block the event loop.
+    """
+
+    async def test_rasterize_and_writes_run_in_worker_thread(
+        self, tmp_path: Path
+    ) -> None:
+        """svg_to_png, write_text and write_bytes run off the loop thread."""
+        # Arrange
+        loop_thread = threading.get_ident()
+        threads: dict[str, int] = {}
+        real_write_text = Path.write_text
+        real_write_bytes = Path.write_bytes
+
+        def fake_svg_to_png(*_args: object, **_kwargs: object) -> bytes:
+            threads["rasterize"] = threading.get_ident()
+            return FAKE_PNG
+
+        def spy_write_text(self: Path, *args: object, **kwargs: object) -> int:
+            threads["write_text"] = threading.get_ident()
+            return real_write_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+        def spy_write_bytes(self: Path, data: bytes) -> int:
+            threads["write_bytes"] = threading.get_ident()
+            return real_write_bytes(self, data)
+
+        manager = OutputManager(OutputSettings(output_path=tmp_path, png_enabled=True))
+
+        # Act
+        with (
+            patch("suncast.output.svg_to_png", side_effect=fake_svg_to_png),
+            patch.object(Path, "write_text", spy_write_text),
+            patch.object(Path, "write_bytes", spy_write_bytes),
+        ):
+            await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
+
+        # Assert
+        assert threads.keys() == {"rasterize", "write_text", "write_bytes"}
+        assert loop_thread not in threads.values()
 
 
 @pytest.mark.unit
