@@ -181,25 +181,25 @@ dbus-broker instead were not tested.
 
 ### Verify
 
-Run these on the host while the container is running:
+Run these on the host. `sudo -u airthings2mqtt` makes each call as UID 10001, the
+account the container connects with, so dbus-daemon applies the same policy. The image
+ships no D-Bus or BlueZ tools; the host has both.
 
 ```bash
-C=$(docker compose ps -q airthings2mqtt)
-
 # 1. A write is refused. The deliberately wrong value type means that, without the
 #    policy, BlueZ rejects it with InvalidSignature and the adapter stays on.
-docker exec "$C" dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 \
+sudo -u airthings2mqtt dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 \
     org.freedesktop.DBus.Properties.Set \
     string:org.bluez.Adapter1 string:Powered variant:string:probe
 # expect: Error org.freedesktop.DBus.Error.AccessDenied
 
 # 2. Reads still work.
-docker exec "$C" dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 \
+sudo -u airthings2mqtt dbus-send --system --print-reply --dest=org.bluez /org/bluez/hci0 \
     org.freedesktop.DBus.Properties.Get string:org.bluez.Adapter1 string:Powered
 # expect: variant boolean true
 
 # 3. Scanning still works.
-docker exec "$C" timeout 20 bluetoothctl --timeout 15 scan on
+sudo -u airthings2mqtt timeout 20 bluetoothctl --timeout 15 scan on
 # expect: [NEW] Device lines
 ```
 
@@ -207,7 +207,7 @@ Then wait for the next poll, or trigger one with
 `mosquitto_pub -h localhost -t "airthings2mqtt/airthings/set" -n`, and check that a new
 reading arrives on `airthings2mqtt/airthings/state`. If step 1 still prints
 `InvalidSignature`, the policy is not active: check the file path, the reload, and that
-the container runs as UID 10001 (`docker exec "$C" id -u`).
+the container runs as UID 10001 (`docker compose exec airthings2mqtt id -u`).
 
 ### What It Blocks and What It Does Not
 
