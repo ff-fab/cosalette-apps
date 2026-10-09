@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.10](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.9...vito2mqtt-v0.2.10) (2026-10-09)
+
+
+### Features
+
+* ship app images without rich (ADR-013) ([#351](https://github.com/ff-fab/cosalette-apps/issues/351)) ([5194d12](https://github.com/ff-fab/cosalette-apps/commit/5194d1259738b59773935c79e3fe8bb7ce155cc1))
+* **vito2mqtt:** adopt native health probe ([#342](https://github.com/ff-fab/cosalette-apps/issues/342)) ([b7d9205](https://github.com/ff-fab/cosalette-apps/commit/b7d9205007aae3c14a654dda0cdccec6e0023df6))
+* **wallpanel-control:** adopt native health probe ([#343](https://github.com/ff-fab/cosalette-apps/issues/343)) ([2238135](https://github.com/ff-fab/cosalette-apps/commit/223813583d7e0efd6c684f973e267ae2f8091946))
+
+
+### Bug Fixes
+
+* answer --help/--version from every app and keep uv.lock out of images ([#353](https://github.com/ff-fab/cosalette-apps/issues/353)) ([087f40c](https://github.com/ff-fab/cosalette-apps/commit/087f40c4b49bbf595ee5821febb06d9d76ef056a))
+* **deps:** drop cosalette[schema] and redundant TYPER_USE_RICH from app images ([#357](https://github.com/ff-fab/cosalette-apps/issues/357)) ([b7558cc](https://github.com/ff-fab/cosalette-apps/commit/b7558cc861b6b2db54a5cb0490037249b23abd17))
+* **deps:** upgrade apps to cosalette 0.11.1 ([#332](https://github.com/ff-fab/cosalette-apps/issues/332)) ([2fa3d29](https://github.com/ff-fab/cosalette-apps/commit/2fa3d2945e410ac2f83d8d23ae1b4165719aa890))
+* **deps:** upgrade apps to cosalette 0.11.2 ([3a3110f](https://github.com/ff-fab/cosalette-apps/commit/3a3110f0b59bf69c51e1a2edaef91150d72896ee))
+* **deps:** upgrade apps to cosalette 0.11.2 ([47b4ba3](https://github.com/ff-fab/cosalette-apps/commit/47b4ba34de3842905b3e7d646999650d7c378d50))
+* **deps:** upgrade apps to cosalette 0.11.3 ([#352](https://github.com/ff-fab/cosalette-apps/issues/352)) ([cac690d](https://github.com/ff-fab/cosalette-apps/commit/cac690d4af332b967338a917506ba721efa8d394))
+* slim app images (no uv/pip) and fix airthings2mqtt store path ([#330](https://github.com/ff-fab/cosalette-apps/issues/330)) ([7eb86a5](https://github.com/ff-fab/cosalette-apps/commit/7eb86a50df96cca138986b54570f6a0de857a439))
+
+
+### Documentation
+
+* **vito2mqtt:** document the instance id for multiple instances ([#345](https://github.com/ff-fab/cosalette-apps/issues/345)) ([a545a7e](https://github.com/ff-fab/cosalette-apps/commit/a545a7ed9729a33306081f1aafec0fcb9030e893))
+
 ## [0.2.9](https://github.com/ff-fab/cosalette-apps/compare/vito2mqtt-v0.2.8...vito2mqtt-v0.2.9) (2026-10-04)
 
 
