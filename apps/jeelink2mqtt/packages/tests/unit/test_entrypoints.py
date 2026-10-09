@@ -1,7 +1,7 @@
 """Unit tests for application entrypoints (main.py, __init__.py).
 
 Test Techniques Used:
-- Specification-based: main() calls app.run() correctly
+- Specification-based: main() calls app.cli() correctly
 - Error Guessing: Version fallback paths when _version or metadata unavailable
 - Branch/Condition Coverage: try/except import chains in __init__.py
 """
@@ -23,10 +23,11 @@ import pytest
 class TestMainEntrypoint:
     """Specification-based tests for the CLI entrypoint."""
 
-    def test_main_calls_app_run(self) -> None:
-        """main() delegates to the module-level app.run().
+    def test_main_calls_app_cli(self) -> None:
+        """main() delegates to the module-level app.cli().
 
-        Technique: Specification-based — verifying wiring contract.
+        Technique: Specification-based — verifying wiring contract; app.run()
+        would ignore --help and --version (cap-fsh0).
         """
         # Arrange
         with patch("jeelink2mqtt.main.app") as mock_app:
@@ -36,7 +37,8 @@ class TestMainEntrypoint:
             main()
 
         # Assert
-        mock_app.run.assert_called_once()
+        mock_app.cli.assert_called_once_with()
+        mock_app.run.assert_not_called()
 
     def test_main_module_guard(self) -> None:
         """The module has a callable main function for direct execution.
