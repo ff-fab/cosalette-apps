@@ -220,7 +220,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.11.2,<0.12",
+    "cosalette>=0.11.3,<0.12",
 ]
 
 [project.scripts]

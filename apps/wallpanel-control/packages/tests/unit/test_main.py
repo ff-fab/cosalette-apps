@@ -171,10 +171,11 @@ class TestMainEntryPoint:
     def test_main_module_imports_in_a_fresh_interpreter(self) -> None:
         """The entry-point module imports with nothing else loaded first.
 
-        Technique: Error Guessing — cosalette 0.11.2 raises a circular
-        ImportError when ``Router()`` runs before ``App`` was resolved, which
-        killed the image on start (cap-nycg). In-process tests miss it because
-        earlier imports load ``App`` first, so this runs a new interpreter.
+        Technique: Error Guessing — cosalette 0.11.1 and 0.11.2 raised a
+        circular ImportError when ``Router()`` ran before ``App`` was resolved,
+        which killed the image on start (cap-nycg, fixed in 0.11.3). In-process
+        tests miss it because earlier imports load ``App`` first, so this runs a
+        new interpreter.
         """
         result = subprocess.run(  # noqa: S603 — fixed interpreter and argument vector
             [sys.executable, "-c", "import wallpanel_control.main"],
