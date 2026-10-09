@@ -35,7 +35,14 @@ _SCHEMA_EXTRA_ALLOWED = {
 
 def _builds_own_typer_cli(app_dir: str) -> bool:
     sources = (_REPO_ROOT / "apps" / app_dir / "packages" / "src").rglob("*.py")
-    return any("typer.Typer(" in p.read_text(encoding="utf-8") for p in sources)
+    return any(
+        re.search(
+            r"(?m)^\s*(?:import\s+typer\b|from\s+typer\s+import\b)",
+            p.read_text(encoding="utf-8"),
+        )
+        is not None
+        for p in sources
+    )
 
 
 @pytest.mark.unit
