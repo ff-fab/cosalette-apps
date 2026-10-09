@@ -7,7 +7,7 @@ Test Techniques Used:
 - Structural: Verify no devices are registered
 - Structural: Verify commands (command/state) are exactly {display, system/action}
 - Structural: Verify no telemetry is registered
-- Specification-based: main() delegates to app.run() — verified with monkeypatch
+- Specification-based: main() delegates to app.cli() — verified with monkeypatch
 - Error Guessing: the entry-point module imports in a fresh interpreter
 - Specification-based: stale, redaction and Docker probe policy (ADR-011)
 """
@@ -151,22 +151,23 @@ class TestTelemetryRegistration:
 
 @pytest.mark.unit
 class TestMainEntryPoint:
-    """Verify main() delegates to app.run()."""
+    """Verify main() delegates to app.cli()."""
 
-    def test_main_calls_app_run(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """main() calls app.run() exactly once with no arguments.
+    def test_main_calls_app_cli(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """main() calls app.cli() exactly once with no arguments.
 
-        Technique: Specification-based — entry-point contract.
-        Monkeypatching app.run avoids starting a real event loop.
+        Technique: Specification-based — entry-point contract; app.run() would
+        ignore --help and --version (cap-fsh0). Monkeypatching app.cli avoids
+        starting a real event loop.
         """
         from wallpanel_control import main as main_module
 
-        mock_run = MagicMock()
-        monkeypatch.setattr(main_module.app, "run", mock_run)
+        mock_cli = MagicMock()
+        monkeypatch.setattr(main_module.app, "cli", mock_cli)
 
         main_module.main()
 
-        mock_run.assert_called_once_with()
+        mock_cli.assert_called_once_with()
 
     def test_main_module_imports_in_a_fresh_interpreter(self) -> None:
         """The entry-point module imports with nothing else loaded first.

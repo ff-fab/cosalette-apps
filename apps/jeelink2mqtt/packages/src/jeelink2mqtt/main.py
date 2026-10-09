@@ -420,5 +420,10 @@ async def mapping_list_unknown(
 
 
 def main() -> None:
-    """Start the application."""
-    app.run()
+    """Start the application, or answer a CLI flag such as ``--version``.
+
+    ``cli()`` rather than ``run()``: ``run()`` ignores the command line, so
+    ``--help``, ``--version``, ``--dry-run`` and ``--env-file`` would start
+    the service instead.
+    """
+    app.cli()

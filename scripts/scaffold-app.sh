@@ -120,8 +120,13 @@ app = cosalette.App(
 
 
 def main() -> None:
-    """CLI entry point."""
-    app.run()
+    """Start the application, or answer a CLI flag such as \`\`--version\`\`.
+
+    \`\`cli()\`\` rather than \`\`run()\`\`: \`\`run()\`\` ignores the command line, so
+    \`\`--help\`\`, \`\`--version\`\`, \`\`--dry-run\`\` and \`\`--env-file\`\` would start
+    the service instead.
+    """
+    app.cli()
 
 
 if __name__ == "__main__":

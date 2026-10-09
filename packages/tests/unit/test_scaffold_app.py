@@ -46,3 +46,12 @@ def test_scaffold_dockerfile_installs_from_the_lockfile() -> None:
     assert "RUN uv pip install --system --no-cache --compile-bytecode ./apps" not in (
         scaffold
     )
+
+
+def test_scaffold_main_parses_the_command_line() -> None:
+    """Generated apps answer --help and --version instead of starting (cap-fsh0)."""
+    scaffold = (_REPO_ROOT / "scripts/scaffold-app.sh").read_text(encoding="utf-8")
+
+    assert "    app.cli()\n" in scaffold
+    assert r"\`\`cli()\`\` rather than" in scaffold
+    assert "    app.run()\n" not in scaffold
