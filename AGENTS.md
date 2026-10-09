@@ -67,6 +67,16 @@ taskfiles/
 - The decision and rationale live in
   [docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md](docs/adr/ADR-011-native-cosalette-health-probe-as-the-default-docker-healthcheck-exit-codes-still-heal.md).
 
+## Container Image Contents
+
+- App images ship without rich, pygments, markdown-it-py and mdurl: the Dockerfile
+  exports with `uv export --prune rich`, installs the export with `--no-deps`, and sets
+  `ENV TYPER_USE_RICH=0` so every Typer CLI prints plain Click help. Keep all three in
+  new Dockerfiles (`scripts/scaffold-app.sh` does). Never exclude rich in the root
+  pyproject — dev tooling needs it.
+- The decision and rationale live in
+  [docs/adr/ADR-013-app-images-ship-without-rich.md](docs/adr/ADR-013-app-images-ship-without-rich.md).
+
 ## Tooling
 
 - **Use `task <name>` for all operations** (`task --list` to discover). Fall back to

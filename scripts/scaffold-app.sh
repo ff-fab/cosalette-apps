@@ -344,22 +344,29 @@ COPY apps/$NAME/packages/src/ apps/$NAME/packages/src/
 #
 # \`uv pip install ./apps/<app>\` on its own does NOT read uv.lock, so export the
 # locked graph first. --no-emit-workspace omits workspace members (not on PyPI);
-# --no-deps on the second step keeps uv from re-resolving what step one pinned.
+# --no-deps on both steps keeps uv from re-resolving the locked graph.
+#
+# --prune rich drops rich, pygments, markdown-it-py and mdurl (about 14 MB): typer
+# only uses them for coloured --help, and TYPER_USE_RICH=0 below switches every
+# Typer CLI to plain Click output (docs/adr/ADR-013).
 #
 # --compile-bytecode writes the .pyc files at build time, because the non-root
 # user cannot write them at runtime. compileall does the same for the standard
 # library, whose .pyc the python:alpine base image strips.
+# -x skips the GUI, turtle and pydoc help modules no app imports (about 3.5 MB).
 #
 # uv is bind-mounted for this step only and pip is uninstalled: the app needs
 # neither at runtime, and together they would add about 53 MB to the image.
 RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \\
-    uv export --frozen --no-dev --no-emit-workspace --package $NAME \\
+    uv export --frozen --no-dev --no-emit-workspace --prune rich --package $NAME \\
       --format requirements-txt >/tmp/requirements.txt \\
-    && uv pip install --system --no-cache --compile-bytecode -r /tmp/requirements.txt \\
+    && uv pip install --system --no-cache --compile-bytecode --no-deps -r /tmp/requirements.txt \\
     && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/$NAME \\
     && uv pip uninstall --system pip \\
-    && python -m compileall -q -j0 "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \\
+    && python -m compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\.py\$' "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \\
     && rm /tmp/requirements.txt
+
+ENV TYPER_USE_RICH=0
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \\

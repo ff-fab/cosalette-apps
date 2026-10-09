@@ -8,6 +8,7 @@ Test Techniques Used:
 - Structural: Verify commands (command/state) are exactly {display, system/action}
 - Structural: Verify no telemetry is registered
 - Specification-based: main() delegates to app.run() — verified with monkeypatch
+- Error Guessing: the entry-point module imports in a fresh interpreter
 - Specification-based: stale, redaction and Docker probe policy (ADR-011)
 """
 
@@ -15,6 +16,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -164,6 +167,23 @@ class TestMainEntryPoint:
         main_module.main()
 
         mock_run.assert_called_once_with()
+
+    def test_main_module_imports_in_a_fresh_interpreter(self) -> None:
+        """The entry-point module imports with nothing else loaded first.
+
+        Technique: Error Guessing — cosalette 0.11.2 raises a circular
+        ImportError when ``Router()`` runs before ``App`` was resolved, which
+        killed the image on start (cap-nycg). In-process tests miss it because
+        earlier imports load ``App`` first, so this runs a new interpreter.
+        """
+        result = subprocess.run(  # noqa: S603 — fixed interpreter and argument vector
+            [sys.executable, "-c", "import wallpanel_control.main"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.unit
