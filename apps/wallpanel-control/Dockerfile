@@ -18,8 +18,9 @@ COPY apps/wallpanel-control/packages/src/ apps/wallpanel-control/packages/src/
 # gets exactly the versions in uv.lock, verified by hash.
 #
 # --no-emit-workspace omits the workspace members themselves (they are not on
-# PyPI); --no-deps on the second step keeps uv from re-resolving what step one
-# already pinned.
+# PyPI); --no-deps on both steps keeps uv from re-resolving the locked graph (the
+# export already lists every transitive dependency, and re-resolving would pull
+# the latest rich back in behind --prune).
 #
 # No --require-hashes: the root pyproject's [tool.uv] constraint-dependencies are
 # security floors (aiohttp>=3.14.3 and friends), and uv rejects any unpinned
@@ -31,16 +32,25 @@ COPY apps/wallpanel-control/packages/src/ apps/wallpanel-control/packages/src/
 # every start and every CLI call recompiles all imports. compileall does the
 # same for the standard library, whose .pyc the python:alpine base image strips.
 #
+# --prune rich drops rich and the packages only it needs (pygments,
+# markdown-it-py, mdurl): about 14 MB that typer loads only to colour --help and
+# usage errors. cosalette 0.11.1+ falls back to plain Click help without them;
+# TYPER_USE_RICH=0 below does the same for Typer apps the app builds itself
+# (docs/adr/ADR-013).
+#
 # uv is bind-mounted for this step only and pip is uninstalled: the app needs
 # neither at runtime, and together they would add about 53 MB to the image.
 RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
-    uv export --frozen --no-dev --no-emit-workspace --package wallpanel-control \
+    uv export --frozen --no-dev --no-emit-workspace --prune rich --package wallpanel-control \
       --format requirements-txt >/tmp/requirements.txt \
-    && uv pip install --system --no-cache --compile-bytecode -r /tmp/requirements.txt \
+    && uv pip install --system --no-cache --compile-bytecode --no-deps -r /tmp/requirements.txt \
     && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/wallpanel-control \
     && uv pip uninstall --system pip \
     && python -m compileall -q -j0 "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
     && rm /tmp/requirements.txt
+
+# Plain Click help and errors: rich is not installed (see --prune rich above).
+ENV TYPER_USE_RICH=0
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \

@@ -18,7 +18,7 @@ def test_scaffold_dockerfile_compiles_installed_bytecode() -> None:
     """Generated images compile Python bytecode during the build."""
     scaffold = (_REPO_ROOT / "scripts/scaffold-app.sh").read_text(encoding="utf-8")
 
-    assert "--compile-bytecode -r /tmp/requirements.txt" in scaffold
+    assert "--compile-bytecode --no-deps -r /tmp/requirements.txt" in scaffold
     assert "--compile-bytecode --no-deps ./apps/$NAME" in scaffold
     assert "python -m compileall -q -j0" in scaffold
     assert r"\$(python -c" in scaffold
@@ -38,7 +38,11 @@ def test_scaffold_dockerfile_installs_from_the_lockfile() -> None:
     """Generated images install the uv.lock graph, not a fresh PyPI resolve."""
     scaffold = (_REPO_ROOT / "scripts/scaffold-app.sh").read_text(encoding="utf-8")
 
-    assert "uv export --frozen --no-dev --no-emit-workspace --package $NAME" in scaffold
+    assert (
+        "uv export --frozen --no-dev --no-emit-workspace --prune rich --package $NAME"
+        in scaffold
+    )
+    assert "ENV TYPER_USE_RICH=0" in scaffold
     assert "RUN uv pip install --system --no-cache --compile-bytecode ./apps" not in (
         scaffold
     )

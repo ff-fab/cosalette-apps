@@ -3,6 +3,8 @@
 Test Techniques Used:
 - Error Guessing: build-only tools (uv, pip) leaking into the runtime image,
   where they add about 53 MB and nothing uses them.
+- Error Guessing: rich, pygments and markdown-it-py (about 14 MB) creeping back
+  into the image through a re-resolve, or a Typer CLI crashing without them.
 """
 
 from __future__ import annotations
@@ -42,3 +44,23 @@ def test_dockerfile_ships_neither_uv_nor_pip(app_dir: str) -> None:
         contents,
     )
     assert "uv pip uninstall --system pip" in contents
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("app_dir", _APP_DIRS)
+def test_dockerfile_ships_without_rich(app_dir: str) -> None:
+    """rich and its helpers stay out of the image, and Typer knows it (ADR-013).
+
+    Technique: Error Guessing — without ``--no-deps`` on the locked install, uv
+    re-resolves typer's dependencies and pulls the latest rich back in behind
+    ``--prune``; without ``TYPER_USE_RICH=0``, a Typer app the image ships
+    itself (wiz2mqtt-discover) crashes on ``--help``.
+    """
+    dockerfile = _REPO_ROOT / "apps" / app_dir / "Dockerfile"
+    contents = dockerfile.read_text(encoding="utf-8")
+
+    assert re.search(r"(?m)^\s*uv export [^\n]*--prune rich\b", contents)
+    assert "uv pip install --system --no-cache --compile-bytecode --no-deps -r" in (
+        contents
+    )
+    assert re.search(r"(?m)^ENV TYPER_USE_RICH=0$", contents)
