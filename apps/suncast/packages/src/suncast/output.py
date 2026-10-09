@@ -124,14 +124,13 @@ class OutputManager:
                 result.errors.append(str(exc))
                 logger.warning("PNG rasterization failed: %s", exc)
 
-        # -- MQTT output ---------------------------------------------------
-        if ctx is not None:
-            await self._publish_mqtt(ctx, svg_content, png_bytes, result)
-
         # -- Filesystem output ---------------------------------------------
+        # Start file delivery before MQTT so a stalled publish cannot suppress
+        # it. The task remains tracked if the telemetry handler is cancelled.
+        task: asyncio.Task[None] | None = None
         if s.output_path is not None:
-            task = self._write_task
-            if task is not None and not task.done():
+            previous = self._write_task
+            if previous is not None and not previous.done():
                 msg = "Skipping filesystem output; previous write still running"
                 result.errors.append(msg)
                 logger.warning(msg)
@@ -143,7 +142,15 @@ class OutputManager:
                 )
                 self._write_task = task
                 task.add_done_callback(self._write_finished)
-                await asyncio.shield(task)
+
+        # -- MQTT output ---------------------------------------------------
+        if ctx is not None:
+            await self._publish_mqtt(ctx, svg_content, png_bytes, result)
+
+        # Wait for this cycle's output, without cancelling the worker if the
+        # telemetry handler times out or is otherwise cancelled.
+        if task is not None:
+            await asyncio.shield(task)
 
         if result.errors:
             logger.warning(

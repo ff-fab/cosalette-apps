@@ -204,10 +204,11 @@ A hung `/output` mount can outlast cosalette's implicit handler timeout (one pol
 interval), cancelling that cycle with a `TimeoutError`. The worker thread cannot be
 cancelled, so suncast keeps track of it and skips later file writes while it remains
 stuck. This prevents repeated failures from filling the shared thread pool. MQTT
-publishing runs before file output, so the retained state continues updating. The
-files remain at their last successful version until the mount recovers or the process
-restarts; watch for `Skipping filesystem output; previous write still running`
-in the logs.
+publishing and file output proceed independently, so either can continue when the
+other stalls. The files remain at their last successful version until the mount
+recovers or the process restarts. Watch for `Skipping filesystem output; previous
+write still running` in the logs. File output starts before MQTT publishing, so a
+stalled broker does not prevent the current image from reaching `/output`.
 
 **No stale exit or restart.** suncast sets neither `exit_after_stale` nor
 `restart_on_stale`. A failing cycle is a computation or render error on the same

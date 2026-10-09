@@ -376,6 +376,40 @@ class TestDeliverOffloadsBlockingWork:
         svg_calls = [c for c in mock_ctx.publish.await_args_list if c.args[0] == "svg"]
         assert len(svg_calls) == 2
 
+    async def test_stalled_mqtt_does_not_skip_filesystem_output(
+        self, tmp_path: Path
+    ) -> None:
+        """Filesystem output starts even while MQTT publish is pending."""
+        write_finished = threading.Event()
+        publish_started = asyncio.Event()
+        release_publish = asyncio.Event()
+        ctx = AsyncMock()
+
+        async def stalled_publish(*_args: object, **_kwargs: object) -> None:
+            publish_started.set()
+            await release_publish.wait()
+
+        ctx.publish = AsyncMock(side_effect=stalled_publish)
+        manager = OutputManager(OutputSettings(output_path=tmp_path))
+        write_files = manager._write_files
+
+        def observed_write(*args: object) -> None:
+            write_files(*args)  # type: ignore[arg-type]
+            write_finished.set()
+
+        with patch.object(manager, "_write_files", side_effect=observed_write):
+            delivery = asyncio.create_task(
+                manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE, ctx=ctx)
+            )
+            await publish_started.wait()
+            assert await asyncio.to_thread(write_finished.wait, 1)
+            assert (tmp_path / "shadow.svg").read_text(encoding="utf-8") == SAMPLE_SVG
+
+            delivery.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await delivery
+            release_publish.set()
+
 
 @pytest.mark.unit
 class TestDeliveryResult:
