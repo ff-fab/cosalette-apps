@@ -5,6 +5,7 @@ Test Techniques Used:
   where they add about 53 MB and nothing uses them.
 - Error Guessing: rich, pygments and markdown-it-py (about 14 MB) creeping back
   into the image through a re-resolve, or a Typer CLI crashing without them.
+- Error Guessing: bytecode for stdlib modules no app imports.
 """
 
 from __future__ import annotations
@@ -64,3 +65,20 @@ def test_dockerfile_ships_without_rich(app_dir: str) -> None:
         contents
     )
     assert re.search(r"(?m)^ENV TYPER_USE_RICH=0$", contents)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("app_dir", _APP_DIRS)
+def test_dockerfile_skips_bytecode_for_unused_stdlib(app_dir: str) -> None:
+    """compileall leaves out the GUI, turtle and pydoc help modules.
+
+    Technique: Error Guessing — no app imports them, yet their .pyc add about
+    3.5 MB to every image.
+    """
+    dockerfile = _REPO_ROOT / "apps" / app_dir / "Dockerfile"
+    contents = dockerfile.read_text(encoding="utf-8")
+
+    assert (
+        "compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\\.py$'"
+        in contents
+    )

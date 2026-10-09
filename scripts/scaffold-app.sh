@@ -353,6 +353,7 @@ COPY apps/$NAME/packages/src/ apps/$NAME/packages/src/
 # --compile-bytecode writes the .pyc files at build time, because the non-root
 # user cannot write them at runtime. compileall does the same for the standard
 # library, whose .pyc the python:alpine base image strips.
+# -x skips the GUI, turtle and pydoc help modules no app imports (about 3.5 MB).
 #
 # uv is bind-mounted for this step only and pip is uninstalled: the app needs
 # neither at runtime, and together they would add about 53 MB to the image.
@@ -362,7 +363,7 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \\
     && uv pip install --system --no-cache --compile-bytecode --no-deps -r /tmp/requirements.txt \\
     && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/$NAME \\
     && uv pip uninstall --system pip \\
-    && python -m compileall -q -j0 "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \\
+    && python -m compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\.py\$' "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \\
     && rm /tmp/requirements.txt
 
 ENV TYPER_USE_RICH=0

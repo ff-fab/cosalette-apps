@@ -31,6 +31,8 @@ COPY apps/wallpanel-control/packages/src/ apps/wallpanel-control/packages/src/
 # non-root user that cannot write into root-owned site-packages, so without them
 # every start and every CLI call recompiles all imports. compileall does the
 # same for the standard library, whose .pyc the python:alpine base image strips.
+# -x skips the GUI, turtle and pydoc help modules no app imports (about 3.5 MB of
+# .pyc); Python still runs them, it just compiles them in memory.
 #
 # --prune rich drops rich and the packages only it needs (pygments,
 # markdown-it-py, mdurl): about 14 MB that typer loads only to colour --help and
@@ -46,7 +48,7 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
     && uv pip install --system --no-cache --compile-bytecode --no-deps -r /tmp/requirements.txt \
     && uv pip install --system --no-cache --compile-bytecode --no-deps ./apps/wallpanel-control \
     && uv pip uninstall --system pip \
-    && python -m compileall -q -j0 "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
+    && python -m compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\.py$' "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
     && rm /tmp/requirements.txt
 
 # Plain Click help and errors: rich is not installed (see --prune rich above).
