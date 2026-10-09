@@ -1,10 +1,10 @@
 FROM python:3.14-alpine
 
-# bluez provides `bluetoothctl`, which bleak uses to detect the host BlueZ
-# version over D-Bus. Without it bleak warns and blindly assumes BlueZ 5.55+,
-# which could select an incompatible code path against an older host stack.
-# Small image-size cost in exchange for reliable BlueZ version detection.
-RUN apk add --no-cache bluez
+# No bluez package. bleak runs `bluetoothctl --version` only to refuse BlueZ
+# older than 5.55, and inside the image that reports the image's bluez, not the
+# host bluetoothd it talks to over D-Bus. Without it bleak logs one warning and
+# assumes 5.55+, which saves about 11 MB. The host requirement is documented in
+# docs/getting-started.md.
 
 WORKDIR /app
 

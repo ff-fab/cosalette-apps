@@ -9,9 +9,14 @@ your Airthings Wave sensor over BLE, and verifying that data flows to your MQTT 
 | ------------------- | --------------------------------------------------- |
 | **Raspberry Pi**    | Any model with Bluetooth (Pi 3/4/5 or Zero 2 W)    |
 | **Airthings Wave**  | Wave (1st-gen), or Wave 2 / Wave Radon (2nd-gen); BLE-capable. The protocol generation is auto-detected per connection. |
-| **BlueZ**           | Linux Bluetooth stack (pre-installed on Raspbian)   |
+| **BlueZ**           | Linux Bluetooth stack, 5.55 or newer (pre-installed on Raspberry Pi OS) |
 | **MQTT broker**     | Mosquitto, EMQX, or any MQTT 3.1.1+ broker         |
 | **Python**          | 3.14+ (Docker image includes this)                  |
+
+The image cannot see the host's BlueZ version, so check it on the host with
+`bluetoothctl --version`. At the first connection the app logs one bleak warning,
+`Could not determine BlueZ version, bluetoothctl not available, assuming 5.55+`. That
+is expected and harmless when the host meets the requirement.
 
 ### Finding Your Sensor MAC Address
 
