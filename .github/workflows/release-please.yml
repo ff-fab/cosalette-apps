@@ -58,6 +58,9 @@ jobs:
     needs: release
     if: needs.release.outputs.docker_matrix != ''
     strategy:
+      # One app's failed build (e.g. a Docker Hub 429 on the base image)
+      # must not cancel the other apps' image pushes for the same release.
+      fail-fast: false
       matrix: ${{ fromJSON(needs.release.outputs.docker_matrix) }}
     uses: ./.github/workflows/docker-app.yml
     permissions:
