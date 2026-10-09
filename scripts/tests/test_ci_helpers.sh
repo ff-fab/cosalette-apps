@@ -100,6 +100,22 @@ EXPECTED=new TIMEOUT=1 run_ci_wait
 assert_eq "times out" 1 "$RC"
 assert_contains "timeout message" "Timed out" "$OUTPUT"
 
+echo "ci-wait: exits at once when a merged PR can never reach the expected SHA"
+fixture head-merged
+echo "old MERGED" > "$GH_FIXTURE/heads"
+echo "$ok" > "$GH_FIXTURE/checks"
+EXPECTED=new run_ci_wait
+assert_eq "exit code" 4 "$RC"
+assert_contains "explains why" "PR #1 is MERGED" "$OUTPUT"
+assert_eq "polled the head once" 1 "$(cat "$GH_FIXTURE/heads.n")"
+
+echo "ci-wait: still reports a merged PR's checks when the head matches"
+fixture merged-match
+echo "new MERGED" > "$GH_FIXTURE/heads"
+echo "$ok" > "$GH_FIXTURE/checks"
+EXPECTED=new run_ci_wait
+assert_eq "exit code" 0 "$RC"
+
 echo "ci-wait: waits for workflows that register after the first finished poll"
 fixture late-registration
 echo new > "$GH_FIXTURE/heads"

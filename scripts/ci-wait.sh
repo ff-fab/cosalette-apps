@@ -19,6 +19,7 @@
 #   1 — one or more checks failed
 #   2 — usage error (missing PR number or gh not available)
 #   3 — persistent API failure (e.g. expired token)
+#   4 — PR is merged/closed and its head can never reach the expected SHA
 
 set -euo pipefail
 
@@ -90,7 +91,9 @@ while true; do
         exit 1
     fi
 
-    head=$(gh pr view "$PR" --json headRefOid --jq '.headRefOid' 2>/dev/null) || head=""
+    head="" state=""
+    read -r head state < <(gh pr view "$PR" --json headRefOid,state \
+        --jq '"\(.headRefOid) \(.state)"' 2>/dev/null) || true
     if [ -z "$head" ]; then
         settled=""
         settled_since=""
@@ -102,6 +105,12 @@ while true; do
         EXPECTED_SHA="$head"
     fi
     if [ "$head" != "$EXPECTED_SHA" ]; then
+        # A merged or closed PR's head is frozen: it will never move.
+        if [ -n "$state" ] && [ "$state" != "OPEN" ]; then
+            echo "Error: PR #${PR} is ${state} at ${head:0:12}; it will never reach ${EXPECTED_SHA:0:12}." >&2
+            echo "Commits pushed after the merge need a new PR." >&2
+            exit 4
+        fi
         api_failures=0
         settled=""
         settled_since=""
