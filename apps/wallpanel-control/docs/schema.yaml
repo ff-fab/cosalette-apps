@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: wallpanel-control
-  version: 0.3.9 # x-release-please-version
+  version: 0.3.10 # x-release-please-version
   x-cosalette-contract-version: '2'
 channels:
   availability:

@@ -141,7 +141,7 @@ wheels = [
 
 [[package]]
 name = "airthings2mqtt"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "apps/airthings2mqtt" }
 dependencies = [
     { name = "bleak" },
@@ -362,7 +362,7 @@ wheels = [
 
 [[package]]
 name = "caldates2mqtt"
-version = "0.2.9"
+version = "0.2.10"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
@@ -1035,7 +1035,7 @@ wheels = [
 
 [[package]]
 name = "gas2mqtt"
-version = "0.2.9"
+version = "0.2.10"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -1277,7 +1277,7 @@ wheels = [
 
 [[package]]
 name = "jeelink2mqtt"
-version = "0.2.9"
+version = "0.2.10"
 source = { editable = "apps/jeelink2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -2945,7 +2945,7 @@ wheels = [
 
 [[package]]
 name = "suncast"
-version = "0.2.9"
+version = "0.2.10"
 source = { editable = "apps/suncast" }
 dependencies = [
     { name = "astral" },
@@ -3185,7 +3185,7 @@ wheels = [
 
 [[package]]
 name = "velux2mqtt"
-version = "0.2.9"
+version = "0.2.10"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3228,7 +3228,7 @@ wheels = [
 
 [[package]]
 name = "vito2mqtt"
-version = "0.2.9"
+version = "0.2.10"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3257,7 +3257,7 @@ dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }
 
 [[package]]
 name = "wallpanel-control"
-version = "0.3.9"
+version = "0.3.10"
 source = { editable = "apps/wallpanel-control" }
 dependencies = [
     { name = "asyncssh" },
@@ -3503,7 +3503,7 @@ wheels = [
 
 [[package]]
 name = "wiz2mqtt"
-version = "0.2.12"
+version = "0.2.13"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
     { name = "cosalette" },
