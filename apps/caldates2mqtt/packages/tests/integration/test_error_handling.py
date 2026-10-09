@@ -29,6 +29,9 @@ from caldates2mqtt.settings import CalDates2MqttSettings
 
 from .conftest import TOPIC_PREFIX, make_harness, run_app_briefly
 
+_DEVICE_ERROR = {f"{TOPIC_PREFIX}/garbage/error": 1}
+"""Run each error scenario until the calendar's error topic is published."""
+
 
 def _fail_retry_budget(reader: FakeCalDavReader, error: Exception) -> None:
     """Configure *reader* to exhaust the telemetry retry budget with *error*."""
@@ -61,7 +64,7 @@ class TestErrorPublishing:
         )
 
         # Act
-        await run_app_briefly(harness)
+        await run_app_briefly(harness, expected_publishes=_DEVICE_ERROR)
 
         # Assert — per-device error topic has messages
         harness.assert_published(f"{TOPIC_PREFIX}/garbage/error")
@@ -84,7 +87,7 @@ class TestErrorPublishing:
         )
 
         # Act
-        await run_app_briefly(harness)
+        await run_app_briefly(harness, expected_publishes={f"{TOPIC_PREFIX}/error": 1})
 
         # Assert
         harness.assert_published(f"{TOPIC_PREFIX}/error")
@@ -107,7 +110,7 @@ class TestErrorPublishing:
         )
 
         # Act
-        await run_app_briefly(harness)
+        await run_app_briefly(harness, expected_publishes=_DEVICE_ERROR)
 
         # Assert
         harness.assert_published(f"{TOPIC_PREFIX}/garbage/error")
@@ -130,7 +133,7 @@ class TestErrorPublishing:
         )
 
         # Act
-        await run_app_briefly(harness)
+        await run_app_briefly(harness, expected_publishes=_DEVICE_ERROR)
 
         # Assert
         harness.assert_published(f"{TOPIC_PREFIX}/garbage/error")
@@ -153,7 +156,7 @@ class TestErrorPublishing:
         )
 
         # Act
-        await run_app_briefly(harness)
+        await run_app_briefly(harness, expected_publishes=_DEVICE_ERROR)
 
         # Assert
         error_topic = f"{TOPIC_PREFIX}/garbage/error"
@@ -180,7 +183,7 @@ class TestErrorPublishing:
         )
 
         # Act
-        await run_app_briefly(harness)
+        await run_app_briefly(harness, expected_publishes=_DEVICE_ERROR)
 
         # Assert
         error_topic = f"{TOPIC_PREFIX}/garbage/error"

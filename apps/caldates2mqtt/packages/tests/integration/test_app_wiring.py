@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
-from collections.abc import Callable
 
 import pytest
 from cosalette.testing import AppHarness, ManualClock
@@ -23,7 +22,13 @@ from cosalette.testing import AppHarness, ManualClock
 from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import CalDavConnectionError
 
-from .conftest import TOPIC_PREFIX, calendar_config, make_harness, run_app_briefly
+from .conftest import (
+    TOPIC_PREFIX,
+    calendar_config,
+    make_harness,
+    run_app_briefly,
+    wait_until,
+)
 
 # ---------------------------------------------------------------------------
 # Module-level helpers
@@ -40,19 +45,6 @@ def _first_state_events(harness: AppHarness, device_key: str) -> list[dict]:
     messages = harness.mqtt.get_messages_for(state_topic)
     assert messages, f"No state messages on {state_topic}"
     return json.loads(messages[0][0])["events"]
-
-
-async def _wait_until(predicate: Callable[[], bool], timeout: float = 5.0) -> None:
-    """Wait until *predicate* holds, polling the real event loop.
-
-    ``ManualClock.settle(until=...)`` counts loop rounds, not wall time, so it
-    gives up early when the awaited work hops through a worker thread and the
-    runner is starved of CPU. The timeout only bounds a hang; it never delays
-    a passing run.
-    """
-    async with asyncio.timeout(timeout):
-        while not predicate():
-            await asyncio.sleep(0.005)
 
 
 # ---------------------------------------------------------------------------
@@ -226,10 +218,10 @@ class TestAvailability:
             # Each retry backoff sleeps on the manual clock. Wait until the
             # failed read is consumed, let the backoff register, then release it.
             for remaining in (3, 2, 1):
-                await _wait_until(lambda r=remaining: len(reader.failure_sequence) <= r)
+                await wait_until(lambda r=remaining: len(reader.failure_sequence) <= r)
                 await clock.settle()
                 await harness.advance_time(10)
-            await _wait_until(lambda: not reader.failure_sequence)
+            await wait_until(lambda: not reader.failure_sequence)
             await harness.wait_for_publish_count(availability_topic, 2)
 
             # Assert

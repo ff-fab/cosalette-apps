@@ -25,6 +25,7 @@ from .conftest import (
     TOPIC_PREFIX,
     _FastPollSettings,
     make_harness,
+    wait_until,
 )
 
 # ---------------------------------------------------------------------------
@@ -45,24 +46,23 @@ async def _run_with_command(
     harness: AppHarness,
     command_topic: str,
     command_payload: dict | str,
-    *,
-    startup_wait: float = 0.3,
-    post_command_wait: float = 0.2,
 ) -> None:
     """Start the harness, deliver a command, then shut down cleanly.
+
+    The command is delivered once the startup read has published, and
+    shutdown waits for the re-read it triggers. The gating ``ManualClock``
+    holds every cron tick, so that second state publish is the command's.
 
     Args:
         harness: Pre-built AppHarness wrapping the integration app.
         command_topic: MQTT topic to deliver the command on.
         command_payload: Command payload dict (or raw string for error-path tests).
-        startup_wait: Seconds to wait after startup before delivering.
-        post_command_wait: Seconds to wait after command before shutdown.
     """
     task = asyncio.create_task(harness.run())
     try:
-        await asyncio.sleep(startup_wait)
+        await wait_until(lambda: _state_publish_count(harness, "garbage") >= 1)
         await harness.inject_command(None, command_payload, topic=command_topic)
-        await asyncio.sleep(post_command_wait)
+        await wait_until(lambda: _state_publish_count(harness, "garbage") >= 2)
         harness.shutdown_event.set()
         await task
     finally:
