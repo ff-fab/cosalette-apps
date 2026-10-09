@@ -124,3 +124,24 @@ It stays in every image until cap-fbbg removes it where redundant. It also still
 ### Additional Negative Consequences
 
 - Every Dockerfile carries the exclusion permanently. Upstream accepts this repetition as a known cost and will not remove it with a framework change.
+
+## Amendment (2026-10-09) — Corrective
+
+**Rationale:** The decision set ENV TYPER_USE_RICH=0 in every image so that every Typer CLI prints plain Click output. cosalette 0.11.3 already does that for its own Typer instances when rich, pygments or markdown_it is missing (_utils._typer_options()). The previous amendment kept the variable until cap-fbbg removed it where redundant; this amendment does that.
+
+> **Justification for amendment (not supersession):** The prune and --no-deps install, which carry the size saving, stay unchanged. Only the environment variable is dropped, and only from the eight images whose CLIs all come from cosalette. Rebuilt images show the same exit codes and no traceback for --help, --version and a usage error, so no operator-visible behaviour changes.
+
+### Revised Decision
+
+Every app Dockerfile keeps `uv export --prune rich` and the `--no-deps` install. `ENV TYPER_USE_RICH=0` is set only in an image whose app builds its own `typer.Typer()`; today that is wiz2mqtt (wiz2mqtt-discover, wiz2mqtt-openhab). The scaffold no longer adds it; its Dockerfile comment tells a new app with its own Typer CLI to set it. `test_dockerfile_sets_typer_use_rich_only_for_own_typer_cli` in `packages/tests/unit/test_app_image_contents.py` requires the variable exactly in the apps whose sources call `typer.Typer(`.
+
+!!! note "Editorial note (2026-10-09)"
+    Verified on 2026-10-09 by rebuilding all nine images from this change: in each, `--help` and `--version` exit 0 and `--bogus` exits 2, with no traceback; the wiz2mqtt-discover and wiz2mqtt-openhab --help exit 0. None of the images contains rich, pygments or markdown_it.
+
+### Additional Positive Consequences
+
+- The variable now marks the one app that needs it, instead of sitting in every image as noise
+
+### Additional Negative Consequences
+
+- An app that later adds its own Typer CLI must add the variable; the test fails until it does

@@ -70,10 +70,14 @@ taskfiles/
 ## Container Image Contents
 
 - App images ship without rich, pygments, markdown-it-py and mdurl: the Dockerfile
-  exports with `uv export --prune rich`, installs the export with `--no-deps`, and sets
-  `ENV TYPER_USE_RICH=0` so every Typer CLI prints plain Click help. Keep all three in
-  new Dockerfiles (`scripts/scaffold-app.sh` does). Never exclude rich in the root
-  pyproject — dev tooling needs it.
+  exports with `uv export --prune rich` and installs the export with `--no-deps`. Keep
+  both in new Dockerfiles (`scripts/scaffold-app.sh` does). cosalette's own CLIs fall
+  back to plain Click help; an app that builds its own `typer.Typer()` (today only
+  wiz2mqtt) also sets `ENV TYPER_USE_RICH=0`, and only such an app does. Never exclude
+  rich in the root pyproject — dev tooling needs it.
+- Apps depend on plain `cosalette`, never `cosalette[schema]`: runtime discovery needs
+  no extra. The extra goes in the app's `dev` dependency group for the `schema:*` tasks.
+  `test_app_image_contents.py` enforces both rules (ADR-004 amendment).
 - The decision and rationale live in
   [docs/adr/ADR-013-app-images-ship-without-rich.md](docs/adr/ADR-013-app-images-ship-without-rich.md).
 

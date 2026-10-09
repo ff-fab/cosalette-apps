@@ -9,6 +9,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -42,7 +43,8 @@ def test_scaffold_dockerfile_installs_from_the_lockfile() -> None:
         "uv export --frozen --no-dev --no-emit-workspace --prune rich --package $NAME"
         in scaffold
     )
-    assert "ENV TYPER_USE_RICH=0" in scaffold
+    assert re.search(r"(?m)^ENV TYPER_USE_RICH", scaffold) is None
+    assert 'dev = ["cosalette[schema]>=0.11.3,<0.12"]' in scaffold
     assert "RUN uv pip install --system --no-cache --compile-bytecode ./apps" not in (
         scaffold
     )

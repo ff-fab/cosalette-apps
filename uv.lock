@@ -145,16 +145,24 @@ version = "0.3.1"
 source = { editable = "apps/airthings2mqtt" }
 dependencies = [
     { name = "bleak" },
-    { name = "cosalette", extra = ["schema"] },
+    { name = "cosalette" },
     { name = "dbus-fast" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "bleak", specifier = ">=1.0" },
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
     { name = "dbus-fast", specifier = ">=1.83.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "annotated-doc"
@@ -358,14 +366,22 @@ version = "0.2.9"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
+    { name = "cosalette" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "cosalette", extra = ["schema"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "caldav", specifier = ">=1.4" },
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "caldav"
@@ -1022,19 +1038,27 @@ name = "gas2mqtt"
 version = "0.2.9"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
-    { name = "cosalette", extra = ["schema"] },
+    { name = "cosalette" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "smbus2" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "smbus2", specifier = ">=0.6.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "ghp-import"
@@ -1256,19 +1280,27 @@ name = "jeelink2mqtt"
 version = "0.2.9"
 source = { editable = "apps/jeelink2mqtt" }
 dependencies = [
-    { name = "cosalette", extra = ["schema"] },
+    { name = "cosalette" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pylacrosse" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pylacrosse", specifier = ">=0.4" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "jeepney"
@@ -2930,6 +2962,11 @@ png = [
     { name = "cairosvg" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">=3.9" },
@@ -2940,6 +2977,9 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 provides-extras = ["png", "http"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "tinycss2"
@@ -3148,19 +3188,27 @@ name = "velux2mqtt"
 version = "0.2.9"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
-    { name = "cosalette", extra = ["schema"] },
+    { name = "cosalette" },
     { name = "gpiozero" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
     { name = "gpiozero", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "virtualenv"
@@ -3183,21 +3231,29 @@ name = "vito2mqtt"
 version = "0.2.9"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
-    { name = "cosalette", extra = ["schema"] },
+    { name = "cosalette" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyserial" },
     { name = "pyserial-asyncio" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pyserial-asyncio", specifier = ">=0.6" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "wallpanel-control"
@@ -3205,14 +3261,22 @@ version = "0.3.9"
 source = { editable = "apps/wallpanel-control" }
 dependencies = [
     { name = "asyncssh" },
+    { name = "cosalette" },
+]
+
+[package.dev-dependencies]
+dev = [
     { name = "cosalette", extra = ["schema"] },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "asyncssh", specifier = ">=2.20.0" },
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "wassima"
@@ -3442,17 +3506,25 @@ name = "wiz2mqtt"
 version = "0.2.12"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
-    { name = "cosalette", extra = ["schema"] },
+    { name = "cosalette" },
     { name = "pywizlight" },
     { name = "typer" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "cosalette", extra = ["schema"] },
+]
+
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
     { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
     { name = "typer", specifier = ">=0.12" },
 ]
+
+[package.metadata.requires-dev]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
 
 [[package]]
 name = "x-wr-timezone"

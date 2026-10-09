@@ -35,7 +35,7 @@ COPY apps/gas2mqtt/packages/src/ apps/gas2mqtt/packages/src/
 # --prune rich drops rich and the packages only it needs (pygments,
 # markdown-it-py, mdurl): about 14 MB that typer loads only to colour --help and
 # usage errors. cosalette 0.11.1+ falls back to plain Click help without them;
-# TYPER_USE_RICH=0 below does the same for Typer apps the app builds itself
+# this app builds no Typer CLI of its own, so it needs no TYPER_USE_RICH=0
 # (docs/adr/ADR-013).
 #
 # uv is bind-mounted for this step only and pip is uninstalled: the app needs
@@ -52,9 +52,6 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
     && uv pip uninstall --system pip \
     && python -m compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\.py$' "$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \
     && rm /tmp/requirements.txt
-
-# Plain Click help and errors: rich is not installed (see --prune rich above).
-ENV TYPER_USE_RICH=0
 
 # Run as non-root with persistent data directory
 RUN adduser -D appuser \
