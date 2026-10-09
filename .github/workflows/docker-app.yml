@@ -24,7 +24,10 @@ jobs:
           # Anonymous Docker Hub pulls from shared runners hit 429 rate limits
           # (release run 37990075476). Resolve docker.io images through
           # Google's public pull-through mirror first; BuildKit falls back to
-          # docker.io when the mirror misses.
+          # docker.io when the mirror misses. The BuildKit daemon image itself
+          # is pulled by the Docker engine, not BuildKit, so it needs the
+          # mirror spelled out (rerun attempt 4 timed out on docker.io here).
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
           buildkitd-config-inline: |
             [registry."docker.io"]
               mirrors = ["mirror.gcr.io"]
