@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import cosalette
@@ -169,66 +170,69 @@ def make_harness(
     )
 
 
+async def wait_until(predicate: Callable[[], bool], timeout: float = 5.0) -> None:
+    """Wait until *predicate* holds, polling the real event loop.
+
+    ``ManualClock.settle(until=...)`` counts loop rounds, not wall time, so it
+    gives up early when the awaited work hops through a worker thread and the
+    runner is starved of CPU. The timeout only bounds a hang; it never delays
+    a passing run.
+    """
+    async with asyncio.timeout(timeout):
+        while not predicate():
+            await asyncio.sleep(0.005)
+
+
 async def run_app_briefly(
     harness: AppHarness,
     *,
-    wait: float = 0.3,
     expected_publishes: dict[str, int] | None = None,
+    timeout: float = 5.0,
 ) -> None:
-    """Start the harness, settle startup work, then shut it down.
+    """Start the harness, run until the expected publishes land, then shut down.
 
-    The gating :class:`ManualClock` lets startup telemetry settle without
-    continuously releasing cron and retry sleeps while shutdown is in
-    progress. Bounds publication waits and task completion to prevent hangs.
+    *expected_publishes* maps topics to the publish count to wait for and
+    defaults to one ``state`` message per calendar. Each calendar's
+    ``availability`` is awaited too, so shutdown can wait for the ``offline``
+    that follows it.
+
+    The gating :class:`ManualClock` releases cron and retry sleeps only when
+    virtual time moves, so time advances in one-second steps until the
+    publishes land. The virtual-time budget prevents a slow worker-thread read
+    from admitting unbounded cron cycles while it is pending. A step taken
+    before a runner registers its sleep releases nothing; the next step catches
+    it. *timeout* bounds a hang; it never delays a pass.
     """
+    assert isinstance(harness.settings, CalDates2MqttSettings)
+    keys = [cal.key for cal in harness.settings.calendars]
+    availability = [f"{TOPIC_PREFIX}/{key}/availability" for key in keys]
+    expected = dict.fromkeys(availability, 1) | (
+        expected_publishes
+        if expected_publishes is not None
+        else {f"{TOPIC_PREFIX}/{key}/state": 1 for key in keys}
+    )
+
+    def landed() -> bool:
+        return all(len(harness.messages_for(t)) >= n for t, n in expected.items())
+
     task = asyncio.create_task(harness.run())
     try:
-        assert isinstance(harness.settings, CalDates2MqttSettings)
-        first_calendar = harness.settings.calendars[0].key
-        await harness.wait_for_publish_count(
-            f"{TOPIC_PREFIX}/{first_calendar}/availability", 1
-        )
-        # Calendar runners are registered after discovery publication. Give
-        # that bounded startup work time to reach its gated cron sleep before
-        # moving virtual time.
-        await asyncio.sleep(wait)
-        await harness.advance_time(0)
-        if expected_publishes is None:
-            # Release one bounded cron/retry window. This preserves the error
-            # publication exercised by the integration tests without letting
-            # virtual sleeps free-run during teardown.
-            for _ in range(4):
-                await harness.advance_time(10)
-                await asyncio.sleep(wait)
-        else:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    *(
-                        harness.wait_for_publish_count(topic, count)
-                        for topic, count in expected_publishes.items()
-                    )
-                ),
-                timeout=wait,
-            )
+        async with asyncio.timeout(timeout):
+            for _ in range(30):
+                if landed():
+                    break
+                await harness.advance_time(1)
+                await asyncio.sleep(0.005)
+            else:
+                await wait_until(landed, timeout=timeout)
     finally:
-        availability_publish_counts = {
-            f"{TOPIC_PREFIX}/{cal.key}/availability": len(
-                harness.messages_for(f"{TOPIC_PREFIX}/{cal.key}/availability")
-            )
-            for cal in harness.settings.calendars
-        }
+        offline = [
+            harness.wait_for_publish_count(topic, len(harness.messages_for(topic)) + 1)
+            for topic in availability
+        ]
         harness.shutdown_event.set()
         try:
-            await asyncio.wait_for(
-                asyncio.gather(
-                    task,
-                    *(
-                        harness.wait_for_publish_count(topic, count + 1)
-                        for topic, count in availability_publish_counts.items()
-                    ),
-                ),
-                timeout=wait * 5,
-            )
+            await asyncio.wait_for(asyncio.gather(task, *offline), timeout=timeout)
         finally:
             if not task.done():
                 task.cancel()

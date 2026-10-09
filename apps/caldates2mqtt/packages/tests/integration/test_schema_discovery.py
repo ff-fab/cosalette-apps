@@ -83,7 +83,6 @@ from .conftest import TOPIC_PREFIX, calendar_config, make_harness, run_app_brief
 APP_ROOT = Path(__file__).resolve().parents[3]
 SCHEMA_PATH = APP_ROOT / "docs" / "schema.yaml"
 CALENDARS = ("birthday", "garbage")  # keys configured in .env.schema
-_DISCOVERY_WAIT_TIMEOUT = 3.0
 
 
 def _expected_config_topics(calendars: tuple[str, ...]) -> set[str]:
@@ -340,7 +339,6 @@ class TestRuntimeDiscoveryPublication:
         expected = _expected_config_topics(CALENDARS)
         await run_app_briefly(
             schema_harness,
-            wait=_DISCOVERY_WAIT_TIMEOUT,
             expected_publishes=_expected_publishes(CALENDARS),
         )
 
@@ -363,7 +361,6 @@ class TestRuntimeDiscoveryPublication:
         expected = _expected_config_topics(CALENDARS)
         await run_app_briefly(
             schema_harness,
-            wait=_DISCOVERY_WAIT_TIMEOUT,
             expected_publishes=_expected_publishes(CALENDARS),
         )
 
@@ -398,7 +395,6 @@ class TestRuntimeDiscoveryPublication:
         )
         await run_app_briefly(
             first_harness,
-            wait=_DISCOVERY_WAIT_TIMEOUT,
             expected_publishes=_expected_publishes(CALENDARS),
         )
 
@@ -410,7 +406,6 @@ class TestRuntimeDiscoveryPublication:
         )
         await run_app_briefly(
             restarted_harness,
-            wait=_DISCOVERY_WAIT_TIMEOUT,
             expected_publishes=_expected_publishes(remaining),
         )
 
@@ -437,7 +432,6 @@ class TestStateTopicsAreReal:
         """
         await run_app_briefly(
             schema_harness,
-            wait=_DISCOVERY_WAIT_TIMEOUT,
             expected_publishes=_expected_publishes(CALENDARS, include_states=True),
         )
 
@@ -457,7 +451,6 @@ class TestStateTopicsAreReal:
         """
         await run_app_briefly(
             schema_harness,
-            wait=_DISCOVERY_WAIT_TIMEOUT,
             expected_publishes=_expected_publishes(CALENDARS, include_states=True),
         )
 
