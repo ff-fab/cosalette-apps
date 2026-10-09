@@ -197,15 +197,19 @@ async def run_app_briefly(
     that follows it.
 
     The gating :class:`ManualClock` releases cron and retry sleeps only when
-    virtual time moves, so time advances in steps until the publishes land.
-    A step taken before a runner registers its sleep releases nothing; the
-    next step catches it. *timeout* bounds a hang; it never delays a pass.
+    virtual time moves, so time advances in one-second steps until the
+    publishes land. The virtual-time budget prevents a slow worker-thread read
+    from admitting unbounded cron cycles while it is pending. A step taken
+    before a runner registers its sleep releases nothing; the next step catches
+    it. *timeout* bounds a hang; it never delays a pass.
     """
     assert isinstance(harness.settings, CalDates2MqttSettings)
     keys = [cal.key for cal in harness.settings.calendars]
     availability = [f"{TOPIC_PREFIX}/{key}/availability" for key in keys]
     expected = dict.fromkeys(availability, 1) | (
-        expected_publishes or {f"{TOPIC_PREFIX}/{key}/state": 1 for key in keys}
+        expected_publishes
+        if expected_publishes is not None
+        else {f"{TOPIC_PREFIX}/{key}/state": 1 for key in keys}
     )
 
     def landed() -> bool:
@@ -214,9 +218,13 @@ async def run_app_briefly(
     task = asyncio.create_task(harness.run())
     try:
         async with asyncio.timeout(timeout):
-            while not landed():
-                await harness.advance_time(10)
+            for _ in range(30):
+                if landed():
+                    break
+                await harness.advance_time(1)
                 await asyncio.sleep(0.005)
+            else:
+                await wait_until(landed, timeout=timeout)
     finally:
         offline = [
             harness.wait_for_publish_count(topic, len(harness.messages_for(topic)) + 1)
