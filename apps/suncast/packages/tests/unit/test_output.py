@@ -25,6 +25,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import threading
 from pathlib import Path
@@ -320,6 +321,34 @@ class TestDeliverOffloadsBlockingWork:
         # Assert
         assert threads.keys() == {"rasterize", "write_text", "write_bytes"}
         assert loop_thread not in threads.values()
+
+    async def test_cancelled_write_is_not_queued_again(self, tmp_path: Path) -> None:
+        """A timed-out filesystem call cannot consume another executor worker."""
+        started = threading.Event()
+        release = threading.Event()
+        calls = 0
+
+        def blocked_write(*_args: object) -> None:
+            nonlocal calls
+            calls += 1
+            started.set()
+            release.wait()
+
+        manager = OutputManager(OutputSettings(output_path=tmp_path))
+        with patch.object(manager, "_write_files", side_effect=blocked_write):
+            first = asyncio.create_task(manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE))
+            assert await asyncio.to_thread(started.wait, 1)
+            first.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await first
+
+            # A later cycle completes without submitting a second blocked worker.
+            await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
+            assert calls == 1
+            assert manager._write_task is not None
+
+            release.set()
+            await manager._write_task
 
 
 @pytest.mark.unit

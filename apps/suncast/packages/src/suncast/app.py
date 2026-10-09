@@ -116,7 +116,7 @@ app = cosalette.App(
 # _shadow_handler computes solar position + shadows, renders SVG, and delivers
 # output (~50ms typical, ~250ms with optional PNG) — far below the 360s poll
 # interval. Delivery runs rasterization and file writes in a worker thread, so a
-# hung /output mount stalls only this cycle. No explicit timeout= is set; it
+# hung /output mount does not block the loop. No explicit timeout= is set; it
 # relies on cosalette's F-3 implicit backstop (timeout=interval) to cancel it.
 @app.telemetry(
     name="shadow",
