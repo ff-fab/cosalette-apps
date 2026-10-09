@@ -24,6 +24,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import threading
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -282,6 +283,33 @@ class TestHandlerResponses:
 
         # Assert
         mock_web.Response.assert_called_once_with(status=500, text="no cairosvg")
+
+    async def test_png_rasterizes_off_the_loop_thread(self) -> None:
+        """GET /shadow.png runs svg_to_png in a worker thread.
+
+        Technique: Specification-based — CairoSVG must not block the loop.
+        """
+        # Arrange
+        loop_thread = threading.get_ident()
+        seen: list[int] = []
+
+        def fake_svg_to_png(*_args: object, **_kwargs: object) -> bytes:
+            seen.append(threading.get_ident())
+            return b"png"
+
+        mock_web, handlers = _build_with_mock_web(lambda: SAMPLE_SVG, HttpSettings())
+        handler = handlers["/shadow.png"]
+
+        # Act
+        with (
+            patch("suncast.http_server.web", mock_web),
+            patch("suncast.http_server.svg_to_png", side_effect=fake_svg_to_png),
+        ):
+            await handler(MagicMock())
+
+        # Assert
+        assert len(seen) == 1
+        assert seen[0] != loop_thread
 
     async def test_png_returns_png_bytes(self) -> None:
         """GET /shadow.png returns PNG with correct content type.

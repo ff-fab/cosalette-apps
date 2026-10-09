@@ -20,11 +20,14 @@ Test Techniques Used:
 - Equivalence Partitioning: PNG enabled/disabled, filesystem/MQTT paths
 - Error Guessing: Filesystem write failure, MQTT publish failure
 - Condition Coverage: All delivery channel combinations
+- Specification-based: blocking work runs off the event-loop thread
 """
 
 from __future__ import annotations
 
+import asyncio
 import base64
+import threading
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
@@ -274,6 +277,78 @@ class TestOutputManagerErrorHandling:
         assert result is SAMPLE_SUN_STATE
         assert (tmp_path / "shadow.svg").exists()
         assert not (tmp_path / "shadow.png").exists()
+
+
+@pytest.mark.unit
+class TestDeliverOffloadsBlockingWork:
+    """Specification-based: rasterization and file writes leave the loop thread.
+
+    A slow CairoSVG call or a hung output mount must not block the event loop.
+    """
+
+    async def test_rasterize_and_writes_run_in_worker_thread(
+        self, tmp_path: Path
+    ) -> None:
+        """svg_to_png, write_text and write_bytes run off the loop thread."""
+        # Arrange
+        loop_thread = threading.get_ident()
+        threads: dict[str, int] = {}
+        real_write_text = Path.write_text
+        real_write_bytes = Path.write_bytes
+
+        def fake_svg_to_png(*_args: object, **_kwargs: object) -> bytes:
+            threads["rasterize"] = threading.get_ident()
+            return FAKE_PNG
+
+        def spy_write_text(self: Path, *args: object, **kwargs: object) -> int:
+            threads["write_text"] = threading.get_ident()
+            return real_write_text(self, *args, **kwargs)  # type: ignore[arg-type]
+
+        def spy_write_bytes(self: Path, data: bytes) -> int:
+            threads["write_bytes"] = threading.get_ident()
+            return real_write_bytes(self, data)
+
+        manager = OutputManager(OutputSettings(output_path=tmp_path, png_enabled=True))
+
+        # Act
+        with (
+            patch("suncast.output.svg_to_png", side_effect=fake_svg_to_png),
+            patch.object(Path, "write_text", spy_write_text),
+            patch.object(Path, "write_bytes", spy_write_bytes),
+        ):
+            await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
+
+        # Assert
+        assert threads.keys() == {"rasterize", "write_text", "write_bytes"}
+        assert loop_thread not in threads.values()
+
+    async def test_cancelled_write_is_not_queued_again(self, tmp_path: Path) -> None:
+        """A timed-out filesystem call cannot consume another executor worker."""
+        started = threading.Event()
+        release = threading.Event()
+        calls = 0
+
+        def blocked_write(*_args: object) -> None:
+            nonlocal calls
+            calls += 1
+            started.set()
+            release.wait()
+
+        manager = OutputManager(OutputSettings(output_path=tmp_path))
+        with patch.object(manager, "_write_files", side_effect=blocked_write):
+            first = asyncio.create_task(manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE))
+            assert await asyncio.to_thread(started.wait, 1)
+            first.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await first
+
+            # A later cycle completes without submitting a second blocked worker.
+            await manager.deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
+            assert calls == 1
+            assert manager._write_task is not None
+
+            release.set()
+            await manager._write_task
 
 
 @pytest.mark.unit

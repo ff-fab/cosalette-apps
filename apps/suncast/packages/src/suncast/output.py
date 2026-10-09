@@ -27,6 +27,7 @@ Supports three delivery channels:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import logging
 from dataclasses import dataclass, field
@@ -78,6 +79,7 @@ class OutputManager:
 
     def __init__(self, settings: OutputSettings) -> None:
         self._settings = settings
+        self._write_task: asyncio.Task[None] | None = None
 
     async def deliver(
         self,
@@ -100,6 +102,11 @@ class OutputManager:
             ctx: cosalette DeviceContext for MQTT publishing.  ``None``
                 skips MQTT delivery.
 
+        Rasterization and file writes run in a worker thread
+        (:func:`asyncio.to_thread`) so a slow CairoSVG call or a hung output
+        mount never blocks the event loop. A cancelled write remains in flight;
+        later cycles do not queue additional writes until it completes.
+
         Returns:
             The *sun_state* dict, suitable as a telemetry return value.
         """
@@ -110,22 +117,33 @@ class OutputManager:
         png_bytes: bytes | None = None
         if s.png_enabled:
             try:
-                png_bytes = svg_to_png(
-                    svg_content, width=s.png_width, height=s.png_height
+                png_bytes = await asyncio.to_thread(
+                    svg_to_png, svg_content, width=s.png_width, height=s.png_height
                 )
             except RasterizationError as exc:
                 result.errors.append(str(exc))
                 logger.warning("PNG rasterization failed: %s", exc)
 
-        # -- Filesystem output ---------------------------------------------
-        if s.output_path is not None:
-            self._write_file(s.output_path, "shadow.svg", svg_content, result)
-            if png_bytes is not None:
-                self._write_file(s.output_path, "shadow.png", png_bytes, result)
-
         # -- MQTT output ---------------------------------------------------
         if ctx is not None:
             await self._publish_mqtt(ctx, svg_content, png_bytes, result)
+
+        # -- Filesystem output ---------------------------------------------
+        if s.output_path is not None:
+            task = self._write_task
+            if task is not None and not task.done():
+                msg = "Skipping filesystem output; previous write still running"
+                result.errors.append(msg)
+                logger.warning(msg)
+            else:
+                task = asyncio.create_task(
+                    asyncio.to_thread(
+                        self._write_files, s.output_path, svg_content, png_bytes, result
+                    )
+                )
+                self._write_task = task
+                task.add_done_callback(self._write_finished)
+                await asyncio.shield(task)
 
         if result.errors:
             logger.warning(
@@ -134,7 +152,32 @@ class OutputManager:
 
         return sun_state
 
+    def _write_finished(self, task: asyncio.Task[None]) -> None:
+        """Clear completed writes and consume errors after caller cancellation."""
+        if self._write_task is task:
+            self._write_task = None
+        if not task.cancelled():
+            error = task.exception()
+            if error is not None:
+                logger.error(
+                    "Filesystem output worker failed",
+                    exc_info=(type(error), error, error.__traceback__),
+                )
+
     # -- private helpers ---------------------------------------------------
+
+    @classmethod
+    def _write_files(
+        cls,
+        directory: Path,
+        svg_content: str,
+        png_bytes: bytes | None,
+        result: DeliveryResult,
+    ) -> None:
+        """Write ``shadow.svg`` and, if given, ``shadow.png`` to *directory*."""
+        cls._write_file(directory, "shadow.svg", svg_content, result)
+        if png_bytes is not None:
+            cls._write_file(directory, "shadow.png", png_bytes, result)
 
     @staticmethod
     def _write_file(

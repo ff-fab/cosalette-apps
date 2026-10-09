@@ -200,10 +200,20 @@ Watch the logs for `Output delivery completed with N error(s)`. Only a handler t
 keeps raising, a computation or render error, turns `shadow` `"stale"` in the heartbeat
 and `offline`, and the built-in HTTP server keeps serving the last image.
 
+A hung `/output` mount can outlast cosalette's implicit handler timeout (one poll
+interval), cancelling that cycle with a `TimeoutError`. The worker thread cannot be
+cancelled, so suncast keeps track of it and skips later file writes while it remains
+stuck. This prevents repeated failures from filling the shared thread pool. MQTT
+publishing runs before file output, so the retained state continues updating. The
+files remain at their last successful version until the mount recovers or the process
+restarts; watch for `Skipping filesystem output; previous write still running`
+in the logs.
+
 **No stale exit or restart.** suncast sets neither `exit_after_stale` nor
 `restart_on_stale`. A failing cycle is a computation or render error on the same
-geometry and settings, which a restart would repeat. suncast has no adapter, so there
-is nothing for `restart_on_stale` to restart.
+geometry and settings, which a restart would repeat, or a hung `/output` mount, which
+a restart does not unhang. suncast has no adapter, so there is nothing for
+`restart_on_stale` to restart.
 
 **Docker health status.** The image sets `COSALETTE_HEALTH_FILE` and probes it with
 `cosalette-health` every 60 s, so `docker ps` shows `healthy` or `unhealthy`. With
@@ -212,13 +222,15 @@ container turns `unhealthy` when `shadow` is stale or the health file is older t
 180 s. An `unhealthy` status restarts nothing: the exit codes below do. With a
 read-only root filesystem, mount a tmpfs on `/tmp` for the health file.
 
-**Loop-stall watchdog.** Solar position, shadow computation, SVG rendering, PNG
-rasterization and the file writes run synchronously on the event loop, for about 50 ms
-(250 ms with PNG) per cycle. A write to a hung `/output` mount would block the loop for
-good, and the freshness watchdog runs on that loop too. `compose.yml` therefore sets
-`COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds. Cosalette prints thread stacks and
-exits with code 6, after which `restart: unless-stopped` recovers the process. Set the
-variable in the shell or `.env` to override the value.
+**Loop-stall watchdog.** PNG rasterization (about 200 ms with CairoSVG) and the file
+writes run in a worker thread, off the event loop. Solar position, shadow computation
+and SVG rendering still run on the loop, for about 50 ms per cycle. A hung file write
+does not wedge the loop; suncast skips subsequent writes while the worker remains
+stuck. As a backstop against any other wedge, `compose.yml` sets
+`COSALETTE_LOOP_STALL_TIMEOUT` to `120` seconds: if the loop does not run for that
+long, cosalette prints thread stacks and exits with code 6, after which
+`restart: unless-stopped` recovers the process. Set the variable in the shell or `.env`
+to override the value.
 
 | Exit code | Cause                                                                 |
 | --------- | --------------------------------------------------------------------- |
