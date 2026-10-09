@@ -9,7 +9,7 @@ tags: [packaging, dependencies, cli]
 
 ## Status
 
-Accepted **Date:** 2026-10-09
+Accepted **Date:** 2026-10-09 | Amended **Date:** 2026-10-09
 
 ## Context
 
@@ -95,4 +95,32 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Help in the images is plain text; the dev environment keeps the rich panels, so the two look different
 - A new app Dockerfile must carry the three changes; the scaffold template and test_app_image_contents.py enforce them
 
-_2026-10-09_
+## Amendment (2026-10-09) — Additive
+
+**Rationale:** cosalette 0.11.3 documented a uv sync recipe for slim images. We asked upstream to move its CLI from Typer to Click so that a default install carries no rich (cap-6d4k). Upstream deferred that again (cos-l8bp) and instead made this ADR's pattern the official rule for images installed from uv export. This amendment records that ADR-013 follows upstream and that the workaround is permanent, not a stopgap.
+
+### Additional Sub-Decision: Follow the upstream install-time rule; the workaround is permanent
+
+Upstream (cosalette, cos-l8bp) now documents this ADR's pattern as the rule for export-based images: `uv export --frozen --no-dev --prune rich` followed by `uv pip install --no-deps`. `--no-deps` is required, because without it uv resolves typer's dependencies again and installs rich, pygments, markdown-it-py and mdurl. Upstream verified this with uv 0.6.17 and 0.12.19. This repo installs from `uv export` rather than `uv sync`, so it follows that rule and does not diverge from upstream.
+
+Upstream deferred the Click migration. It will reconsider only if one of these happens:
+
+- Typer is no longer maintained.
+- rich can no longer be skipped at install time.
+- A measured runtime problem appears with the Typer packages that remain.
+
+Upstream accepts that a default `pip install cosalette` still installs rich, and that every slim image has to repeat the exclusion. It treats both as known costs, not as reasons to reconsider. Moving to Click would save only about 0.3 MB per image: typer, shellingham and annotated-doc take 1.38 MB, and click takes 1.10 MB (typer 0.27.3, click 8.5.0).
+
+The workaround is therefore permanent. It consists of `--prune rich` and `--no-deps` in the 9 Dockerfiles and `scripts/scaffold-app.sh`, plus the guard `test_dockerfile_ships_without_rich` in `packages/tests/unit/test_app_image_contents.py`. Revisit it only if upstream reconsiders under one of the conditions above.
+
+### Additional Sub-Decision: TYPER_USE_RICH=0 stays for now
+
+Upstream's recipe needs `TYPER_USE_RICH=0` only for apps that build their own Typer CLI; here that is wiz2mqtt alone. cosalette 0.11.3 already switches its own Typer instances to plain Click output when rich is missing (`_utils._typer_options()`).
+
+The gas2mqtt image was built from main and run with the variable unset. `--help`, `--version`, usage errors, `schema` and `health` all kept their exit codes and printed no traceback. The `--help` and usage-error output was byte-identical with and without the variable. The variable is therefore redundant for apps without their own Typer CLI.
+
+It stays in every image until cap-fbbg removes it where redundant. It also still guards wiz2mqtt.
+
+### Additional Negative Consequences
+
+- Every Dockerfile carries the exclusion permanently. Upstream accepts this repetition as a known cost and will not remove it with a framework change.
