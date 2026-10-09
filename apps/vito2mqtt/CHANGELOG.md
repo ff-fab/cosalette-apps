@@ -7,7 +7,6 @@
 
 * ship app images without rich (ADR-013) ([#351](https://github.com/ff-fab/cosalette-apps/issues/351)) ([5194d12](https://github.com/ff-fab/cosalette-apps/commit/5194d1259738b59773935c79e3fe8bb7ce155cc1))
 * **vito2mqtt:** adopt native health probe ([#342](https://github.com/ff-fab/cosalette-apps/issues/342)) ([b7d9205](https://github.com/ff-fab/cosalette-apps/commit/b7d9205007aae3c14a654dda0cdccec6e0023df6))
-* **wallpanel-control:** adopt native health probe ([#343](https://github.com/ff-fab/cosalette-apps/issues/343)) ([2238135](https://github.com/ff-fab/cosalette-apps/commit/223813583d7e0efd6c684f973e267ae2f8091946))
 
 
 ### Bug Fixes
