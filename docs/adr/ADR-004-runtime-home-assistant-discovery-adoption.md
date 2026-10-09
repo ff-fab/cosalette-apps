@@ -9,7 +9,7 @@ tags: [mqtt, architecture, dependencies, lifecycle, testing]
 
 ## Status
 
-Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11 | Amended **Date:** 2026-09-12
+Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-10-09
 
 - All seven per-app adoption tasks are closed.
 - `schema:ha-discovery` is deprecated for adopted apps (cap-8sw, 2026-09-11).
@@ -152,3 +152,30 @@ _Scale: 1 (poor) to 5 (excellent)_
 
 !!! note "Editorial note (2026-09-12)"
     `docs/schema.yaml`, `schema:generate`, and `schema:check` remain supported for schema validation and offline openHAB generation.
+
+## Amendment (2026-10-09) — Corrective
+
+**Rationale:** The adoption rule told every app to depend on cosalette[schema], because runtime discovery needed PyYAML and jsonschema. Since cosalette 0.11.1 and 0.11.3 (upstream #512, ADR-033 amendment) app.discovery() needs no optional extra, and the shipped guidance says not to add cosalette[schema] for it. Only a YAML schema file, on_publish validation and the cosalette schema CLI need the extra. The rule now contradicts the framework and ships about 5.7 MB per image (PyYAML, jsonschema, jsonschema-specifications, referencing, rpds-py, attrs) that no app uses at runtime (cap-bmld).
+
+> **Justification for amendment (not supersession):** Only the dependency line of the adoption rule changes. Runtime discovery, the per-app verdicts, the schema:generate and schema:check gates and the test rule all stay as decided, so no adopted app changes behaviour. The migration is one pyproject line per app plus a relock, and dropping the extra fails closed: if a deployment ever sets a schema path without it, start-up stops with a pip install cosalette[schema] hint instead of skipping discovery silently.
+
+### Revised Decision
+
+Adoption rule, dependency line only: apps depend on plain `cosalette` and declare `cosalette[schema]` in their own `dev` dependency group, because the `schema:*` tasks in `taskfiles/PythonApp.yml` run `uv run --package <app> cosalette schema ...`. An app that needs PyYAML or jsonschema at runtime for its own reasons declares it directly. `test_runtime_export_omits_schema_extra` in `packages/tests/unit/test_app_image_contents.py` runs the image's `uv export --no-dev` per app and keeps an allowlist with the reason for each exception: caldates2mqtt (caldav depends on PyYAML) and suncast (its geometry loader reads YAML). The schema-missing WARNING check in the adoption rules no longer applies. The rest of the decision stands.
+
+```toml
+[project]
+dependencies = ["cosalette>=0.11.3,<0.12", ...]
+
+[dependency-groups]
+dev = ["cosalette[schema]>=0.11.3,<0.12"]
+```
+
+### Additional Positive Consequences
+
+- Eight app images drop jsonschema and its dependencies, and seven also drop PyYAML. Measured on rebuilt images (docker image size, 2026-10-09): about 8.3 MB less for airthings2mqtt, gas2mqtt, jeelink2mqtt, velux2mqtt, vito2mqtt, wallpanel-control and wiz2mqtt, and 4.9 MB less for caldates2mqtt, which keeps PyYAML for caldav
+- The repo matches the cosalette guidance again, and a test catches the extra returning to the runtime dependencies
+
+### Additional Negative Consequences
+
+- A deployment that wants a YAML schema file or on_publish validation must install cosalette[schema] itself; start-up fails with a hint until it does

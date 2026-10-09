@@ -11,12 +11,17 @@ authors = [
 
 dependencies = [
     "bleak>=1.0",
-    "cosalette[schema]>=0.11.3,<0.12",
+    "cosalette>=0.11.3,<0.12",
     "dbus-fast>=1.83.0",
 ]
 
 [project.scripts]
 airthings2mqtt = "airthings2mqtt.main:main"
+
+[dependency-groups]
+# The schema:* tasks run `cosalette schema ...`, which needs the extra; the app
+# itself does not (ADR-004).
+dev = ["cosalette[schema]>=0.11.3,<0.12"]
 
 [build-system]
 requires = ["hatchling"]

@@ -35,8 +35,8 @@ COPY apps/wiz2mqtt/packages/src/ apps/wiz2mqtt/packages/src/
 # --prune rich drops rich and the packages only it needs (pygments,
 # markdown-it-py, mdurl): about 14 MB that typer loads only to colour --help and
 # usage errors. cosalette 0.11.1+ falls back to plain Click help without them;
-# TYPER_USE_RICH=0 below does the same for Typer apps the app builds itself
-# (docs/adr/ADR-013).
+# TYPER_USE_RICH=0 below does the same for the Typer CLIs this app builds
+# itself, wiz2mqtt-discover and wiz2mqtt-openhab (docs/adr/ADR-013).
 #
 # uv is bind-mounted for this step only and pip is uninstalled: the app needs
 # neither at runtime, and together they would add about 53 MB to the image.

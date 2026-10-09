@@ -231,6 +231,11 @@ dependencies = [
 [project.scripts]
 $NAME = "$PKG_NAME.main:main"
 
+[dependency-groups]
+# The schema:* tasks run cosalette schema, which needs the extra; the app
+# itself does not (ADR-004).
+dev = ["cosalette[schema]>=0.11.3,<0.12"]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -350,8 +355,9 @@ COPY apps/$NAME/packages/src/ apps/$NAME/packages/src/
 # --no-deps on both steps keeps uv from re-resolving the locked graph.
 #
 # --prune rich drops rich, pygments, markdown-it-py and mdurl (about 14 MB): typer
-# only uses them for coloured --help, and TYPER_USE_RICH=0 below switches every
-# Typer CLI to plain Click output (docs/adr/ADR-013).
+# only uses them for coloured --help, and cosalette falls back to plain Click
+# output without them. An app that builds its own typer.Typer() also needs
+# ENV TYPER_USE_RICH=0 (docs/adr/ADR-013).
 #
 # --compile-bytecode writes the .pyc files at build time, because the non-root
 # user cannot write them at runtime. compileall does the same for the standard
@@ -372,8 +378,6 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \\
     && uv pip uninstall --system pip \\
     && python -m compileall -q -j0 -x '/(idlelib|tkinter|turtledemo|pydoc_data)/|/turtle\.py\$' "\$(python -c 'import sysconfig; print(sysconfig.get_path("stdlib"))')" \\
     && rm /tmp/requirements.txt
-
-ENV TYPER_USE_RICH=0
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \\
