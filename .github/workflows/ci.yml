@@ -117,22 +117,22 @@ jobs:
         with:
           run-cmd: task reuse:lint
           token: ${{ secrets.GITHUB_TOKEN }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+          dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
       - name: Check agent config integrity inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task check:agents
           token: ${{ secrets.GITHUB_TOKEN }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+          dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
       - name: Run agent-config script test suite inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task check:agents:test
           token: ${{ secrets.GITHUB_TOKEN }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+          dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # Repo-root unit and script regression suites (cap-890, cap-w1cr).
   # Framework-contract and cross-app-convention tests (e.g. the ADR-006 MQTT
@@ -157,8 +157,8 @@ jobs:
         with:
           run-cmd: task lint && task test:unit && task test:scripts
           token: ${{ secrets.GITHUB_TOKEN }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+          dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # Security audit — runs on shared or app changes to catch workflow/dep/source issues
   security:
@@ -177,8 +177,8 @@ jobs:
         with:
           run-cmd: task security:audit
           token: ${{ secrets.GITHUB_TOKEN }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+          dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # hadolint over every Dockerfile (cap-jrpf). Runs on the runner, not inside
   # the devcontainer, because it needs the Docker daemon. Cheap, so it runs
@@ -219,8 +219,8 @@ jobs:
     with:
       app: ${{ matrix.app }}
     secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+      DOCKERHUB_TOKEN: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # Merge gate — the single required status check for branch protection.
   # Always runs; passes when all upstream jobs succeed or are skipped.

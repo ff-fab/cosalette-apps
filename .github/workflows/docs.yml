@@ -42,15 +42,27 @@ jobs:
       - name: Discover doc-enabled apps
         id: discover
         run: |
-          apps=$(for f in apps/*/zensical.toml; do [ -f "$f" ] && basename "$(dirname "$f")"; done | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          app_names=()
+          for config in apps/*/zensical.toml; do
+            [[ -f "$config" ]] || continue
+            app=$(basename "$(dirname "$config")")
+            if [[ ! "$app" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+              echo "::error::Rejected app name failing slug validation"
+              exit 1
+            fi
+            app_names+=("$app")
+          done
+          apps=$(printf '%s\n' "${app_names[@]}" | jq -R -s -c 'split("\n") | map(select(. != ""))')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
       # Build dorny/paths-filter config dynamically from discovered apps
       - name: Build path filters
         id: build-filters
+        env:
+          DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
           filters="root:"$'\n'"  - 'docs/**'"$'\n'"  - 'zensical.toml'"
-          for app in $(echo '${{ steps.discover.outputs.apps }}' | jq -r '.[]'); do
+          for app in $(printf '%s' "$DISCOVERED_APPS" | jq -r '.[]'); do
             filters="$filters"$'\n'"${app}:"$'\n'"  - 'apps/${app}/docs/**'"$'\n'"  - 'apps/${app}/zensical.toml'"
           done
           # Write to file to avoid quoting issues
@@ -66,13 +78,18 @@ jobs:
       # On push/pull_request: build only what changed
       - name: Resolve build targets
         id: result
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
+          FILTER_CHANGES: ${{ steps.filter.outputs.changes }}
+          ROOT_CHANGED: ${{ steps.filter.outputs.root }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "root=true" >> "$GITHUB_OUTPUT"
-            echo 'apps=${{ steps.discover.outputs.apps }}' >> "$GITHUB_OUTPUT"
+            echo "apps=$DISCOVERED_APPS" >> "$GITHUB_OUTPUT"
           else
-            apps=$(echo '${{ steps.filter.outputs.changes }}' | jq -c '[.[] | select(. != "root")]')
-            root="${{ steps.filter.outputs.root }}"
+            apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "root")]')
+            root="$ROOT_CHANGED"
             echo "root=$root" >> "$GITHUB_OUTPUT"
             echo "apps=$apps" >> "$GITHUB_OUTPUT"
           fi
@@ -93,8 +110,8 @@ jobs:
         with:
           run-cmd: task docs:build
           token: ${{ secrets.GITHUB_TOKEN }}
-          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
-          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+          dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
       - name: Upload docs artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -114,8 +131,8 @@ jobs:
     with:
       app: ${{ matrix.app }}
     secrets:
-      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-      DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+      DOCKERHUB_USERNAME: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
+      DOCKERHUB_TOKEN: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # Merge artifacts with cached site and deploy to GitHub Pages
   deploy:
@@ -166,8 +183,9 @@ jobs:
           path: artifacts
 
       - name: Overlay new artifacts onto site
+        env:
+          ALL_APPS: ${{ needs.detect.outputs.all_apps }}
         run: |
-          all_apps='${{ needs.detect.outputs.all_apps }}'
           for art_dir in artifacts/docs-*/; do
             [ -d "$art_dir" ] || continue
             name=$(basename "$art_dir" | sed 's/^docs-//')
@@ -176,7 +194,7 @@ jobs:
               # Use the discovered app list (not merged/*/) to avoid excluding
               # root-owned directories like assets/ and stylesheets/.
               excludes=()
-              for app in $(echo "$all_apps" | jq -r '.[]'); do
+              for app in $(printf '%s' "$ALL_APPS" | jq -r '.[]'); do
                 excludes+=("--exclude=$app")
               done
               rsync -a --delete --exclude='.*' "${excludes[@]}" "$art_dir" merged/
