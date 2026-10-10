@@ -14,7 +14,7 @@ import json
 import logging
 import time
 from collections.abc import Awaitable, Callable, Sequence
-from typing import Annotated, cast
+from typing import Annotated, Literal, cast
 
 import cosalette
 from cosalette import DeviceStore, EntityNotifier, Optional
@@ -110,8 +110,8 @@ async def bulb_entity_tick(
 
     # A push cached before the last signal change is not an answer after it
     # (ADR-007 amendment 2026-09-19): only a poll of the bulb itself clears
-    # the stale mark.
-    if name in state.stale_answers:
+    # the stale mark. A pending boot check needs a real read too (cap-m6nh).
+    if name in state.stale_answers or name in state.boot_checks:
         port.invalidate_cache(config.ip)
     observation_generation = state.desired_state_generation.get(name, 0)
     issued_at = time.monotonic()
@@ -198,6 +198,10 @@ async def _handle_read_success(
     # boot event) also needs to run the return path when a desired state exists.
     if was_unreachable and _has_desired_state_to_restore(state, store, name):
         state.phase[name] = "reconnect"
+    if await _boot_check_finds_drift(
+        port, config.ip, state, store, name, bulb_state, observation_generation
+    ):
+        state.phase[name] = "reconnect"
     if state.phase.get(name, "steady") == "reconnect":
         try:
             return await _run_return_path(
@@ -216,6 +220,38 @@ async def _handle_read_success(
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, bulb_state, belief)
+
+
+async def _boot_check_finds_drift(
+    port: WizBulbPort,
+    ip: str,
+    state: SharedState,
+    store: DeviceStore | None,
+    name: str,
+    observed: BulbState,
+    observation_generation: int,
+) -> bool:
+    """Whether the read after an answering firstBeat misses the desired state.
+
+    A quick power cycle can miss no poll and leave the bulb at its boot
+    default (cap-m6nh). Comparing this uncached read with the desired state
+    re-arms reconnect for that case only, so a duplicate startup broadcast
+    still replays nothing (cap-ie6m). A read that raced a command proves
+    nothing, so the check waits for the next read, as it does after a
+    failed read.
+    """
+    if (
+        name not in state.boot_checks
+        or state.desired_state_generation.get(name, 0) != observation_generation
+    ):
+        return False
+    state.boot_checks.discard(name)
+    desired = intent.resolve_desired_state(state, store, name)
+    if desired is None or state.phase.get(name) == "reconnect":
+        return False
+    caps = await port.get_capabilities(ip)
+    expected = intent.desired_state_to_set_state_kwargs(desired)
+    return not _kwargs_match_observed(expected, observed, caps)
 
 
 def _source_signal_at(
@@ -784,35 +820,44 @@ def _make_boot_handler(
         # the 60s wait, and resets the failure counter since the bulb has
         # visibly returned. WiZ emits firstBeat repeatedly during startup;
         # after a confirmed restore, do not turn each duplicate into another
-        # return path. A queued command still needs one.
-        if not _boot_should_rearm(state, name):
+        # return path. A queued command still needs one. Otherwise the next
+        # read decides whether the bulb lost its state (cap-m6nh).
+        action = _boot_action(state, name)
+        if action == "ignore":
             return
-        state.phase[name] = "reconnect"
-        state.consecutive_failures[name] = 0
+        if action == "check":
+            state.boot_checks.add(name)
+        else:
+            state.phase[name] = "reconnect"
+            state.consecutive_failures[name] = 0
         notify(name)
 
     return _on_boot
 
 
-def _boot_should_rearm(state: SharedState, name: str) -> bool:
+def _boot_action(state: SharedState, name: str) -> Literal["rearm", "check", "ignore"]:
     """Accept firstBeat for a return, not duplicate startup broadcasts.
 
     A bulb that still answers re-arms only while return work is unfinished:
     no confirmed return-path write yet, or a queued command. A desired state
     written by an observation or a direct command is already on the bulb, so
     it never makes a duplicate firstBeat replay the whole state (cap-ie6m).
+    Once that work is done, ``"check"`` defers the decision to the next read
+    (:func:`_boot_check_finds_drift`), since a quick power cycle looks the same.
     """
     if name in state.restore_retry_exhausted:
-        return False
+        return "ignore"
     retry_at = state.restore_retry_at.get(name)
     if retry_at is not None and time.monotonic() < retry_at:
-        return False
+        return "ignore"
     if not state.bulb_answered.get(name, False) or name in state.stale_answers:
-        return True
+        return "rearm"
     if name not in state.desired_state:
-        return False
+        return "ignore"
     applied = state.last_applied.get(name)
-    return applied is None or not applied.confirmed or name in state.pending_commands
+    if applied is None or not applied.confirmed or name in state.pending_commands:
+        return "rearm"
+    return "check"
 
 
 async def _mark_online_once(
