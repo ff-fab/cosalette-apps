@@ -94,20 +94,12 @@ def desired_state_to_set_state_kwargs(desired: DesiredState) -> SetStateKwargs:
     ``None`` regardless of what the stored appearance holds, since a dark
     lamp must not flash its old colour and a WiZ bulb only applies an
     appearance while it is on. ``ON`` sends ``state=True`` and the full
-    appearance in the same call, mirroring :meth:`DesiredState.as_bulb_state`.
+    appearance in the same call, with one colour mode
+    (:func:`bulb_state_to_set_state_kwargs`).
     """
     if desired.state == "OFF":
         return off_kwargs()
-    appearance = desired.appearance
-    return {
-        "state": True,
-        "brightness": appearance.brightness,
-        "hue": appearance.hue,
-        "saturation": appearance.saturation,
-        "color_temp_kelvin": appearance.color_temp_kelvin,
-        "scene": appearance.scene,
-        "speed": appearance.speed,
-    }
+    return bulb_state_to_set_state_kwargs(desired.as_bulb_state())
 
 
 def desired_state_to_dict(desired: DesiredState) -> dict[str, Any]:
@@ -365,13 +357,19 @@ def _pending_as_bulb_state(command: PendingCommand | None) -> BulbState:
 
 
 def bulb_state_to_set_state_kwargs(bulb_state: BulbState) -> SetStateKwargs:
-    """Translate a bulb state into a complete ``set_state`` write."""
+    """Translate a bulb state into a complete ``set_state`` write.
+
+    The write carries one colour mode. A bulb running a scene may report the
+    scene's colour temperature or RGB next to ``sceneId``; the scene wins, so
+    a replay never sends a scene and a colour together (cap-4h48).
+    """
+    scene_set = bulb_state.scene is not None
     return {
         "state": bulb_state.state,
         "brightness": bulb_state.brightness,
-        "hue": bulb_state.hue,
-        "saturation": bulb_state.saturation,
-        "color_temp_kelvin": bulb_state.color_temp_kelvin,
+        "hue": None if scene_set else bulb_state.hue,
+        "saturation": None if scene_set else bulb_state.saturation,
+        "color_temp_kelvin": None if scene_set else bulb_state.color_temp_kelvin,
         "scene": bulb_state.scene,
         "speed": bulb_state.effect_speed,
     }

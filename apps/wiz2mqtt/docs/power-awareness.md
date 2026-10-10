@@ -119,8 +119,9 @@ occurs:
 3. Else, wiz2mqtt accepts the state that the bulb reports as the new desired state.
 
 A write to restore `OFF` sends only `OFF`. A write to restore `ON` sends `ON` and the
-appearance (brightness, colour or scene) in one command. wiz2mqtt reads the state back
-after each write. The comparison allows for the bulb's own rounding: brightness in whole
+appearance (brightness, colour or scene) in one command. The command carries one colour
+mode: a bulb that runs a scene can also report a colour temperature, and the scene wins.
+wiz2mqtt reads the state back after each write. The comparison allows for the bulb's own rounding: brightness in whole
 percent, the 10 % minimum that WiZ firmware applies to a dimmer write, and the hue of a
 very pale colour. Any hue confirms for white (saturation
 `0`). It tries a maximum of three times in total. If all three attempts

@@ -1845,6 +1845,31 @@ class TestCtModeRestore:
         assert state.last_applied["office"].confirmed is True
         assert state.phase["office"] == "steady"
 
+    async def test_scene_observation_with_temp_restores_only_the_scene(self) -> None:
+        """Technique: Regression (cap-4h48) — a white scene may report its
+        temp next to sceneId; the replay must carry one colour mode."""
+        from pywizlight import PilotParser  # noqa: PLC0415
+
+        observed = _parse_state(
+            [PilotParser({"state": True, "sceneId": 11, "temp": 2700, "dimming": 50})]
+        )
+        assert observed is not None
+        adapter = FakeWizBulbAdapter()
+        adapter.inject_push(_IP, observed)
+        state = SharedState()
+        ctx = FakeDeviceContext()
+        config = _config(restore_previous_state=True)
+        await _tick(ctx, config, adapter, state)
+        state.phase["office"] = "reconnect"
+
+        await _tick(ctx, config, adapter, state)
+
+        [(_, kwargs)] = adapter.set_state_calls
+        assert kwargs["scene"] == 11
+        assert kwargs["color_temp_kelvin"] is None
+        assert kwargs["hue"] is None
+        assert state.last_applied["office"].confirmed is True
+
     async def test_persisted_scene_zero_restores_without_a_scene(self) -> None:
         """Technique: Regression — a store written by 0.2.13 heals on load."""
         raw = desired_state_to_dict(_DESIRED_ON)
