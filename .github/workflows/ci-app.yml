@@ -5,6 +5,12 @@ on:
       app:
         required: true
         type: string
+    # Optional: absent on fork PRs, where devcontainer-run skips the login.
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
 
 env:
   # Image reference used by the devcontainer-run composite action
@@ -29,16 +35,22 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:lint
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Validate AsyncAPI schema inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:schema:check
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Check complexity and duplication inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:complexity && task ${{ inputs.app }}:similarity
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
   typecheck:
     runs-on: ubuntu-latest
@@ -54,6 +66,8 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:typecheck
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
 
   test:
     runs-on: ubuntu-latest
@@ -69,6 +83,8 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:ci:test:unit
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
       - uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
         if: always()
         with:
@@ -79,3 +95,5 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:ci:test:integration
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -5,6 +5,12 @@ on:
       app:
         required: true
         type: string
+    # Optional: absent on fork PRs, where devcontainer-run skips the login.
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: false
+      DOCKERHUB_TOKEN:
+        required: false
 
 env:
   # Image reference used by the devcontainer-run composite action
@@ -25,6 +31,8 @@ jobs:
         with:
           run-cmd: task ${{ inputs.app }}:docs:build
           token: ${{ secrets.GITHUB_TOKEN }}
+          dockerhub-username: ${{ secrets.DOCKERHUB_USERNAME }}
+          dockerhub-token: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Upload docs artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
