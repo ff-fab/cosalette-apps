@@ -764,12 +764,17 @@ class TestGetState:
         ]
 
         observed = await ctx.adapter.get_state(_IP)
-        await ctx.adapter.set_state(_IP, **bulb_state_to_set_state_kwargs(observed))
+        write_kwargs = bulb_state_to_set_state_kwargs(observed)
+        await ctx.adapter.set_state(_IP, **write_kwargs)
 
         kwargs = ctx.pilot_calls[-1]
         assert observed.scene == 11
+        assert observed.hue is not None
+        assert observed.saturation is not None
+        assert write_kwargs["hue"] is None
+        assert write_kwargs["saturation"] is None
         assert kwargs["scene"] == 11
-        assert "hucolor" not in kwargs
+        assert kwargs["hucolor"] is None
         assert "rgb" not in kwargs
 
     async def test_wizlight_get_state_uses_push_cache_when_fresh(
