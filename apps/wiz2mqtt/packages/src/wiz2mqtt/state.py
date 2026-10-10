@@ -123,6 +123,9 @@ class SharedState:
     A failed read keeps the check pending.
     """
 
+    boot_check_generation: dict[str, int] = field(default_factory=dict)
+    """Latest firstBeat generation that still needs a post-event read."""
+
     source_belief: dict[str, Belief] = field(default_factory=dict)
     """Each power source's last-computed belief, refreshed by its own
     telemetry tick (:mod:`wiz2mqtt.power`)."""

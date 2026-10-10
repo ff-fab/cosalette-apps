@@ -114,6 +114,7 @@ async def bulb_entity_tick(
     if name in state.stale_answers or name in state.boot_checks:
         port.invalidate_cache(config.ip)
     observation_generation = state.desired_state_generation.get(name, 0)
+    boot_check_generation = state.boot_check_generation.get(name, 0)
     issued_at = time.monotonic()
     try:
         bulb_state = await port.get_state(config.ip)
@@ -130,6 +131,7 @@ async def bulb_entity_tick(
         notify,
         bulb_state,
         observation_generation,
+        boot_check_generation,
         issued_at,
     )
 
@@ -172,6 +174,7 @@ async def _handle_read_success(
     notify: EntityNotifier,
     bulb_state: BulbState,
     observation_generation: int,
+    boot_check_generation: int,
     issued_at: float,
 ) -> dict[str, object] | None:
     """Record a post-signal answer, run the return path, and render the payload."""
@@ -199,7 +202,14 @@ async def _handle_read_success(
     if was_unreachable and _has_desired_state_to_restore(state, store, name):
         state.phase[name] = "reconnect"
     if await _boot_check_finds_drift(
-        port, config.ip, state, store, name, bulb_state, observation_generation
+        port,
+        config.ip,
+        state,
+        store,
+        name,
+        bulb_state,
+        observation_generation,
+        boot_check_generation,
     ):
         state.phase[name] = "reconnect"
     if state.phase.get(name, "steady") == "reconnect":
@@ -230,6 +240,7 @@ async def _boot_check_finds_drift(
     name: str,
     observed: BulbState,
     observation_generation: int,
+    boot_check_generation: int,
 ) -> bool:
     """Whether the read after an answering firstBeat misses the desired state.
 
@@ -242,6 +253,7 @@ async def _boot_check_finds_drift(
     """
     if (
         name not in state.boot_checks
+        or state.boot_check_generation.get(name, 0) != boot_check_generation
         or state.desired_state_generation.get(name, 0) != observation_generation
     ):
         return False
@@ -380,15 +392,15 @@ def _should_skip_read(
     being read until the evidence is firm. A signal ``off`` makes the first
     failure firm (see ``_signal_decides_off``).
 
-    The "reconnect" phase bypasses the skip too — set by the boot callback
-    (``_make_boot_handler``) reacting to the bulb's own firstBeat broadcast,
-    which arrives independently of whether this tick polls, so this is what
-    lets the belief leave "off" again once evidence does exist.
+    The "reconnect" phase and a pending boot check bypass the skip too. The
+    latter must eventually get an authoritative read even if startup timeouts
+    make a ``no_power`` source believe the bulb is off.
     """
     return (
         belief == "off"
         and state.consecutive_failures.get(name, 0) >= _FAILURE_THRESHOLD
         and state.phase.get(name) != "reconnect"
+        and name not in state.boot_checks
     )
 
 
@@ -827,6 +839,9 @@ def _make_boot_handler(
             return
         if action == "check":
             state.boot_checks.add(name)
+            state.boot_check_generation[name] = (
+                state.boot_check_generation.get(name, 0) + 1
+            )
         else:
             state.phase[name] = "reconnect"
             state.consecutive_failures[name] = 0

@@ -1637,6 +1637,62 @@ class TestBootCallback:
         assert adapter._state[_IP].state is True  # noqa: SLF001
         assert state.boot_checks == set()
 
+    async def test_first_beat_during_read_waits_for_a_post_boot_read(self) -> None:
+        """Technique: Race condition — a pre-boot answer cannot settle a boot check."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        config = _config(restore_previous_state=True)
+        store = _store_with_desired()
+        await _tick(ctx, config, adapter, state, store=store)
+        set_count = len(adapter.set_state_calls)
+        get_state = adapter.get_state
+        boot_pending = True
+
+        async def boot_after_read_starts(ip: str) -> BulbState:
+            nonlocal boot_pending
+            observed = await get_state(ip)
+            if boot_pending:
+                boot_pending = False
+                adapter.boot(ip, BulbState(False, None, None, None, None, None))
+            return observed
+
+        adapter.get_state = boot_after_read_starts  # type: ignore[method-assign]
+        await _tick(ctx, config, adapter, state, store=store)
+
+        assert len(adapter.set_state_calls) == set_count
+        assert state.boot_checks == {"office"}
+
+        await _tick(ctx, config, adapter, state, store=store)
+
+        assert len(adapter.set_state_calls) == set_count + 1
+        assert adapter._state[_IP].state is True  # noqa: SLF001
+        assert state.boot_checks == set()
+
+    async def test_pending_boot_check_bypasses_known_off_read_skip(self) -> None:
+        """Technique: Boundary Value Analysis — read past timeout threshold."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_no_power_policy_source())
+        config = _config(restore_previous_state=True)
+        store = _store_with_desired()
+        await _tick(ctx, config, adapter, state, store=store)
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+        state.source_signal["office-power"] = "off"
+        adapter.always_fail = True
+        for _ in range(_FAILURE_THRESHOLD):
+            await _tick(ctx, config, adapter, state, store=store)
+
+        assert state.boot_checks == {"office"}
+        adapter.always_fail = False
+        reads_before_retry = adapter.get_state_call_count
+
+        await _tick(ctx, config, adapter, state, store=store)
+
+        assert adapter.get_state_call_count > reads_before_retry
+        assert state.boot_checks == set()
+
     async def test_power_return_rearms_after_confirmed_restore(self) -> None:
         """Technique: Regression — stale pre-power answer is return evidence."""
         settings = build_settings(
