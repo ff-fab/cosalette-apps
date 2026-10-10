@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -98,14 +100,34 @@ async def _stop(harness: AppHarness, task: asyncio.Task[None]) -> None:
     await asyncio.gather(task, return_exceptions=True)
 
 
+async def _run_inline[T](
+    func: Callable[..., T], /, *args: object, **kwargs: object
+) -> T:
+    """Stand-in for :func:`asyncio.to_thread` that runs *func* on the loop."""
+    return func(*args, **kwargs)
+
+
 @pytest.mark.integration
-async def test_failed_delivery_keeps_shadow_fresh(tmp_path: Path) -> None:
+async def test_failed_delivery_keeps_shadow_fresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
     """An unwritable output path is logged, not a stale entity.
 
     Technique: Equivalence Partitioning — the delivery-failure partition. The
     output path is a regular file, so every write fails, yet well past the
     derived bound the heartbeat reports ``ok`` at every check.
+
+    Delivery writes in a worker thread, whose real-time completion
+    ``ManualClock.advance`` cannot observe. Under CPU load virtual time outran
+    the write, the implicit timeout cancelled the cycles and ``shadow`` went
+    ``stale``. Running the write inline keeps the failure and drops the race.
     """
+    monkeypatch.setattr(asyncio, "to_thread", _run_inline)
+    # The framework replaces root logging handlers at startup.
+    output_logger = logging.getLogger("suncast.output")
+    monkeypatch.setattr(
+        output_logger, "handlers", [*output_logger.handlers, caplog.handler]
+    )
     blocked = tmp_path / "not-a-directory"
     blocked.write_text("", encoding="utf-8")
 
@@ -113,6 +135,14 @@ async def test_failed_delivery_keeps_shadow_fresh(tmp_path: Path) -> None:
     try:
         assert set(statuses) == {"ok"}
         assert not task.done()
+        assert any(
+            record.name == "suncast.output"
+            and record.levelno == logging.WARNING
+            and record.getMessage().startswith(
+                f"Failed to write {blocked / 'shadow.svg'}:"
+            )
+            for record in caplog.records
+        )
     finally:
         await _stop(harness, task)
 
