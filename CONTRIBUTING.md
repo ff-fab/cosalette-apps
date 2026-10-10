@@ -353,6 +353,24 @@ This project follows **GitHub Flow**:
    [ADR-012](docs/adr/ADR-012-change-scoped-pre-pr-gate-with-a-shared-path-fallback.md))
 4. Open a pull request -- never push directly to `main`
 
+## Docker Hub authentication in CI
+
+Repository maintainers configure Actions repository secrets `DOCKERHUB_USERNAME` and
+`DOCKERHUB_TOKEN` for authenticated Docker Hub pulls. Create a dedicated Docker Hub
+account and a Personal Access Token with **Read** permission only, then store the
+account name and token under Settings → Secrets and variables → Actions. Use an expiry
+date; replace the token before expiry and revoke the previous token after a successful
+build. Revoke and replace it immediately if exposed.
+
+Release image builds and devcontainer publication require both secrets. CI and
+documentation builds treat them as optional and skip login unless both are present. CI
+and docs pass credentials only for `push` or `workflow_dispatch` on `refs/heads/main`.
+These callers supply empty Docker Hub inputs on PR events, including same-repository
+PRs, and use anonymous pulls. PR-controlled actions must never receive a long-lived
+registry token. Publication jobs run only from the main workflow ref, including manual
+dispatches. A manual app rebuild still checks out the requested release tag for its
+build context.
+
 ## Documentation Preview
 
 PRs that change files under `docs/` or `apps/*/docs/` automatically get a live
