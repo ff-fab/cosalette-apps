@@ -171,6 +171,25 @@ def wiz_brightness(value: int) -> int:
     return percent_to_hex(max(1, hex_to_percent(value)))
 
 
+WIZ_MIN_DIMMING_PERCENT = 10
+"""WiZ firmware clamps ``dimming`` below 10 % up to 10 % (cap-9omh)."""
+
+
+def wiz_floor_brightness(value: int) -> int:
+    """The 0-255 brightness read back from a bulb that clamps *value* to 10 %.
+
+    pywizlight writes any whole percent from 1 up, but firmware such as
+    1.33.0 applies at least :data:`WIZ_MIN_DIMMING_PERCENT`. Equal to
+    :func:`wiz_brightness` for values at or above the floor.
+    """
+    from pywizlight.utils import (  # noqa: PLC0415 — lazy import by design
+        hex_to_percent,
+        percent_to_hex,
+    )
+
+    return percent_to_hex(max(WIZ_MIN_DIMMING_PERCENT, hex_to_percent(value)))
+
+
 def hue_saturation_to_rgb(
     hue: float, saturation: float, brightness: int
 ) -> tuple[int, int, int]:

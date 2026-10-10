@@ -9,7 +9,7 @@ tags: [mqtt, architecture, dependencies, lifecycle, testing]
 
 ## Status
 
-Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-10-09
+Accepted **Date:** 2026-08-24 | Amended **Date:** 2026-09-11 | Amended **Date:** 2026-09-12 | Amended **Date:** 2026-10-09 | Amended **Date:** 2026-10-10
 
 - All seven per-app adoption tasks are closed.
 - `schema:ha-discovery` is deprecated for adopted apps (cap-8sw, 2026-09-11).
@@ -179,3 +179,20 @@ dev = ["cosalette[schema]>=0.11.3,<0.12"]
 ### Additional Negative Consequences
 
 - A deployment that wants a YAML schema file or on_publish validation must install cosalette[schema] itself; start-up fails with a hint until it does
+
+## Amendment (2026-10-10) — Minor
+
+**Rationale:** The 2026-10-09 amendment listed caldates2mqtt and suncast as the only apps that need PyYAML at runtime and missed a third: wiz2mqtt ships the wiz2mqtt-openhab console script, which runs `cosalette schema dump` and `cosalette schema openhab` on a YAML document. With the extra in the dev group only, the 0.2.13 image fails with "PyYAML is required for this command" for every config. The rule itself was right; its list of exceptions was not.
+
+!!! note "Editorial note (2026-10-10)"
+    wiz2mqtt is the third exception: it declares `pyyaml>=6.0.3` directly, the same way suncast does, because its wiz2mqtt-openhab generator runs the YAML schema CLI. It needs no jsonschema, since `schema openhab` never validates payloads. `_SCHEMA_EXTRA_ALLOWED` in `packages/tests/unit/test_app_image_contents.py` lists it with that reason, and `test_openhab.py` asserts the runtime requirement, because the dev group hides a missing one from the end-to-end tests.
+
+!!! note "Editorial note (2026-10-10)"
+    Correction to the 2026-10-09 consequences: six app images drop PyYAML, not seven. wiz2mqtt keeps it, so its saving is smaller than the 8.3 MB measured there.
+
+!!! note "Editorial note (2026-10-10)"
+    Rule for new code: any console script an image ships that runs `cosalette schema ...` needs PyYAML at runtime. A `--help` check does not show this, because `--help` returns before the schema CLI runs.
+
+### Additional Negative Consequences
+
+- The dev group keeps PyYAML in every development environment, so a missing runtime dependency on it passes every test that runs in the workspace venv. Only the export allowlist and a per-app metadata assertion catch it until an image smoke test exists

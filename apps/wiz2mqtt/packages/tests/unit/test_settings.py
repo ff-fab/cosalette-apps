@@ -7,6 +7,8 @@ Test Techniques Used:
   scaffold gap left the app instantiating the base Settings class with no
   prefix, so app.run()'s dependents (e.g. compose.yml's
   WIZ2MQTT_MQTT__HOST) were silently ignored.
+- Error Guessing: unrelated keys in a shared .env must not trip
+  extra="forbid"
 - Equivalence Partitioning: valid/invalid name, ip, mac, and when_unreachable values
 - Boundary Value Analysis: mac hex-length boundary
 - Decision Table: bulb uniqueness across name/ip/mac, including mixed mac presence
@@ -58,6 +60,24 @@ class TestWiz2MqttSettings:
         monkeypatch.setenv("MQTT__HOST", "should-not-apply")
         settings = Wiz2MqttSettings(**_UNCONFIGURED)
         assert settings.mqtt.host == "localhost"
+
+    def test_dotenv_unrelated_keys_are_ignored(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        """A shared .env with other tools' keys loads; its prefixed keys still apply.
+
+        Technique: Error Guessing — extra="forbid" used to reject every
+        unprefixed .env key as an extra field.
+        """
+        monkeypatch.delenv("WIZ2MQTT_MQTT__HOST", raising=False)
+        env_file = tmp_path / ".env"
+        env_file.write_text(
+            "COMPOSE_PROJECT_NAME=home\nMQTT__HOST=other\nWIZ2MQTT_MQTT__HOST=lan\n"
+        )
+
+        settings = Wiz2MqttSettings(_env_file=str(env_file), _config_file=None)
+
+        assert settings.mqtt.host == "lan"
 
     def test_prefixed_env_var_overrides_logging_level(
         self, monkeypatch: pytest.MonkeyPatch
