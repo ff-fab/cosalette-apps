@@ -120,6 +120,18 @@ If they differ, the bulb lost its state and the reconnect phase starts. If they 
 nothing is written. If the read fails, for example while the bulb still boots, the
 check waits for the next successful read and the failed read counts as usual.
 
+Each time a bulb enters the reconnect phase, wiz2mqtt logs one `INFO` line with the
+reason, for example `Bulb desk: entering reconnect phase (first_beat)`:
+
+| Reason            | Trigger                                                                     |
+| ----------------- | --------------------------------------------------------------------------- |
+| `first_tick`      | The bulb's first tick after a start found a stored desired state.           |
+| `slow_recovery`   | A read succeeded after the bulb had failed three reads, without `firstBeat`. |
+| `settle_conflict` | A read inside the `restore_settle` window differed from the restored state. |
+| `first_beat`      | The bulb sent `firstBeat`.                                                  |
+| `boot_grace`      | A `/set` arrived inside the power source's `boot_grace` window.             |
+| `write_timeout`   | A direct `/set` write timed out or could not connect.                       |
+
 After the first successful read in the reconnect phase, exactly one of these actions
 occurs:
 

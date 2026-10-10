@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 
 import pytest
@@ -1876,6 +1877,77 @@ class TestBootSafeguards:
         await _tick(ctx, _config(), adapter, state)
 
         assert bool(adapter.set_state_calls) is replayed
+
+
+def _reconnect_reasons(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """The reasons logged for entering the reconnect phase (cap-tc9t)."""
+    prefix = "Bulb office: entering reconnect phase ("
+    return [
+        r.getMessage().removeprefix(prefix).rstrip(")")
+        for r in caplog.records
+        if r.getMessage().startswith(prefix)
+    ]
+
+
+class TestReconnectReasonLog:
+    """Each entry into reconnect logs why (cap-tc9t).
+
+    Technique: Decision Table — one row per tick-side trigger.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _info(self, caplog: pytest.LogCaptureFixture) -> None:
+        caplog.set_level(logging.INFO, logger="wiz2mqtt.intent")
+
+    async def test_first_tick_with_stored_intent(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        await _tick(
+            FakeDeviceContext(),
+            _config(),
+            FakeWizBulbAdapter(),
+            SharedState(),
+            store=_store_with_desired(),
+        )
+
+        assert _reconnect_reasons(caplog) == ["first_tick"]
+
+    async def test_slow_recovery(self, caplog: pytest.LogCaptureFixture) -> None:
+        state = SharedState(
+            phase={"office": "steady"},
+            desired_state={"office": _DESIRED_ON},
+            bulb_answered={"office": False},
+        )
+
+        await _tick(FakeDeviceContext(), _config(), FakeWizBulbAdapter(), state)
+
+        assert _reconnect_reasons(caplog) == ["slow_recovery"]
+
+    async def test_first_beat(self, caplog: pytest.LogCaptureFixture) -> None:
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        await _tick(
+            FakeDeviceContext(settings=_settings_with_office()),
+            _config(),
+            adapter,
+            state,
+        )
+        state.bulb_answered["office"] = False
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert _reconnect_reasons(caplog) == ["first_beat"]
+
+    async def test_settle_conflict(self, caplog: pytest.LogCaptureFixture) -> None:
+        state = SharedState(
+            phase={"office": "steady"},
+            restore_settle_until={"office": time.monotonic() + 3600},
+            restore_settle_state={"office": _DESIRED_ON.as_bulb_state()},
+        )
+
+        await _tick(FakeDeviceContext(), _config(), FakeWizBulbAdapter(), state)
+
+        assert _reconnect_reasons(caplog) == ["settle_conflict"]
 
 
 class TestColourReadBack:

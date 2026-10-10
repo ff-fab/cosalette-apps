@@ -94,11 +94,10 @@ async def bulb_entity_tick(
 
     _ensure_boot_callback_registered(port, settings, state, notify)
     if name not in state.phase:
-        state.phase[name] = (
-            "reconnect"
-            if intent.resolve_desired_state(state, store, name) is not None
-            else "steady"
-        )
+        if intent.resolve_desired_state(state, store, name) is not None:
+            intent.arm_reconnect(state, name, "first_tick")
+        else:
+            state.phase[name] = "steady"
 
     # Skip the read while the source is known off (ADR-007/cap-bjw9.9): an
     # absent bulb otherwise holds pywizlight's asyncio.Lock for the full
@@ -200,7 +199,7 @@ async def _handle_read_success(
     # fast path, but a successful read after the failure threshold (without a
     # boot event) also needs to run the return path when a desired state exists.
     if was_unreachable and _has_desired_state_to_restore(state, store, name):
-        state.phase[name] = "reconnect"
+        intent.arm_reconnect(state, name, "slow_recovery")
     if await _boot_check_finds_drift(
         port,
         config.ip,
@@ -222,7 +221,7 @@ async def _handle_read_success(
             belief = _recompute_and_notify(settings, state, notify, name)
             return _render(settings, state, name, bulb_state, belief)
     if _conflicts_with_restore_settle(state, name, bulb_state):
-        state.phase[name] = "reconnect"
+        intent.arm_reconnect(state, name, "settle_conflict")
         notify(name)
         belief = _recompute_and_notify(settings, state, notify, name)
         return _render(settings, state, name, bulb_state, belief)
@@ -843,7 +842,7 @@ def _make_boot_handler(
                 state.boot_check_generation.get(name, 0) + 1
             )
         else:
-            state.phase[name] = "reconnect"
+            intent.arm_reconnect(state, name, "first_beat")
             state.consecutive_failures[name] = 0
         notify(name)
 

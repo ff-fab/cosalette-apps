@@ -167,7 +167,7 @@ async def bulb_set(
     if power.in_boot_grace(settings, state, config.name, time.monotonic()):
         # The bulb may have answered before the power cut, so no tick would
         # see it return: arm the return path that replays the queue.
-        state.phase[config.name] = "reconnect"
+        intent.arm_reconnect(state, config.name, "boot_grace")
     if intent.queues_for_return(state, config.name, belief):
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
         notify(config.name)
@@ -181,7 +181,7 @@ async def bulb_set(
         intent.enqueue(state.pending_commands, config.name, kwargs, now)
         # A direct write failed after the reachability gate had admitted it.
         # Route the queued intent through the next successful telemetry tick.
-        state.phase[config.name] = "reconnect"
+        intent.arm_reconnect(state, config.name, "write_timeout")
         notify(config.name)
         if isinstance(exc, WizTimeoutError):
             raise WizQueuedTimeoutError(
