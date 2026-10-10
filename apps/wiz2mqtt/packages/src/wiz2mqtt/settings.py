@@ -548,6 +548,9 @@ class Wiz2MqttSettings(cosalette.Settings):
         # is set, so only WIZ2MQTT_* env vars are ever seen. This also rejects
         # any TOML top-level key that is not a declared settings field.
         extra="forbid",
+        # Read .env like the environment. Without this, extra="forbid" makes
+        # pydantic-settings reject every unrelated key in a shared .env.
+        dotenv_filtering="only_existing",
     )
 
     bulbs: list[BulbConfig] = Field(

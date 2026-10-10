@@ -13,10 +13,15 @@ Test Techniques Used:
   channel and Item either way
 - Specification-based: every bulb exposes colour temperature, effect speed,
   power draw and the error topic, with commands openHAB can actually send
+- Error Guessing: the generator's runtime PyYAML dependency living only in
+  the dev group, and dotenv filtering's version floor living only in a
+  workspace constraint, where downstream installs cannot see it
 """
 
 from __future__ import annotations
 
+import importlib.metadata
+import re
 import subprocess
 from pathlib import Path
 
@@ -81,6 +86,28 @@ def test_framework_failure_is_reported(
     result = CliRunner().invoke(cli, ["--config-file", str(config)])
     assert result.exit_code == 1
     assert "schema failed" in result.output
+
+
+def test_generator_yaml_dependency_ships_at_runtime() -> None:
+    """The schema CLI the generator runs needs PyYAML in the image, not only in dev.
+
+    Technique: Error Guessing — the dev group provides PyYAML, so the
+    end-to-end tests below pass even when the image cannot generate (0.2.13).
+    """
+    requires = importlib.metadata.requires("wiz2mqtt") or []
+    runtime = [r for r in requires if "extra ==" not in r]
+
+    assert any(re.match(r"(?i)pyyaml\b", r) for r in runtime)
+
+
+def test_dotenv_filtering_dependency_floor_ships_at_runtime() -> None:
+    """The config option must be supported by the downstream installed version."""
+    requires = importlib.metadata.requires("wiz2mqtt") or []
+    runtime = [r for r in requires if "extra ==" not in r]
+
+    assert any(
+        re.match(r"(?i)pydantic-settings>=2\.14\.2(?:[; ]|$)", r) for r in runtime
+    )
 
 
 @pytest.mark.parametrize("output", ["things", "items", "both"])
