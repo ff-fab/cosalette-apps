@@ -44,7 +44,7 @@ def test_scaffold_dockerfile_installs_from_the_lockfile() -> None:
         in scaffold
     )
     assert re.search(r"(?m)^ENV TYPER_USE_RICH", scaffold) is None
-    assert 'dev = ["cosalette[schema]>=0.11.3,<0.12"]' in scaffold
+    assert 'dev = ["cosalette[schema]>=0.11.4,<0.12"]' in scaffold
     assert "RUN uv pip install --system --no-cache --compile-bytecode ./apps" not in (
         scaffold
     )

@@ -220,7 +220,8 @@ def generate(
     try:
         settings = Wiz2MqttSettings(_config_file=str(config_file.resolve()))
         with tempfile.TemporaryDirectory() as directory:
-            schema = Path(directory) / "schema.yaml"
+            # JSON keeps the schema CLI free of PyYAML, which the image omits.
+            schema = Path(directory) / "schema.json"
             schema.write_text(
                 _schema_cli(
                     "dump",
@@ -229,6 +230,8 @@ def generate(
                     "--resolve-settings",
                     "--config-file",
                     str(config_file.resolve()),
+                    "--format",
+                    "json",
                 )
             )
             args = ("openhab", str(schema), "--broker-uid", broker_uid)

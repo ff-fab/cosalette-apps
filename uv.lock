@@ -157,12 +157,12 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "bleak", specifier = ">=1.0" },
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "dbus-fast", specifier = ">=1.83.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "annotated-doc"
@@ -377,11 +377,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "caldav", specifier = ">=1.4" },
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "caldav"
@@ -538,7 +538,7 @@ wheels = [
 
 [[package]]
 name = "cosalette"
-version = "0.11.3"
+version = "0.11.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiomqtt" },
@@ -547,17 +547,17 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/56/0f/c3acaf11de32500babf544e933ab2a4ad01f080c2fda47c0a8a6fd645798/cosalette-0.11.3.tar.gz", hash = "sha256:7a4bd05ead7d25505108288ca649e549dc443e76100d49cc40464561de9d899c", size = 826520, upload-time = "2026-10-09T14:35:50.807Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ad/87/8d8b72ac7425908cbf52689b8562dba40fdef0a1da1137a8f37f9d37a8ec/cosalette-0.11.4.tar.gz", hash = "sha256:c1f284e52e0735819a2e8366312285451ccc64d0b6a40107cb2f0c3adf038af4", size = 835057, upload-time = "2026-10-10T14:04:55.604Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/3f/48bf4be571e3d89088c8cd4a5f0e019097e8d55cd90d504ab52aca3e91ec/cosalette-0.11.3-cp314-abi3-macosx_10_12_x86_64.whl", hash = "sha256:30e21213a773f80229e629ac4842ca88462e41d24ca33b7d888da41a4eeb1efa", size = 1355801, upload-time = "2026-10-09T14:35:34.346Z" },
-    { url = "https://files.pythonhosted.org/packages/58/3a/a29f4ec53f94f9d48d8f4fbaf90af086316f8f8c611d07c1aa8c0d006343/cosalette-0.11.3-cp314-abi3-macosx_11_0_arm64.whl", hash = "sha256:871661beda189562288c3c90da95268ea513afce6cce5f946b5c4ca2b349c798", size = 1342793, upload-time = "2026-10-09T14:35:36.729Z" },
-    { url = "https://files.pythonhosted.org/packages/a8/a0/55e78405ca573d2fa259b960ec3fb807f72a7771768e6d63bdfd926a03c4/cosalette-0.11.3-cp314-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:1af78e91c33b19df68d18abeb4d1687528bba8a384c90fa47ad4e713659a9c78", size = 1383118, upload-time = "2026-10-09T14:35:38.307Z" },
-    { url = "https://files.pythonhosted.org/packages/0e/a8/50018b07d034b56613ad40ef4a3a06ba70d6b720c1681f7ea17af9447606/cosalette-0.11.3-cp314-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:889f083d3ffac32668623026344d4d10e630f513449bf5b4581b12866df51703", size = 1409144, upload-time = "2026-10-09T14:35:39.88Z" },
-    { url = "https://files.pythonhosted.org/packages/67/42/bb696bd9095ac349d2471a79dc861b9f1142da21aa27945a5ccabf69d477/cosalette-0.11.3-cp314-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:02c3a7750b931d467a92ab4172c6c632ae233ace30f1789882e6641eb0849d49", size = 1397824, upload-time = "2026-10-09T14:35:41.427Z" },
-    { url = "https://files.pythonhosted.org/packages/2a/a8/7fd91ead78385cca6a894c3e95428c137fe952b1292110ee0257e9eb0526/cosalette-0.11.3-cp314-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:657429acb7c3c7e8153549dc2b649350a183648d4185e6f409865bb3d4b90148", size = 1604163, upload-time = "2026-10-09T14:35:43.383Z" },
-    { url = "https://files.pythonhosted.org/packages/7b/5f/a9a284c414634ea810af0ee46633d5e1abab9931ee3550bed75788f40a5b/cosalette-0.11.3-cp314-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:a445db177a067782e151405a77bbc5ec49990d17c6a375fb2d5f924591ad96fd", size = 1706988, upload-time = "2026-10-09T14:35:45.623Z" },
-    { url = "https://files.pythonhosted.org/packages/57/0e/9929dcad44d8c4d12f40fa30ee0044b0984e28ef17c9cc0746e6dbccc192/cosalette-0.11.3-cp314-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:33e625cf4950696af6bedf7d9d5e1b65625d3677167b0ed29a04379faa866090", size = 1647008, upload-time = "2026-10-09T14:35:47.374Z" },
-    { url = "https://files.pythonhosted.org/packages/4c/c8/84355ade575a6cb40916549e1ae5d8f104835dc912a0c4cd1a012579adac/cosalette-0.11.3-cp314-abi3-win_amd64.whl", hash = "sha256:71eb03262c5dbb0d09301380d0df5a23376ddeffc4561b69125b05e7651aeef4", size = 1166285, upload-time = "2026-10-09T14:35:49.089Z" },
+    { url = "https://files.pythonhosted.org/packages/19/72/f851a7902c44a56ca000da06ea4aa59103ed483db170cdb9361e68781f52/cosalette-0.11.4-cp314-abi3-macosx_10_12_x86_64.whl", hash = "sha256:c18869b2b3153d65028c85a09b91cf813cdfc4f52a216b0c20be7d5968cd70ce", size = 1365430, upload-time = "2026-10-10T14:04:40.251Z" },
+    { url = "https://files.pythonhosted.org/packages/73/3c/4be2f753d137c1a0ac440c2b6b33663ea8299a9cdbdff6da0d20be25e289/cosalette-0.11.4-cp314-abi3-macosx_11_0_arm64.whl", hash = "sha256:9c2d2b9e73e196fcc761e07c7f074818ff41918ddabf7485e2bfbcc8abee292e", size = 1352423, upload-time = "2026-10-10T14:04:42.241Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/d1/d4d3db9371f65598efa4976f1ae11f4ce2f061d6ba06c533f12bfd4cfbec/cosalette-0.11.4-cp314-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:35bec854ac88b93c784b97175dbbb73f0738ed85e86d11c59c2421f3fe8e3baa", size = 1392749, upload-time = "2026-10-10T14:04:43.897Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/de/91408e86e9e054dbf56b70f14194da23368ecd7182e8f9997fa6736f6836/cosalette-0.11.4-cp314-abi3-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:274699f6411222fc071fd3118f29381e3f93ee43271fc1791e923e0b2809d69e", size = 1418773, upload-time = "2026-10-10T14:04:45.385Z" },
+    { url = "https://files.pythonhosted.org/packages/70/19/b247dfbac065db50425faa937c77d2e9b97855a2d0832295101ceae9bf75/cosalette-0.11.4-cp314-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:9361159a13bd08df165743d3c23340af42bd7c09f6df7a8d7f567ff163fad115", size = 1407456, upload-time = "2026-10-10T14:04:47.078Z" },
+    { url = "https://files.pythonhosted.org/packages/03/d4/c27151ed8fdcfa5f83e4509a1ae014880395146f929996563fc4c72f1a81/cosalette-0.11.4-cp314-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:1a44074ae92c93ac7f590d02c363abd2efcb90fe923dc62c8662dab1189c6aa4", size = 1613793, upload-time = "2026-10-10T14:04:48.489Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/4d/26e986dac8d05c571f94d0241acb6d4a54786b5d5c2976ed647bda9038f9/cosalette-0.11.4-cp314-abi3-musllinux_1_2_armv7l.whl", hash = "sha256:34d8dea1cd1735ab4306ad142242195748ac3fa48b0c7d35f957482f0827087c", size = 1716617, upload-time = "2026-10-10T14:04:50.614Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/66/58ac198702365376a897873c70168108484f9fa54811363ae8929fa9a8b3/cosalette-0.11.4-cp314-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:121067978fb20fe9683748aebba51cd3b5e16ef258e3f4b5e725721679dbab75", size = 1656632, upload-time = "2026-10-10T14:04:52.307Z" },
+    { url = "https://files.pythonhosted.org/packages/e1/dd/cf7fa8ac658d0692bcf295615c8dec65c7dad6e7b2687a48d0a5249a5327/cosalette-0.11.4-cp314-abi3-win_amd64.whl", hash = "sha256:9de85a4f800cbb61732a1544da7dbb3989f77dbe9876fb66f1bab1c5e5c2affe", size = 1175909, upload-time = "2026-10-10T14:04:53.981Z" },
 ]
 
 [package.optional-dependencies]
@@ -615,7 +615,7 @@ docs = [
 [package.metadata.requires-dev]
 dev = [
     { name = "actionlint-py", specifier = ">=1.7.12.24" },
-    { name = "cosalette", extras = ["mcp"], specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", extras = ["mcp"], specifier = ">=0.11.4,<0.12" },
     { name = "coverage", specifier = ">=7.15.2" },
     { name = "detect-secrets", specifier = ">=1.5.0" },
     { name = "flake8", specifier = ">=7.3.0" },
@@ -1051,14 +1051,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
     { name = "smbus2", specifier = ">=0.6.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "ghp-import"
@@ -1293,14 +1293,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pylacrosse", specifier = ">=0.4" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "jeepney"
@@ -2972,14 +2972,14 @@ requires-dist = [
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">=3.9" },
     { name = "astral", specifier = ">=3.2" },
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.9.1" },
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]
 provides-extras = ["png", "http"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "tinycss2"
@@ -3201,14 +3201,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "gpiozero", specifier = ">=2.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "virtualenv"
@@ -3245,7 +3245,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pydantic-settings", specifier = ">=2.12.0" },
     { name = "pyserial", specifier = ">=3.5" },
@@ -3253,7 +3253,7 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "wallpanel-control"
@@ -3272,11 +3272,11 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "asyncssh", specifier = ">=2.20.0" },
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "wassima"
@@ -3509,7 +3509,6 @@ dependencies = [
     { name = "cosalette" },
     { name = "pydantic-settings" },
     { name = "pywizlight" },
-    { name = "pyyaml" },
     { name = "typer" },
 ]
 
@@ -3520,15 +3519,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.11.3,<0.12" },
+    { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "typer", specifier = ">=0.12" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.3,<0.12" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.11.4,<0.12" }]
 
 [[package]]
 name = "x-wr-timezone"

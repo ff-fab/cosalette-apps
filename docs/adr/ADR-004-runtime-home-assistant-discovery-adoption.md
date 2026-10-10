@@ -196,3 +196,15 @@ dev = ["cosalette[schema]>=0.11.3,<0.12"]
 ### Additional Negative Consequences
 
 - The dev group keeps PyYAML in every development environment, so a missing runtime dependency on it passes every test that runs in the workspace venv. Only the export allowlist and a per-app metadata assertion catch it until an image smoke test exists
+
+## Amendment (2026-10-10) — Minor
+
+!!! note "Editorial note (2026-10-10)"
+    wiz2mqtt is no longer an exception. cosalette 0.11.4 adds `cosalette schema dump --format json`, which writes the AsyncAPI document without PyYAML, and `schema openhab` reads a .json schema without any extra. wiz2mqtt-openhab now dumps `schema.json` and the app drops its direct `pyyaml` dependency (cap-usdd). `_SCHEMA_EXTRA_ALLOWED` in `packages/tests/unit/test_app_image_contents.py` lists only caldates2mqtt and suncast again, and `test_openhab.py` runs the generator with PyYAML blocked instead of asserting the runtime requirement.
+
+!!! note "Editorial note (2026-10-10)"
+    The fail-closed start-up hint quoted in the 2026-10-09 justification is installer-neutral since cosalette 0.11.4: it names the missing package and the extras that contain it, with no pip or uv command, so it can be followed in a slim image.
+
+### Additional Positive Consequences
+
+- The wiz2mqtt image drops PyYAML again, so seven app images ship without it, as the 2026-10-09 amendment measured.
