@@ -30,6 +30,7 @@ _SCHEMA_EXTRA_PACKAGES = frozenset({"jsonschema", "pyyaml"})
 _SCHEMA_EXTRA_ALLOWED = {
     "caldates2mqtt": {"pyyaml"},  # caldav depends on it
     "suncast": {"pyyaml"},  # the geometry loader reads YAML
+    "wiz2mqtt": {"pyyaml"},  # wiz2mqtt-openhab runs the YAML schema CLI
 }
 
 
