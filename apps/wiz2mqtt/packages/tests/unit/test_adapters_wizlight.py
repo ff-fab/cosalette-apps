@@ -754,6 +754,24 @@ class TestGetState:
         assert ctx.pilot_calls[-1]["scene"] == 11
         assert ctx.pilot_calls[-1].get("colortemp") is None
 
+    async def test_replayed_scene_with_rgb_readback_sends_only_the_scene(
+        self, ctx: _Ctx
+    ) -> None:
+        """A scene wins when the bulb also reports RGB values."""
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [
+            _FakeParser(rgb=(255.0, 0.0, 0.0), brightness=128, scene_id=11)
+        ]
+
+        observed = await ctx.adapter.get_state(_IP)
+        await ctx.adapter.set_state(_IP, **bulb_state_to_set_state_kwargs(observed))
+
+        kwargs = ctx.pilot_calls[-1]
+        assert observed.scene == 11
+        assert kwargs["scene"] == 11
+        assert "hucolor" not in kwargs
+        assert "rgb" not in kwargs
+
     async def test_wizlight_get_state_uses_push_cache_when_fresh(
         self, ctx: _Ctx
     ) -> None:

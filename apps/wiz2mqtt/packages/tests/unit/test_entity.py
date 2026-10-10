@@ -1559,7 +1559,9 @@ class TestBootCallback:
         ctx = FakeDeviceContext(settings=_settings_with_office())
         notify = RecordingNotifier()
         config = _config(restore_previous_state=True)
-        await _tick(ctx, config, adapter, state, store=_store_with_desired())
+        await _tick(
+            ctx, config, adapter, state, store=_store_with_desired(), notify=notify
+        )
 
         await bulb_set(
             BulbSetCommand(brightness=40),
@@ -1569,7 +1571,13 @@ class TestBootCallback:
             ctx,
             notify,
         )
-        await _tick(ctx, config, adapter, state)
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "steady"
+        assert "office" not in notify.armed
+        assert len(adapter.set_state_calls) == 2
+
+        await _tick(ctx, config, adapter, state, notify=notify)
         adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
 
         assert state.phase["office"] == "steady"
