@@ -203,7 +203,7 @@ async def _handle_read_success(
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a
     # boot event) also needs to run the return path when a desired state exists.
-    if was_unreachable and _has_desired_state_to_restore(state, store, name):
+    if _should_arm_slow_recovery(state, store, name, was_unreachable):
         intent.arm_reconnect(state, name, "slow_recovery")
     if await _boot_check_finds_drift(
         port,
@@ -243,6 +243,19 @@ async def _handle_read_success(
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, bulb_state, belief)
+
+
+def _should_arm_slow_recovery(
+    state: SharedState,
+    store: DeviceStore | None,
+    name: str,
+    was_unreachable: bool,
+) -> bool:
+    return (
+        was_unreachable
+        and name not in state.boot_checks
+        and _has_desired_state_to_restore(state, store, name)
+    )
 
 
 async def _boot_check_finds_drift(
