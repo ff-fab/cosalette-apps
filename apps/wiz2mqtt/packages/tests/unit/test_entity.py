@@ -1531,8 +1531,8 @@ class TestBootCallback:
         assert len(adapter.set_state_calls) == 1
         assert notify.armed == []
 
-    async def test_changed_desired_state_rearms_after_confirmed_restore(self) -> None:
-        """Technique: State Transition — a later desired command is not lost."""
+    async def test_queued_command_rearms_after_confirmed_restore(self) -> None:
+        """Technique: State Transition — a later queued command is not lost."""
         adapter = FakeWizBulbAdapter()
         state = SharedState(phase={"office": "reconnect"})
         ctx = FakeDeviceContext(settings=_settings_with_office())
@@ -1545,9 +1545,36 @@ class TestBootCallback:
             store=_store_with_desired(),
         )
         record_command(state, None, "office", {"state": False}, time.time())
+        enqueue(state.pending_commands, "office", {"state": False}, time.time())
         adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
 
         assert state.phase["office"] == "reconnect"
+
+    async def test_normal_use_after_confirmed_restore_does_not_rearm(self) -> None:
+        """Technique: Regression (cap-ie6m) — a direct command and a steady
+        observation are already on the bulb, so a late firstBeat must not
+        replay the whole desired state."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        notify = RecordingNotifier()
+        config = _config(restore_previous_state=True)
+        await _tick(ctx, config, adapter, state, store=_store_with_desired())
+
+        await bulb_set(
+            BulbSetCommand(brightness=40),
+            config,
+            adapter,
+            state,
+            ctx,
+            notify,
+        )
+        await _tick(ctx, config, adapter, state)
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "steady"
+        assert "office" not in notify.armed
+        assert len(adapter.set_state_calls) == 2
 
     async def test_power_return_rearms_after_confirmed_restore(self) -> None:
         """Technique: Regression — stale pre-power answer is return evidence."""

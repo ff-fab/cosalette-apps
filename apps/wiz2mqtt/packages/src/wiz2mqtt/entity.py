@@ -784,7 +784,7 @@ def _make_boot_handler(
         # the 60s wait, and resets the failure counter since the bulb has
         # visibly returned. WiZ emits firstBeat repeatedly during startup;
         # after a confirmed restore, do not turn each duplicate into another
-        # return path. A changed desired state still needs one.
+        # return path. A queued command still needs one.
         if not _boot_should_rearm(state, name):
             return
         state.phase[name] = "reconnect"
@@ -795,7 +795,13 @@ def _make_boot_handler(
 
 
 def _boot_should_rearm(state: SharedState, name: str) -> bool:
-    """Accept firstBeat for a return, not duplicate startup broadcasts."""
+    """Accept firstBeat for a return, not duplicate startup broadcasts.
+
+    A bulb that still answers re-arms only while return work is unfinished:
+    no confirmed return-path write yet, or a queued command. A desired state
+    written by an observation or a direct command is already on the bulb, so
+    it never makes a duplicate firstBeat replay the whole state (cap-ie6m).
+    """
     if name in state.restore_retry_exhausted:
         return False
     retry_at = state.restore_retry_at.get(name)
@@ -803,15 +809,10 @@ def _boot_should_rearm(state: SharedState, name: str) -> bool:
         return False
     if not state.bulb_answered.get(name, False) or name in state.stale_answers:
         return True
-    desired = state.desired_state.get(name)
-    applied = state.last_applied.get(name)
-    if desired is None:
+    if name not in state.desired_state:
         return False
-    return (
-        applied is None
-        or not applied.confirmed
-        or intent.desired_state_to_set_state_kwargs(desired) != applied.kwargs
-    )
+    applied = state.last_applied.get(name)
+    return applied is None or not applied.confirmed or name in state.pending_commands
 
 
 async def _mark_online_once(

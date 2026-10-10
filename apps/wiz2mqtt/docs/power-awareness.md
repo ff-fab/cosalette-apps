@@ -107,7 +107,9 @@ stateDiagram-v2
 ```
 
 `firstBeat` is a broadcast that a WiZ bulb sends when it boots. It only wakes the
-bulb's next read. It does not write to the bulb.
+bulb's next read. It does not write to the bulb. WiZ repeats the broadcast during
+startup, so for a bulb that still answers, `firstBeat` starts the reconnect phase only
+until a return-path write is confirmed, or while a command waits in the queue.
 
 After the first successful read in the reconnect phase, exactly one of these actions
 occurs:
