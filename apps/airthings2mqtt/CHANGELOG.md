@@ -7,6 +7,13 @@
 * honor `AIRTHINGS2MQTT_DEVICE_NAME` for state, set, error, and availability topics, correcting routing for non-default device names
 * check BlueZ adapter power over the system D-Bus for bounded, read-only operational health reporting instead of probing for `/sys/class/bluetooth/hci0`
 
+## [0.3.3](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.3.2...airthings2mqtt-v0.3.3) (2026-10-10)
+
+
+### Bug Fixes
+
+* upgrade cosalette to 0.11.4 ([#370](https://github.com/ff-fab/cosalette-apps/issues/370)) ([ff99ff6](https://github.com/ff-fab/cosalette-apps/commit/ff99ff6ab0de0265a72fd51b1c55b2066d17914d))
+
 ## [0.3.2](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.3.1...airthings2mqtt-v0.3.2) (2026-10-09)
 
 

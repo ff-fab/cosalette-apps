@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: gas2mqtt
-  version: 0.2.10 # x-release-please-version
+  version: 0.2.11 # x-release-please-version
   x-cosalette-contract-version: '2'
 channels:
   consumptionAvailability:
