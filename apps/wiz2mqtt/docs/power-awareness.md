@@ -107,7 +107,9 @@ stateDiagram-v2
 ```
 
 `firstBeat` is a broadcast that a WiZ bulb sends when it boots. It only wakes the
-bulb's next read. It does not write to the bulb.
+bulb's next read. It does not write to the bulb. WiZ repeats the broadcast during
+startup, so for a bulb that still answers, `firstBeat` starts the reconnect phase only
+until a return-path write is confirmed, or while a command waits in the queue.
 
 After the first successful read in the reconnect phase, exactly one of these actions
 occurs:
@@ -119,8 +121,9 @@ occurs:
 3. Else, wiz2mqtt accepts the state that the bulb reports as the new desired state.
 
 A write to restore `OFF` sends only `OFF`. A write to restore `ON` sends `ON` and the
-appearance (brightness, colour or scene) in one command. wiz2mqtt reads the state back
-after each write. The comparison allows for the bulb's own rounding: brightness in whole
+appearance (brightness, colour or scene) in one command. The command carries one colour
+mode: a bulb that runs a scene can also report a colour temperature, and the scene wins.
+wiz2mqtt reads the state back after each write. The comparison allows for the bulb's own rounding: brightness in whole
 percent, the 10 % minimum that WiZ firmware applies to a dimmer write, and the hue of a
 very pale colour. Any hue confirms for white (saturation
 `0`). It tries a maximum of three times in total. If all three attempts
