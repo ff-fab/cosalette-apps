@@ -152,6 +152,19 @@ fail, it publishes an error on `wiz2mqtt/{bulb}/error`, keeps the desired state 
 stays in the reconnect phase, so the next tick or `firstBeat` runs the return path
 again.
 
+A write that the bulb cannot express (`WizUnsupportedCommandError`, for example a
+scene the bulb does not have) is not retried. wiz2mqtt publishes a terminal
+`restore_unconfirmed` error after one attempt, accepts the state that the bulb reports
+as the new desired state and leaves the reconnect phase. A command that waits in the
+queue keeps the phase, so the next tick writes it.
+
+A `/set` in the reconnect phase goes to the bulb at once when the bulb has answered
+its last read. The next tick then runs the return path, which writes the desired state
+that the command has updated and reads it back, so the command counts as the restore.
+The command waits in the queue instead while the bulb has not answered yet, while its
+last answer predates the power source's last signal change, or while the return path
+is writing to the bulb, so that a write retry cannot overwrite the command.
+
 ## Operator guide
 
 ### Declare a power source

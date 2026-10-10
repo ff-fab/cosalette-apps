@@ -188,6 +188,10 @@ async def bulb_set(
                 "set timed out; command queued until the bulb answers"
             ) from exc
         raise
+    if state.phase.get(config.name) == "reconnect":
+        # A command to an answering bulb in reconnect (cap-8qjm): run the
+        # return path now, so it confirms the merged desired state.
+        notify(config.name)
 
 
 @app.state

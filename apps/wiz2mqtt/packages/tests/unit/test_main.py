@@ -256,6 +256,60 @@ class TestBulbSet:
         assert queued["scene"] is not None
         assert notify.armed == ["office", "office"]
 
+    async def test_reconnect_command_to_an_answering_bulb_goes_to_the_wire(
+        self,
+    ) -> None:
+        """Technique: State Transition — an answering bulb in reconnect takes
+        the command directly; the return path then confirms it (cap-8qjm)."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, bulb_answered={"office": True}
+        )
+        notify = RecordingNotifier()
+
+        await bulb_set(
+            BulbSetCommand(brightness=179),
+            self._config(),
+            adapter,
+            state,
+            self._ctx(),
+            notify,
+        )
+
+        assert len(adapter.set_state_calls) == 1
+        assert state.pending_commands == {}
+        assert state.phase["office"] == "reconnect"
+        assert notify.armed == ["office"]
+
+    @pytest.mark.parametrize(
+        "busy",
+        [
+            pytest.param({"stale_answers": {"office"}}, id="stale-answer"),
+            pytest.param({"return_path_writing": {"office"}}, id="return-path-writing"),
+        ],
+    )
+    async def test_reconnect_command_queues_when_the_wire_is_not_free(
+        self, busy: dict[str, set[str]]
+    ) -> None:
+        """Technique: Decision Table — a stale answer or a running write loop
+        keeps the queue, so a retry cannot overwrite the command (cap-8qjm)."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, bulb_answered={"office": True}, **busy
+        )
+
+        await bulb_set(
+            BulbSetCommand(brightness=179),
+            self._config(),
+            adapter,
+            state,
+            self._ctx(),
+            RecordingNotifier(),
+        )
+
+        assert adapter.set_state_calls == []
+        assert state.pending_commands["office"].kwargs["brightness"] == 179
+
     async def test_connection_error_keeps_its_own_type(self) -> None:
         """Only a timeout is retyped; a connection error still queues."""
         adapter = FakeWizBulbAdapter()

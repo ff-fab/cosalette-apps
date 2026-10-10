@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 
 import pytest
 from cosalette import DeviceStore
@@ -28,7 +29,12 @@ from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.adapters.wizlight import _parse_state
 from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
-from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizIdentityError, WizTimeoutError
+from wiz2mqtt.errors import (
+    RESTORE_UNCONFIRMED,
+    WizIdentityError,
+    WizTimeoutError,
+    WizUnsupportedCommandError,
+)
 from wiz2mqtt.intent import (
     Appearance,
     DesiredState,
@@ -845,6 +851,78 @@ class TestReturnPath:
 
         assert adapter.set_state_calls == []
         assert ctx.published == []
+
+    async def test_unsupported_write_ends_the_cycle_and_adopts_the_lamp(
+        self,
+    ) -> None:
+        """Technique: Error Guessing — a deterministic local failure is not
+        retried: one attempt, a terminal error, the observation adopted and
+        the phase steady (cap-8qjm)."""
+        adapter = _UnsupportedWrites()
+        state = SharedState(
+            phase={"office": "reconnect"}, restore_retry_cycles={"office": 1}
+        )
+        ctx = FakeDeviceContext()
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert adapter.attempts == 1
+        body = json.loads(ctx.published[0][1])
+        assert body["error_type"] == RESTORE_UNCONFIRMED
+        assert body["attempt_results"] == ["WizUnsupportedCommandError"]
+        assert body["terminal"] is True
+        assert state.last_applied["office"].confirmed is False
+        assert state.desired_state["office"].writer == "observation"
+        assert state.desired_state["office"].state == "OFF"
+        assert state.phase["office"] == "steady"
+        assert state.restore_retry_cycles == {}
+        assert state.return_path_writing == set()
+
+    async def test_unsupported_write_keeps_reconnect_for_a_queued_command(
+        self,
+    ) -> None:
+        """Technique: Decision Table — a command queued during the failed
+        write keeps reconnect armed so the next tick writes it (cap-8qjm)."""
+        state = SharedState(phase={"office": "reconnect"})
+
+        def queue_command() -> None:
+            assert "office" in state.return_path_writing
+            enqueue(state.pending_commands, "office", {"state": True}, time.time())  # type: ignore[arg-type]
+
+        adapter = _UnsupportedWrites(on_write=queue_command)
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert state.phase["office"] == "reconnect"
+        assert "office" in state.pending_commands
+        assert state.return_path_writing == set()
+
+
+class _UnsupportedWrites(FakeWizBulbAdapter):
+    """Fake whose every ``set_state`` raises ``WizUnsupportedCommandError``."""
+
+    def __init__(self, on_write: Callable[[], None] | None = None) -> None:
+        super().__init__()
+        self.attempts = 0
+        self._on_write = on_write
+
+    async def set_state(self, ip: str, **kwargs: object) -> None:  # type: ignore[override]
+        self.attempts += 1
+        if self._on_write is not None:
+            self._on_write()
+        raise WizUnsupportedCommandError("scene not supported")
 
 
 class _TimeoutOnFirstWrite(FakeWizBulbAdapter):

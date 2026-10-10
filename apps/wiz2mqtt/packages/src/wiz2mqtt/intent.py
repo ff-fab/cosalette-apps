@@ -470,11 +470,19 @@ def queues_for_return(state: SharedState, name: str, belief: Belief | None) -> b
     """Whether a command must queue for the return path instead of the wire.
 
     True when the power source is believed off, the bulb is offline, a queue
-    already exists (keeps FIFO order) or the reconnect return path is armed.
+    already exists (keeps FIFO order), or the reconnect return path is armed
+    and the bulb has not answered since its last signal change or is being
+    written by that return path. A command to an answering bulb goes to the
+    wire even in reconnect: its desired state already holds the merged command,
+    so the next return path confirms it as the restore (cap-8qjm).
     """
+    answered = state.bulb_answered.get(name, False) and name not in state.stale_answers
     return (
         belief == "off"
         or state.last_availability.get(name) == "offline"
         or name in state.pending_commands
-        or state.phase.get(name) == "reconnect"
+        or (
+            state.phase.get(name) == "reconnect"
+            and (not answered or name in state.return_path_writing)
+        )
     )
