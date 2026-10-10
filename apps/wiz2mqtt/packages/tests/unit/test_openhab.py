@@ -14,7 +14,8 @@ Test Techniques Used:
 - Specification-based: every bulb exposes colour temperature, effect speed,
   power draw and the error topic, with commands openHAB can actually send
 - Error Guessing: the generator's runtime PyYAML dependency living only in
-  the dev group, where the end-to-end tests cannot notice it is missing
+  the dev group, and dotenv filtering's version floor living only in a
+  workspace constraint, where downstream installs cannot see it
 """
 
 from __future__ import annotations
@@ -97,6 +98,16 @@ def test_generator_yaml_dependency_ships_at_runtime() -> None:
     runtime = [r for r in requires if "extra ==" not in r]
 
     assert any(re.match(r"(?i)pyyaml\b", r) for r in runtime)
+
+
+def test_dotenv_filtering_dependency_floor_ships_at_runtime() -> None:
+    """The config option must be supported by the downstream installed version."""
+    requires = importlib.metadata.requires("wiz2mqtt") or []
+    runtime = [r for r in requires if "extra ==" not in r]
+
+    assert any(
+        re.match(r"(?i)pydantic-settings>=2\.14\.2(?:[; ]|$)", r) for r in runtime
+    )
 
 
 @pytest.mark.parametrize("output", ["things", "items", "both"])
