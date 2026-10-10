@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.11.3,<0.12",
+    "cosalette>=0.11.4,<0.12",
     "pydantic-settings>=2.14.2",
     "pywizlight>=0.6.6,<0.7",
     # wiz2mqtt-openhab runs `cosalette schema dump/openhab`, which read and
@@ -27,7 +27,7 @@ wiz2mqtt-openhab = "wiz2mqtt.openhab:main"
 [dependency-groups]
 # The schema:* tasks need the full extra (jsonschema too); the app's own
 # generator needs only PyYAML, declared above (ADR-004).
-dev = ["cosalette[schema]>=0.11.3,<0.12"]
+dev = ["cosalette[schema]>=0.11.4,<0.12"]
 
 [build-system]
 requires = ["hatchling"]
