@@ -101,6 +101,7 @@ A reachable bulb is in one of two phases:
 stateDiagram-v2
     Steady --> Unreachable: third failed read in a row
     Unreachable --> Reconnect: firstBeat, or a read succeeds and a desired state exists
+    Steady --> Reconnect: firstBeat, then a read differs from the desired state
     Unreachable --> Steady: a read succeeds and no desired state exists
     Reconnect --> Steady: the return path writes, and a read-back confirms it
     Reconnect --> Reconnect: three write attempts fail (error, the intent is kept)
@@ -110,6 +111,14 @@ stateDiagram-v2
 bulb's next read. It does not write to the bulb. WiZ repeats the broadcast during
 startup, so for a bulb that still answers, `firstBeat` starts the reconnect phase only
 until a return-path write is confirmed, or while a command waits in the queue.
+
+After that, a `firstBeat` from a bulb that still answers can be a repeated broadcast or
+a quick power cycle that missed no read, for example a wall switch flicked off and on
+with no power source configured. wiz2mqtt reads the bulb at once, bypassing the cache,
+and compares the answer with the desired state, with the same tolerances as a read-back.
+If they differ, the bulb lost its state and the reconnect phase starts. If they match,
+nothing is written. If the read fails, for example while the bulb still boots, the
+check waits for the next successful read and the failed read counts as usual.
 
 After the first successful read in the reconnect phase, exactly one of these actions
 occurs:

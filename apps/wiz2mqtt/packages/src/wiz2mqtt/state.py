@@ -114,6 +114,18 @@ class SharedState:
     restore_settle_state: dict[str, BulbState] = field(default_factory=dict)
     """Read-back state confirmed by the return-path write, keyed by bulb."""
 
+    boot_checks: set[str] = field(default_factory=set)
+    """Bulbs whose firstBeat came while they still answered (cap-m6nh).
+
+    Such a firstBeat can be a duplicate startup broadcast or a quick power
+    cycle that missed no poll. The next successful read, forced past the
+    cache, tells them apart: a bulb off its desired state re-arms reconnect.
+    A failed read keeps the check pending.
+    """
+
+    boot_check_generation: dict[str, int] = field(default_factory=dict)
+    """Latest firstBeat generation that still needs a post-event read."""
+
     source_belief: dict[str, Belief] = field(default_factory=dict)
     """Each power source's last-computed belief, refreshed by its own
     telemetry tick (:mod:`wiz2mqtt.power`)."""
