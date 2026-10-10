@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.14](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.13...wiz2mqtt-v0.2.14) (2026-10-10)
+
+
+### Bug Fixes
+
+* upgrade cosalette to 0.11.4 ([#370](https://github.com/ff-fab/cosalette-apps/issues/370)) ([ff99ff6](https://github.com/ff-fab/cosalette-apps/commit/ff99ff6ab0de0265a72fd51b1c55b2066d17914d))
+* **wiz2mqtt:** reconnect observability, direct commands during reconnect, image smoke tests ([#372](https://github.com/ff-fab/cosalette-apps/issues/372)) ([7f07c4d](https://github.com/ff-fab/cosalette-apps/commit/7f07c4da829445bc66d83a7f8e352da3d256a0fe))
+* **wiz2mqtt:** restore a quick power cycle that missed no poll ([#371](https://github.com/ff-fab/cosalette-apps/issues/371)) ([f237418](https://github.com/ff-fab/cosalette-apps/commit/f23741825bb67deebbe252642cc70ef221848f22))
+* **wiz2mqtt:** restore white/CT-mode state and stop reverting user commands ([#367](https://github.com/ff-fab/cosalette-apps/issues/367)) ([665b9eb](https://github.com/ff-fab/cosalette-apps/commit/665b9eb4f3be147976be62933f419f1a95a59239))
+* **wiz2mqtt:** ship PyYAML so wiz2mqtt-openhab works in the image ([#364](https://github.com/ff-fab/cosalette-apps/issues/364)) ([0110984](https://github.com/ff-fab/cosalette-apps/commit/0110984ca794551e170fb2db954ad7385dd172f1))
+* **wiz2mqtt:** stop spurious firstBeat restores and replay one colour mode ([#368](https://github.com/ff-fab/cosalette-apps/issues/368)) ([f7b6e5b](https://github.com/ff-fab/cosalette-apps/commit/f7b6e5b696b5ebb797d776f3cd0711c2b613bbb5))
+
 ## [0.2.13](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.12...wiz2mqtt-v0.2.13) (2026-10-09)
 
 
