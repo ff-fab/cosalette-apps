@@ -122,7 +122,7 @@ includes:
       # from the example inventory (it broke in the 0.2.13 image, cap-f19s).
       SMOKE: |
         docker run --rm --network none -v "$PWD:/cfg:ro" --entrypoint wiz2mqtt-openhab "$IMAGE" --config-file /cfg/wiz2mqtt.example.toml --output both | grep -F "Thing mqtt:topic:" > /dev/null
-        docker run --rm --network none --entrypoint wiz2mqtt-discover "$IMAGE" --help > /dev/null
+        docker run --rm --network none --entrypoint wiz2mqtt-discover "$IMAGE" --broadcast 127.0.0.1 --wait 0.1 --timeout 2 > /dev/null
 
 tasks:
   wiz2mqtt:openhab:

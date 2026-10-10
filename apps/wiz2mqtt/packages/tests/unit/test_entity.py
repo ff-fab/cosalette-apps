@@ -1589,6 +1589,51 @@ class TestBootCallback:
         assert state.consecutive_failures["office"] == 0
         assert "office" in notify.armed
 
+    async def test_command_after_boot_queues_until_a_poll_answers(self) -> None:
+        """Technique: State Transition — firstBeat invalidates old reachability."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        notify = RecordingNotifier()
+        config = _config()
+        await _tick(ctx, config, adapter, state, notify=notify)
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+        await bulb_set(
+            BulbSetCommand(brightness=40), config, adapter, state, ctx, notify
+        )
+
+        assert state.bulb_answered["office"] is False
+        assert adapter.set_state_calls == []
+        assert state.pending_commands["office"].kwargs["brightness"] == 40
+
+    async def test_command_during_reconnect_read_keeps_newer_intent(self) -> None:
+        """Technique: Race condition — a read cannot overwrite a newer command."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        config = _config()
+        notify = RecordingNotifier()
+
+        class CommandOnAvailability(FakeDeviceContext):
+            async def mark_available(self) -> None:
+                await super().mark_available()
+                await bulb_set(
+                    BulbSetCommand(brightness=40),
+                    config,
+                    adapter,
+                    state,
+                    self,
+                    notify,
+                )
+
+        ctx = CommandOnAvailability(settings=_settings_with_office())
+        await _tick(ctx, config, adapter, state, notify=notify)
+
+        desired = state.desired_state["office"]
+        assert desired.state == "ON"
+        assert desired.appearance.brightness == 40
+        assert adapter.set_state_calls[0][1]["brightness"] == 40
+
     async def test_repeated_boot_event_after_confirmed_restore_is_ignored(self) -> None:
         """Technique: Regression — repeated firstBeat must not repeat a restore."""
         adapter = FakeWizBulbAdapter()

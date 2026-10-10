@@ -219,7 +219,16 @@ async def _handle_read_success(
     if state.phase.get(name, "steady") == "reconnect":
         try:
             return await _run_return_path(
-                ctx, config, port, state, store, settings, notify, name, bulb_state
+                ctx,
+                config,
+                port,
+                state,
+                store,
+                settings,
+                notify,
+                name,
+                bulb_state,
+                observation_generation,
             )
         except WizBridgeError:
             state.phase[name] = "steady"
@@ -472,6 +481,7 @@ async def _run_return_path(
     notify: EntityNotifier,
     name: str,
     bulb_state: BulbState,
+    observation_generation: int,
 ) -> dict[str, object] | None:
     """Run the ADR-008 return path once for *name* (cap-bjw9.8).
 
@@ -518,7 +528,8 @@ async def _run_return_path(
     if kwargs is None:
         observed = bulb_state
         confirmed = True
-        intent.record_observation(state, store, name, observed, now)
+        if state.desired_state_generation.get(name, 0) == observation_generation:
+            intent.record_observation(state, store, name, observed, now)
     else:
         if _restore_write_held(state, name):
             belief = _recompute_and_notify(settings, state, notify, name)
@@ -911,6 +922,7 @@ def _make_boot_handler(
         else:
             intent.arm_reconnect(state, name, "first_beat")
             state.consecutive_failures[name] = 0
+        state.bulb_answered[name] = False
         notify(name)
 
     return _on_boot
