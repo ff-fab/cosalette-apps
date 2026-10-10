@@ -3509,7 +3509,6 @@ dependencies = [
     { name = "cosalette" },
     { name = "pydantic-settings" },
     { name = "pywizlight" },
-    { name = "pyyaml" },
     { name = "typer" },
 ]
 
@@ -3523,7 +3522,6 @@ requires-dist = [
     { name = "cosalette", specifier = ">=0.11.4,<0.12" },
     { name = "pydantic-settings", specifier = ">=2.14.2" },
     { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
-    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "typer", specifier = ">=0.12" },
 ]
 

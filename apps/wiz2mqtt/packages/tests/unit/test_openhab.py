@@ -13,8 +13,8 @@ Test Techniques Used:
   channel and Item either way
 - Specification-based: every bulb exposes colour temperature, effect speed,
   power draw and the error topic, with commands openHAB can actually send
-- Error Guessing: the generator's runtime PyYAML dependency living only in
-  the dev group, and dotenv filtering's version floor living only in a
+- Error Guessing: the generator needing PyYAML, which only the dev group
+  provides, and dotenv filtering's version floor living only in a
   workspace constraint, where downstream installs cannot see it
 """
 
@@ -88,16 +88,26 @@ def test_framework_failure_is_reported(
     assert "schema failed" in result.output
 
 
-def test_generator_yaml_dependency_ships_at_runtime() -> None:
-    """The schema CLI the generator runs needs PyYAML in the image, not only in dev.
+def test_generator_runs_without_pyyaml(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The image ships no PyYAML, so the schema CLI the generator runs must not need it.
 
-    Technique: Error Guessing — the dev group provides PyYAML, so the
-    end-to-end tests below pass even when the image cannot generate (0.2.13).
+    Technique: Error Guessing — the dev group provides PyYAML, so the other
+    end-to-end tests pass even when the image cannot generate (0.2.13). A
+    ``yaml`` stub that fails to import shadows the real one in the schema CLI.
     """
-    requires = importlib.metadata.requires("wiz2mqtt") or []
-    runtime = [r for r in requires if "extra ==" not in r]
+    stub = tmp_path / "stub" / "yaml"
+    stub.mkdir(parents=True)
+    (stub / "__init__.py").write_text("raise ImportError('PyYAML blocked')\n")
+    monkeypatch.setenv("PYTHONPATH", str(stub.parent))
+    config = tmp_path / "wiz2mqtt.toml"
+    config.write_text('[[bulbs]]\nname="desk"\nip="10.0.0.1"\n')
 
-    assert any(re.match(r"(?i)pyyaml\b", r) for r in runtime)
+    result = CliRunner().invoke(cli, ["--config-file", str(config)])
+
+    assert result.exit_code == 0, result.output
+    assert "Wiz2Mqtt_Desk_Hsb_Cmd" in result.output
 
 
 def test_dotenv_filtering_dependency_floor_ships_at_runtime() -> None:
