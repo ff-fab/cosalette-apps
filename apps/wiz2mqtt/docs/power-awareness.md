@@ -121,7 +121,8 @@ occurs:
 A write to restore `OFF` sends only `OFF`. A write to restore `ON` sends `ON` and the
 appearance (brightness, colour or scene) in one command. wiz2mqtt reads the state back
 after each write. The comparison allows for the bulb's own rounding: brightness in whole
-percent, and the hue of a very pale colour. Any hue confirms for white (saturation
+percent, the 10 % minimum that WiZ firmware applies to a dimmer write, and the hue of a
+very pale colour. Any hue confirms for white (saturation
 `0`). It tries a maximum of three times in total. If all three attempts
 fail, it publishes an error on `wiz2mqtt/{bulb}/error`, keeps the desired state and
 stays in the reconnect phase, so the next tick or `firstBeat` runs the return path
@@ -235,7 +236,8 @@ towards `offline`. Three power-source keys make a switched circuit behave:
 - `restore_settle` (seconds, default `15`) writes the restored state again when the
   bulb reports something else shortly after a confirmed restore. A change in the WiZ
   app, with a WiZ remote or by a WiZ room sync in that window is therefore reverted;
-  after it, the change becomes the new desired state. `0` switches the window off.
+  after it, the change becomes the new desired state. A wiz2mqtt command ends the
+  window: it is new intent and is never reverted. `0` switches the window off.
 - `clear_queue_on_power_off = true` (default `false`) drops the members' queued
   commands when the signal changes from `on` to `off`. Use it when switching the relay
   off means "forget what was asked". A command queued while the signal is already

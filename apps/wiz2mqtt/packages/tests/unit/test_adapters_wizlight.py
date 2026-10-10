@@ -41,6 +41,7 @@ from wiz2mqtt.errors import (
     WizTimeoutError,
     WizUnsupportedCommandError,
 )
+from wiz2mqtt.intent import bulb_state_to_set_state_kwargs
 from wiz2mqtt.models import BulbState
 from wiz2mqtt.settings import Wiz2MqttSettings
 
@@ -709,6 +710,28 @@ class TestGetState:
         assert state.hue is None
         assert state.saturation is None
         assert state.color_temp_kelvin == 4000
+
+    async def test_wizlight_ct_mode_read_back_replays_as_a_write(
+        self, ctx: _Ctx
+    ) -> None:
+        """WiZ reports ``sceneId 0`` in white/CT mode: that is no scene.
+
+        Replaying the read-back as a full write (the ADR-008 return path)
+        must not trip ``validate_scene(0)``, which no bulb class accepts.
+
+        Technique: Regression (cap-9omh).
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [
+            _FakeParser(rgb=None, colortemp=2700, brightness=26, scene_id=0)
+        ]
+
+        observed = await ctx.adapter.get_state(_IP)
+        await ctx.adapter.set_state(_IP, **bulb_state_to_set_state_kwargs(observed))
+
+        assert observed.scene is None
+        assert ctx.pilot_calls[-1]["colortemp"] == 2700
+        assert ctx.pilot_calls[-1].get("scene") is None
 
     async def test_wizlight_get_state_uses_push_cache_when_fresh(
         self, ctx: _Ctx

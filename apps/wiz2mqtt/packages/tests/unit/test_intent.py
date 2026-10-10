@@ -114,6 +114,14 @@ class TestSerialisation:
         with pytest.raises(ValueError):
             desired_state_from_dict(raw)
 
+    def test_heals_a_persisted_scene_zero_to_no_scene(self) -> None:
+        """Technique: Regression (cap-9omh) — up to 0.2.13 a white/CT-mode
+        observation persisted WiZ's ``sceneId 0``, which no write accepts."""
+        raw = desired_state_to_dict(_DESIRED)
+        raw["appearance"] = {**raw["appearance"], "scene": 0}
+
+        assert desired_state_from_dict(raw).appearance.scene is None
+
     def test_rejects_an_invalid_appearance_shape(self) -> None:
         """Technique: Error Guessing — persisted partial records cannot leak through."""
         raw = desired_state_to_dict(_DESIRED)
@@ -452,6 +460,33 @@ class TestRecordCommand:
         desired = state.desired_state["office"]
         assert desired.appearance.brightness == 77
         assert desired.appearance.color_temp_kelvin == 4000  # kept from the store
+
+    def test_clears_an_active_restore_settle_guard(self) -> None:
+        """Technique: Regression (cap-9omh) — a new user command is never a
+        foreign state for the settle guard to revert."""
+        state = SharedState(
+            restore_settle_until={"office": 1e12},
+            restore_settle_state={"office": _DESIRED.as_bulb_state()},
+        )
+
+        record_command(
+            state,
+            None,
+            "office",
+            {
+                "state": None,
+                "brightness": None,
+                "hue": None,
+                "saturation": None,
+                "color_temp_kelvin": 3500,
+                "scene": None,
+                "speed": None,
+            },
+            1500.0,
+        )
+
+        assert "office" not in state.restore_settle_until
+        assert "office" not in state.restore_settle_state
 
 
 class TestQueue:

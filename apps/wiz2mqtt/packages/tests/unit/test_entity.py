@@ -1788,3 +1788,105 @@ class TestColourReadBack:
         assert not entity._kwargs_match_observed(  # noqa: SLF001
             {"state": True, "hue": 16, "saturation": 49}, observed
         )
+
+    def test_brightness_below_the_dimming_floor_confirms_at_the_floor(self) -> None:
+        """Technique: Boundary Value Analysis — WiZ firmware clamps dimming
+        below 10 % up to 10 % (brightness 26), so a 5 % write reads back as
+        10 % and must still confirm (cap-9omh)."""
+        floor = BulbState(True, 26, None, None, None, None)
+
+        unconfirmed = [
+            brightness
+            for brightness in range(1, 26)
+            if not entity._kwargs_match_observed(  # noqa: SLF001
+                {"state": True, "brightness": brightness}, floor
+            )
+        ]
+
+        assert unconfirmed == []
+        assert not entity._kwargs_match_observed(  # noqa: SLF001
+            {"state": True, "brightness": 13},
+            BulbState(True, 51, None, None, None, None),
+        )
+
+
+class TestCtModeRestore:
+    """White/CT mode restores and user commands are not reverted (cap-9omh).
+
+    A WiZ bulb in white/CT mode reports ``sceneId 0``. Stored as ``scene=0``,
+    every return-path replay failed ``validate_scene(0)`` locally and the
+    bulb stayed in ``reconnect``, queueing user commands.
+    """
+
+    @staticmethod
+    def _ct_mode_read_back() -> BulbState:
+        from pywizlight import PilotParser  # noqa: PLC0415
+
+        observed = _parse_state(
+            [PilotParser({"state": True, "temp": 2700, "dimming": 10, "sceneId": 0})]
+        )
+        assert observed is not None
+        return observed
+
+    async def test_ct_mode_observation_restores_without_a_scene(self) -> None:
+        """Technique: Regression — the report's minimal reproduction."""
+        adapter = FakeWizBulbAdapter()
+        adapter.inject_push(_IP, self._ct_mode_read_back())
+        state = SharedState()
+        ctx = FakeDeviceContext()
+        config = _config(restore_previous_state=True)
+        await _tick(ctx, config, adapter, state)
+        state.phase["office"] = "reconnect"
+
+        await _tick(ctx, config, adapter, state)
+
+        assert [kwargs["scene"] for _, kwargs in adapter.set_state_calls] == [None]
+        assert adapter.set_state_calls[0][1]["color_temp_kelvin"] == 2700
+        assert state.last_applied["office"].confirmed is True
+        assert state.phase["office"] == "steady"
+
+    async def test_persisted_scene_zero_restores_without_a_scene(self) -> None:
+        """Technique: Regression — a store written by 0.2.13 heals on load."""
+        raw = desired_state_to_dict(_DESIRED_ON)
+        raw["appearance"] = {**raw["appearance"], "color_temp_kelvin": 2700, "scene": 0}
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store({"desired_state": raw}),
+        )
+
+        assert [kwargs["scene"] for _, kwargs in adapter.set_state_calls] == [None]
+        assert state.phase["office"] == "steady"
+
+    async def test_user_command_inside_restore_settle_is_not_reverted(self) -> None:
+        """Technique: Regression — a direct write during the settle window is
+        the user's new intent, not a foreign state to re-apply."""
+        settings = build_settings(
+            [{"name": "office", "ip": _IP}],
+            [{"name": "office-power", "members": ["office"], "restore_settle": 3600}],
+        )
+        restored = self._ct_mode_read_back()
+        adapter = FakeWizBulbAdapter()
+        adapter.inject_push(_IP, restored)
+        state = SharedState(
+            phase={"office": "steady"},
+            restore_settle_until={"office": time.monotonic() + 3600},
+            restore_settle_state={"office": restored},
+        )
+        ctx = FakeDeviceContext(settings=settings)
+        notify = RecordingNotifier()
+
+        await bulb_set(
+            BulbSetCommand(color_temp=3500), _config(), adapter, state, ctx, notify
+        )
+        await _tick(ctx, _config(), adapter, state, notify=notify)
+        await _tick(ctx, _config(), adapter, state, notify=notify)
+
+        assert len(adapter.set_state_calls) == 1
+        assert adapter._state[_IP].color_temp_kelvin == 3500  # noqa: SLF001
+        assert state.phase["office"] == "steady"
