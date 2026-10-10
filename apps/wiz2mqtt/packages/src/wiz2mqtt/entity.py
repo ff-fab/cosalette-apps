@@ -20,7 +20,7 @@ import cosalette
 from cosalette import DeviceStore, EntityNotifier, Optional
 
 from wiz2mqtt import intent, power
-from wiz2mqtt.colour import clamp_kelvin, wiz_brightness
+from wiz2mqtt.colour import clamp_kelvin, wiz_brightness, wiz_floor_brightness
 from wiz2mqtt.commands import SetStateKwargs
 from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizBridgeError, WizIdentityError
 from wiz2mqtt.models import BulbCapabilities, BulbState
@@ -698,12 +698,15 @@ def _scalar_fields_match(
     """Exact-match check of brightness, scene, colour temperature and speed.
 
     Brightness also accepts the value after the bulb's whole-percent
-    dimming, so an off-grid value such as 1 or 4 still confirms.
+    dimming, so an off-grid value such as 1 or 4 still confirms, and the
+    firmware's 10 % dimming floor, so a 5 % write that reads back as 10 %
+    confirms too.
     """
     brightness = kwargs.get("brightness")
     if brightness is not None and observed.brightness not in (
         brightness,
         wiz_brightness(brightness),
+        wiz_floor_brightness(brightness),
     ):
         return False
     scene = kwargs.get("scene")

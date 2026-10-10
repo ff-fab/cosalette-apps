@@ -21,6 +21,7 @@ from wiz2mqtt.colour import (
     rgb_to_hue_saturation,
     validate_scene,
     wiz_brightness,
+    wiz_floor_brightness,
 )
 from wiz2mqtt.errors import WizUnsupportedCommandError
 from wiz2mqtt.models import BulbCapabilities
@@ -241,6 +242,17 @@ class TestWizBrightness:
     ) -> None:
         """Technique: Boundary Value Analysis — full scale, off-grid, and floor."""
         assert wiz_brightness(written) == read_back
+
+    @pytest.mark.parametrize(
+        ("written", "read_back"),
+        [(1, 26), (13, 26), (24, 26), (26, 26), (28, 28), (255, 255)],
+    )
+    def test_colour_wiz_floor_brightness_clamps_to_ten_percent(
+        self, written: int, read_back: int
+    ) -> None:
+        """Technique: Boundary Value Analysis — below, at and above the 10 %
+        dimming floor WiZ firmware applies (cap-9omh)."""
+        assert wiz_floor_brightness(written) == read_back
 
 
 # ---------------------------------------------------------------------------

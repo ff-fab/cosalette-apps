@@ -168,7 +168,9 @@ def _appearance_from_dict(raw: Any) -> Appearance:
         hue=_optional_finite_number(raw["hue"], "appearance.hue"),
         saturation=_optional_finite_number(raw["saturation"], "appearance.saturation"),
         color_temp_kelvin=color_temp_kelvin,
-        scene=_optional_int(raw["scene"], "appearance.scene"),
+        # Up to 0.2.13 a white/CT-mode observation stored WiZ's "no scene"
+        # sceneId 0; heal it so the restore does not replay it (cap-9omh).
+        scene=_optional_int(raw["scene"], "appearance.scene") or None,
         speed=_optional_int(raw["speed"], "appearance.speed"),
     )
 
@@ -294,6 +296,10 @@ def record_command(
     state.restore_retry_cycles.pop(name, None)
     state.restore_retry_at.pop(name, None)
     state.restore_retry_exhausted.discard(name)
+    # The settle guard protects a restored state from foreign updates; the
+    # user's own new intent must not be reverted as one (cap-9omh).
+    state.restore_settle_until.pop(name, None)
+    state.restore_settle_state.pop(name, None)
     current = resolve_desired_state(state, store, name)
     base = current.as_bulb_state() if current is not None else EMPTY_BULB_STATE
     merged = base.apply_command(

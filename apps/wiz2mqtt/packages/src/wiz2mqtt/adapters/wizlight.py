@@ -644,7 +644,9 @@ def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
         hue=hue,
         saturation=saturation,
         color_temp_kelvin=color_temp_kelvin,
-        scene=parser.get_scene_id(),
+        # A bulb in white/CT or colour mode reports sceneId 0: no scene. No
+        # bulb class accepts a write of scene 0 (cap-9omh).
+        scene=parser.get_scene_id() or None,
         effect_speed=parser.get_speed(),
         power_draw_w=parser.get_power(),
     )

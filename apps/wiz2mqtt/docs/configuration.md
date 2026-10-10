@@ -140,7 +140,8 @@ one.
 `restore_settle` also reverts a deliberate change. A change made in the WiZ
 app, with a WiZ remote or by a WiZ room sync within `restore_settle` seconds
 of a power-on restore is written back; after the window, wiz2mqtt adopts it as
-the new desired state. Only a bulb with a power source has this window. While
+the new desired state. A command sent through wiz2mqtt ends the window, so it is
+never reverted. Only a bulb with a power source has this window. While
 a restore stays unconfirmed, the bulb stays in the return path and wiz2mqtt
 keeps writing the desired state only until `restore_retry_limit` exhausted
 cycles, whatever the window. A new command starts a fresh retry budget.
