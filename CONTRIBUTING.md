@@ -371,6 +371,22 @@ registry token. Publication jobs run only from the main workflow ref, including 
 dispatches. A manual app rebuild still checks out the requested release tag for its
 build context.
 
+## Image smoke test
+
+CI builds each changed app's image for `linux/amd64` and runs it offline with
+`task <app>:docker:smoke IMAGE=<ref>`. Every image must answer `<app> --help`,
+`<app> --version` and `cosalette-health --help`. A `--help` returns before most code
+runs, so it cannot show a missing runtime dependency. Every further console script in
+the app's `[project.scripts]` therefore needs a line in the `SMOKE` var of its
+`Taskfile.yml` include, and that line runs the script doing real work.
+`packages/tests/unit/test_image_smoke_coverage.py` fails when a script has no line. Run
+the check locally after a `docker build`:
+
+```bash
+docker build -f apps/wiz2mqtt/Dockerfile -t wiz2mqtt:smoke .
+task wiz2mqtt:docker:smoke IMAGE=wiz2mqtt:smoke
+```
+
 ## Documentation Preview
 
 PRs that change files under `docs/` or `apps/*/docs/` automatically get a live

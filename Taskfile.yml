@@ -117,6 +117,12 @@ includes:
       # schema:check/schema:generate already validate the TOML inventory shape
       # end-to-end via --resolve-settings --config-file (cap-10u.9, ADR-051).
       SCHEMA_CONFIG_FILE: wiz2mqtt.schema.toml
+      # Image smoke test (cap-r352): every console script besides the
+      # entrypoint runs here, offline. wiz2mqtt-openhab must render Things
+      # from the example inventory (it broke in the 0.2.13 image, cap-f19s).
+      SMOKE: |
+        docker run --rm --network none -v "$PWD:/cfg:ro" --entrypoint wiz2mqtt-openhab "$IMAGE" --config-file /cfg/wiz2mqtt.example.toml --output both | grep -F "Thing mqtt:topic:" > /dev/null
+        docker run --rm --network none --entrypoint wiz2mqtt-discover "$IMAGE" --help > /dev/null
 
 tasks:
   wiz2mqtt:openhab:

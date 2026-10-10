@@ -97,3 +97,44 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
+
+  # Build the app image and run its shipped console scripts offline
+  # (cap-r352): --help alone returned before the code that broke wiz2mqtt
+  # 0.2.13 (cap-f19s). Runs on the runner, not in the devcontainer, because it
+  # needs the Docker daemon. amd64 only, loaded locally, never pushed.
+  image-smoke:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+        with:
+          # Same Docker Hub mirror as docker-app.yml: anonymous docker.io pulls
+          # hit 429 rate limits on shared runners.
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
+      - name: Build image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: apps/${{ inputs.app }}/Dockerfile
+          platforms: linux/amd64
+          load: true
+          push: false
+          tags: ${{ inputs.app }}:smoke
+          # Read the release build's cache; never write it from a PR.
+          cache-from: type=gha,scope=${{ inputs.app }}
+      - name: Install Task
+        uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
+        with:
+          version: 3.52.0
+          checksum: 02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd # pragma: allowlist secret
+      - name: Smoke-test the image
+        env:
+          APP: ${{ inputs.app }}
+        run: task "$APP:docker:smoke" IMAGE="$APP:smoke"

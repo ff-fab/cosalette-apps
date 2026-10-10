@@ -208,3 +208,8 @@ dev = ["cosalette[schema]>=0.11.3,<0.12"]
 ### Additional Positive Consequences
 
 - The wiz2mqtt image drops PyYAML again, so seven app images ship without it, as the 2026-10-09 amendment measured.
+
+## Amendment (2026-10-10) — Minor
+
+!!! note "Editorial note (2026-10-10)"
+    The image smoke test now exists (cap-r352). CI builds each changed app's linux/amd64 image and runs its docker:smoke task offline: the app entrypoint help and version, cosalette-health help, and each additional console script through an app-specific SMOKE command that exercises real work. wiz2mqtt-openhab renders Things from the example inventory, and wiz2mqtt-discover runs against loopback to cover its lazy runtime import without probing the LAN. packages/tests/unit/test_image_smoke_coverage.py fails when a console script has no SMOKE command.
