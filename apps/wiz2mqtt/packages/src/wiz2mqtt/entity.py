@@ -22,7 +22,12 @@ from cosalette import DeviceStore, EntityNotifier, Optional
 from wiz2mqtt import intent, power
 from wiz2mqtt.colour import clamp_kelvin, wiz_brightness, wiz_floor_brightness
 from wiz2mqtt.commands import SetStateKwargs
-from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizBridgeError, WizIdentityError
+from wiz2mqtt.errors import (
+    RESTORE_UNCONFIRMED,
+    WizBridgeError,
+    WizIdentityError,
+    WizUnsupportedCommandError,
+)
 from wiz2mqtt.models import BulbCapabilities, BulbState
 from wiz2mqtt.payload import build_state_payload, readiness_fields
 from wiz2mqtt.ports import WizBulbPort
@@ -94,11 +99,10 @@ async def bulb_entity_tick(
 
     _ensure_boot_callback_registered(port, settings, state, notify)
     if name not in state.phase:
-        state.phase[name] = (
-            "reconnect"
-            if intent.resolve_desired_state(state, store, name) is not None
-            else "steady"
-        )
+        if intent.resolve_desired_state(state, store, name) is not None:
+            intent.arm_reconnect(state, name, "first_tick")
+        else:
+            state.phase[name] = "steady"
 
     # Skip the read while the source is known off (ADR-007/cap-bjw9.9): an
     # absent bulb otherwise holds pywizlight's asyncio.Lock for the full
@@ -199,8 +203,8 @@ async def _handle_read_success(
     # Arm reconnect on slow polling recovery: the boot callback handles the
     # fast path, but a successful read after the failure threshold (without a
     # boot event) also needs to run the return path when a desired state exists.
-    if was_unreachable and _has_desired_state_to_restore(state, store, name):
-        state.phase[name] = "reconnect"
+    if _should_arm_slow_recovery(state, store, name, was_unreachable):
+        intent.arm_reconnect(state, name, "slow_recovery")
     if await _boot_check_finds_drift(
         port,
         config.ip,
@@ -215,14 +219,23 @@ async def _handle_read_success(
     if state.phase.get(name, "steady") == "reconnect":
         try:
             return await _run_return_path(
-                ctx, config, port, state, store, settings, notify, name, bulb_state
+                ctx,
+                config,
+                port,
+                state,
+                store,
+                settings,
+                notify,
+                name,
+                bulb_state,
+                observation_generation,
             )
         except WizBridgeError:
             state.phase[name] = "steady"
             belief = _recompute_and_notify(settings, state, notify, name)
             return _render(settings, state, name, bulb_state, belief)
     if _conflicts_with_restore_settle(state, name, bulb_state):
-        state.phase[name] = "reconnect"
+        intent.arm_reconnect(state, name, "settle_conflict")
         notify(name)
         belief = _recompute_and_notify(settings, state, notify, name)
         return _render(settings, state, name, bulb_state, belief)
@@ -230,6 +243,19 @@ async def _handle_read_success(
         intent.record_observation(state, store, name, bulb_state, time.time())
     belief = _recompute_and_notify(settings, state, notify, name)
     return _render(settings, state, name, bulb_state, belief)
+
+
+def _should_arm_slow_recovery(
+    state: SharedState,
+    store: DeviceStore | None,
+    name: str,
+    was_unreachable: bool,
+) -> bool:
+    return (
+        was_unreachable
+        and name not in state.boot_checks
+        and _has_desired_state_to_restore(state, store, name)
+    )
 
 
 async def _boot_check_finds_drift(
@@ -468,6 +494,7 @@ async def _run_return_path(
     notify: EntityNotifier,
     name: str,
     bulb_state: BulbState,
+    observation_generation: int,
 ) -> dict[str, object] | None:
     """Run the ADR-008 return path once for *name* (cap-bjw9.8).
 
@@ -501,7 +528,11 @@ async def _run_return_path(
 
     If a new pending command arrived during the loop (a command enqueued
     while the bulb was being written to), the phase stays ``"reconnect"``
-    so the next tick processes it instead of settling to steady.
+    so the next tick processes it instead of settling to steady. Commands
+    queue while the loop runs (``return_path_writing``), so a retry never
+    overwrites one (cap-8qjm). A write the bulb cannot express
+    (:class:`WizUnsupportedCommandError`) ends the cycle at once: see
+    :func:`_abandon_unsupported_restore`.
     """
     now = time.time()
     kwargs, settle_target = _return_path_write(
@@ -510,19 +541,28 @@ async def _run_return_path(
     if kwargs is None:
         observed = bulb_state
         confirmed = True
-        intent.record_observation(state, store, name, observed, now)
+        if state.desired_state_generation.get(name, 0) == observation_generation:
+            intent.record_observation(state, store, name, observed, now)
     else:
         if _restore_write_held(state, name):
             belief = _recompute_and_notify(settings, state, notify, name)
             return _render(settings, state, name, bulb_state, belief)
-        observed, results, confirmed = await _write_and_verify(
-            port,
-            config.ip,
-            kwargs,
-            bulb_state,
-            delays=settings.restore_retry_delays_for(name),
-            sleep=ctx.sleep,
-        )
+        state.return_path_writing.add(name)
+        try:
+            observed, results, confirmed = await _write_and_verify(
+                port,
+                config.ip,
+                kwargs,
+                bulb_state,
+                delays=settings.restore_retry_delays_for(name),
+                sleep=ctx.sleep,
+            )
+        except WizUnsupportedCommandError as exc:
+            return await _abandon_unsupported_restore(
+                ctx, settings, state, store, notify, name, kwargs, bulb_state, exc
+            )
+        finally:
+            state.return_path_writing.discard(name)
         state.last_applied[name] = intent.AppliedCommand(
             kwargs=kwargs, at=time.time(), attempts=len(results), confirmed=confirmed
         )
@@ -615,12 +655,59 @@ async def _report_unconfirmed_restore(
         attempts,
         "retry cap reached" if terminal else "retaining desired state for retry",
     )
+    await _publish_restore_error(ctx, observed, results, cycles, terminal=terminal)
+
+
+async def _abandon_unsupported_restore(
+    ctx: cosalette.DeviceContext,
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    store: DeviceStore | None,
+    notify: EntityNotifier,
+    name: str,
+    kwargs: SetStateKwargs,
+    bulb_state: BulbState,
+    exc: WizUnsupportedCommandError,
+) -> dict[str, object]:
+    """End a return path whose write the bulb cannot express (cap-8qjm).
+
+    The failure is local and deterministic, so retrying cannot help. Publish a
+    terminal ``restore_unconfirmed`` error and clear the retry bookkeeping.
+    Without a newer queued command the lamp's observed state becomes the
+    desired state and the phase settles to steady; a queued command keeps
+    reconnect armed so the next tick writes it.
+    """
+    logger.warning("Bulb %s: return-path restore abandoned: %s", name, exc)
+    state.last_applied[name] = intent.AppliedCommand(
+        kwargs=kwargs, at=time.time(), attempts=1, confirmed=False
+    )
+    state.restore_retry_cycles.pop(name, None)
+    state.restore_retry_at.pop(name, None)
+    state.restore_retry_exhausted.discard(name)
+    results = [type(exc).__name__]
+    await _publish_restore_error(ctx, bulb_state, results, 1, terminal=True)
+    if name not in state.pending_commands:
+        intent.record_observation(state, store, name, bulb_state, time.time())
+        state.phase[name] = "steady"
+    belief = _recompute_and_notify(settings, state, notify, name)
+    return _render(settings, state, name, bulb_state, belief)
+
+
+async def _publish_restore_error(
+    ctx: cosalette.DeviceContext,
+    observed: BulbState,
+    results: list[str],
+    cycles: int,
+    *,
+    terminal: bool,
+) -> None:
+    """Publish a ``restore_unconfirmed`` error to ``wiz2mqtt/{bulb}/error``."""
     await ctx.publish(
         "error",
         json.dumps(
             {
                 "error_type": RESTORE_UNCONFIRMED,
-                "attempts": attempts,
+                "attempts": len(results),
                 "attempt_results": results,
                 "retry_cycles": cycles,
                 "terminal": terminal,
@@ -675,9 +762,10 @@ async def _write_and_verify(
     bulb still booting gets time to apply the write. Transport errors
     (``WizBridgeError``) count as failed attempts; when none read back,
     the *fallback* state is returned so the caller's error handler has
-    something to publish.  The adapter's cache is invalidated before each
-    read-back so the comparison sees an authoritative poll, not the
-    optimistic merge ``set_state`` applied.
+    something to publish. :class:`WizUnsupportedCommandError` is a local,
+    deterministic failure and propagates at once. The adapter's cache is
+    invalidated before each read-back so the comparison sees an
+    authoritative poll, not the optimistic merge ``set_state`` applied.
     """
     caps = await port.get_capabilities(ip)
     observed = fallback
@@ -689,6 +777,8 @@ async def _write_and_verify(
             await port.set_state(ip, **kwargs)
             port.invalidate_cache(ip)
             observed = await port.get_state(ip)
+        except WizUnsupportedCommandError:
+            raise
         except WizBridgeError as exc:
             results.append(type(exc).__name__)
             logger.info(
@@ -843,8 +933,9 @@ def _make_boot_handler(
                 state.boot_check_generation.get(name, 0) + 1
             )
         else:
-            state.phase[name] = "reconnect"
+            intent.arm_reconnect(state, name, "first_beat")
             state.consecutive_failures[name] = 0
+        state.bulb_answered[name] = False
         notify(name)
 
     return _on_boot

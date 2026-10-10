@@ -8,6 +8,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import logging
 import time
 
 import pytest
@@ -189,13 +190,16 @@ class TestBulbSet:
         assert adapter.set_state_calls == []
         assert notify.armed == []
 
-    async def test_timeout_marks_offline_and_queues_a_later_command(self) -> None:
+    async def test_timeout_marks_offline_and_queues_a_later_command(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Technique: State Transition — transient failure arms one-slot queueing."""
         adapter = FakeWizBulbAdapter()
         state = SharedState()
         notify = RecordingNotifier()
         ctx = self._ctx()
         adapter.fail_next("10.0.0.1", WizTimeoutError("timeout"))
+        caplog.set_level(logging.INFO, logger="wiz2mqtt.intent")
 
         with pytest.raises(WizQueuedTimeoutError) as excinfo:
             await bulb_set(
@@ -221,6 +225,7 @@ class TestBulbSet:
         assert state.pending_commands["office"].kwargs["brightness"] == 200
         assert len(adapter.set_state_calls) == 1
         assert notify.armed == ["office", "office"]
+        assert "entering reconnect phase (write_timeout)" in caplog.text
 
     async def test_reconnect_commands_merge_without_a_direct_write(self) -> None:
         """A return-path queue is the only writer until it has drained."""
@@ -251,6 +256,60 @@ class TestBulbSet:
         assert queued["scene"] is not None
         assert notify.armed == ["office", "office"]
 
+    async def test_reconnect_command_to_an_answering_bulb_goes_to_the_wire(
+        self,
+    ) -> None:
+        """Technique: State Transition — an answering bulb in reconnect takes
+        the command directly; the return path then confirms it (cap-8qjm)."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, bulb_answered={"office": True}
+        )
+        notify = RecordingNotifier()
+
+        await bulb_set(
+            BulbSetCommand(brightness=179),
+            self._config(),
+            adapter,
+            state,
+            self._ctx(),
+            notify,
+        )
+
+        assert len(adapter.set_state_calls) == 1
+        assert state.pending_commands == {}
+        assert state.phase["office"] == "reconnect"
+        assert notify.armed == ["office"]
+
+    @pytest.mark.parametrize(
+        "busy",
+        [
+            pytest.param({"stale_answers": {"office"}}, id="stale-answer"),
+            pytest.param({"return_path_writing": {"office"}}, id="return-path-writing"),
+        ],
+    )
+    async def test_reconnect_command_queues_when_the_wire_is_not_free(
+        self, busy: dict[str, set[str]]
+    ) -> None:
+        """Technique: Decision Table — a stale answer or a running write loop
+        keeps the queue, so a retry cannot overwrite the command (cap-8qjm)."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(
+            phase={"office": "reconnect"}, bulb_answered={"office": True}, **busy
+        )
+
+        await bulb_set(
+            BulbSetCommand(brightness=179),
+            self._config(),
+            adapter,
+            state,
+            self._ctx(),
+            RecordingNotifier(),
+        )
+
+        assert adapter.set_state_calls == []
+        assert state.pending_commands["office"].kwargs["brightness"] == 179
+
     async def test_connection_error_keeps_its_own_type(self) -> None:
         """Only a timeout is retyped; a connection error still queues."""
         adapter = FakeWizBulbAdapter()
@@ -270,9 +329,12 @@ class TestBulbSet:
         assert type(excinfo.value) is WizConnectionError
         assert "office" in state.pending_commands
 
-    async def test_boot_grace_queues_without_a_wire_attempt(self) -> None:
+    async def test_boot_grace_queues_without_a_wire_attempt(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
         """Technique: State Transition — a command in the boot window arms
         the return path instead of timing out (ADR-008 amendment 2026-09-30)."""
+        caplog.set_level(logging.INFO, logger="wiz2mqtt.intent")
         settings = build_settings(
             [{"name": "office", "ip": "10.0.0.1"}],
             [{"name": "up", "members": ["office"], "boot_grace": 3600}],
@@ -292,6 +354,7 @@ class TestBulbSet:
         assert state.pending_commands["office"].kwargs["brightness"] == 50
         assert ctx.availability_calls == []
         assert "office" in notify.armed
+        assert "entering reconnect phase (boot_grace)" in caplog.text
 
     @pytest.mark.parametrize(
         "error",

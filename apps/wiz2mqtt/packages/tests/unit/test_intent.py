@@ -11,6 +11,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import copy
+import logging
 
 import pytest
 from cosalette import DeviceStore
@@ -19,6 +20,7 @@ from cosalette.stores import MemoryStore
 from wiz2mqtt.intent import (
     Appearance,
     DesiredState,
+    arm_reconnect,
     desired_state_from_dict,
     desired_state_to_dict,
     enqueue,
@@ -625,3 +627,21 @@ class TestQueue:
 
         assert pop_valid(pending, "office", ttl=60.0, now=60.001) is None
         assert "office" not in pending
+
+
+class TestArmReconnect:
+    """Technique: State Transition — one INFO line per entry into reconnect."""
+
+    def test_logs_the_reason_once_per_transition(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        state = SharedState(phase={"office": "steady"})
+
+        with caplog.at_level(logging.INFO, logger="wiz2mqtt.intent"):
+            arm_reconnect(state, "office", "first_beat")
+            arm_reconnect(state, "office", "slow_recovery")
+
+        assert state.phase["office"] == "reconnect"
+        assert [r.getMessage() for r in caplog.records] == [
+            "Bulb office: entering reconnect phase (first_beat)"
+        ]

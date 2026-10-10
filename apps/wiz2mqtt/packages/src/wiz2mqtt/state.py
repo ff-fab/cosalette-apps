@@ -108,6 +108,10 @@ class SharedState:
     a new command resets the cap.
     """
 
+    return_path_writing: set[str] = field(default_factory=set)
+    """Bulbs whose return path is in its write-and-read-back loop. A command
+    then queues, so the loop's next attempt cannot overwrite it (cap-8qjm)."""
+
     restore_settle_until: dict[str, float] = field(default_factory=dict)
     """Monotonic deadline of a confirmed return-path restore's settle window."""
 

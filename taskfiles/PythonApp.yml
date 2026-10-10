@@ -264,3 +264,24 @@ tasks:
         else
           echo "ℹ No integration tests found in {{.PKG}}/tests/integration/ — skipping"
         fi
+
+  # ── Image smoke test ────────────────────────────────────────
+  # Runs a built image offline (cap-r352): --help returns before most code
+  # runs, so every app also gets --version and the health probe's --help,
+  # and an app with further console scripts runs each one doing real work
+  # through its SMOKE var (shell; the image is $IMAGE, the app dir is $PWD).
+  # packages/tests/unit/test_image_smoke_coverage.py keeps SMOKE complete.
+  docker:smoke:
+    desc: 'Smoke-test a built {{.APP_NAME}} image offline (task {{.APP_NAME}}:docker:smoke IMAGE=<ref>)'
+    requires:
+      vars: [IMAGE]
+    env:
+      IMAGE: '{{.IMAGE}}'
+    set: [errexit, pipefail]
+    cmds:
+      - docker run --rm --network none "$IMAGE" --help > /dev/null
+      - docker run --rm --network none "$IMAGE" --version
+      - docker run --rm --network none --entrypoint cosalette-health "$IMAGE" --help > /dev/null
+      - |
+        {{.SMOKE | default "true"}}
+      - echo "✓ {{.APP_NAME}} image smoke test passed"

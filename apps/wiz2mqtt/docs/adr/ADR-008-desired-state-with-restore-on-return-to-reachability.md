@@ -9,7 +9,7 @@ tags: [persistence, lifecycle, devices, architecture, error-handling]
 
 ## Status
 
-Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-30
+Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-30 | Amended **Date:** 2026-10-10
 
 ## Context
 
@@ -226,3 +226,41 @@ An unconfirmed return-path write does not hand authority to the lamp. Publish re
 ### Additional Negative Consequences
 
 - A bulb that continually refuses a restore emits restore_unconfirmed on later retries until it confirms or receives a new command.
+
+## Amendment (2026-10-10) — Additive
+
+**Rationale:** In the reconnect phase every `/set` was queued, even when the bulb answered, and the queue drained only from the next entity tick. A bulb whose return path kept failing held each command for about seven seconds per cycle. A deterministic local failure such as `WizUnsupportedCommandError` was also retried like a transport error, three attempts per cycle up to `restore_retry_limit` cycles, although no retry can succeed. cap-9omh removed the failures that turned this into a lockout; this amendment decides both open points (cap-8qjm).
+
+### Additional Sub-Decision: A command to an answering bulb in reconnect goes to the wire
+
+When the phase is `reconnect` and the bulb's last read succeeded and is not stale (ADR-007 amendment 2026-09-19), `/set` writes the command directly. `record_command` has already merged it into the desired state and reset the retry budget, so the phase stays `reconnect` and the entity is notified: the next tick's return path writes that merged desired state with read-back, and the command counts as the restore. The command still queues while the bulb has not answered (first tick, `boot_grace`, after a timeout), while it is offline or believed off, while a queue already exists, and while the return path is in its write-and-read-back loop (`SharedState.return_path_writing`), so that a write retry cannot overwrite the user's command.
+
+### Additional Sub-Decision: An unsupported write ends the restore cycle at once
+
+`WizUnsupportedCommandError` is raised locally before anything goes on the wire, so it is not a failed attempt. `_write_and_verify` re-raises it, and the return path publishes a terminal `restore_unconfirmed` error with `attempt_results: ["WizUnsupportedCommandError"]`, records the write as unconfirmed `last_applied` and clears the retry bookkeeping. Without a queued command the lamp's reported state becomes the desired state and the phase settles to `steady`; a queued command keeps `reconnect` armed so the next tick writes it.
+
+### Additional Considered Options
+
+**Keep queueing every command in reconnect**
+
+The return path stays the only writer until it has drained; commands wait for the next tick.
+
+- *Advantages:* One writer, so no ordering question between a command and a retry.
+- *Disadvantages:* A command to a lamp that answers waits a tick or longer, up to one full failing cycle.
+
+**Write directly and leave the reconnect phase**
+
+Treat a successful direct write as the end of the return path and settle to steady without a read-back.
+
+- *Advantages:* No extra return-path write after the command.
+- *Disadvantages:* A direct write has no read-back, so a bulb still booting could drop it and the desired state would never be confirmed.
+
+### Additional Positive Consequences
+
+- A command to a lamp that answers takes effect at once, also during a failing restore.
+- A restore the bulb cannot express publishes one terminal error instead of up to thirty writes.
+
+### Additional Negative Consequences
+
+- A bulb in reconnect may receive the command twice: the direct write, then the return path's confirming write of the merged desired state.
+- After an unsupported restore the lamp's state replaces the stored desired state, so `restore_previous_state` does not restore that intent again.

@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
+from collections.abc import Callable
 
 import pytest
 from cosalette import DeviceStore
@@ -27,7 +29,12 @@ from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
 from wiz2mqtt.adapters.wizlight import _parse_state
 from wiz2mqtt.entity import _FAILURE_THRESHOLD, bulb_entity_tick
-from wiz2mqtt.errors import RESTORE_UNCONFIRMED, WizIdentityError, WizTimeoutError
+from wiz2mqtt.errors import (
+    RESTORE_UNCONFIRMED,
+    WizIdentityError,
+    WizTimeoutError,
+    WizUnsupportedCommandError,
+)
 from wiz2mqtt.intent import (
     Appearance,
     DesiredState,
@@ -845,6 +852,78 @@ class TestReturnPath:
         assert adapter.set_state_calls == []
         assert ctx.published == []
 
+    async def test_unsupported_write_ends_the_cycle_and_adopts_the_lamp(
+        self,
+    ) -> None:
+        """Technique: Error Guessing — a deterministic local failure is not
+        retried: one attempt, a terminal error, the observation adopted and
+        the phase steady (cap-8qjm)."""
+        adapter = _UnsupportedWrites()
+        state = SharedState(
+            phase={"office": "reconnect"}, restore_retry_cycles={"office": 1}
+        )
+        ctx = FakeDeviceContext()
+
+        await _tick(
+            ctx,
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert adapter.attempts == 1
+        body = json.loads(ctx.published[0][1])
+        assert body["error_type"] == RESTORE_UNCONFIRMED
+        assert body["attempt_results"] == ["WizUnsupportedCommandError"]
+        assert body["terminal"] is True
+        assert state.last_applied["office"].confirmed is False
+        assert state.desired_state["office"].writer == "observation"
+        assert state.desired_state["office"].state == "OFF"
+        assert state.phase["office"] == "steady"
+        assert state.restore_retry_cycles == {}
+        assert state.return_path_writing == set()
+
+    async def test_unsupported_write_keeps_reconnect_for_a_queued_command(
+        self,
+    ) -> None:
+        """Technique: Decision Table — a command queued during the failed
+        write keeps reconnect armed so the next tick writes it (cap-8qjm)."""
+        state = SharedState(phase={"office": "reconnect"})
+
+        def queue_command() -> None:
+            assert "office" in state.return_path_writing
+            enqueue(state.pending_commands, "office", {"state": True}, time.time())  # type: ignore[arg-type]
+
+        adapter = _UnsupportedWrites(on_write=queue_command)
+
+        await _tick(
+            FakeDeviceContext(),
+            _config(restore_previous_state=True),
+            adapter,
+            state,
+            store=_store_with_desired(),
+        )
+
+        assert state.phase["office"] == "reconnect"
+        assert "office" in state.pending_commands
+        assert state.return_path_writing == set()
+
+
+class _UnsupportedWrites(FakeWizBulbAdapter):
+    """Fake whose every ``set_state`` raises ``WizUnsupportedCommandError``."""
+
+    def __init__(self, on_write: Callable[[], None] | None = None) -> None:
+        super().__init__()
+        self.attempts = 0
+        self._on_write = on_write
+
+    async def set_state(self, ip: str, **kwargs: object) -> None:  # type: ignore[override]
+        self.attempts += 1
+        if self._on_write is not None:
+            self._on_write()
+        raise WizUnsupportedCommandError("scene not supported")
+
 
 class _TimeoutOnFirstWrite(FakeWizBulbAdapter):
     """Fake whose first ``set_state`` raises a transport error."""
@@ -1510,6 +1589,51 @@ class TestBootCallback:
         assert state.consecutive_failures["office"] == 0
         assert "office" in notify.armed
 
+    async def test_command_after_boot_queues_until_a_poll_answers(self) -> None:
+        """Technique: State Transition — firstBeat invalidates old reachability."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        notify = RecordingNotifier()
+        config = _config()
+        await _tick(ctx, config, adapter, state, notify=notify)
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+        await bulb_set(
+            BulbSetCommand(brightness=40), config, adapter, state, ctx, notify
+        )
+
+        assert state.bulb_answered["office"] is False
+        assert adapter.set_state_calls == []
+        assert state.pending_commands["office"].kwargs["brightness"] == 40
+
+    async def test_command_during_reconnect_read_keeps_newer_intent(self) -> None:
+        """Technique: Race condition — a read cannot overwrite a newer command."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        config = _config()
+        notify = RecordingNotifier()
+
+        class CommandOnAvailability(FakeDeviceContext):
+            async def mark_available(self) -> None:
+                await super().mark_available()
+                await bulb_set(
+                    BulbSetCommand(brightness=40),
+                    config,
+                    adapter,
+                    state,
+                    self,
+                    notify,
+                )
+
+        ctx = CommandOnAvailability(settings=_settings_with_office())
+        await _tick(ctx, config, adapter, state, notify=notify)
+
+        desired = state.desired_state["office"]
+        assert desired.state == "ON"
+        assert desired.appearance.brightness == 40
+        assert adapter.set_state_calls[0][1]["brightness"] == 40
+
     async def test_repeated_boot_event_after_confirmed_restore_is_ignored(self) -> None:
         """Technique: Regression — repeated firstBeat must not repeat a restore."""
         adapter = FakeWizBulbAdapter()
@@ -1876,6 +2000,77 @@ class TestBootSafeguards:
         await _tick(ctx, _config(), adapter, state)
 
         assert bool(adapter.set_state_calls) is replayed
+
+
+def _reconnect_reasons(caplog: pytest.LogCaptureFixture) -> list[str]:
+    """The reasons logged for entering the reconnect phase (cap-tc9t)."""
+    prefix = "Bulb office: entering reconnect phase ("
+    return [
+        r.getMessage().removeprefix(prefix).rstrip(")")
+        for r in caplog.records
+        if r.getMessage().startswith(prefix)
+    ]
+
+
+class TestReconnectReasonLog:
+    """Each entry into reconnect logs why (cap-tc9t).
+
+    Technique: Decision Table — one row per tick-side trigger.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _info(self, caplog: pytest.LogCaptureFixture) -> None:
+        caplog.set_level(logging.INFO, logger="wiz2mqtt.intent")
+
+    async def test_first_tick_with_stored_intent(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        await _tick(
+            FakeDeviceContext(),
+            _config(),
+            FakeWizBulbAdapter(),
+            SharedState(),
+            store=_store_with_desired(),
+        )
+
+        assert _reconnect_reasons(caplog) == ["first_tick"]
+
+    async def test_slow_recovery(self, caplog: pytest.LogCaptureFixture) -> None:
+        state = SharedState(
+            phase={"office": "steady"},
+            desired_state={"office": _DESIRED_ON},
+            bulb_answered={"office": False},
+        )
+
+        await _tick(FakeDeviceContext(), _config(), FakeWizBulbAdapter(), state)
+
+        assert _reconnect_reasons(caplog) == ["slow_recovery"]
+
+    async def test_first_beat(self, caplog: pytest.LogCaptureFixture) -> None:
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        await _tick(
+            FakeDeviceContext(settings=_settings_with_office()),
+            _config(),
+            adapter,
+            state,
+        )
+        state.bulb_answered["office"] = False
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert _reconnect_reasons(caplog) == ["first_beat"]
+
+    async def test_settle_conflict(self, caplog: pytest.LogCaptureFixture) -> None:
+        state = SharedState(
+            phase={"office": "steady"},
+            restore_settle_until={"office": time.monotonic() + 3600},
+            restore_settle_state={"office": _DESIRED_ON.as_bulb_state()},
+        )
+
+        await _tick(FakeDeviceContext(), _config(), FakeWizBulbAdapter(), state)
+
+        assert _reconnect_reasons(caplog) == ["settle_conflict"]
 
 
 class TestColourReadBack:
