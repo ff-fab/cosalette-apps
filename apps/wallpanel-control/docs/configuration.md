@@ -184,7 +184,10 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
     reaches the bundled broker at `WALLPANEL_CONTROL_MQTT__HOST: localhost`. A Docker
     bridge network does not forward the broadcast to the LAN: `wake` still answers
     `accepted: true`, but the panel never wakes. To keep a bridge network, relay the
-    packet as a directed broadcast to the panel's subnet.
+    packet as a directed broadcast to the panel's subnet. Host networking shares the
+    host's network namespace and reduces network isolation. wallpanel-control is an
+    outbound MQTT and SSH client; it does not open an inbound listener. The bundled
+    mosquitto broker remains bound to host loopback (`127.0.0.1:1883`).
 
 ### Health and recovery
 
