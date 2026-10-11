@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.15](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.14...wiz2mqtt-v0.2.15) (2026-10-11)
+
+
+### Bug Fixes
+
+* **wiz2mqtt:** stop the powered flap after a relay signal off ([#373](https://github.com/ff-fab/cosalette-apps/issues/373)) ([5630c00](https://github.com/ff-fab/cosalette-apps/commit/5630c0085f43d7e03bdb85ee7c4f3672665d0ca4))
+
 ## [0.2.14](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.13...wiz2mqtt-v0.2.14) (2026-10-10)
 
 
