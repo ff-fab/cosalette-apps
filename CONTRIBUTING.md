@@ -515,5 +515,7 @@ Fork PRs skip the preview deploy gracefully (secrets are not available to forks)
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the
-[MIT License](LICENSE).
+By contributing, you agree that your contributions will be licensed under the license of
+the path you change: MIT for most of the repository, GPL-3.0-or-later for
+`apps/suncast/` and `apps/vito2mqtt/`. [REUSE.toml](REUSE.toml) is the authoritative
+mapping.
