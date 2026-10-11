@@ -1551,6 +1551,43 @@ class TestSignalOffHoldoff:
         assert issued == [pytest.approx(100.5)]
         assert "Bulb office: read delayed 0.4 s after signal off" in caplog.text
 
+    async def test_new_off_edge_during_holdoff_gets_its_own_deadline(
+        self, monkeypatch: pytest.MonkeyPatch, clock: _EntityTime
+    ) -> None:
+        """An off→on→off bounce during sleep extends the holdoff to the new edge."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+        clock.now += 0.1
+
+        async def bouncing_sleep(seconds: float) -> None:
+            ctx.slept.append(seconds)
+            if len(ctx.slept) == 1:
+                assert seconds == pytest.approx(0.4)
+                clock.now += 0.3
+                record_signal(ctx.settings, state, "office-power", "on", clock.now)
+                clock.now += 0.05
+                record_signal(ctx.settings, state, "office-power", "off", clock.now)
+                clock.now += 0.05
+            else:
+                assert seconds == pytest.approx(0.45)
+                clock.now += seconds
+
+        ctx.sleep = bouncing_sleep  # type: ignore[method-assign]
+        issued: list[float] = []
+        original_get_state = adapter.get_state
+
+        async def recording_get_state(ip: str) -> BulbState:
+            issued.append(clock.now)
+            return await original_get_state(ip)
+
+        monkeypatch.setattr(adapter, "get_state", recording_get_state)
+        await _tick(ctx, _config(), adapter, state)
+
+        assert ctx.slept == [pytest.approx(0.4), pytest.approx(0.45)]
+        assert issued == [pytest.approx(100.95)]
+
     async def test_command_during_the_holdoff_is_queued(
         self, clock: _EntityTime
     ) -> None:
@@ -1566,6 +1603,7 @@ class TestSignalOffHoldoff:
             await bulb_set(
                 BulbSetCommand(brightness=40), _config(), adapter, state, ctx, notify
             )
+            clock.now += seconds
 
         ctx.sleep = command_while_waiting  # type: ignore[method-assign]
         adapter.fail_next(_IP, WizTimeoutError("boom"))
