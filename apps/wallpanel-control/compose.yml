@@ -5,6 +5,12 @@ services:
       dockerfile: apps/wallpanel-control/Dockerfile
     image: ghcr.io/ff-fab/wallpanel-control:latest
     restart: unless-stopped
+    # Wake-on-LAN broadcasts a magic packet, which a Docker bridge network does
+    # not forward to the LAN: wake would answer accepted:true and do nothing.
+    # Host networking is required for wake. The alternative is a bridge network
+    # plus a relay that re-sends the packet as a directed broadcast on the
+    # panel's subnet (docs/configuration.md > Wake-on-LAN).
+    network_mode: host
     # env_file imports all WALLPANEL_CONTROL_* settings from .env.
     # Move the MQTT password to a Docker secret in production deployments
     # where environment variable exposure is a concern.
@@ -14,7 +20,10 @@ services:
     # filesystem paths into the container environment.
     env_file: .env
     environment:
-      WALLPANEL_CONTROL_MQTT__HOST: mosquitto
+      # Host networking shares the host namespace, so the bundled broker is
+      # reached over host loopback (mosquitto publishes 127.0.0.1:1883) rather
+      # than by the Compose service name, which host-net cannot resolve.
+      WALLPANEL_CONTROL_MQTT__HOST: localhost
       # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
       WALLPANEL_CONTROL_MQTT__TLS: ${WALLPANEL_CONTROL_MQTT__TLS:-false}
       # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.

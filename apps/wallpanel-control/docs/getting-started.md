@@ -73,9 +73,12 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
           dockerfile: apps/wallpanel-control/Dockerfile
         image: ghcr.io/ff-fab/wallpanel-control:latest
         restart: unless-stopped
+        # Host networking lets the Wake-on-LAN broadcast reach the LAN.
+        network_mode: host
         env_file: .env
         environment:
-          WALLPANEL_CONTROL_MQTT__HOST: mosquitto
+          # Bundled broker over host loopback (mosquitto publishes 127.0.0.1:1883).
+          WALLPANEL_CONTROL_MQTT__HOST: localhost
           WALLPANEL_CONTROL_MQTT__TLS: ${WALLPANEL_CONTROL_MQTT__TLS:-false}
           # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
           # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
@@ -84,6 +87,8 @@ ssh-keyscan wallpanel.lan >> ~/.ssh/known_hosts
           WALLPANEL_CONTROL_STORE_PATH: /app/data/store.json
           WALLPANEL_CONTROL_SSH_KEY_PATH: /run/secrets/wallpanel_ssh_key
           WALLPANEL_CONTROL_SSH_KNOWN_HOSTS: /run/secrets/wallpanel_known_hosts
+          # Async SSH commands have 5 s timeouts; exit if the event loop wedges.
+          COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
         volumes:
           - wallpanel_control-data:/app/data
         secrets:
@@ -225,8 +230,8 @@ a GNOME session the panel can stay reachable for up to 30 seconds afterwards; se
     (default `255.255.255.255`). If the wall panel is on a different subnet, set
     this to the directed broadcast address for that subnet.
 
-    A Docker bridge network, which the shipped `compose.yml` uses, does not forward
-    the broadcast to the LAN. `wake` then still answers `accepted: true`, but the
-    panel never receives the packet. Run the container with `network_mode: host`
-    (and set `WALLPANEL_CONTROL_MQTT__HOST` to `localhost` for the bundled broker),
-    or relay the packet to the panel's subnet.
+    The shipped `compose.yml` therefore uses `network_mode: host`. A Docker bridge
+    network does not forward the broadcast to the LAN: `wake` then still answers
+    `accepted: true`, but the panel never receives the packet. If you move the
+    container to a bridge network, set `WALLPANEL_CONTROL_MQTT__HOST` back to the
+    broker's service name and relay the packet to the panel's subnet.
