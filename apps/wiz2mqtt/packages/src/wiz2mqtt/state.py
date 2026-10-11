@@ -90,6 +90,11 @@ class SharedState:
     (ADR-008), published as ``last_applied``. In memory only, so it is
     absent again after a restart."""
 
+    return_adopted: set[str] = field(default_factory=set)
+    """Bulbs whose last return path adopted the read state without a write.
+    Like a confirmed ``last_applied``, it marks the return work done, so a
+    duplicate startup firstBeat is checked, not re-armed (cap-dqux)."""
+
     restore_retry_cycles: dict[str, int] = field(default_factory=dict)
     """Exhausted return-path write/read-back cycles per bulb.
 

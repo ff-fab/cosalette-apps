@@ -1976,6 +1976,83 @@ class TestBootCallback:
         assert state.phase["office"] == "steady"
         assert _IP in adapter.invalidate_cache_calls
 
+    async def test_duplicate_boot_after_adopt_only_return_is_checked(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Technique: Regression — a return path that adopted the read state
+        finished its work, so a duplicate startup firstBeat goes to the check
+        instead of re-arming reconnect."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        config = _config(restore_previous_state=False)
+        await _tick(ctx, config, adapter, state)
+        assert "office" not in state.last_applied
+
+        caplog.clear()
+        with caplog.at_level(logging.INFO):
+            adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "steady"
+        assert state.boot_checks == {"office"}
+        assert "entering reconnect phase" not in caplog.text
+        await _tick(ctx, config, adapter, state)
+        assert adapter.set_state_calls == []
+
+    async def test_duplicate_boot_while_check_is_pending_keeps_check(self) -> None:
+        """A second firstBeat must not replace an in-flight check with reconnect."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        config = _config(restore_previous_state=False)
+        await _tick(ctx, config, adapter, state)
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+        first_generation = state.boot_check_generation["office"]
+        assert state.boot_checks == {"office"}
+        assert state.bulb_answered["office"] is False
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "steady"
+        assert state.boot_checks == {"office"}
+        assert state.boot_check_generation["office"] == first_generation + 1
+        await _tick(ctx, config, adapter, state)
+
+        assert state.phase["office"] == "steady"
+        assert state.boot_checks == set()
+        assert adapter.set_state_calls == []
+
+    async def test_quick_power_cycle_after_adopt_only_return_adopts(self) -> None:
+        """Technique: Regression (cap-m6nh) — a boot that lost state goes
+        through the check and, with nothing to restore, is adopted."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        config = _config(restore_previous_state=False)
+        await _tick(ctx, config, adapter, state)
+
+        adapter.boot(_IP, BulbState(False, None, None, None, None, None))
+        await _tick(ctx, config, adapter, state)
+
+        assert adapter.set_state_calls == []
+        assert state.phase["office"] == "steady"
+        assert state.boot_checks == set()
+        assert state.desired_state["office"].state == "OFF"
+
+    async def test_queued_command_rearms_after_adopt_only_return(self) -> None:
+        """Technique: Decision Table — a queued command is unfinished return
+        work even after an adopt."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        await _tick(ctx, _config(restore_previous_state=False), adapter, state)
+
+        enqueue(state.pending_commands, "office", {"state": False}, time.time())
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "reconnect"
+
     async def test_read_timeout_after_boot_keeps_the_check_pending(self) -> None:
         """Technique: Error Guessing (cap-m6nh) — a booting bulb can time out
         once; that read decides nothing, and the next answer still restores."""
