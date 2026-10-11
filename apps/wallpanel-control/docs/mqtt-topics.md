@@ -148,6 +148,32 @@ If the action was rejected (e.g. SSH error):
     and `hibernate` run `systemctl suspend` / `systemctl hibernate` over SSH and
     require the SSH connection to be available.
 
+### What `accepted` means
+
+`accepted: true` confirms the request, not its outcome:
+
+| Action                  | `accepted: true` means                                  |
+| ----------------------- | ------------------------------------------------------- |
+| `suspend`, `hibernate`  | logind took the sleep request over SSH                  |
+| `wake`                  | the app sent the magic packet                           |
+
+wallpanel-control does not confirm that the panel went to sleep or woke up. The
+`"available"` field of the next `display/state` answer is the only sign of it:
+`false` once the panel no longer answers over SSH.
+
+On a GNOME session, gnome-shell holds a delay inhibitor, so logind waits up to
+`InhibitDelayMaxSec` (30 seconds by default) before the panel sleeps. The panel stays
+reachable in that window. Lower the delay in `/etc/systemd/logind.conf` on the panel if
+the wait matters to your automations.
+
+A `suspend` or `hibernate` sent during that window also answers `accepted: true` and
+publishes no error: logind refuses the second request because a sleep is already
+pending, and the pending one runs.
+
+A `wake` answers `accepted: true` even when the packet cannot reach the panel, for
+example from a Docker bridge network. See
+[Wake-on-LAN](configuration.md#wake-on-lan).
+
 ---
 
 ## Errors
@@ -199,10 +225,10 @@ When the wall panel is unreachable, accepted display commands still publish a st
 with `"available": false` and null values for `state` and `brightness_percent`. No
 separate availability topic is used -- availability is embedded in each state payload.
 
-System action acknowledgements include `"accepted": false` when the SSH call fails.
-
-If `suspend` or `hibernate` cannot be sent because the wallpanel is unreachable,
-the acknowledgement uses `accepted: false`.
+If `suspend` or `hibernate` cannot be sent because the wall panel is unreachable,
+the acknowledgement uses `accepted: false`. A sleep request that logind refuses because
+an earlier one is still pending answers `accepted: true`; see
+[What `accepted` means](#what-accepted-means).
 
 ---
 

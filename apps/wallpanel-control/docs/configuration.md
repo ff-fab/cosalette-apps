@@ -179,6 +179,13 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
     The app will not start without `WALLPANEL_CONTROL_WOL_MAC`. Use the format
     `AA:BB:CC:DD:EE:FF`.
 
+!!! warning "Bridge networking drops the magic packet"
+    The shipped `compose.yml` runs the container on a Docker bridge network, which
+    does not forward the broadcast to the LAN. `wake` still answers `accepted: true`,
+    but the panel never wakes. Set `network_mode: host` on the service (and
+    `WALLPANEL_CONTROL_MQTT__HOST: localhost` to reach the bundled broker), or relay
+    the packet to the panel's subnet.
+
 ### Health and recovery
 
 MQTT is the primary health signal: the `wallpanel-control/status` heartbeat and last
