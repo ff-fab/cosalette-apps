@@ -21,10 +21,6 @@ assert_eq() {
     if [[ "$2" == "$3" ]]; then _pass "$1"; else _fail "$1 — expected=$2 got=$3"; fi
 }
 
-assert_ge() {
-    if (( $3 >= $2 )); then _pass "$1"; else _fail "$1 — expected at least $2 got $3"; fi
-}
-
 assert_contains() {
     if grep -qF "$2" <<<"$3"; then _pass "$1"; else _fail "$1 — missing '$2'"; fi
 }
@@ -66,6 +62,16 @@ case "$args" in
 esac
 EOF
 chmod +x "$TEST_DIR/bin/gh"
+
+# A fake clock for timing-sensitive cases: `date +%s` returns the number of
+# `gh pr checks` polls so far, so the grace period counts polls, not seconds.
+mkdir -p "$TEST_DIR/clock"
+cat > "$TEST_DIR/clock/date" <<EOF
+#!/usr/bin/env bash
+if [[ "\$*" == +%s ]]; then cat "\$GH_FIXTURE/checks.n" 2>/dev/null || echo 0
+else exec $(command -v date) "\$@"; fi
+EOF
+chmod +x "$TEST_DIR/clock/date"
 
 fixture() {
     GH_FIXTURE="$TEST_DIR/$1"
@@ -124,10 +130,12 @@ printf '%s\n%s\n%s\n%s\n' '[{"name":"detect","state":"SUCCESS","link":"u"}]' \
     '[{"name":"detect","state":"SUCCESS","link":"u"}]' \
     '[{"name":"detect","state":"SUCCESS","link":"u"},{"name":"ci-gate","state":"FAILURE","link":"u"}]' \
     > "$GH_FIXTURE/checks"
-GRACE=3 INTERVAL=1 run_ci_wait
+PATH="$TEST_DIR/clock:$PATH" GRACE=3 run_ci_wait
 assert_eq "late failure is reported" 1 "$RC"
 assert_contains "failed check listed" "ci-gate" "$OUTPUT"
-assert_ge "multiple identical success snapshots observed before late failure" 4 "$(cat "$GH_FIXTURE/checks.n")"
+# Three identical success polls stay inside the grace; the late failure
+# restarts it, and three more polls settle it: 3 + 1 + 3.
+assert_eq "grace restarts when a check registers late" 7 "$(cat "$GH_FIXTURE/checks.n")"
 
 echo "ci-wait: pins the first observed head when none is expected"
 fixture first-head
