@@ -128,6 +128,9 @@ async def _signal_off_after_an_answer(
         fake_adapter.always_fail = not bulb_keeps_answering
         await harness.mqtt.deliver(SIGNAL_TOPIC, "off")
         await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 2)
+        # Let the telemetry runner observe the signal and register its
+        # hold-off sleep before advancing the manual clock.
+        await harness.clock.settle()
         await harness.advance_time(_HOLDOFF)
         await harness.wait_for_publish_count(
             SOURCE_STATE_TOPIC, expect_source_publishes
