@@ -216,7 +216,17 @@ Expected acknowledgement on `wallpanel-control/system/action/state`:
 { "accepted": true, "action": "suspend" }
 ```
 
-!!! warning "WoL requires same-subnet broadcast"
+`accepted: true` means the request reached the panel, not that the panel is asleep. On
+a GNOME session the panel can stay reachable for up to 30 seconds afterwards; see
+[What `accepted` means](mqtt-topics.md#what-accepted-means).
+
+!!! warning "WoL requires same-subnet broadcast and host networking"
     The `wake` action sends a magic packet to `WALLPANEL_CONTROL_WOL_BROADCAST`
     (default `255.255.255.255`). If the wall panel is on a different subnet, set
     this to the directed broadcast address for that subnet.
+
+    A Docker bridge network, which the shipped `compose.yml` uses, does not forward
+    the broadcast to the LAN. `wake` then still answers `accepted: true`, but the
+    panel never receives the packet. Run the container with `network_mode: host`
+    (and set `WALLPANEL_CONTROL_MQTT__HOST` to `localhost` for the bundled broker),
+    or relay the packet to the panel's subnet.

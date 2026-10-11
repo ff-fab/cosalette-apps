@@ -37,6 +37,7 @@ from .conftest import (
     DISPLAY_STATE,
     SYSTEM_ACTION_SET,
     SYSTEM_ACTION_STATE,
+    TOPIC_PREFIX,
     build_integration_app,
     run_with_commands,
     wait_for_subscriptions,
@@ -561,6 +562,44 @@ class TestSystemAction:
         harness.assert_state(
             SYSTEM_ACTION_STATE,
             {"accepted": True, "action": "wake"},
+        )
+
+    async def test_repeated_suspend_while_pending_publishes_accepted_no_error(
+        self,
+        harness: AppHarness,
+        fake_wallpanel: FakeWallpanel,
+    ) -> None:
+        """A second suspend during a pending one is acknowledged, not an error.
+
+        Arrange: FakeWallpanel models a delay inhibitor (sleep stays pending).
+        Act: deliver {"action": "suspend"} twice.
+        Assert:
+          - both answers are accepted=true
+          - nothing is published on the global or per-command error topic
+
+        Technique: Error Guessing — adopter report F8 (openHAB re-sending
+        suspend while gnome-shell holds the first one).
+        """
+        # Arrange
+        fake_wallpanel.sleep_delayed = True
+
+        # Act
+        await run_with_commands(
+            harness,
+            [
+                (SYSTEM_ACTION_SET, {"action": "suspend"}),
+                (SYSTEM_ACTION_SET, {"action": "suspend"}),
+            ],
+        )
+
+        # Assert
+        answers = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
+        assert [json.loads(payload) for payload, _, _ in answers] == [
+            {"accepted": True, "action": "suspend"}
+        ] * 2
+        assert harness.mqtt.get_messages_for(f"{TOPIC_PREFIX}/error") == []
+        assert (
+            harness.mqtt.get_messages_for(f"{TOPIC_PREFIX}/system/action/error") == []
         )
 
 

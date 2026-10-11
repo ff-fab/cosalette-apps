@@ -11,7 +11,12 @@ from __future__ import annotations
 import pytest
 
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
-from wallpanel_control.ports import WallpanelPort, WallpanelUnreachableError, WolPort
+from wallpanel_control.ports import (
+    WallpanelPort,
+    WallpanelSleepPendingError,
+    WallpanelUnreachableError,
+    WolPort,
+)
 
 # =============================================================================
 # FakeWallpanel
@@ -270,6 +275,48 @@ class TestFakeWallpanelPowerTransitions:
         # Assert
         assert fake.reachable is True
         assert fake.power_state == "running"
+
+    async def test_delayed_sleep_refuses_a_second_request(self) -> None:
+        """With sleep_delayed, a sleep stays pending and a repeat raises.
+
+        Technique: State Transition — running → sleep pending → refused repeat
+        (logind holding a sleep behind a delay inhibitor).
+        """
+        # Arrange
+        fake = FakeWallpanel(sleep_delayed=True)
+        await fake.suspend()
+
+        # Act / Assert
+        assert fake.reachable is True
+        assert fake.sleep_pending is True
+        with pytest.raises(WallpanelSleepPendingError):
+            await fake.suspend()
+        assert fake.power_state == "suspended"
+
+    async def test_delayed_sleep_rejects_different_action_as_unknown_error(
+        self,
+    ) -> None:
+        fake = FakeWallpanel(sleep_delayed=True)
+        await fake.suspend()
+
+        with pytest.raises(RuntimeError, match="operation in progress"):
+            await fake.hibernate()
+
+    async def test_set_reachable_ends_pending_sleep(self) -> None:
+        """set_reachable clears a pending sleep, so the next request runs.
+
+        Technique: State Transition — sleep pending → running.
+        """
+        # Arrange
+        fake = FakeWallpanel(sleep_delayed=True)
+        await fake.suspend()
+
+        # Act
+        fake.set_reachable(True)
+        await fake.hibernate()
+
+        # Assert
+        assert fake.power_state == "hibernating"
 
 
 @pytest.mark.unit

@@ -29,6 +29,16 @@ class WallpanelUnreachableError(ConnectionError):
     """
 
 
+class WallpanelSleepPendingError(Exception):
+    """Raised when the matching sleep request is already pending.
+
+    logind holds a requested suspend or hibernate while a delay inhibitor (such as
+    gnome-shell's) is active, and rejects further requests until then. Adapters raise
+    this only when they can identify the pending operation as the same action;
+    callers then treat the request as already in effect.
+    """
+
+
 @runtime_checkable
 class WallpanelPort(Protocol):
     """Port for controlling a wall-mounted panel via SSH.
@@ -102,6 +112,7 @@ class WallpanelPort(Protocol):
         """Send 'systemctl hibernate' command.
 
         Raises:
+            WallpanelSleepPendingError: If the same sleep action is already pending.
             Exception: On unexpected communication failure.
         """
         ...
@@ -110,6 +121,7 @@ class WallpanelPort(Protocol):
         """Send 'systemctl suspend' command.
 
         Raises:
+            WallpanelSleepPendingError: If the same sleep action is already pending.
             Exception: On unexpected communication failure.
         """
         ...
