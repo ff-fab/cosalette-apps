@@ -996,6 +996,8 @@ def _boot_action(state: SharedState, name: str) -> Literal["rearm", "check", "ig
     retry_at = state.restore_retry_at.get(name)
     if retry_at is not None and time.monotonic() < retry_at:
         return "ignore"
+    if name in state.boot_checks:
+        return "check"
     if not state.bulb_answered.get(name, False) or name in state.stale_answers:
         return "rearm"
     if name not in state.desired_state:

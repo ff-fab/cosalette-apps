@@ -1999,6 +1999,30 @@ class TestBootCallback:
         await _tick(ctx, config, adapter, state)
         assert adapter.set_state_calls == []
 
+    async def test_duplicate_boot_while_check_is_pending_keeps_check(self) -> None:
+        """A second firstBeat must not replace an in-flight check with reconnect."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState(phase={"office": "reconnect"})
+        ctx = FakeDeviceContext(settings=_settings_with_office())
+        config = _config(restore_previous_state=False)
+        await _tick(ctx, config, adapter, state)
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+        first_generation = state.boot_check_generation["office"]
+        assert state.boot_checks == {"office"}
+        assert state.bulb_answered["office"] is False
+
+        adapter.boot(_IP, adapter._state[_IP])  # noqa: SLF001
+
+        assert state.phase["office"] == "steady"
+        assert state.boot_checks == {"office"}
+        assert state.boot_check_generation["office"] == first_generation + 1
+        await _tick(ctx, config, adapter, state)
+
+        assert state.phase["office"] == "steady"
+        assert state.boot_checks == set()
+        assert adapter.set_state_calls == []
+
     async def test_quick_power_cycle_after_adopt_only_return_adopts(self) -> None:
         """Technique: Regression (cap-m6nh) — a boot that lost state goes
         through the check and, with nothing to restore, is adopted."""
