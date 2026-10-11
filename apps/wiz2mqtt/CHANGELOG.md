@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.16](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.15...wiz2mqtt-v0.2.16) (2026-10-11)
+
+
+### Bug Fixes
+
+* **wiz2mqtt:** stop duplicate firstBeat re-arming after an adopt-only return ([#377](https://github.com/ff-fab/cosalette-apps/issues/377)) ([9221472](https://github.com/ff-fab/cosalette-apps/commit/9221472ecec964f372d3c9f949f9f2b558f051c0))
+
 ## [0.2.15](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.2.14...wiz2mqtt-v0.2.15) (2026-10-11)
 
 
