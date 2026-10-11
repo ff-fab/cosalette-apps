@@ -1000,11 +1000,15 @@ def _boot_action(state: SharedState, name: str) -> Literal["rearm", "check", "ig
         return "rearm"
     if name not in state.desired_state:
         return "ignore"
-    applied = state.last_applied.get(name)
-    done = name in state.return_adopted or (applied is not None and applied.confirmed)
-    if not done or name in state.pending_commands:
+    if not _return_work_done(state, name) or name in state.pending_commands:
         return "rearm"
     return "check"
+
+
+def _return_work_done(state: SharedState, name: str) -> bool:
+    """Whether the last return path adopted the read state or confirmed a write."""
+    applied = state.last_applied.get(name)
+    return name in state.return_adopted or (applied is not None and applied.confirmed)
 
 
 async def _mark_online_once(
