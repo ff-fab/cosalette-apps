@@ -219,7 +219,7 @@ version = "0.1.0"
 description = "$DESC"
 readme = "README.md"
 requires-python = ">=3.14"
-license = { text = "$LICENSE" }
+license = "$LICENSE"
 authors = [
     { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
 ]
