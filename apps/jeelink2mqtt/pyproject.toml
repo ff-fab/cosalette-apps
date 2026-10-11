@@ -4,7 +4,7 @@ version = "0.2.11"
 description = "A smart home app to read in values of Jeelink temperature and humidity sensors."
 readme = "README.md"
 requires-python = ">=3.14"
-license = { text = "MIT" }
+license = "MIT"
 authors = [
     { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
 ]
