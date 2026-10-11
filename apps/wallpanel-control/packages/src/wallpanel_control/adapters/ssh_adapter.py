@@ -18,7 +18,10 @@ from typing import Self
 
 import asyncssh
 
-from wallpanel_control.ports import WallpanelUnreachableError
+from wallpanel_control.ports import (
+    WallpanelSleepPendingError,
+    WallpanelUnreachableError,
+)
 from wallpanel_control.settings import WallpanelControlSettings
 
 logger = logging.getLogger(__name__)
@@ -30,6 +33,10 @@ _UNREACHABLE_ERRORS = (
     TimeoutError,
     OSError,
 )
+
+# logind's refusal while an earlier suspend/hibernate waits on a delay inhibitor:
+# "There's already a shutdown or sleep operation in progress".
+_SLEEP_PENDING_MARKER = "sleep operation in progress"
 
 
 class SshWallpanel:
@@ -177,11 +184,21 @@ class SshWallpanel:
 
     async def hibernate(self) -> None:
         """Send systemctl hibernate command."""
-        await self._run("sudo systemctl hibernate")
+        await self._sleep("hibernate")
 
     async def suspend(self) -> None:
         """Send systemctl suspend command."""
-        await self._run("sudo systemctl suspend")
+        await self._sleep("suspend")
+
+    async def _sleep(self, verb: str) -> None:
+        """Run ``systemctl <verb>``; a sleep logind already holds is not a failure."""
+        try:
+            await self._run(f"sudo systemctl {verb}")
+        except asyncssh.ProcessError as exc:
+            stderr = str(exc.stderr or "").strip()
+            if _SLEEP_PENDING_MARKER in stderr:
+                raise WallpanelSleepPendingError(stderr) from exc
+            raise
 
     async def is_reachable(self) -> bool:
         """Check if wallpanel is reachable via SSH connect."""

@@ -12,7 +12,10 @@ import logging
 from types import TracebackType
 from typing import Self
 
-from wallpanel_control.ports import WallpanelUnreachableError
+from wallpanel_control.ports import (
+    WallpanelSleepPendingError,
+    WallpanelUnreachableError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +32,10 @@ class FakeWallpanel:
         screen_state: True if screen is on, False if off.
         reachable: Whether the fake wallpanel is reachable.
         power_state: Last power action ("running", "hibernating", "suspended").
+        sleep_delayed: Model a delay inhibitor: a sleep stays pending (panel still
+            reachable) and a further sleep request raises
+            WallpanelSleepPendingError, as logind does.
+        sleep_pending: Whether a delayed sleep is waiting to start.
     """
 
     def __init__(
@@ -38,12 +45,15 @@ class FakeWallpanel:
         max_brightness: int = 7812,
         screen_state: bool = True,
         reachable: bool = True,
+        sleep_delayed: bool = False,
     ) -> None:
         self.brightness = brightness
         self.max_brightness = max_brightness
         self.screen_state = screen_state
         self.reachable = reachable
         self.power_state = "running"
+        self.sleep_delayed = sleep_delayed
+        self.sleep_pending = False
 
     def _check_reachable(self) -> None:
         """Raise WallpanelUnreachableError if wallpanel is not reachable."""
@@ -88,25 +98,34 @@ class FakeWallpanel:
 
     async def hibernate(self) -> None:
         """Simulate hibernate: set unreachable and power_state."""
-        self._check_reachable()
-        self.power_state = "hibernating"
-        self.reachable = False
+        self._sleep("hibernating")
         logger.info("hibernate()")
 
     async def suspend(self) -> None:
         """Simulate suspend: set unreachable and power_state."""
-        self._check_reachable()
-        self.power_state = "suspended"
-        self.reachable = False
+        self._sleep("suspended")
         logger.info("suspend()")
+
+    def _sleep(self, power_state: str) -> None:
+        """Enter *power_state*, or hold it pending while ``sleep_delayed`` is set."""
+        self._check_reachable()
+        if self.sleep_pending:
+            msg = "There's already a shutdown or sleep operation in progress"
+            raise WallpanelSleepPendingError(msg)
+        self.power_state = power_state
+        if self.sleep_delayed:
+            self.sleep_pending = True
+        else:
+            self.reachable = False
 
     async def is_reachable(self) -> bool:
         """Return current reachability."""
         return self.reachable
 
     def set_reachable(self, reachable: bool) -> None:
-        """Test helper: set reachability state."""
+        """Test helper: set reachability state; ends any pending sleep."""
         self.reachable = reachable
+        self.sleep_pending = False
         if reachable:
             self.power_state = "running"
 

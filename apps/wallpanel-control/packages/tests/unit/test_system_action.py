@@ -12,6 +12,8 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+from typing import Literal
+
 import pytest
 from pydantic import ValidationError
 
@@ -269,6 +271,45 @@ class TestHandleSystemActionHibernate:
 
         assert result.accepted is False
         assert result.action == "hibernate"
+
+
+# =============================================================================
+# handle_system_action — sleep already pending
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestHandleSystemActionSleepPending:
+    """Verify a sleep request during a pending sleep is acknowledged, not an error.
+
+    Technique: Error Guessing — repeated suspend while gnome-shell's delay
+    inhibitor holds the first one (adopter report F8).
+    """
+
+    @pytest.mark.parametrize("action", ["suspend", "hibernate"])
+    async def test_sleep_pending_returns_accepted_true(
+        self,
+        action: Literal["suspend", "hibernate"],
+        fake_wol: FakeWol,
+        wallpanel_settings: WallpanelControlSettings,
+    ) -> None:
+        """A repeat during a pending suspend answers accepted=True, raising nothing."""
+        # Arrange
+        wallpanel = FakeWallpanel(sleep_delayed=True)
+        await wallpanel.suspend()
+
+        # Act
+        result = await handle_system_action(
+            SystemActionCommand(action=action),
+            wallpanel,
+            fake_wol,
+            wallpanel_settings,
+            LastAnswers(),
+        )
+
+        # Assert
+        assert result == SystemActionState(accepted=True, action=action)
+        assert wallpanel.power_state == "suspended"
 
 
 # =============================================================================

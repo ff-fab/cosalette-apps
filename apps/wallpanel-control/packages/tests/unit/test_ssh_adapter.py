@@ -10,11 +10,12 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import asyncssh
 import pytest
 
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.ssh_adapter import SshWallpanel
-from wallpanel_control.ports import WallpanelPort
+from wallpanel_control.ports import WallpanelPort, WallpanelSleepPendingError
 
 # =============================================================================
 # Helpers
@@ -40,6 +41,27 @@ def _mock_run_result(stdout: str = "") -> MagicMock:
     result.stdout = stdout
     result.exit_status = 0
     return result
+
+
+# What `sudo systemctl suspend` prints while logind holds an earlier sleep.
+_LOGIND_PENDING = (
+    "Failed to suspend system via logind: "
+    "There's already a shutdown or sleep operation in progress\n"
+)
+
+
+def _process_error(stderr: str) -> asyncssh.ProcessError:
+    """Build the error ``conn.run(check=True)`` raises for a non-zero exit."""
+    return asyncssh.ProcessError(
+        env=None,
+        command="sudo systemctl suspend",
+        subsystem=None,
+        exit_status=1,
+        exit_signal=None,
+        returncode=1,
+        stdout="",
+        stderr=stderr,
+    )
 
 
 # =============================================================================
@@ -228,6 +250,41 @@ class TestSshWallpanelReachable:
         # Assert
         cmd = mock_conn.run.call_args[0][0]
         assert "systemctl suspend" in cmd
+
+    @pytest.mark.parametrize("action", ["suspend", "hibernate"])
+    async def test_sleep_pending_raises_sleep_pending_error(self, action: str) -> None:
+        """logind's 'operation in progress' refusal maps to the domain error.
+
+        Technique: Error Guessing — a second sleep while gnome-shell's delay
+        inhibitor holds the first (adopter report F8).
+        """
+        # Arrange
+        adapter = _make_adapter()
+        mock_conn = _mock_conn()
+        mock_conn.run = AsyncMock(side_effect=_process_error(_LOGIND_PENDING))
+        adapter._conn = mock_conn
+
+        # Act / Assert
+        with pytest.raises(WallpanelSleepPendingError, match="in progress"):
+            await getattr(adapter, action)()
+        assert adapter._conn is mock_conn
+
+    async def test_other_sleep_failure_still_raises_process_error(self) -> None:
+        """A systemctl failure that is not a pending sleep keeps propagating.
+
+        Technique: Error Guessing — e.g. sudo refusing the command.
+        """
+        # Arrange
+        adapter = _make_adapter()
+        mock_conn = _mock_conn()
+        mock_conn.run = AsyncMock(
+            side_effect=_process_error("sudo: a password is required")
+        )
+        adapter._conn = mock_conn
+
+        # Act / Assert
+        with pytest.raises(asyncssh.ProcessError):
+            await adapter.suspend()
 
     async def test_is_reachable_true(self) -> None:
         """is_reachable returns True when connection succeeds."""
