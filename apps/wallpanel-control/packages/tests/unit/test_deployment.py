@@ -1,8 +1,8 @@
 """Unit tests for deployment defaults.
 
 Test Techniques Used:
-- Specification-based: compose arms the loop-stall watchdog with an overridable
-  value recorded in docs/configuration.md.
+- Specification-based: compose uses host networking for Wake-on-LAN and arms the
+  loop-stall watchdog with an overridable value recorded in docs/configuration.md.
 """
 
 from __future__ import annotations
@@ -28,3 +28,18 @@ def test_compose_arms_loop_stall_watchdog() -> None:
     assert environment["COSALETTE_LOOP_STALL_TIMEOUT"] == (
         "${COSALETTE_LOOP_STALL_TIMEOUT:-120}"
     )
+
+
+@pytest.mark.unit
+def test_compose_uses_host_networking_for_wake_on_lan() -> None:
+    """The service shares the host network and reaches the broker on loopback.
+
+    Technique: Specification-based — a bridge network does not forward the
+    Wake-on-LAN broadcast to the LAN, so wake would accept and do nothing; the
+    Compose service name is unresolvable under host networking.
+    """
+    compose = yaml.safe_load((_APP_DIR / "compose.yml").read_text(encoding="utf-8"))
+    service = compose["services"]["wallpanel-control"]
+
+    assert service["network_mode"] == "host"
+    assert service["environment"]["WALLPANEL_CONTROL_MQTT__HOST"] == "localhost"

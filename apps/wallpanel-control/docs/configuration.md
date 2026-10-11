@@ -179,12 +179,15 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
     The app will not start without `WALLPANEL_CONTROL_WOL_MAC`. Use the format
     `AA:BB:CC:DD:EE:FF`.
 
-!!! warning "Bridge networking drops the magic packet"
-    The shipped `compose.yml` runs the container on a Docker bridge network, which
-    does not forward the broadcast to the LAN. `wake` still answers `accepted: true`,
-    but the panel never wakes. Set `network_mode: host` on the service (and
-    `WALLPANEL_CONTROL_MQTT__HOST: localhost` to reach the bundled broker), or relay
-    the packet to the panel's subnet.
+!!! warning "Wake needs host networking"
+    The shipped `compose.yml` runs the container with `network_mode: host` and
+    reaches the bundled broker at `WALLPANEL_CONTROL_MQTT__HOST: localhost`. A Docker
+    bridge network does not forward the broadcast to the LAN: `wake` still answers
+    `accepted: true`, but the panel never wakes. To keep a bridge network, relay the
+    packet as a directed broadcast to the panel's subnet. Host networking shares the
+    host's network namespace and reduces network isolation. wallpanel-control is an
+    outbound MQTT and SSH client; it does not open an inbound listener. The bundled
+    mosquitto broker remains bound to host loopback (`127.0.0.1:1883`).
 
 ### Health and recovery
 
