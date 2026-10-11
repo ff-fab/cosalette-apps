@@ -174,6 +174,32 @@ def _idle(*, reachable: bool) -> dict[str, object]:
     return {"reachable": reachable, "pending": NULL_WIRE, "last_applied": NULL_WIRE}
 
 
+class _EntityTime:
+    """Stand-in for ``entity.time``: a settable monotonic clock, real wall time.
+
+    Swapping the module object leaves ``time.monotonic`` itself untouched, so
+    asyncio keeps its own clock (cosalette testing rules).
+    """
+
+    def __init__(self, now: float) -> None:
+        self.now = now
+
+    def monotonic(self) -> float:
+        return self.now
+
+    @staticmethod
+    def time() -> float:
+        return time.time()
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> _EntityTime:
+    """Drive the monotonic clock ``entity`` reads, starting at 100.0."""
+    fake = _EntityTime(100.0)
+    monkeypatch.setattr(entity, "time", fake)
+    return fake
+
+
 class TestSuccessfulPoll:
     """A successful get_state() publishes state and signals recovery."""
 
@@ -756,11 +782,9 @@ class TestReturnPath:
         assert state.phase["office"] == "reconnect"
 
     async def test_unconfirmed_cycle_is_paced_before_the_next_three_writes(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, clock: _EntityTime
     ) -> None:
         """Regression: an exhausted cycle cannot run again on every tick."""
-        clock = [100.0]
-        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
         adapter = FakeWizBulbAdapter()
         adapter.refuse_writes(_IP, 3)
         state = SharedState(phase={"office": "reconnect"})
@@ -1414,19 +1438,17 @@ class TestSignalOff:
         assert state.phase["office"] == "steady"
 
     async def test_read_issued_before_signal_off_stays_stale(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, clock: _EntityTime
     ) -> None:
         """An in-flight read cannot override a later relay-off edge."""
-        clock = [10.0]
-        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
         adapter = FakeWizBulbAdapter()
         state = SharedState(bulb_answered={"office": True})
         ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
         original_get_state = adapter.get_state
 
         async def read_after_signal(ip: str) -> BulbState:
-            clock[0] = 11.0
-            record_signal(ctx.settings, state, "office-power", "off", clock[0])
+            clock.now = 101.0
+            record_signal(ctx.settings, state, "office-power", "off", clock.now)
             return await original_get_state(ip)
 
         monkeypatch.setattr(adapter, "get_state", read_after_signal)
@@ -1909,11 +1931,9 @@ class TestBootCallback:
         assert adapter._state[_IP].state is True  # noqa: SLF001
 
     async def test_settle_reapplies_do_not_extend_original_deadline(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, clock: _EntityTime
     ) -> None:
         """Technique: Boundary Value — conflicts stop at the original deadline."""
-        clock = [100.0]
-        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
         settings = build_settings(
             [{"name": "office", "ip": _IP}],
             [{"name": "office-power", "members": ["office"], "restore_settle": 10}],
@@ -1925,17 +1945,17 @@ class TestBootCallback:
 
         await _tick(ctx, _config(), adapter, state)
         adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
-        clock[0] = 101.0
+        clock.now = 101.0
         await _tick(ctx, _config(), adapter, state)
         await _tick(ctx, _config(), adapter, state)
 
         adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
-        clock[0] = 109.0
+        clock.now = 109.0
         await _tick(ctx, _config(), adapter, state)
         await _tick(ctx, _config(), adapter, state)
 
         adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
-        clock[0] = 111.0
+        clock.now = 111.0
         await _tick(ctx, _config(), adapter, state)
 
         assert len(adapter.set_state_calls) == 3
