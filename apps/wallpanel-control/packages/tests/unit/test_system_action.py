@@ -296,7 +296,7 @@ class TestHandleSystemActionSleepPending:
         """A repeat during a pending suspend answers accepted=True, raising nothing."""
         # Arrange
         wallpanel = FakeWallpanel(sleep_delayed=True)
-        await wallpanel.suspend()
+        await getattr(wallpanel, action)()
 
         # Act
         result = await handle_system_action(
@@ -309,7 +309,9 @@ class TestHandleSystemActionSleepPending:
 
         # Assert
         assert result == SystemActionState(accepted=True, action=action)
-        assert wallpanel.power_state == "suspended"
+        assert wallpanel.power_state == (
+            "suspended" if action == "suspend" else "hibernating"
+        )
 
 
 # =============================================================================

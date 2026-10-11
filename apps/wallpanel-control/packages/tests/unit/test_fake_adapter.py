@@ -290,8 +290,17 @@ class TestFakeWallpanelPowerTransitions:
         assert fake.reachable is True
         assert fake.sleep_pending is True
         with pytest.raises(WallpanelSleepPendingError):
-            await fake.hibernate()
+            await fake.suspend()
         assert fake.power_state == "suspended"
+
+    async def test_delayed_sleep_rejects_different_action_as_unknown_error(
+        self,
+    ) -> None:
+        fake = FakeWallpanel(sleep_delayed=True)
+        await fake.suspend()
+
+        with pytest.raises(RuntimeError, match="operation in progress"):
+            await fake.hibernate()
 
     async def test_set_reachable_ends_pending_sleep(self) -> None:
         """set_reachable clears a pending sleep, so the next request runs.

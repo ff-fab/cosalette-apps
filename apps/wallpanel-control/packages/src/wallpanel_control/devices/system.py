@@ -14,8 +14,8 @@ MQTT state topic:
 
 wake always succeeds (uses WoL — no SSH required).
 suspend and hibernate require SSH reachability; returns accepted=false when
-the wallpanel is unreachable. A suspend or hibernate sent while an earlier one is
-still pending returns accepted=true: logind refuses it and the pending one runs.
+the wallpanel is unreachable. A repeated matching suspend or hibernate while that
+action is pending returns accepted=true; other pending power operations remain errors.
 """
 
 from __future__ import annotations
@@ -121,8 +121,8 @@ async def _run_action(
             await wallpanel.hibernate()
         return SystemActionState(accepted=True, action=cmd.action)
     except WallpanelSleepPendingError:
-        # An earlier suspend/hibernate is still waiting on a delay inhibitor; the
-        # panel is about to sleep, so this request is already in effect.
+        # The same sleep action is still waiting on a delay inhibitor, so this
+        # request is already in effect.
         logger.info("Wallpanel sleep already pending — system %s absorbed", cmd.action)
         return SystemActionState(accepted=True, action=cmd.action)
     except WallpanelUnreachableError:

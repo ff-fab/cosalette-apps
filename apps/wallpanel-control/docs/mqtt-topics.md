@@ -166,9 +166,10 @@ On a GNOME session, gnome-shell holds a delay inhibitor, so logind waits up to
 reachable in that window. Lower the delay in `/etc/systemd/logind.conf` on the panel if
 the wait matters to your automations.
 
-A `suspend` or `hibernate` sent during that window also answers `accepted: true` and
-publishes no error: logind refuses the second request because a sleep is already
-pending, and the pending one runs.
+A repeated `suspend` or `hibernate` of the same type during that window also answers
+`accepted: true` and publishes no error: logind refuses the duplicate because that
+sleep is already pending. A different pending power operation cannot be identified
+from logind's refusal message, so it remains an error.
 
 A `wake` answers `accepted: true` even when the packet cannot reach the panel, for
 example from a Docker bridge network. See

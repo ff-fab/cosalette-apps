@@ -261,10 +261,13 @@ class TestSshWallpanelReachable:
         # Arrange
         adapter = _make_adapter()
         mock_conn = _mock_conn()
-        mock_conn.run = AsyncMock(side_effect=_process_error(_LOGIND_PENDING))
+        mock_conn.run = AsyncMock(
+            side_effect=[_mock_run_result(), _process_error(_LOGIND_PENDING)]
+        )
         adapter._conn = mock_conn
 
         # Act / Assert
+        await getattr(adapter, action)()
         with pytest.raises(WallpanelSleepPendingError, match="in progress"):
             await getattr(adapter, action)()
         assert adapter._conn is mock_conn
@@ -285,6 +288,19 @@ class TestSshWallpanelReachable:
         # Act / Assert
         with pytest.raises(asyncssh.ProcessError):
             await adapter.suspend()
+
+    async def test_different_pending_sleep_action_still_raises_process_error(
+        self,
+    ) -> None:
+        """A generic logind refusal does not prove the pending action matches."""
+        adapter = _make_adapter()
+        adapter._pending_sleep_action = "suspend"
+        mock_conn = _mock_conn()
+        mock_conn.run = AsyncMock(side_effect=_process_error(_LOGIND_PENDING))
+        adapter._conn = mock_conn
+
+        with pytest.raises(asyncssh.ProcessError):
+            await adapter.hibernate()
 
     async def test_is_reachable_true(self) -> None:
         """is_reachable returns True when connection succeeds."""

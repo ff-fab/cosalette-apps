@@ -111,7 +111,9 @@ class FakeWallpanel:
         self._check_reachable()
         if self.sleep_pending:
             msg = "There's already a shutdown or sleep operation in progress"
-            raise WallpanelSleepPendingError(msg)
+            if self.power_state == power_state:
+                raise WallpanelSleepPendingError(msg)
+            raise RuntimeError(msg)
         self.power_state = power_state
         if self.sleep_delayed:
             self.sleep_pending = True

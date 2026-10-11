@@ -53,6 +53,7 @@ class SshWallpanel:
     def __init__(self, settings: WallpanelControlSettings) -> None:
         self._settings = settings
         self._conn: asyncssh.SSHClientConnection | None = None
+        self._pending_sleep_action: str | None = None
         self._quoted_brightness_path = shlex.quote(settings.backlight_path)
         self._quoted_max_brightness_path = shlex.quote(
             settings.backlight_path.replace("/brightness", "/max_brightness")
@@ -70,6 +71,8 @@ class SshWallpanel:
         # A connection the panel closed (reboot, shutdown) stays cached until
         # replaced: reusing it fails every command with ChannelOpenError, which
         # is not an unreachable error and would never clear it.
+        if self._conn is not None and self._conn.is_closed():
+            self._pending_sleep_action = None
         if self._conn is not None and not self._conn.is_closed():
             return self._conn
 
@@ -109,6 +112,7 @@ class SshWallpanel:
             return str(stdout).strip()
         except _UNREACHABLE_ERRORS as exc:
             self._conn = None
+            self._pending_sleep_action = None
             raise WallpanelUnreachableError(str(exc)) from exc
 
     async def _run_or_none(self, command: str) -> str | None:
@@ -194,9 +198,10 @@ class SshWallpanel:
         """Run ``systemctl <verb>``; a sleep logind already holds is not a failure."""
         try:
             await self._run(f"sudo systemctl {verb}")
+            self._pending_sleep_action = verb
         except asyncssh.ProcessError as exc:
             stderr = str(exc.stderr or "").strip()
-            if _SLEEP_PENDING_MARKER in stderr:
+            if _SLEEP_PENDING_MARKER in stderr and self._pending_sleep_action == verb:
                 raise WallpanelSleepPendingError(stderr) from exc
             raise
 
@@ -230,3 +235,4 @@ class SshWallpanel:
         if self._conn is not None:
             self._conn.close()
             self._conn = None
+        self._pending_sleep_action = None
