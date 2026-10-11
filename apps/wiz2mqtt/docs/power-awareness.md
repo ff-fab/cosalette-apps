@@ -263,13 +263,19 @@ it has no better evidence (no answering member and no signal).
 
 A bulb behind a relay needs a few seconds to boot after the relay turns on. Without
 more configuration, a command in that window times out, and failed reads count
-towards `offline`. Three power-source keys make a switched circuit behave:
+towards `offline`. Four power-source keys make a switched circuit behave:
 
 - `boot_grace` (seconds, default `0` = off) opens a window when the signal changes to
   `on`. Until a member bulb answers, wiz2mqtt queues a command for it without a wire
   attempt, and a failed read does not count towards `offline`. The queued command is
   applied as soon as the bulb answers. The window needs a `signal_topic`; set it a
   little above the boot time of your bulbs, for example `20`.
+- `signal_off_holdoff` (seconds, default `0.5`) delays the first read of each member
+  after the signal changes to `off`. A relay reports `off` before its contacts have
+  cut the bulb, so an immediate read can still get an answer, and that answer would
+  set the belief back to `on` for the whole dark period. The default is about three
+  times the longest gap seen in practice (~160 ms). The delay needs a `signal_topic`;
+  raise it for a slow relay, or set `0` to read at once.
 - `restore_settle` (seconds, default `15`) writes the restored state again when the
   bulb reports something else shortly after a confirmed restore. A change in the WiZ
   app, with a WiZ remote or by a WiZ room sync in that window is therefore reverted;
@@ -280,7 +286,8 @@ towards `offline`. Three power-source keys make a switched circuit behave:
   off means "forget what was asked". A command queued while the signal is already
   `off` survives, so a command followed by a power-on request still works.
 
-The defaults keep the earlier behaviour: no grace window and no clearing.
+By default there is no grace window and no clearing, and the first read after a
+signal `off` waits half a second.
 
 ### Power requests
 
@@ -479,7 +486,7 @@ be on and has power, and unknown if the belief is unknown.
 | Power returns, `firstBeat` reaches the host             | The restore starts less than 1 s after the bulb boots.                         |
 | Power returns, no `firstBeat` (for example, no host networking) | The restore starts on the next heartbeat read, a maximum of 60 s later. |
 | Circuit goes dark, no signal                            | 159 s to 219 s until the belief changes; 192 s to 252 s on a host that receives idle pushes from the bulbs. |
-| Circuit goes dark, signal `off` arrives                 | At once: the belief becomes `off`. wiz2mqtt stops reading a member after its first failed read, about 13 s after the signal. |
+| Circuit goes dark, signal `off` arrives                 | At once: the belief becomes `off`. wiz2mqtt reads each member `signal_off_holdoff` (default 0.5 s) later and stops reading it after that read fails, about 13.5 s after the signal. |
 | Signal `on` arrives while no member answers             | At once: the belief becomes `on`.                                              |
 | Command inside `boot_grace` after signal `on`           | At once: queued, no wire attempt; applied when the bulb answers.              |
 
