@@ -579,6 +579,7 @@ async def _run_return_path(
         confirmed = True
         if state.desired_state_generation.get(name, 0) == observation_generation:
             intent.record_observation(state, store, name, observed, now)
+        state.return_adopted.add(name)
     else:
         if _restore_write_held(state, name):
             belief = _recompute_and_notify(settings, state, notify, name)
@@ -602,6 +603,7 @@ async def _run_return_path(
         state.last_applied[name] = intent.AppliedCommand(
             kwargs=kwargs, at=time.time(), attempts=len(results), confirmed=confirmed
         )
+        state.return_adopted.discard(name)
         if settle_target is None:
             _start_restore_settle(settings, state, name, observed, confirmed)
         if not confirmed:
@@ -717,6 +719,7 @@ async def _abandon_unsupported_restore(
     state.last_applied[name] = intent.AppliedCommand(
         kwargs=kwargs, at=time.time(), attempts=1, confirmed=False
     )
+    state.return_adopted.discard(name)
     state.restore_retry_cycles.pop(name, None)
     state.restore_retry_at.pop(name, None)
     state.restore_retry_exhausted.discard(name)
@@ -981,7 +984,8 @@ def _boot_action(state: SharedState, name: str) -> Literal["rearm", "check", "ig
     """Accept firstBeat for a return, not duplicate startup broadcasts.
 
     A bulb that still answers re-arms only while return work is unfinished:
-    no confirmed return-path write yet, or a queued command. A desired state
+    neither a confirmed return-path write nor an adopt (a return path with
+    nothing to write) yet, or a queued command. A desired state
     written by an observation or a direct command is already on the bulb, so
     it never makes a duplicate firstBeat replay the whole state (cap-ie6m).
     Once that work is done, ``"check"`` defers the decision to the next read
@@ -997,7 +1001,8 @@ def _boot_action(state: SharedState, name: str) -> Literal["rearm", "check", "ig
     if name not in state.desired_state:
         return "ignore"
     applied = state.last_applied.get(name)
-    if applied is None or not applied.confirmed or name in state.pending_commands:
+    done = name in state.return_adopted or (applied is not None and applied.confirmed)
+    if not done or name in state.pending_commands:
         return "rearm"
     return "check"
 
