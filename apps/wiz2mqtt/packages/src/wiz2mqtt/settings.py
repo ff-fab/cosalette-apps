@@ -201,6 +201,15 @@ class PowerSourceConfig(BaseModel):
             "(default) disables the window (ADR-008)."
         ),
     )
+    signal_off_holdoff: float = Field(
+        default=0.5,
+        ge=0,
+        description=(
+            "Seconds after the signal turns 'off' before a member bulb is read "
+            "again, so a bulb whose relay has not cut it yet cannot answer and "
+            "outrank the signal. 0 disables the delay (ADR-007)."
+        ),
+    )
     restore_settle: float = Field(
         default=15.0,
         ge=0,
@@ -272,13 +281,17 @@ class PowerSourceConfig(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def _warn_when_boot_grace_has_no_signal(self) -> PowerSourceConfig:
-        """Make an ineffective boot-grace setting visible to operators."""
-        if self.boot_grace and self.signal_topic is None:
-            logger.warning(
-                "Power source %s: boot_grace needs signal_topic and has no effect",
-                self.name,
-            )
+    def _warn_when_signal_settings_have_no_signal(self) -> PowerSourceConfig:
+        """Make ineffective signal-only settings visible to operators."""
+        if self.signal_topic is not None:
+            return self
+        for key in ("boot_grace", "signal_off_holdoff"):
+            if key in self.model_fields_set and getattr(self, key):
+                logger.warning(
+                    "Power source %s: %s needs signal_topic and has no effect",
+                    self.name,
+                    key,
+                )
         return self
 
 

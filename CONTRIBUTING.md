@@ -27,65 +27,166 @@ That's it! You're ready to develop.
 
 ## Common Commands
 
-**Quick reference (via [Taskfile](https://taskfile.dev)):**
+Every operation runs through [Taskfile](https://taskfile.dev). Run `task --list` for the
+full list with descriptions; the overview below groups it by purpose.
+
+### Per-app tasks
+
+Each app under `apps/<app>/` gets the same set of tasks from `taskfiles/PythonApp.yml`,
+namespaced by the app name. Replace `<app>` with any app, for example `wiz2mqtt`:
 
 ```bash
-# Per-app tasks (replace <app> with gas2mqtt, jeelink2mqtt, etc.)
-task <app>:test           # Run all tests for one app (unit + coverage)
-task <app>:test:unit      # Run unit tests only
-task <app>:lint           # Lint one app (Ruff check + format)
-task <app>:lint:fix       # Auto-fix lint issues
-task <app>:typecheck      # Type check one app (mypy strict)
-task <app>:check          # Run all checks for one app
-task <app>:docs:serve     # Serve app documentation site locally
+task <app>:test               # Unit + integration tests with coverage
+task <app>:test:unit          # Unit tests only
+task <app>:test:integration   # Integration tests only
+task <app>:test:file -- f.py  # One test file or pattern
+task <app>:test:cov           # Coverage report (test:cov:html for HTML)
+task <app>:lint               # Ruff check + format check
+task <app>:lint:fix           # Auto-fix lint issues
+task <app>:typecheck          # Type check (ty)
+task <app>:check              # Lint + typecheck + tests
+task <app>:complexity         # Cyclomatic and cognitive complexity
+task <app>:similarity         # Code duplication
+task <app>:schema:generate    # Regenerate docs/schema.yaml from the registrations
+task <app>:schema:check       # Check the registrations against docs/schema.yaml
+task <app>:schema:openhab     # Generate openHAB .things/.items
+task <app>:docs:serve         # Preview the app documentation site
+task <app>:docs:build         # Build the app documentation site
+task <app>:docker:smoke IMAGE=<ref>  # Smoke-test a built image offline
+```
 
-# Cross-app tasks
-task test:all             # Run tests for all apps
-task lint:all             # Lint all apps
-task check:all            # Run all checks for all apps
-task pre-pr               # Pre-PR quality gate, scoped to the apps you changed
-task pre-pr APPS="a b"    # Gate exactly these apps
-task pre-pr:full          # Every app and every file
+Some apps add their own tasks (for example `wiz2mqtt:openhab`); `task --list` shows
+them.
 
-# Root documentation
-task docs:serve           # Serve root documentation site locally
+### All apps
 
-task --list               # Show all available tasks
+```bash
+task test:all                 # Repo-root suite plus every app's tests
+task test:apps                # Every app's tests (ONLY_APPS="a b" to narrow)
+task lint:all                 # Lint every app
+task typecheck:all            # Type check every app
+task check:all                # All checks for every app
+task complexity:all           # Complexity and duplication for every app
+```
+
+### Repo root
+
+These run against the root package (`packages/`) and `scripts/`:
+
+```bash
+task test                     # Unit + integration tests with summary
+task test:unit                # Unit tests (also test:integration, test:file, test:cov)
+task test:scripts             # Shell regression tests for scripts/
+task lint                     # Ruff and shellcheck (lint:fix, lint:shell)
+task typecheck                # Type check (ty)
+task check                    # Lint + typecheck + tests
+task complexity               # Complexity gates (complexity:cyclomatic, :cognitive)
+task similarity               # Code duplication
+```
+
+### Quality gates and security
+
+```bash
+task pre-pr                   # Pre-PR gate, scoped to the apps you changed
+task pre-pr APPS="a b"        # Gate exactly these apps
+task pre-pr:full              # Every app and every file
+task quality:summary          # Lint, typecheck and unit tests as a JSON summary
+task reuse:lint               # REUSE license compliance
+task docker:lint              # hadolint on the Dockerfiles
+task check:agents             # Agent config integrity (check:agents:test for its tests)
+task security:audit           # All security checks (security:deps, :secrets, :python, :actions)
+```
+
+### Pull requests
+
+```bash
+task pr:create TITLE="..." BODY="..."   # Open a PR (or BODY_FILE=path)
+task pr:list                  # Open PRs, without release PRs
+task pr:diff -- <n>           # Show a PR's diff
+task pr:feedback -- <n>       # All PR feedback as JSON
+task ci:wait -- <n>           # Wait for CI checks on a PR
+```
+
+### Documentation, ADRs and scaffolding
+
+```bash
+task docs:serve               # Preview the root documentation site
+task docs:build               # Build the root documentation site
+task adr:create -- in.json    # Create or amend an ADR from validated JSON
+task app:new -- myapp "Description"   # Scaffold a new app
+```
+
+### Dependencies and planning
+
+```bash
+task sync                     # Sync all dependencies
+task update:deps              # Update dependencies to the latest compatible versions
+task update:template          # Pull copier template changes
+task beads:sync               # Export the beads database to .beads/issues.jsonl
+task beads:recover            # Restart an orphaned beads dolt server
+task plan                     # Progress per phase (plan:ready, plan:phase, plan:task, plan:ui)
 ```
 
 ## Project Structure
 
+The repository is a [uv](https://docs.astral.sh/uv/) workspace: every app is its own
+package with its own version, release, image and documentation site, and all apps share
+the tooling at the root. [README.md](README.md#apps) lists the apps.
+
 ```
 cosalette-apps/
-├── .devcontainer/              # DevContainer configuration
-│   ├── devcontainer.json       # Container setup + VS Code settings
-│   ├── Dockerfile              # Container image
-│   └── post-create.sh          # Auto-setup script
-├── apps/                       # Application workspaces
-│   ├── gas2mqtt/               # Gas meter → MQTT bridge
-│   │   ├── packages/
-│   │   │   ├── src/gas2mqtt/   # Source code
-│   │   │   └── tests/          # Unit & integration tests
-│   │   ├── docs/               # App documentation (Zensical)
-│   │   │   └── adr/            # App-specific ADRs
-│   │   ├── pyproject.toml      # App package config
-│   │   └── zensical.toml       # App docs site config
-│   └── jeelink2mqtt/           # JeeLink sensor → MQTT bridge
+├── apps/
+│   └── <name>/                  # One app per directory
 │       ├── packages/
-│       │   ├── src/jeelink2mqtt/
+│       │   ├── src/<name>/      # App source code
 │       │   └── tests/
-│       ├── docs/
-│       │   └── adr/
-│       ├── pyproject.toml
-│       └── zensical.toml
-├── docs/                       # Root documentation (Zensical)
-│   └── adr/                    # Monorepo-wide ADRs
-├── taskfiles/                  # Reusable Taskfile templates
-│   └── PythonApp.yml           # Per-app task definitions
-├── pyproject.toml              # Root workspace config (uv)
-├── Taskfile.yml                # Root task orchestrator
-└── zensical.toml               # Root docs site config
+│       │       ├── unit/        # Unit tests
+│       │       ├── integration/ # Integration tests
+│       │       └── fixtures/    # App test doubles and helpers
+│       ├── docs/                # App documentation site (Zensical)
+│       │   └── adr/             # App-specific ADRs
+│       ├── pyproject.toml       # App package, version and tool config
+│       ├── zensical.toml        # App docs site config
+│       ├── Dockerfile           # App image
+│       ├── compose.yml          # Deployment example
+│       ├── CHANGELOG.md         # Written by Release Please
+│       └── LICENSE              # The app's license
+├── packages/                    # Root package: repo-wide invariant tests
+│   └── tests/
+│       ├── unit/                # Checks every app at once (images, TLS, health, ...)
+│       └── fixtures/            # Test fixtures shared across apps
+├── taskfiles/PythonApp.yml      # Per-app task template, included once per app
+├── Taskfile.yml                 # Root tasks and the per-app includes
+├── scripts/                     # Task backends: pre-pr gate, scaffold, ADR renderer, ...
+├── docs/                        # Root documentation site
+│   └── adr/                     # Monorepo-wide ADRs
+├── .github/                     # CI workflows plus the shared agent config
+├── .beads/                      # Issue tracker data (issues.jsonl is committed)
+├── .devcontainer/               # DevContainer image and setup
+├── LICENSES/                    # License texts for REUSE
+├── REUSE.toml                   # Which license applies to which path
+└── pyproject.toml               # Workspace members and shared tool config
 ```
+
+- **`apps/<name>/`** is self-contained: `task <app>:...` runs from that directory, and
+  CI builds, tests, releases and publishes each app on its own.
+- **`taskfiles/PythonApp.yml`** defines the per-app tasks once; `Taskfile.yml` includes
+  it for each app. Set per-app variations in the include's `vars:` and put app-only
+  tasks (such as `wiz2mqtt:openhab`) in `Taskfile.yml`; never copy the template's tasks.
+- **`packages/tests/fixtures/`** holds fixtures that more than one app uses. Apps import
+  them as plain top-level modules through `pythonpath` in their pytest config (see
+  [workflow.instructions.md](.github/instructions/workflow.instructions.md)).
+  App-specific fixtures stay in `apps/<name>/packages/tests/fixtures/`.
+- **`docs/adr/`** records decisions that affect the whole monorepo;
+  `apps/<name>/docs/adr/` records decisions for one app. Create both with
+  `task adr:create`, never by hand.
+- **`.github/`** holds the CI workflows and the agent configuration shared by every AI
+  tool: `instructions/`, `skills/` and `agents/` (see
+  [AI Agent Setup](#ai-agent-setup)).
+- **`scripts/`** holds the scripts behind the tasks. Call them through `task`, not
+  directly.
+- **`.beads/`** holds the beads (`bd`) issue tracker. The database stays local;
+  `issues.jsonl` is its committed export, so run `task beads:sync` after `bd close`.
 
 ## AI Agent Setup
 
@@ -332,10 +433,11 @@ recipe.
 
 - **Linting & formatting**: [Ruff](https://docs.astral.sh/ruff/) (88-char line length,
   double quotes)
-- **Type checking**: [mypy](https://mypy-lang.org/) (strict mode)
+- **Type checking**: [ty](https://docs.astral.sh/ty/)
 - **Testing**: [pytest](https://docs.pytest.org/) with pytest-asyncio
 - **Coverage**: >= 80% threshold (lines and branches)
-- **Pre-commit**: EditorConfig, trailing whitespace, codespell, Ruff, mypy
+- **Pre-commit**: EditorConfig, trailing whitespace, codespell, Prettier, Ruff, ty,
+  REUSE and the GPL-header check
 
 All tools are **auto-configured in DevContainer** via `.devcontainer/devcontainer.json`.
 Format on save is enabled by default.
@@ -413,5 +515,7 @@ Fork PRs skip the preview deploy gracefully (secrets are not available to forks)
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the
-[MIT License](LICENSE).
+By contributing, you agree that your contributions will be licensed under the license of
+the path you change: MIT for most of the repository, GPL-3.0-or-later for
+`apps/suncast/` and `apps/vito2mqtt/`. [REUSE.toml](REUSE.toml) is the authoritative
+mapping.

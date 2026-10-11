@@ -44,6 +44,8 @@ BULB_ERROR_TOPIC = f"{TOPIC_PREFIX}/office/error"
 BULB_AVAILABILITY_TOPIC = f"{TOPIC_PREFIX}/office/availability"
 _TICKS_AFTER_THE_SIGNAL = 3
 _TICK = 0.01
+_HOLDOFF = 0.5
+"""Default ``signal_off_holdoff``, the wait before the first read after ``off``."""
 
 
 def _settings() -> Wiz2MqttSettings:
@@ -102,8 +104,9 @@ async def _signal_off_after_an_answer(
     """Deliver ``off`` after the bulb answered, with no heartbeat tick after it.
 
     The signal arms the source and its bulb at once (ADR-007 amendment
-    2026-09-19), so the clock stays still until the expected publishes
-    arrive: each of them comes from the signal, not from a scheduled read.
+    2026-09-19). The clock moves only by the read hold-off (amendment
+    2026-10-11) until the expected publishes arrive, so each of them comes
+    from the signal, not from a scheduled read.
     Return the count of reads in the heartbeat ticks after that.
     """
     fake_adapter.inject_push(
@@ -124,6 +127,8 @@ async def _signal_off_after_an_answer(
         await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 1)
         fake_adapter.always_fail = not bulb_keeps_answering
         await harness.mqtt.deliver(SIGNAL_TOPIC, "off")
+        await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 2)
+        await harness.advance_time(_HOLDOFF)
         await harness.wait_for_publish_count(
             SOURCE_STATE_TOPIC, expect_source_publishes
         )
@@ -214,6 +219,38 @@ class TestPowerSignalInbound:
             harness, fake_adapter, bulb_keeps_answering=True, expect_source_publishes=3
         )
 
+        assert _powered_values(harness) == ["on", "off", "on"]
+
+    async def test_first_read_after_an_off_signal_waits_for_the_holdoff(
+        self, fake_adapter: FakeWizBulbAdapter
+    ) -> None:
+        """Technique: Boundary Value Analysis — no read before signal_at + H.
+
+        A relay reports ``off`` before it cuts the bulb (cap-m4u1), so a bulb
+        that still answers may do so only after the hold-off has passed.
+        """
+        harness = _harness(fake_adapter)
+        task = asyncio.create_task(harness.run())
+        try:
+            await wait_until_subscribed(harness, SIGNAL_TOPIC)
+            await harness.advance_time(0)
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 1)
+            await harness.mqtt.deliver(SIGNAL_TOPIC, "off")
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 2)
+            reads = fake_adapter.get_state_call_count
+
+            await harness.advance_time(_HOLDOFF - 0.1)
+            reads_inside = fake_adapter.get_state_call_count - reads
+            await harness.advance_time(0.1)
+            await harness.wait_for_publish_count(SOURCE_STATE_TOPIC, 3)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+
+        assert reads_inside == 0
+        assert fake_adapter.get_state_call_count - reads == 1
         assert _powered_values(harness) == ["on", "off", "on"]
 
     @pytest.mark.parametrize("payload", ["ON", "true", "1", "", '{"state": "on"}'])

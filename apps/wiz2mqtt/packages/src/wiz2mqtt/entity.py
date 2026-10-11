@@ -112,6 +112,8 @@ async def bulb_entity_tick(
         await _mark_online_once(ctx, state, name)
         return _desired_state_payload(settings, state, store, name, belief)
 
+    await _hold_off_after_signal_off(ctx, settings, state, name)
+
     # A push cached before the last signal change is not an answer after it
     # (ADR-007 amendment 2026-09-19): only a poll of the bulb itself clears
     # the stale mark. A pending boot check needs a real read too (cap-m6nh).
@@ -290,6 +292,40 @@ async def _boot_check_finds_drift(
     caps = await port.get_capabilities(ip)
     expected = intent.desired_state_to_set_state_kwargs(desired)
     return not _kwargs_match_observed(expected, observed, caps)
+
+
+async def _hold_off_after_signal_off(
+    ctx: cosalette.DeviceContext,
+    settings: Wiz2MqttSettings,
+    state: SharedState,
+    name: str,
+) -> None:
+    """Delay the first read after a signal 'off' by ``signal_off_holdoff``.
+
+    A relay cuts power some milliseconds after it reports 'off', so a read
+    issued at once can still reach the bulb, and that answer outranks the
+    signal (ADR-007 amendment 2026-10-11). Only a source with a
+    ``signal_topic``, and only while *name*'s answers are stale from the edge.
+    """
+    source = settings.power_source_of(name)
+    if source is None or source.signal_topic is None or not source.signal_off_holdoff:
+        return
+    signal_at = state.source_signal_at.get(source.name, float("-inf"))
+    while state.source_signal.get(source.name) == "off" and name in state.stale_answers:
+        remaining = signal_at + source.signal_off_holdoff - time.monotonic()
+        if remaining <= 0:
+            return
+        logger.info("Bulb %s: read delayed %.1f s after signal off", name, remaining)
+        await ctx.sleep(remaining)
+        if (
+            state.source_signal.get(source.name) != "off"
+            or name not in state.stale_answers
+        ):
+            return
+        latest_signal_at = state.source_signal_at.get(source.name, float("-inf"))
+        if latest_signal_at <= signal_at:
+            return
+        signal_at = latest_signal_at
 
 
 def _source_signal_at(

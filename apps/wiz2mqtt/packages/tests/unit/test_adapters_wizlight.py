@@ -187,6 +187,7 @@ class _FakeWizLight:
         self.update_state_exc: Exception | None = None
         self.update_state_calls = 0
         self.real_send_calls = 0
+        self.pushes_during_poll = 0
         self.turn_on_calls: list[Any] = []
         self.turn_on_exc: Exception | None = None
         self.turn_off_calls = 0
@@ -253,6 +254,12 @@ class _FakeWizLight:
         if self.last_push + self._MAX_TIME_BETWEEN_PUSH >= time.monotonic():
             return self.state  # short-circuit: reuse cache, mirrors bulb.py:922
         self.real_send_calls += 1
+        if self.pushes_during_poll > 0:
+            # A syncPilot processed while getPilot is in flight: pywizlight
+            # discards the answer and returns its cached parser (bulb.py:944).
+            self.pushes_during_poll -= 1
+            self.receive_heartbeat()
+            return self.state
         if self.update_state_exc is not None:
             raise self.update_state_exc
         return self.update_state_result
@@ -929,6 +936,68 @@ class TestGetState:
 
         assert fake.real_send_calls == 2
         assert state.brightness == 99
+
+    async def test_wizlight_authoritative_poll_ignores_push_during_poll(
+        self, ctx: _Ctx
+    ) -> None:
+        """A push that cuts the getPilot short is not the poll's answer.
+
+        pywizlight's ``updateState()`` drops the getPilot answer when a
+        syncPilot lands while it is in flight and returns its cached parser.
+        That datagram may predate a relay cut, so the adapter polls again: a
+        dark bulb then times out instead of reading as answered.
+
+        Technique: Error Guessing — in-flight push after a relay-off signal.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.start_push_calls[0]([_FakeParser(brightness=77)])
+        ctx.adapter.invalidate_cache(_IP)
+        fake.pushes_during_poll = 1
+        fake.update_state_exc = WizLightTimeOutError("dark")
+
+        with pytest.raises(WizTimeoutError):
+            await ctx.adapter.get_state(_IP)
+
+        assert fake.real_send_calls == 2
+
+    async def test_wizlight_authoritative_poll_repolls_a_live_bulb(
+        self, ctx: _Ctx
+    ) -> None:
+        """After a push cut the poll short, the re-poll's answer is returned.
+
+        Technique: State Transition Testing — short-circuited poll, re-poll.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.start_push_calls[0]([_FakeParser(brightness=77)])
+        ctx.adapter.invalidate_cache(_IP)
+        fake.pushes_during_poll = 1
+        fake.update_state_result = [_FakeParser(brightness=99)]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert (fake.real_send_calls, state.brightness) == (2, 99)
+
+    async def test_wizlight_authoritative_poll_accepts_a_steadily_pushing_bulb(
+        self, ctx: _Ctx
+    ) -> None:
+        """A push during every attempt proves a live bulb; the poll stops there.
+
+        Technique: Boundary Value Analysis — every allowed attempt cut short.
+        """
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        fake = ctx.fake_bulbs[_IP]
+        await ctx.adapter.get_capabilities(_IP)
+        fake.receive_heartbeat([_FakeParser(brightness=77)])
+        ctx.adapter.invalidate_cache(_IP)
+        fake.pushes_during_poll = 10
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert (fake.real_send_calls, state.brightness) == (3, 77)
 
 
 # ---------------------------------------------------------------------------

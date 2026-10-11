@@ -813,6 +813,7 @@ class TestBootSafeguardSettings:
         source = settings.power_sources[0]
 
         assert source.boot_grace == 0.0
+        assert source.signal_off_holdoff == 0.5
         assert source.restore_settle == 15.0
         assert source.clear_queue_on_power_off is False
         assert source.queued_command_ttl is None
@@ -840,6 +841,30 @@ class TestBootSafeguardSettings:
         )
 
         assert "boot_grace needs signal_topic" in caplog.text
+
+    def test_negative_signal_off_holdoff_is_rejected(self) -> None:
+        with pytest.raises(ValidationError):
+            build_settings(
+                [{"name": "a", "ip": "10.0.0.1"}],
+                [self._source(signal_off_holdoff=-0.1)],
+            )
+
+    def test_signal_off_holdoff_without_signal_warns(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        build_settings(
+            [{"name": "a", "ip": "10.0.0.1"}],
+            [self._source(signal_off_holdoff=1.0)],
+        )
+
+        assert "signal_off_holdoff needs signal_topic" in caplog.text
+
+    def test_default_signal_off_holdoff_without_signal_is_silent(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        build_settings([{"name": "a", "ip": "10.0.0.1"}], [self._source()])
+
+        assert "needs signal_topic" not in caplog.text
 
     @pytest.mark.parametrize("where", ["bulb", "source"])
     def test_zero_ttl_override_is_rejected(self, where: str) -> None:

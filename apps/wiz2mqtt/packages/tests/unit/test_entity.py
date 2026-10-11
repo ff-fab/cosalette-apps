@@ -174,6 +174,32 @@ def _idle(*, reachable: bool) -> dict[str, object]:
     return {"reachable": reachable, "pending": NULL_WIRE, "last_applied": NULL_WIRE}
 
 
+class _EntityTime:
+    """Stand-in for ``entity.time``: a settable monotonic clock, real wall time.
+
+    Swapping the module object leaves ``time.monotonic`` itself untouched, so
+    asyncio keeps its own clock (cosalette testing rules).
+    """
+
+    def __init__(self, now: float) -> None:
+        self.now = now
+
+    def monotonic(self) -> float:
+        return self.now
+
+    @staticmethod
+    def time() -> float:
+        return time.time()
+
+
+@pytest.fixture
+def clock(monkeypatch: pytest.MonkeyPatch) -> _EntityTime:
+    """Drive the monotonic clock ``entity`` reads, starting at 100.0."""
+    fake = _EntityTime(100.0)
+    monkeypatch.setattr(entity, "time", fake)
+    return fake
+
+
 class TestSuccessfulPoll:
     """A successful get_state() publishes state and signals recovery."""
 
@@ -756,11 +782,9 @@ class TestReturnPath:
         assert state.phase["office"] == "reconnect"
 
     async def test_unconfirmed_cycle_is_paced_before_the_next_three_writes(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, clock: _EntityTime
     ) -> None:
         """Regression: an exhausted cycle cannot run again on every tick."""
-        clock = [100.0]
-        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
         adapter = FakeWizBulbAdapter()
         adapter.refuse_writes(_IP, 3)
         state = SharedState(phase={"office": "reconnect"})
@@ -1414,19 +1438,17 @@ class TestSignalOff:
         assert state.phase["office"] == "steady"
 
     async def test_read_issued_before_signal_off_stays_stale(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, monkeypatch: pytest.MonkeyPatch, clock: _EntityTime
     ) -> None:
         """An in-flight read cannot override a later relay-off edge."""
-        clock = [10.0]
-        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
         adapter = FakeWizBulbAdapter()
         state = SharedState(bulb_answered={"office": True})
         ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
         original_get_state = adapter.get_state
 
         async def read_after_signal(ip: str) -> BulbState:
-            clock[0] = 11.0
-            record_signal(ctx.settings, state, "office-power", "off", clock[0])
+            clock.now = 101.0
+            record_signal(ctx.settings, state, "office-power", "off", clock.now)
             return await original_get_state(ip)
 
         monkeypatch.setattr(adapter, "get_state", read_after_signal)
@@ -1440,7 +1462,10 @@ class TestSignalOff:
         """Technique: State Transition — signal, answer, then one lost read.
 
         The answer after the signal holds the belief ``on``, so one timeout
-        is transient again and the bulb keeps its answer evidence.
+        is transient again and the bulb keeps its answer evidence. The
+        ADR-007 amendment 2026-10-11 keeps this 3-read debounce on purpose:
+        ``signal_off_holdoff`` stops the relay-lag answer instead, so a
+        firm first failure here would only hide a truly wrong signal.
         """
         adapter = FakeWizBulbAdapter()
         state = SharedState()
@@ -1453,6 +1478,220 @@ class TestSignalOff:
 
         assert result == {"state": "OFF", "powered": True} | _idle(reachable=True)
         assert state.consecutive_failures["office"] == 1
+
+
+def _settings_with_office_relay(
+    *, signal_off_holdoff: float | None = None
+) -> Wiz2MqttSettings:
+    """'office' behind a relay that reports its state on a signal topic."""
+    source: dict[str, object] = {
+        "name": "office-power",
+        "members": ["office"],
+        "when_unreachable": "fault",
+        "signal_topic": "relay/office",
+    }
+    if signal_off_holdoff is not None:
+        source["signal_off_holdoff"] = signal_off_holdoff
+    return build_settings([{"name": "office", "ip": _IP}], [source])
+
+
+class TestSignalOffHoldoff:
+    """The first read after a signal ``off`` waits ``signal_off_holdoff``
+    (ADR-007 amendment 2026-10-11, cap-m4u1): a relay reports ``off``
+    before it cuts the bulb, so an immediate read can still be answered."""
+
+    @staticmethod
+    def _advancing_sleep(ctx: FakeDeviceContext, clock: _EntityTime) -> None:
+        """Make ``ctx.sleep`` move the entity clock, as a real sleep would."""
+        recorded = ctx.sleep
+
+        async def sleep(seconds: float) -> None:
+            await recorded(seconds)
+            clock.now += seconds
+
+        ctx.sleep = sleep  # type: ignore[method-assign]
+
+    @staticmethod
+    async def _answered_then_signal_off(
+        adapter: FakeWizBulbAdapter,
+        ctx: FakeDeviceContext,
+        state: SharedState,
+        clock: _EntityTime,
+    ) -> None:
+        await _tick(ctx, _config(), adapter, state)
+        record_signal(ctx.settings, state, "office-power", "on", clock.now - 60)
+        state.stale_answers.clear()
+        record_signal(ctx.settings, state, "office-power", "off", clock.now)
+
+    async def test_read_waits_for_the_holdoff(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        clock: _EntityTime,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """Technique: Boundary Value — the read is issued at signal_at + H."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        self._advancing_sleep(ctx, clock)
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+        issued: list[float] = []
+        original_get_state = adapter.get_state
+
+        async def recording_get_state(ip: str) -> BulbState:
+            issued.append(clock.now)
+            return await original_get_state(ip)
+
+        monkeypatch.setattr(adapter, "get_state", recording_get_state)
+        clock.now += 0.1
+        with caplog.at_level(logging.INFO, logger="wiz2mqtt.entity"):
+            await _tick(ctx, _config(), adapter, state)
+
+        assert ctx.slept == [pytest.approx(0.4)]
+        assert issued == [pytest.approx(100.5)]
+        assert "Bulb office: read delayed 0.4 s after signal off" in caplog.text
+
+    async def test_new_off_edge_during_holdoff_gets_its_own_deadline(
+        self, monkeypatch: pytest.MonkeyPatch, clock: _EntityTime
+    ) -> None:
+        """An off→on→off bounce during sleep extends the holdoff to the new edge."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+        clock.now += 0.1
+
+        async def bouncing_sleep(seconds: float) -> None:
+            ctx.slept.append(seconds)
+            if len(ctx.slept) == 1:
+                assert seconds == pytest.approx(0.4)
+                clock.now += 0.3
+                record_signal(ctx.settings, state, "office-power", "on", clock.now)
+                clock.now += 0.05
+                record_signal(ctx.settings, state, "office-power", "off", clock.now)
+                clock.now += 0.05
+            else:
+                assert seconds == pytest.approx(0.45)
+                clock.now += seconds
+
+        ctx.sleep = bouncing_sleep  # type: ignore[method-assign]
+        issued: list[float] = []
+        original_get_state = adapter.get_state
+
+        async def recording_get_state(ip: str) -> BulbState:
+            issued.append(clock.now)
+            return await original_get_state(ip)
+
+        monkeypatch.setattr(adapter, "get_state", recording_get_state)
+        await _tick(ctx, _config(), adapter, state)
+
+        assert ctx.slept == [pytest.approx(0.4), pytest.approx(0.45)]
+        assert issued == [pytest.approx(100.95)]
+
+    async def test_command_during_the_holdoff_is_queued(
+        self, clock: _EntityTime
+    ) -> None:
+        """Technique: State Transition — the belief is already ``off``."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+        notify = RecordingNotifier()
+
+        async def command_while_waiting(seconds: float) -> None:
+            ctx.slept.append(seconds)
+            await bulb_set(
+                BulbSetCommand(brightness=40), _config(), adapter, state, ctx, notify
+            )
+            clock.now += seconds
+
+        ctx.sleep = command_while_waiting  # type: ignore[method-assign]
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        await _tick(ctx, _config(), adapter, state)
+
+        assert adapter.set_state_calls == []
+        assert state.pending_commands["office"].kwargs["brightness"] == 40
+
+    async def test_dark_bulb_after_the_holdoff_is_firm(
+        self, clock: _EntityTime
+    ) -> None:
+        """Technique: Decision Table — one failure decides, the next tick skips."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        self._advancing_sleep(ctx, clock)
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+
+        adapter.fail_next(_IP, WizTimeoutError("boom"))
+        result = await _tick(ctx, _config(), adapter, state)
+        await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": False} | _idle(reachable=False)
+        assert state.consecutive_failures["office"] == _FAILURE_THRESHOLD
+        assert adapter.get_state_call_count == 2
+        assert ctx.slept == [pytest.approx(0.5)]
+
+    async def test_bulb_answering_after_the_holdoff_still_counts(
+        self, clock: _EntityTime
+    ) -> None:
+        """Technique: Decision Table — a late answer still outranks the signal."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        self._advancing_sleep(ctx, clock)
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+
+        result = await _tick(ctx, _config(), adapter, state)
+
+        assert result == {"state": "OFF", "powered": True} | _idle(reachable=True)
+        assert "office" not in state.stale_answers
+
+    async def test_zero_holdoff_reads_at_once(self, clock: _EntityTime) -> None:
+        """Technique: Boundary Value — 0 disables the delay."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(
+            settings=_settings_with_office_relay(signal_off_holdoff=0)
+        )
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+
+        await _tick(ctx, _config(), adapter, state)
+
+        assert ctx.slept == []
+        assert adapter.get_state_call_count == 2
+
+    async def test_source_without_signal_topic_reads_at_once(
+        self, clock: _EntityTime
+    ) -> None:
+        """Technique: Equivalence Partitioning — no relay, no hold-off."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_power_source("fault"))
+        await self._answered_then_signal_off(adapter, ctx, state, clock)
+
+        await _tick(ctx, _config(), adapter, state)
+
+        assert ctx.slept == []
+
+    @pytest.mark.parametrize(
+        ("signal", "elapsed"), [("on", 0.0), ("off", 0.5)], ids=["on-edge", "late"]
+    )
+    async def test_no_holdoff_outside_a_fresh_off_edge(
+        self, clock: _EntityTime, signal: str, elapsed: float
+    ) -> None:
+        """Technique: Equivalence Partitioning — an ``on`` edge, or a tick
+        after the hold-off has run out, reads at once."""
+        adapter = FakeWizBulbAdapter()
+        state = SharedState()
+        ctx = FakeDeviceContext(settings=_settings_with_office_relay())
+        await _tick(ctx, _config(), adapter, state)
+        record_signal(ctx.settings, state, "office-power", signal, clock.now)
+        clock.now += elapsed
+
+        await _tick(ctx, _config(), adapter, state)
+
+        assert ctx.slept == []
+        assert adapter.get_state_call_count == 2
 
 
 _QUEUED_BRIGHTNESS = {
@@ -1909,11 +2148,9 @@ class TestBootCallback:
         assert adapter._state[_IP].state is True  # noqa: SLF001
 
     async def test_settle_reapplies_do_not_extend_original_deadline(
-        self, monkeypatch: pytest.MonkeyPatch
+        self, clock: _EntityTime
     ) -> None:
         """Technique: Boundary Value — conflicts stop at the original deadline."""
-        clock = [100.0]
-        monkeypatch.setattr(entity.time, "monotonic", lambda: clock[0])
         settings = build_settings(
             [{"name": "office", "ip": _IP}],
             [{"name": "office-power", "members": ["office"], "restore_settle": 10}],
@@ -1925,17 +2162,17 @@ class TestBootCallback:
 
         await _tick(ctx, _config(), adapter, state)
         adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
-        clock[0] = 101.0
+        clock.now = 101.0
         await _tick(ctx, _config(), adapter, state)
         await _tick(ctx, _config(), adapter, state)
 
         adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
-        clock[0] = 109.0
+        clock.now = 109.0
         await _tick(ctx, _config(), adapter, state)
         await _tick(ctx, _config(), adapter, state)
 
         adapter.inject_push(_IP, BulbState(False, None, None, None, None, None))
-        clock[0] = 111.0
+        clock.now = 111.0
         await _tick(ctx, _config(), adapter, state)
 
         assert len(adapter.set_state_calls) == 3

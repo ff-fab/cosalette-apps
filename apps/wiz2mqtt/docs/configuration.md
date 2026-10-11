@@ -115,6 +115,7 @@ wiz_bulbs_only = true
 | `power_off_idle_delay` | no | Seconds every member bulb must be desired `OFF` before a power-off request. Must be greater than zero: the timer starts on a tick, so wiz2mqtt always spends the full delay in the current process before it asks for a circuit to be cut (default `600`) |
 | `wiz_bulbs_only` | no | Operator declaration that every device on this circuit is a WiZ bulb wiz2mqtt controls; must be `true` before `enable_power_off_request` may be `true` (default `false`) |
 | `boot_grace` | no | Seconds after the signal turns `on` in which a member bulb is expected to still be booting. Until the bulb answers, a command is queued without a wire attempt and a failed read does not count towards `offline`. Needs a `signal_topic`; `0` switches the window off (default `0`) |
+| `signal_off_holdoff` | no | Seconds wiz2mqtt waits after the signal turns `off` before it reads a member bulb again. A relay reports `off` some milliseconds before it cuts the bulb, and an answer in that gap would outrank the signal. Needs a `signal_topic`; `0` reads at once (default `0.5`) |
 | `restore_settle` | no | Seconds after a confirmed return-path restore in which a conflicting bulb observation is restored again instead of becoming the new desired state. Use `0` to permit immediate adoption (default `15`) |
 | `restore_retry_delays` | no | Seconds to wait before the second and third return-path write to a member bulb. Wins over the top-level value (see [Command Queueing](#command-queueing)) |
 | `restore_retry_limit` | no | Maximum exhausted return-path restore cycles before writes stop. Wins over the top-level value (see [Command Queueing](#command-queueing)) |
@@ -258,6 +259,7 @@ name = "downstairs-power"
 group = "downstairs"
 signal_topic = "openhab/relay/downstairs/state"
 boot_grace = 20
+signal_off_holdoff = 0.5
 clear_queue_on_power_off = true
 queued_command_ttl = 600
 ```

@@ -71,6 +71,14 @@ this cadence instead, bounded so a genuinely misconfigured host is not
 spammed with connection attempts.
 """
 
+_AUTHORITATIVE_POLL_ATTEMPTS = 3
+"""getPilot attempts per authoritative poll while pushes cut each one short.
+
+pywizlight discards a getPilot answer when a syncPilot lands during the
+request. One such push may predate a relay cut; a push during every
+attempt means the bulb is live.
+"""
+
 
 class WizBulbAdapter:
     """Production adapter wrapping :mod:`pywizlight`.
@@ -362,16 +370,27 @@ class WizBulbAdapter:
         push that lands during the poll keeps its own stamp. The mark stays
         until a poll succeeds, so a failed poll cannot fall back to the
         pre-invalidation parser on the next read.
+
+        A push that lands during the poll makes ``updateState()`` drop the
+        getPilot answer and return its cached parser. That push may be a
+        datagram the bulb sent before a relay cut, so it is no answer: poll
+        again. Only a bulb that pushes during every attempt is taken as live.
         """
         from pywizlight.bulb import NEVER_TIME  # noqa: PLC0415 — lazy import by design
 
         last_push = bulb.last_push
-        bulb.last_push = NEVER_TIME
-        try:
-            await self._poll_state(ip, warn_if_silent=False)
-        finally:
-            if bulb.last_push == NEVER_TIME:
-                bulb.last_push = last_push
+        for _ in range(_AUTHORITATIVE_POLL_ATTEMPTS):
+            bulb.last_push = NEVER_TIME
+            try:
+                await self._poll_state(ip, warn_if_silent=False)
+            finally:
+                pushed = bulb.last_push != NEVER_TIME
+                if pushed:
+                    last_push = bulb.last_push
+                else:
+                    bulb.last_push = last_push
+            if not pushed:
+                break
         self._authoritative_next.discard(ip)
 
     async def _poll_state(self, ip: str, *, warn_if_silent: bool = True) -> None:

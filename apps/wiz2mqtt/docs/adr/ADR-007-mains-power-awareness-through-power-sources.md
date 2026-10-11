@@ -9,7 +9,7 @@ tags: [mqtt, configuration, devices, telemetry, architecture]
 
 ## Status
 
-Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-19 | Amended **Date:** 2026-09-30
+Accepted **Date:** 2026-09-13 | Amended **Date:** 2026-09-19 | Amended **Date:** 2026-09-30 | Amended **Date:** 2026-10-11
 
 ## Context
 
@@ -196,3 +196,28 @@ For rule 1, a member answer is newer than a signal change only when the poll was
 ### Additional Negative Consequences
 
 - A response that began just before a genuine relay-on edge is conservatively ignored as power evidence until the next poll or push-triggered observation.
+
+## Amendment (2026-10-11) — Corrective
+
+**Rationale:** wiz2mqtt 0.2.14 still reported powered 'on' 4-47 ms after a relay signal 'off', and kept it for the whole dark period (cap-m4u1). Two gaps let an answer from a live bulb count as evidence after the edge. First, pywizlight's updateState returns its cached state when a push arrives while a getPilot is in flight, so the authoritative read after the edge could return a push the bulb sent before the cut. Second, the relay reports 'off' before its contacts have cut the bulb: in the report, wiz2mqtt receives the signal 50-90 ms after openHAB logs the actuator change, and the bulb still answered 70-110 ms after the relay opened. A read issued at once is therefore answered by a bulb that is about to go dark, and rule 1 lets that answer outrank the signal. The worst observed lag, signal delivery plus supply hold-up, is about 160 ms.
+
+> **Justification for amendment (not supersession):** The correction is confined to wiz2mqtt's adapter (the authoritative poll) and the first read after a signal 'off' in entity.py. It adds one optional power-source key whose default only delays a read by half a second; no MQTT topic, payload schema or existing configuration key changes, and rule 1 and the 3-read debounce keep their meaning. Operators need no migration, so a superseding ADR would only restate this one.
+
+### Revised Decision
+
+Keep rules 1-3, the 2026-09-19 stale marking and the 2026-09-30 issue-time stamp, and close the two gaps that let pre-cut evidence count after a signal 'off'.
+
+1. **A push that cuts an authoritative read short does not answer it.** When pywizlight returns its cached state because a push arrived during the getPilot, the adapter polls again, up to three attempts in all. A bulb that keeps pushing on every attempt is accepted as answering, since each push is itself proof of life.
+2. **The first read after a signal 'off' waits `signal_off_holdoff` seconds.** A source with a `signal_topic` delays a member's first read after the 'off' edge until `signal_at + signal_off_holdoff`, through the shutdown-aware `ctx.sleep`, and stamps the read's issue time after the wait. The default is 0.5 s, about three times the worst lag in the report (~160 ms); 0 disables the delay. The key has no effect without a `signal_topic` and logs a warning when set there. The belief is already 'off' during the wait, so a command in that window is queued for the return path.
+3. **The 3-read debounce stays.** A member that answered after the signal still needs three failed reads before the belief turns 'off'. With the hold-off in place an answer after the edge is real evidence that the signal is wrong or the bulb is fed from elsewhere, and a single lost datagram must not undo it.
+
+### Additional Positive Consequences
+
+- A relay 'off' edge holds: a bulb that is still powered for the first ~100 ms after the edge can no longer flip powered back to 'on' for the whole dark period.
+- Operators with a slow relay or long signal path can raise signal_off_holdoff per source without a code change.
+
+### Additional Negative Consequences
+
+- Every member read after a signal 'off' starts half a second later by default, and that tick runs that much longer.
+- A bulb that answers only after a longer hold-up than signal_off_holdoff still outranks the signal; the operator must raise the value for that source.
+- A bulb that pushes on every attempt of an authoritative poll is still accepted, so pushes sent right before a cut can count once in that rare case.

@@ -27,12 +27,17 @@ pydantic-settings integration.
 
 ## Apps
 
-| App                                  | Description                                                                                                                            | License                                                                                              | Docs                                                                    |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| [caldates2mqtt](apps/caldates2mqtt/) | Reads CalDAV calendar dates and publishes upcoming all-day events to MQTT, with multi-calendar support and on-demand re-read commands. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/caldates2mqtt/LICENSE)                          | [Documentation](https://ff-fab.github.io/cosalette-apps/caldates2mqtt/) |
-| [gas2mqtt](apps/gas2mqtt/)           | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT.    | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)                               | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)      |
-| [jeelink2mqtt](apps/jeelink2mqtt/)   | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                                  | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)                           | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)  |
-| [vito2mqtt](apps/vito2mqtt/)         | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.     | [![GPL-3.0-or-later](https://img.shields.io/badge/GPL--3.0--or--later-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)     |
+| App                                          | Description                                                                                                                            | License                                                                                              | Docs                                                                        |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| [airthings2mqtt](apps/airthings2mqtt/)       | Reads Airthings Wave air quality sensors over BLE and publishes temperature, humidity, and radon data to MQTT.                         | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/airthings2mqtt/LICENSE)                         | [Documentation](https://ff-fab.github.io/cosalette-apps/airthings2mqtt/)    |
+| [caldates2mqtt](apps/caldates2mqtt/)         | Reads CalDAV calendar dates and publishes upcoming all-day events to MQTT, with multi-calendar support and on-demand re-read commands. | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/caldates2mqtt/LICENSE)                          | [Documentation](https://ff-fab.github.io/cosalette-apps/caldates2mqtt/)     |
+| [gas2mqtt](apps/gas2mqtt/)                   | Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes counter ticks, temperature, and debug data to MQTT.    | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/gas2mqtt/LICENSE)                               | [Documentation](https://ff-fab.github.io/cosalette-apps/gas2mqtt/)          |
+| [jeelink2mqtt](apps/jeelink2mqtt/)           | Bridges LaCrosse temperature and humidity sensors to MQTT via a JeeLink USB receiver.                                                  | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/jeelink2mqtt/LICENSE)                           | [Documentation](https://ff-fab.github.io/cosalette-apps/jeelink2mqtt/)      |
+| [suncast](apps/suncast/)                     | Generates real-time SVG sundials that show building shadows for your location and building geometry.                                   | [![GPL-3.0-or-later](https://img.shields.io/badge/GPL--3.0--or--later-blue)](apps/suncast/LICENSE)   | [Documentation](https://ff-fab.github.io/cosalette-apps/suncast/)           |
+| [velux2mqtt](apps/velux2mqtt/)               | Controls Velux covers through KLF 050 remotes and M74HC4066 GPIO switches, exposed as MQTT covers.                                     | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/velux2mqtt/LICENSE)                             | [Documentation](https://ff-fab.github.io/cosalette-apps/velux2mqtt/)        |
+| [vito2mqtt](apps/vito2mqtt/)                 | Controls a Viessmann Vitodens gas boiler over the Optolink serial interface, publishing telemetry and accepting commands via MQTT.     | [![GPL-3.0-or-later](https://img.shields.io/badge/GPL--3.0--or--later-blue)](apps/vito2mqtt/LICENSE) | [Documentation](https://ff-fab.github.io/cosalette-apps/vito2mqtt/)         |
+| [wallpanel-control](apps/wallpanel-control/) | Controls a wall-panel display and its host over SSH and Wake-on-LAN via MQTT.                                                          | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/wallpanel-control/LICENSE)                      | [Documentation](https://ff-fab.github.io/cosalette-apps/wallpanel-control/) |
+| [wiz2mqtt](apps/wiz2mqtt/)                   | Controls WiZ smart bulbs over MQTT for openHAB and Home Assistant.                                                                     | [![MIT](https://img.shields.io/badge/MIT-blue)](apps/wiz2mqtt/LICENSE)                               | [Documentation](https://ff-fab.github.io/cosalette-apps/wiz2mqtt/)          |
 
 ## Architecture
 
@@ -41,7 +46,7 @@ pydantic-settings integration.
 - **Build system:** [uv](https://docs.astral.sh/uv/) workspaces +
   [Taskfile](https://taskfile.dev/)
 - **Licensing:** [REUSE](https://reuse.software/)-compliant (MIT default,
-  GPL-3.0-or-later for vito2mqtt)
+  GPL-3.0-or-later for suncast and vito2mqtt)
 - **CI:** Per-app change detection with reusable workflows
 - **Releases:** Release Please manifest mode (per-app versioning)
 - **Docs:** [Zensical](https://zensical.squidfunk.com/) with per-app sub-sites
@@ -58,10 +63,16 @@ structure, and code quality standards.
 
 This repository uses mixed licensing:
 
+- **airthings2mqtt** is licensed under the [MIT License](apps/airthings2mqtt/LICENSE).
 - **caldates2mqtt** is licensed under the [MIT License](apps/caldates2mqtt/LICENSE).
 - **gas2mqtt** is licensed under the [MIT License](apps/gas2mqtt/LICENSE).
 - **jeelink2mqtt** is licensed under the [MIT License](apps/jeelink2mqtt/LICENSE).
+- **suncast** is licensed under [GPL-3.0-or-later](apps/suncast/LICENSE).
+- **velux2mqtt** is licensed under the [MIT License](apps/velux2mqtt/LICENSE).
 - **vito2mqtt** is licensed under [GPL-3.0-or-later](apps/vito2mqtt/LICENSE).
+- **wallpanel-control** is licensed under the
+  [MIT License](apps/wallpanel-control/LICENSE).
+- **wiz2mqtt** is licensed under the [MIT License](apps/wiz2mqtt/LICENSE).
 - Monorepo infrastructure and shared files are licensed under the
   [MIT License](LICENSE).
 
