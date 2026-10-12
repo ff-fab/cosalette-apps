@@ -181,16 +181,18 @@ class TestErrorTypeMap:
 
 @pytest.mark.unit
 def test_app_discloses_domain_and_framework_error_messages() -> None:
-    """Mapped domain errors keep publishing their sanitised messages.
+    """Mapped domain errors publish their messages, except the serial port error.
 
     Technique: Specification-based — since cosalette 0.12 error_type_map only
     assigns labels; disclosure is the explicit set (ADR-091).
+    OptolinkConnectionError names the serial port, so only its label is published.
     """
     from vito2mqtt.main import app
 
     assert app.disclose_messages_for == (
         cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
-    )
+    ) - {OptolinkConnectionError}
+    assert InvalidSignalError in app.disclose_messages_for
 
 
 @pytest.mark.unit

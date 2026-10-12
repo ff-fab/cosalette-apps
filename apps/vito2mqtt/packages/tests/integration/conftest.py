@@ -32,6 +32,7 @@ from vito2mqtt import __version__
 from vito2mqtt._registration import configure_app
 from vito2mqtt.adapters.fake import FakeOptolinkAdapter
 from vito2mqtt.config import Vito2MqttSettings
+from vito2mqtt.errors import disclose_messages_for, error_type_map
 from vito2mqtt.ports import OptolinkPort
 
 TOPIC_PREFIX = "vito2mqtt"
@@ -61,6 +62,9 @@ def build_integration_app(adapter: FakeOptolinkAdapter) -> App:
         settings_class=Vito2MqttSettings,
         store=MemoryStore(),
         adapters={OptolinkPort: lambda: adapter},
+        error_type_map=error_type_map,
+        disclose_messages_for=disclose_messages_for,
+        allow_error_publish_verbose=True,
     )
     configure_app(app)
     return app

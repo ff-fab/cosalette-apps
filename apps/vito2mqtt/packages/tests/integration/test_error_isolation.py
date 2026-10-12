@@ -36,6 +36,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import json
 from collections.abc import Sequence
 from typing import Any
 
@@ -95,11 +96,12 @@ class _TransientOutdoorAdapter(FakeOptolinkAdapter):
     def __init__(self) -> None:
         super().__init__()
         self.remaining_failures = 4
+        self.message = "Optolink disconnected"
 
     async def read_signals(self, names: Sequence[str]) -> dict[str, Any]:
         if self.remaining_failures and any(n in self._OUTDOOR_NAMES for n in names):
             self.remaining_failures -= 1
-            raise OptolinkConnectionError("Optolink disconnected")
+            raise OptolinkConnectionError(self.message)
         return await super().read_signals(names)
 
 
@@ -199,6 +201,35 @@ class TestTelemetryErrorPublishing:
             await harness.advance_time(60)
             await harness.wait_for_publish_count(topic, 3)
             assert harness.messages_for(topic)[-1] == ("online", True, 1)
+        finally:
+            harness.shutdown_event.set()
+            if not task.done():
+                task.cancel()
+                with contextlib.suppress(asyncio.CancelledError):
+                    await task
+
+    @pytest.mark.integration
+    async def test_optolink_connection_error_publishes_label_only(self) -> None:
+        """The error topic never carries the serial port named in the message.
+
+        Specification-based: OptolinkConnectionError is labelled but not in
+        disclose_messages_for, so cosalette publishes the class name only.
+        """
+        adapter = _TransientOutdoorAdapter()
+        adapter.message = "Failed to open serial port '/dev/ttyUSB0': busy"
+        clock = ManualClock()
+        harness = make_harness(adapter, clock=clock)
+        topic = f"{TOPIC_PREFIX}/outdoor/error"
+        task = asyncio.create_task(harness.run())
+        try:
+            await clock.settle()
+            await asyncio.sleep(0.1)
+            for _ in range(4):
+                await harness.advance_time(10)
+            await harness.wait_for_publish_count(topic, 1)
+            payload = json.loads(harness.messages_for(topic)[0][0])
+            assert payload["error_type"] == "optolink_connection"
+            assert payload["message"] == "OptolinkConnectionError"
         finally:
             harness.shutdown_event.set()
             if not task.done():

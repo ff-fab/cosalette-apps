@@ -57,12 +57,16 @@ error_type_map: dict[type[Exception], str] = {
 
 disclose_messages_for: frozenset[type[Exception]] = (
     cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
-)
+) - {OptolinkConnectionError}
 """Exception types whose message is published on the error topic (cosalette ADR-091).
 
-The domain errors above carry sanitised messages, and the framework's own
-rejection errors (bad JSON, unknown sub-command, invalid payload) are sanitised
-by cosalette. Every other exception publishes its class name only.
+``OptolinkConnectionError`` stays out: its message names the serial port and
+carries the OS error text, so the topic gets the ``optolink_connection`` label
+and the class name only. The other domain errors carry messages meant for the
+sender (an ``InvalidSignalError`` names the rejected signal or value), and the
+framework's own rejection errors (bad JSON, unknown sub-command, invalid
+payload) are sanitised by cosalette. Every other exception publishes its class
+name only.
 
 The builtin ``TimeoutError`` stays out on purpose, so a watchdog timeout
 publishes ``error_type`` ``timeout`` with the message ``TimeoutError``. Libraries
