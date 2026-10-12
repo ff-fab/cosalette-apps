@@ -339,6 +339,11 @@ error reporting:
 | `StalenessTimeoutError` | `staleness_timeout` | Sensor hasn't sent readings within the staleness window |
 | `UnknownSensorError` | `unknown_sensor` | Reading from an unrecognised/unmapped sensor ID |
 
+A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
+message `TimeoutError`; before cosalette 0.12 the message was empty or the
+library text. `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: jeelink2mqtt does not opt
+in to verbose error messages.
+
 ---
 
 ## API Reference
