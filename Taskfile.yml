@@ -240,6 +240,7 @@ tasks:
       - bash scripts/tests/test_gpl_headers.sh
       - bash scripts/tests/test_beads_recover.sh
       - bash scripts/tests/test_ci_helpers.sh
+      - bash scripts/tests/test_release_notes_markup.sh
 
   # Change-scoped by default (ADR-012): apps changed since the merge-base with
   # origin/main, or every app when a shared path (.github/ci-shared-paths.txt)

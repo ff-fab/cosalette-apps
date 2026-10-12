@@ -198,6 +198,35 @@ jobs:
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
+  # Release Please reads its PR body back as HTML; a bare <PREFIX> in a commit
+  # header or BREAKING CHANGE note silently skipped eight app releases
+  # (cap-fowo). Checks the PR title, any BEGIN_COMMIT_OVERRIDE block and the
+  # PR's commits on every PR except Release Please's own.
+  release-notes-markup:
+    if: >-
+      github.event_name == 'pull_request'
+      && (github.actor != 'ff-fab-release-bot[bot]'
+          || !startsWith(github.head_ref, 'release-please--'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject HTML-like tags in text bound for release notes
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          {
+            printf '%s\n\n' "$PR_TITLE"
+            tr -d '\r' <<<"$PR_BODY" | sed -n '/^BEGIN_COMMIT_OVERRIDE/,/^END_COMMIT_OVERRIDE/p'
+            echo
+            git log --format='%B' "$BASE_SHA..$HEAD_SHA"
+          } | bash scripts/check-release-notes-markup.sh
+
   # hadolint over every Dockerfile (cap-jrpf). Runs on the runner, not inside
   # the devcontainer, because it needs the Docker daemon. Runs when a
   # Dockerfile (the devcontainer's included), .hadolint.yaml or a shared path
@@ -249,7 +278,7 @@ jobs:
   # did not change; the release-please skip of detect is the one intended
   # whole-run skip.
   ci-gate:
-    needs: [detect, shared, security, app-ci, root-tests, docker-lint]
+    needs: [detect, shared, security, app-ci, root-tests, docker-lint, release-notes-markup]
     if: always()
     runs-on: ubuntu-latest
     steps:
