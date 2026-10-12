@@ -1,5 +1,31 @@
 # Changelog
 
+## [0.4.0](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.3.11...wallpanel-control-v0.4.0) (2026-10-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* error topic payloads follow cosalette 0.12.0 (ADR-091). A timed-out handler (`error_type` `timeout`) now publishes the message `TimeoutError` instead of an empty or library-provided message, and `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE` is ignored unless the app opts in (only wiz2mqtt and wallpanel-control do). Check this release's app-specific notes for further operator actions.
+
+### Features
+
+* allow verbose error opt-in fleet-wide and settle cosalette 0.12.0 error disclosure (cap-mzz4) ([#402](https://github.com/ff-fab/cosalette-apps/issues/402)) ([1af9f8b](https://github.com/ff-fab/cosalette-apps/commit/1af9f8b7998810a84f5c5398f986891e852eba4e))
+* **wallpanel-control:** panel reachability probe and observed sleep/wake confirmation ([#398](https://github.com/ff-fab/cosalette-apps/issues/398)) ([fb57de8](https://github.com/ff-fab/cosalette-apps/commit/fb57de8b4bca685ebbbc10138ca7f72311ed3c27))
+
+
+### Bug Fixes
+
+* upgrade to cosalette 0.12.0 ([e544dfc](https://github.com/ff-fab/cosalette-apps/commit/e544dfc0b30891432a623b0cbfcc39ccf380100d))
+* **wallpanel-control:** acknowledge repeated sleep while one is pending ([#386](https://github.com/ff-fab/cosalette-apps/issues/386)) ([01b8f0b](https://github.com/ff-fab/cosalette-apps/commit/01b8f0be314c2defd060f2a7f54043eca75767fb))
+* **wallpanel-control:** use host networking so Wake-on-LAN reaches the LAN ([#388](https://github.com/ff-fab/cosalette-apps/issues/388)) ([3a373bf](https://github.com/ff-fab/cosalette-apps/commit/3a373bf0e7d0767b72d4314f5e412bcc5ab7e926))
+* **wallpanel-control:** validation error type, quiet asyncssh logs, SSH keepalive ([#392](https://github.com/ff-fab/cosalette-apps/issues/392)) ([714b7e6](https://github.com/ff-fab/cosalette-apps/commit/714b7e6debeb25a0b9ae0e6a1a9b70297d84346d))
+
+
+### Documentation
+
+* **wallpanel-control:** accept 45s probe latency ([#397](https://github.com/ff-fab/cosalette-apps/issues/397)) ([300bdd2](https://github.com/ff-fab/cosalette-apps/commit/300bdd260d394e69ddf6b4f5ca118a627f65c3a4))
+* **wallpanel-control:** ADR for the reachability probe and sleep/wake confirmation ([#396](https://github.com/ff-fab/cosalette-apps/issues/396)) ([8379d13](https://github.com/ff-fab/cosalette-apps/commit/8379d135c05804f2e6916b7fee7c4561bc48782e))
+
 ## [0.3.11](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.3.10...wallpanel-control-v0.3.11) (2026-10-10)
 
 
