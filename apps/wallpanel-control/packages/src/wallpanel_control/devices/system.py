@@ -90,6 +90,7 @@ router = cosalette.Router(prefix="system")
     unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_system_action(
+    ctx: cosalette.DeviceContext,
     cmd: Annotated[SystemActionCommand, Payload()],
     wallpanel: WallpanelPort,
     wol: WolPort,
@@ -115,7 +116,11 @@ async def handle_system_action(
     result = await _run_action(cmd, wallpanel, wol, settings)
     if result.accepted and settings.probe_enabled:
         result.observed = "pending"
-    answers.record("system/action/state", result)
+    answers.record(
+        "system/action/state",
+        result,
+        accepted_at=(ctx.clock.now() if result.observed == "pending" else None),
+    )
     if result.observed is not None:
         notify(PANEL_PROBE)
     return result

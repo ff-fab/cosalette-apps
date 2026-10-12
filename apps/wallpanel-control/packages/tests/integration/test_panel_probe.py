@@ -206,14 +206,19 @@ class TestActionConfirmation:
         assert probe.available() == [True, False]
 
     async def test_wake_times_out_with_a_warning(
-        self, asleep: Probe, caplog: pytest.LogCaptureFixture
+        self,
+        asleep: Probe,
+        fake_wallpanel: FakeWallpanel,
+        caplog: pytest.LogCaptureFixture,
     ) -> None:
         await asleep.command(SYSTEM_ACTION_SET, {"action": "wake"})
         caplog.set_level(logging.WARNING, logger="wallpanel_control.devices.probe")
 
-        await asleep.advance(90)  # t = 125 s; the window opened at 45 s
+        await asleep.advance(89)  # acceptance at t=35; deadline at t=125
         assert asleep.observed() == ["pending"]
-        await asleep.advance(30)
+        # A target observation arriving exactly at the deadline is still timed out.
+        fake_wallpanel.set_reachable(True)
+        await asleep.advance(1)
 
         assert asleep.observed() == ["pending", "timeout"]
         assert "WOL_BROADCAST" in caplog.text

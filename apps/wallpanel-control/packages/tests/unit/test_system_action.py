@@ -37,6 +37,14 @@ def notify() -> MagicMock:
     return MagicMock()
 
 
+@pytest.fixture
+def ctx() -> MagicMock:
+    """Stand-in for the device context clock used to timestamp acceptance."""
+    context = MagicMock()
+    context.clock.now.return_value = 123.0
+    return context
+
+
 # =============================================================================
 # SystemActionCommand — validation
 # =============================================================================
@@ -138,6 +146,7 @@ class TestHandleSystemActionWake:
 
     async def test_wake_calls_wol(
         self,
+        ctx: MagicMock,
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
@@ -145,6 +154,7 @@ class TestHandleSystemActionWake:
     ) -> None:
         """wake action calls wol.wake() with mac and broadcast from settings."""
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="wake"),
             fake_wallpanel,
             fake_wol,
@@ -161,6 +171,7 @@ class TestHandleSystemActionWake:
 
     async def test_wake_returns_accepted_true(
         self,
+        ctx: MagicMock,
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
@@ -170,6 +181,7 @@ class TestHandleSystemActionWake:
         fake_wallpanel.set_reachable(False)
 
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="wake"),
             fake_wallpanel,
             fake_wol,
@@ -195,6 +207,7 @@ class TestHandleSystemActionSuspend:
 
     async def test_suspend_calls_suspend(
         self,
+        ctx: MagicMock,
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
@@ -202,6 +215,7 @@ class TestHandleSystemActionSuspend:
     ) -> None:
         """suspend action calls wallpanel.suspend()."""
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="suspend"),
             fake_wallpanel,
             fake_wol,
@@ -216,6 +230,7 @@ class TestHandleSystemActionSuspend:
 
     async def test_suspend_unreachable_returns_accepted_false(
         self,
+        ctx: MagicMock,
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
@@ -228,6 +243,7 @@ class TestHandleSystemActionSuspend:
         fake_wallpanel.set_reachable(False)
 
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="suspend"),
             fake_wallpanel,
             fake_wol,
@@ -254,6 +270,7 @@ class TestHandleSystemActionHibernate:
 
     async def test_hibernate_calls_hibernate(
         self,
+        ctx: MagicMock,
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
@@ -261,6 +278,7 @@ class TestHandleSystemActionHibernate:
     ) -> None:
         """hibernate action calls wallpanel.hibernate()."""
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="hibernate"),
             fake_wallpanel,
             fake_wol,
@@ -275,6 +293,7 @@ class TestHandleSystemActionHibernate:
 
     async def test_hibernate_unreachable_returns_accepted_false(
         self,
+        ctx: MagicMock,
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
@@ -287,6 +306,7 @@ class TestHandleSystemActionHibernate:
         fake_wallpanel.set_reachable(False)
 
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="hibernate"),
             fake_wallpanel,
             fake_wol,
@@ -319,6 +339,7 @@ class TestHandleSystemActionSleepPending:
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
         notify: MagicMock,
+        ctx: MagicMock,
     ) -> None:
         """A repeat during a pending suspend answers accepted=True, raising nothing."""
         # Arrange
@@ -327,6 +348,7 @@ class TestHandleSystemActionSleepPending:
 
         # Act
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action=action),
             wallpanel,
             fake_wol,
@@ -412,6 +434,7 @@ class TestHandleSystemActionObserved:
     )
     async def test_observed_and_probe_wake(
         self,
+        ctx: MagicMock,
         fake_wol: FakeWol,
         notify: MagicMock,
         reachable: bool,
@@ -426,6 +449,7 @@ class TestHandleSystemActionObserved:
 
         # Act
         result = await handle_system_action(
+            ctx,
             SystemActionCommand(action="suspend"),
             wallpanel,
             fake_wol,
@@ -441,3 +465,4 @@ class TestHandleSystemActionObserved:
             notify.assert_not_called()
         else:
             notify.assert_called_once_with(PANEL_PROBE)
+            assert answers.accepted_at("system/action/state") == 123.0

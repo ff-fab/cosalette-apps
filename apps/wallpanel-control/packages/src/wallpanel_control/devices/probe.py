@@ -93,7 +93,9 @@ class PanelProbe:
         if not first and shown == reachable:
             return
         state = (
-            await _poll_display_state(self._wallpanel, self._display)
+            await _poll_display_state(
+                self._wallpanel, self._display, already_reachable=True
+            )
             if reachable
             else _UNAVAILABLE
         )
@@ -108,14 +110,17 @@ class PanelProbe:
             current = self._answers.current(ACTION_TOPIC)
             self._pending = None
             if isinstance(current, dict) and current.get("observed") == "pending":
-                deadline = self._ctx.clock.now() + self._settings.action_confirm_timeout
+                accepted_at = self._answers.accepted_at(ACTION_TOPIC)
+                deadline = (
+                    accepted_at + self._settings.action_confirm_timeout
+                    if accepted_at is not None
+                    else self._ctx.clock.now() + self._settings.action_confirm_timeout
+                )
                 self._pending = (SystemActionState.model_validate(current), deadline)
         if self._pending is None:
             return
         ack, deadline = self._pending
-        if reachable == (ack.action == "wake"):
-            await self._finish(ack, "confirmed")
-        elif self._ctx.clock.now() >= deadline:
+        if self._ctx.clock.now() >= deadline:
             hint = f" ({_WAKE_TIMEOUT_HINT})" if ack.action == "wake" else ""
             logger.warning(
                 "Wallpanel %s not observed within %.0f s%s",
@@ -124,6 +129,8 @@ class PanelProbe:
                 hint,
             )
             await self._finish(ack, "timeout")
+        elif reachable == (ack.action == "wake"):
+            await self._finish(ack, "confirmed")
 
     async def _finish(self, ack: SystemActionState, observed: Observed) -> None:
         self._pending = None

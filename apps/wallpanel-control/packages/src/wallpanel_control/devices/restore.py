@@ -36,10 +36,21 @@ class LastAnswers:
         self._store: DeviceStore | None = None
         self._pending: dict[str, object] = {}
         self._revisions: dict[str, int] = {}
+        self._accepted_at: dict[str, float] = {}
 
-    def record(self, topic: str, answer: BaseModel) -> None:
+    def record(
+        self, topic: str, answer: BaseModel, *, accepted_at: float | None = None
+    ) -> None:
         """Save *answer*, the payload just published to *topic*."""
         self._record_wire(topic, answer.model_dump(mode="json"))
+        if accepted_at is None:
+            self._accepted_at.pop(topic, None)
+        else:
+            self._accepted_at[topic] = accepted_at
+
+    def accepted_at(self, topic: str) -> float | None:
+        """Return the in-process acceptance time for a pending action, if any."""
+        return self._accepted_at.get(topic)
 
     def current(self, topic: str) -> object:
         """Return the current answer for *topic*, or ``None`` if there is none yet."""
