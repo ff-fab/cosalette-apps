@@ -146,3 +146,11 @@ _Scale: 1 (poor) to 5 (excellent)_
 ### Additional Sub-Decision: Latency acceptance
 
 This resolves the open latency question above and replaces cap-k0pa.6's one-interval criterion: at the default 30 s probe interval, `display/state` must reflect both sleep and wake within 45 s. For sleep, the bound is one interval + two `ssh_timeout` periods + the 5 s debounce. For wake, it is one interval plus the bounded full display read. The 30 s interval remains the default; tests for cap-k0pa.6 must verify both transitions against the 45 s bound.
+
+## Amendment (2026-10-12) — Implementation
+
+**Rationale:** cosalette 0.11.4 routes one root handler per app (`TopicRouter` raises `Root handler already registered`), so a second root device `panel_probe` cannot run beside `restore_answers`.
+
+### Additional Sub-Decision: One root device
+
+The probe runs inside the existing root device `restore_answers`, which publishes the saved answers first and then probes. It keeps that name because the name scopes the saved answers in the store and names the schema channel, so an upgrade loses nothing. Wherever this ADR names a `panel_probe` device or heartbeat entry, read `restore_answers`: the heartbeat gains no entry. The device declares `triggerable="local"`; the system action handler wakes it through `EntityNotifier`. Everything else in the decision is unchanged.

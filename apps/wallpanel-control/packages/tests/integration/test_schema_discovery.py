@@ -238,7 +238,7 @@ class TestDiscoveryOptOut:
           (wake / suspend / hibernate).
         - ``systemActionState``: command acknowledgement, not a datapoint.
         - ``restore_answersState``: startup re-publisher of the saved answers
-          (MQTT 5 expiry, #291); it owns no entity of its own.
+          (MQTT 5 expiry, #291) and panel probe (ADR-001); it owns no entity.
         """
         opted_out = {
             name

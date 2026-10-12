@@ -4,9 +4,9 @@ The real cosalette ``MqttClient`` runs the wired app against an in-memory broker
 double; the shared contract assertions live in ``mqtt5_contract``. See there for
 the test techniques used.
 
-wallpanel-control publishes its two state topics only as the answer to a command,
-so the observation first delivers one display command and one system action
-through the broker double, as an MQTT client would.
+With the panel probe off, wallpanel-control publishes its two state topics only as
+the answer to a command, so the observation first delivers one display command and
+one system action through the broker double, as an MQTT client would.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ from mqtt5_broker import FakeMqtt5Broker, Observation, run_against_broker
 from mqtt5_contract import EXPIRY_SECONDS, WINDOWS, Mqtt5Contract, Mqtt311Contract
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
-from wallpanel_control.devices import display, restore, system
+from wallpanel_control.devices import display, probe, restore, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 
 from .conftest import (
@@ -46,7 +46,7 @@ def _build_app() -> App:
     app.state(restore.create_last_answers)
     app.include_router(display.router)
     app.include_router(system.router)
-    app.include_router(restore.router)
+    app.include_router(probe.router)
     return app
 
 
@@ -59,7 +59,9 @@ async def _observe(monkeypatch: pytest.MonkeyPatch, **mqtt: object) -> Observati
         app=_build_app(),
         mqtt=MockMqttClient(),
         clock=clock,
-        settings=make_wallpanel_control_settings(mqtt={"tls": False, **mqtt}),
+        settings=make_wallpanel_control_settings(
+            probe_enabled=False, mqtt={"tls": False, **mqtt}
+        ),
         shutdown_event=asyncio.Event(),
     )
 

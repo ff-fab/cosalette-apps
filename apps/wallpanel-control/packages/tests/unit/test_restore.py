@@ -82,7 +82,11 @@ class TestLastAnswers:
 
         assert restored == {}
         assert backend.load("restore_answers") == {
-            "system/action/state": {"accepted": False, "action": "suspend"}
+            "system/action/state": {
+                "accepted": False,
+                "action": "suspend",
+                "observed": None,
+            }
         }
 
     def test_saved_answer_is_not_current_after_a_newer_answer(self) -> None:

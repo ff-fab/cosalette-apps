@@ -31,11 +31,11 @@ unknown fields are rejected with an error publication.
     `WALLPANEL_CONTROL_MQTT__TOPIC_PREFIX`.
 
 !!! note "No periodic telemetry from hardware"
-    wallpanel-control does not poll wallpanel hardware on a timer. State is published
-    only in response to commands. The cosalette framework independently publishes its
-    own health/heartbeat to `{prefix}/status` regardless of command activity. With
-    nothing polled, no device ever reports `stale` there; see
-    [Health and recovery](configuration.md#health-and-recovery).
+    wallpanel-control publishes no periodic readings. State is published in response to
+    commands and, by the panel probe, only when the panel's reachability changes (see
+    [Panel probe](configuration.md#panel-probe)). The cosalette framework independently
+    publishes its own health/heartbeat to `{prefix}/status`. No device ever reports
+    `stale` there; see [Health and recovery](configuration.md#health-and-recovery).
 
 ---
 
@@ -86,7 +86,8 @@ command is rejected and an error with `error_type: "validation"` is published to
 
 ### State: `wallpanel-control/display/state`
 
-Published (QoS 1, retained) after each accepted display command.
+Published (QoS 1, retained) after each accepted display command, and by the panel
+probe when the panel stops or starts answering over SSH.
 
 When the wall panel is reachable:
 
@@ -130,19 +131,27 @@ Hibernate the wall panel:
 
 ### State: `wallpanel-control/system/action/state`
 
-Published (QoS 1, retained) as an acknowledgement after each system action command.
+Published (QoS 1, retained) as an acknowledgement after each system action command,
+and again by the panel probe when it resolves `observed`.
 
-Successful acknowledgement:
+Successful acknowledgement, while the probe waits for the panel:
 
 ```json
-{ "accepted": true, "action": "wake" }
+{ "accepted": true, "action": "wake", "observed": "pending" }
 ```
 
 If the action was rejected (e.g. SSH error):
 
 ```json
-{ "accepted": false, "action": "suspend" }
+{ "accepted": false, "action": "suspend", "observed": null }
 ```
+
+| `observed`    | Meaning                                                                 |
+| ------------- | ----------------------------------------------------------------------- |
+| `"pending"`   | accepted; the probe waits for the panel                                 |
+| `"confirmed"` | the panel answered (wake) or stopped answering (suspend, hibernate)     |
+| `"timeout"`   | no change within `ACTION_CONFIRM_TIMEOUT` (90 s by default)             |
+| `null`        | not accepted, the probe is off, or the app restarted while it was pending |
 
 !!! note "wake vs. SSH actions"
     `wake` sends a UDP magic packet via Wake-on-LAN -- it does not use SSH. `suspend`
@@ -158,9 +167,9 @@ If the action was rejected (e.g. SSH error):
 | `suspend`, `hibernate`  | logind took the sleep request over SSH                  |
 | `wake`                  | the app sent the magic packet                           |
 
-wallpanel-control does not confirm that the panel went to sleep or woke up. The
-`"available"` field of the next `display/state` answer is the only sign of it:
-`false` once the panel no longer answers over SSH.
+The panel probe reports the outcome in `observed`, and `display/state` turns
+`"available": false` once the panel no longer answers over SSH. With the probe off,
+nothing confirms that the panel went to sleep or woke up.
 
 On a GNOME session, gnome-shell holds a delay inhibitor, so logind waits up to
 `InhibitDelayMaxSec` (30 seconds by default) before the panel sleeps. The panel stays
@@ -227,8 +236,8 @@ With MQTT 5 enabled (the default in the shipped `compose.yml`), every retained t
 the tables above expires after `MESSAGE_EXPIRY_INTERVAL` seconds (24 hours by default)
 unless wallpanel-control refreshes it. wallpanel-control re-publishes each retained
 topic with an unchanged payload every third of that interval (8 hours by default). The
-`display/state` and `system/action/state` answers exist only after a command, so
-wallpanel-control saves them in its store and publishes them again at startup.
+`display/state` and `system/action/state` answers exist only after a command or a probe
+publication, so wallpanel-control saves them in its store and publishes them again at startup.
 Non-retained topics, such as the `error` topic and the `/set` topics, carry no expiry.
 See
 [MQTT 5 retained-message expiry](configuration.md#mqtt-5-retained-message-expiry) for the
@@ -238,8 +247,8 @@ operator contract and the MQTT 3.1.1 fallback.
 
 ## Unavailable Behavior
 
-When the wall panel is unreachable, accepted display commands still publish a state
-with `"available": false` and null values for `state` and `brightness_percent`. No
+When the wall panel is unreachable, accepted display commands and the panel probe
+publish a state with `"available": false` and null values for `state` and `brightness_percent`. No
 separate availability topic is used -- availability is embedded in each state payload.
 
 If `suspend` or `hibernate` cannot be sent because the wall panel is unreachable,

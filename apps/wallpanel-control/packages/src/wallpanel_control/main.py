@@ -11,8 +11,9 @@ Topic layout::
         ← {"state": "on", "brightness_percent": <1-100>}
 
     wallpanel-control/display/state
-        → published once after each accepted display command, and once at startup
-          from the last saved answer
+        → published once after each accepted display command, once at startup
+          from the last saved answer, and by the panel probe when the observed
+          reachability changes (app ADR-001)
         ← {"available": true, "state": "on"|"off", "brightness_percent": <int>}
         ← {"available": false, "state": null, "brightness_percent": null}
 
@@ -20,7 +21,8 @@ Topic layout::
         ← {"action": "wake"|"suspend"|"hibernate"}
 
     wallpanel-control/system/action/state
-        ← {"accepted": bool, "action": "wake"|"suspend"|"hibernate"}
+        ← {"accepted": bool, "action": "wake"|"suspend"|"hibernate",
+           "observed": "pending"|"confirmed"|"timeout"|null}
 """
 
 from __future__ import annotations
@@ -31,7 +33,7 @@ from wallpanel_control import __version__
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.adapters.ssh_adapter import SshWallpanel
 from wallpanel_control.adapters.wol_adapter import UdpWol
-from wallpanel_control.devices import display, restore, system
+from wallpanel_control.devices import display, probe, restore, system
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
 
@@ -64,7 +66,8 @@ app = cosalette.App(
     # entities): kept for the runtime-discovery topic snapshot only, so
     # entities removed in a future release are cleared from Home Assistant
     # on the next startup (monorepo ADR-004).
-    # No exit_after_stale/restart_on_stale (no telemetry or streams), no adapter
+    # No exit_after_stale/restart_on_stale (no telemetry or streams; root devices
+    # derive no stale_after), no adapter
     # health_check (a sleeping panel is normal) and no redact= (no secrets reach
     # log text). See docs/configuration.md > Health and recovery.
 )
@@ -75,7 +78,7 @@ app.discovery()
 app.state(restore.create_last_answers)
 app.include_router(display.router)
 app.include_router(system.router)
-app.include_router(restore.router)
+app.include_router(probe.router)
 
 
 def main() -> None:

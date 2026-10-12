@@ -9,13 +9,17 @@ MQTT command topic:
 
 MQTT state topic:
     wallpanel-control/system/action/state
-        ← {"accepted": true, "action": "wake"|"suspend"|"hibernate"}
-        ← {"accepted": false, "action": "suspend"|"hibernate"}
+        ← {"accepted": true, "action": "wake"|"suspend"|"hibernate",
+           "observed": "pending"|"confirmed"|"timeout"|null}
+        ← {"accepted": false, "action": "suspend"|"hibernate", "observed": null}
 
 wake always succeeds (uses WoL — no SSH required).
 suspend and hibernate require SSH reachability; returns accepted=false when
 the wallpanel is unreachable. A repeated matching suspend or hibernate while that
 action is pending returns accepted=true; other pending power operations remain errors.
+accepted means requested. With the probe enabled an accepted action answers
+observed="pending" and the probe republishes it as "confirmed" or "timeout"
+(app ADR-001); with the probe disabled observed stays null.
 """
 
 from __future__ import annotations
@@ -47,11 +51,18 @@ class SystemActionCommand(BaseModel):
     action: Literal["wake", "suspend", "hibernate"]
 
 
+Observed = Literal["pending", "confirmed", "timeout"]
+
+# Root device that runs the panel probe (devices/probe.py), woken after an action.
+PANEL_PROBE = "restore_answers"
+
+
 class SystemActionState(BaseModel):
     """Typed state for wallpanel-control/system/action/state."""
 
     accepted: bool
     action: Literal["wake", "suspend", "hibernate"]
+    observed: Observed | None = None
 
 
 router = cosalette.Router(prefix="system")
@@ -79,11 +90,13 @@ router = cosalette.Router(prefix="system")
     unavailable_on=(WallpanelUnreachableError,),
 )
 async def handle_system_action(
+    ctx: cosalette.DeviceContext,
     cmd: Annotated[SystemActionCommand, Payload()],
     wallpanel: WallpanelPort,
     wol: WolPort,
     settings: WallpanelControlSettings,
     answers: LastAnswers,
+    notify: cosalette.EntityNotifier,
 ) -> SystemActionState:
     """Handle system action command.
 
@@ -93,13 +106,23 @@ async def handle_system_action(
         wol: Wake-on-LAN adapter injected by cosalette.
         settings: Application settings injected by cosalette.
         answers: Last-answer record that a restart re-publishes.
+        notify: Wakes the panel probe, which resolves ``observed``.
 
     Returns:
         SystemActionState with accepted=True on success, accepted=False when
-        the wallpanel is unreachable (suspend/hibernate only).
+        the wallpanel is unreachable (suspend/hibernate only). An accepted action
+        carries observed="pending" while the probe is enabled.
     """
     result = await _run_action(cmd, wallpanel, wol, settings)
-    answers.record("system/action/state", result)
+    if result.accepted and settings.probe_enabled:
+        result.observed = "pending"
+    answers.record(
+        "system/action/state",
+        result,
+        accepted_at=(ctx.clock.now() if result.observed == "pending" else None),
+    )
+    if result.observed is not None:
+        notify(PANEL_PROBE)
     return result
 
 

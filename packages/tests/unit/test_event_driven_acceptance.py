@@ -1152,7 +1152,7 @@ class TestAdoptionSet:
     — the production instance of the ADR-067 guard criterion 16 restates.
     """
 
-    LOCAL_ADOPTERS = {"jeelink2mqtt", "vito2mqtt", "wiz2mqtt"}
+    LOCAL_ADOPTERS = {"jeelink2mqtt", "vito2mqtt", "wallpanel-control", "wiz2mqtt"}
     MQTT_TRIGGERABLE = {"airthings2mqtt", "caldates2mqtt"}
     THROTTLED = {"airthings2mqtt", "caldates2mqtt", "vito2mqtt"}
 

@@ -136,8 +136,7 @@ channels:
         payload:
           type: object
     x-cosalette-archetype: device
-    x-cosalette-summary: Re-publish the last display and system action answers at
-      startup
+    x-cosalette-summary: Re-publish the saved answers, then probe panel reachability
     x-cosalette-discoverable: false
   systemActionAvailability:
     address: wallpanel-control/system/action/availability
@@ -196,6 +195,16 @@ channels:
               - hibernate
               title: Action
               type: string
+            observed:
+              anyOf:
+              - enum:
+                - pending
+                - confirmed
+                - timeout
+                type: string
+              - type: 'null'
+              default: null
+              title: Observed
           required:
           - accepted
           - action
@@ -222,7 +231,7 @@ operations:
     action: send
     channel:
       $ref: '#/channels/restore_answersState'
-    summary: Re-publish the last display and system action answers at startup
+    summary: Re-publish the saved answers, then probe panel reachability
   publishSystemActionAvailability:
     action: send
     channel:
