@@ -9,7 +9,7 @@ tags: [health, devices, mqtt, scheduling, lifecycle]
 
 ## Status
 
-Proposed **Date:** 2026-10-12
+Proposed **Date:** 2026-10-12 | Amended **Date:** 2026-10-12
 
 ## Context
 
@@ -138,4 +138,11 @@ _Scale: 1 (poor) to 5 (excellent)_
 - Panel state changed on the panel itself (screen blanked by GNOME, brightness set by hand) is still not seen while the panel stays reachable; the probe reads the display only on a transition. A periodic full read is left to a possible later opt-in setting
 - `observed:"confirmed"` means the target was seen once: a `wake` sent during the GNOME inhibitor window is confirmed because the panel still answers, and the panel then sleeps
 - The heartbeat gains a `panel_probe` entry, and the restore and probe devices publish through `ctx.publish`, which skips `state_model` validation
-_2026-10-12_
+
+## Amendment (2026-10-12) — Additive
+
+**Rationale:** The user revised cap-k0pa.6's strict one-interval transition criterion to match the probe's debounced, bounded SSH design.
+
+### Additional Sub-Decision: Latency acceptance
+
+This resolves the open latency question above and replaces cap-k0pa.6's one-interval criterion: at the default 30 s probe interval, `display/state` must reflect both sleep and wake within 45 s. For sleep, the bound is one interval + two `ssh_timeout` periods + the 5 s debounce. For wake, it is one interval plus the bounded full display read. The 30 s interval remains the default; tests for cap-k0pa.6 must verify both transitions against the 45 s bound.
