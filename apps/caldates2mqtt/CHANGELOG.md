@@ -1,5 +1,81 @@
 # Changelog
 
+## [0.4.0](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.3.0...caldates2mqtt-v0.4.0) (2026-10-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* error topic payloads follow cosalette 0.12.0 (ADR-091). A timed-out handler (`error_type` `timeout`) now publishes the message `TimeoutError` instead of an empty or library-provided message, and `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE` is ignored unless the app opts in (only wiz2mqtt and wallpanel-control do). Check this release's app-specific notes for further operator actions.
+* state_model= now outranks the return annotation and validates every telemetry and command return (ADR-068). A handler declaring state_model=M alongside a differently typed annotation emits a UserWarning at registration, which filterwarnings=["error"] turns into a collection error — it broke five registrations here, covering ten entities. The loose "-> dict[str, object]" annotations are dropped so state_model= is the sole contract, per the upstream migration note: airthings _telemetry, caldates calendar, gas2mqtt gas_counter and temperature, and vito's telemetry handler factory for all seven Optolink signal groups.
+
+### Features
+
+* adopt cosalette 0.10 ([#265](https://github.com/ff-fab/cosalette-apps/issues/265)) ([678dcb4](https://github.com/ff-fab/cosalette-apps/commit/678dcb482cf51daa7ceea6f4cfe8efe5b81cb18b))
+* **airthings2mqtt,caldates2mqtt,gas2mqtt:** opt in to MQTT 5 retained-message expiry ([#282](https://github.com/ff-fab/cosalette-apps/issues/282)) ([d3e07da](https://github.com/ff-fab/cosalette-apps/commit/d3e07da88145058433b0f88fc5a40a87a1b3ceb0))
+* allow verbose error opt-in fleet-wide and settle cosalette 0.12.0 error disclosure (cap-mzz4) ([#402](https://github.com/ff-fab/cosalette-apps/issues/402)) ([1af9f8b](https://github.com/ff-fab/cosalette-apps/commit/1af9f8b7998810a84f5c5398f986891e852eba4e))
+* **caldates2mqtt:** add retry/backoff to calendar fetch ([#138](https://github.com/ff-fab/cosalette-apps/issues/138)) ([20dbb94](https://github.com/ff-fab/cosalette-apps/commit/20dbb949f8a47b1b9ebc1c1545049eace70dd3ae))
+* **caldates2mqtt:** add typed state_model as HA-discovery prep (cap-wxg) ([733e954](https://github.com/ff-fab/cosalette-apps/commit/733e95430bdfc5f3cb4c7f7c2a8ee40b144b7161))
+* **caldates2mqtt:** adopt native health probe and loop-stall watchdog ([#335](https://github.com/ff-fab/cosalette-apps/issues/335)) ([1d67c2c](https://github.com/ff-fab/cosalette-apps/commit/1d67c2c1f592bbfd546e858889f730c7ecd8a8e1))
+* **caldates2mqtt:** adopt runtime HA discovery (cap-2qg, cap-gsd) ([#258](https://github.com/ff-fab/cosalette-apps/issues/258)) ([10ab611](https://github.com/ff-fab/cosalette-apps/commit/10ab6113f73f714456119cc5f85040809dbf3ead))
+* **caldates2mqtt:** carry the event list as HA attributes (cap-6hw) ([#257](https://github.com/ff-fab/cosalette-apps/issues/257)) ([2f4d517](https://github.com/ff-fab/cosalette-apps/commit/2f4d517ef4261cdbcb8fdaf0a790f6d6aecf87c0))
+* **caldates2mqtt:** convert to triggerable telemetry ([#109](https://github.com/ff-fab/cosalette-apps/issues/109)) ([bababd8](https://github.com/ff-fab/cosalette-apps/commit/bababd8eaf25ae4199b0d82640a8f28c2224725d))
+* **caldates2mqtt:** expose events as a portable count aggregate (cap-p09) ([#259](https://github.com/ff-fab/cosalette-apps/issues/259)) ([0dd1963](https://github.com/ff-fab/cosalette-apps/commit/0dd1963b5d6f734d29d615a17ec071a8c70a1d10))
+* **caldates2mqtt:** scaffold app with settings, adapters, device handler ([#66](https://github.com/ff-fab/cosalette-apps/issues/66)) ([b5f1dda](https://github.com/ff-fab/cosalette-apps/commit/b5f1dda7230975c01a1674e210c62014988408a7))
+* cosalette 0.3.11 adoption + compose.yml rename ([#112](https://github.com/ff-fab/cosalette-apps/issues/112)) ([234c23b](https://github.com/ff-fab/cosalette-apps/commit/234c23b8cc8dd098339ea134dbbf27fda479d1d2))
+* cosalette 0.3.6 migration — contract metadata + gas2mqtt refactor ([#111](https://github.com/ff-fab/cosalette-apps/issues/111)) ([cc1932d](https://github.com/ff-fab/cosalette-apps/commit/cc1932d593cac7645dd7463a0c0f9daa7c3e6bdb))
+* **docs:** add mkdocs-click-zoom plugin to all documentation sites ([#70](https://github.com/ff-fab/cosalette-apps/issues/70)) ([21c85ec](https://github.com/ff-fab/cosalette-apps/commit/21c85ece8667ba3a7a46d738c1c24847e985a8a9))
+* drop Docker HEALTHCHECK, MQTT is the health signal (ADR-010) ([#328](https://github.com/ff-fab/cosalette-apps/issues/328)) ([13d3cd8](https://github.com/ff-fab/cosalette-apps/commit/13d3cd8b278286079c39c3c5e4a4bdf73546e2c6))
+* **gas2mqtt:** modernize with cosalette 0.3.5 (FEP-001 + FEP-002) ([#110](https://github.com/ff-fab/cosalette-apps/issues/110)) ([93d1166](https://github.com/ff-fab/cosalette-apps/commit/93d1166b961e9ab44dbda5792880e13fdf1534d1))
+* migrate to cosalette 0.6.1, close two of three wiz2mqtt gates ([#208](https://github.com/ff-fab/cosalette-apps/issues/208)) ([13b72e0](https://github.com/ff-fab/cosalette-apps/commit/13b72e06eaee774163e0c1d89371d140c17ce574))
+* migrate to cosalette 0.6.3, close the final wiz2mqtt gate ([#210](https://github.com/ff-fab/cosalette-apps/issues/210)) ([30850af](https://github.com/ff-fab/cosalette-apps/commit/30850afb62cf2a3b906179d91a3f0c03d6868955))
+* ship app images without rich (ADR-013) ([#351](https://github.com/ff-fab/cosalette-apps/issues/351)) ([5194d12](https://github.com/ff-fab/cosalette-apps/commit/5194d1259738b59773935c79e3fe8bb7ce155cc1))
+* upgrade cosalette 0.4 and close cap-5xy ([#124](https://github.com/ff-fab/cosalette-apps/issues/124)) ([039e3ef](https://github.com/ff-fab/cosalette-apps/commit/039e3efa6c88f5122f366b4833ed799aa75056f1))
+* upgrade cosalette to 0.5.7 and adopt HA-discovery + error-hardening features ([#182](https://github.com/ff-fab/cosalette-apps/issues/182)) ([f00edd0](https://github.com/ff-fab/cosalette-apps/commit/f00edd00267aaad6f14c6604bc51686ee5727124))
+* upgrade to cosalette 0.4.4 and add AsyncAPI schema gate ([#141](https://github.com/ff-fab/cosalette-apps/issues/141)) ([679190e](https://github.com/ff-fab/cosalette-apps/commit/679190e7e66dd96f55bb360a3ea51dd4578424ee))
+* upgrade to cosalette 0.9.0 and adopt state_model enforcement ([#228](https://github.com/ff-fab/cosalette-apps/issues/228)) ([7a9c0ef](https://github.com/ff-fab/cosalette-apps/commit/7a9c0ef3e1079bb780d465147db579101630586c))
+* **wallpanel-control:** implement adapters and test fixtures ([f337856](https://github.com/ff-fab/cosalette-apps/commit/f3378569fe7eba58107f17d407657da3c65eb54c))
+
+
+### Bug Fixes
+
+* answer --help/--version from every app and keep uv.lock out of images ([#353](https://github.com/ff-fab/cosalette-apps/issues/353)) ([087f40c](https://github.com/ff-fab/cosalette-apps/commit/087f40c4b49bbf595ee5821febb06d9d76ef056a))
+* **caldates2mqtt:** resolve smoke-test findings A-1 and A-2 ([#163](https://github.com/ff-fab/cosalette-apps/issues/163)) ([86f29e9](https://github.com/ff-fab/cosalette-apps/commit/86f29e929e909a455ba6edc021ed91b6920ad1f4))
+* compile Python bytecode in app images ([e09cefd](https://github.com/ff-fab/cosalette-apps/commit/e09cefdc4979f4818d19216a985446e294a75e9a))
+* **cosalette:** bump to 0.5.10 for schema fail-loud + settings-resolve mode ([#202](https://github.com/ff-fab/cosalette-apps/issues/202)) ([3107afe](https://github.com/ff-fab/cosalette-apps/commit/3107afe237204d53a48c13d7ee106a2f81370ed4))
+* **cosalette:** unicode schema fix + jeelink2mqtt HA-discovery decision ([#200](https://github.com/ff-fab/cosalette-apps/issues/200)) ([d81b76e](https://github.com/ff-fab/cosalette-apps/commit/d81b76e77b5a89b2eefda606d3c29142205eefdd))
+* **deps:** adopt cosalette 0.10.2 across the workspace ([#287](https://github.com/ff-fab/cosalette-apps/issues/287)) ([6f86628](https://github.com/ff-fab/cosalette-apps/commit/6f8662889b1a1218c6a0f1041b007f41deb45b7a))
+* **deps:** adopt cosalette 0.10.3 across the workspace ([#292](https://github.com/ff-fab/cosalette-apps/issues/292)) ([6e31553](https://github.com/ff-fab/cosalette-apps/commit/6e315530510650e6f1ffbc4e02ec552ce4d262ee))
+* **deps:** drop cosalette[schema] and redundant TYPER_USE_RICH from app images ([#357](https://github.com/ff-fab/cosalette-apps/issues/357)) ([b7558cc](https://github.com/ff-fab/cosalette-apps/commit/b7558cc861b6b2db54a5cb0490037249b23abd17))
+* **deps:** resolve and validate cosalette 0.10.1 across the workspace ([#277](https://github.com/ff-fab/cosalette-apps/issues/277)) ([9968187](https://github.com/ff-fab/cosalette-apps/commit/996818747a41699d8221bb7bd34dec2c568beb2e))
+* **deps:** upgrade apps to cosalette 0.10.6 ([#315](https://github.com/ff-fab/cosalette-apps/issues/315)) ([f45aa69](https://github.com/ff-fab/cosalette-apps/commit/f45aa69ef2ded1de6a94f3a06618325755596769))
+* **deps:** upgrade apps to cosalette 0.11.0 ([#319](https://github.com/ff-fab/cosalette-apps/issues/319)) ([2c35f5d](https://github.com/ff-fab/cosalette-apps/commit/2c35f5dc366abeae84f6ed9f2d11e27755ab4be3))
+* **deps:** upgrade apps to cosalette 0.11.1 ([#332](https://github.com/ff-fab/cosalette-apps/issues/332)) ([2fa3d29](https://github.com/ff-fab/cosalette-apps/commit/2fa3d2945e410ac2f83d8d23ae1b4165719aa890))
+* **deps:** upgrade apps to cosalette 0.11.2 ([3a3110f](https://github.com/ff-fab/cosalette-apps/commit/3a3110f0b59bf69c51e1a2edaef91150d72896ee))
+* **deps:** upgrade apps to cosalette 0.11.2 ([47b4ba3](https://github.com/ff-fab/cosalette-apps/commit/47b4ba34de3842905b3e7d646999650d7c378d50))
+* **deps:** upgrade apps to cosalette 0.11.3 ([#352](https://github.com/ff-fab/cosalette-apps/issues/352)) ([cac690d](https://github.com/ff-fab/cosalette-apps/commit/cac690d4af332b967338a917506ba721efa8d394))
+* **deps:** upgrade cosalette to 0.6.0, resolve cap-wv9 schema-check asymmetry ([#204](https://github.com/ff-fab/cosalette-apps/issues/204)) ([2010b5e](https://github.com/ff-fab/cosalette-apps/commit/2010b5e44fe713c01acb73009916449ee580a36b))
+* **docs:** publish app docs from root updates ([#264](https://github.com/ff-fab/cosalette-apps/issues/264)) ([0188712](https://github.com/ff-fab/cosalette-apps/commit/0188712a1b300624d502571f6828064adf3ceb0d))
+* record cosalette 0.9.3 framework baseline across remaining apps ([#248](https://github.com/ff-fab/cosalette-apps/issues/248)) ([3d32433](https://github.com/ff-fab/cosalette-apps/commit/3d324332d61320e0439d24383dbf18235b2b6dd5))
+* slim app images (no uv/pip) and fix airthings2mqtt store path ([#330](https://github.com/ff-fab/cosalette-apps/issues/330)) ([7eb86a5](https://github.com/ff-fab/cosalette-apps/commit/7eb86a50df96cca138986b54570f6a0de857a439))
+* trigger releases for cosalette 0.4.5 upgrade across all apps ([#146](https://github.com/ff-fab/cosalette-apps/issues/146)) ([5e3100f](https://github.com/ff-fab/cosalette-apps/commit/5e3100f3b4e128955adb3fb93d7dc5a7c9c19768))
+* upgrade cosalette to 0.10.4 ([#301](https://github.com/ff-fab/cosalette-apps/issues/301)) ([f92482f](https://github.com/ff-fab/cosalette-apps/commit/f92482fe755b820601d5505f89e404c6cba27907))
+* upgrade cosalette to 0.10.5 and compose wiz queue ([#303](https://github.com/ff-fab/cosalette-apps/issues/303)) ([4323d8e](https://github.com/ff-fab/cosalette-apps/commit/4323d8eb9d73cb76e11c8db1dc62bcd0c1d829bb))
+* upgrade cosalette to 0.11.4 ([#370](https://github.com/ff-fab/cosalette-apps/issues/370)) ([ff99ff6](https://github.com/ff-fab/cosalette-apps/commit/ff99ff6ab0de0265a72fd51b1c55b2066d17914d))
+* upgrade cosalette to 0.9.4 and declare per-channel discovery intent ([#250](https://github.com/ff-fab/cosalette-apps/issues/250)) ([632b58b](https://github.com/ff-fab/cosalette-apps/commit/632b58b612c8c46d83aa78ad8ac51a74039ad79e))
+* upgrade cosalette to 0.9.5 and plan the migration work it unlocks ([#252](https://github.com/ff-fab/cosalette-apps/issues/252)) ([0103c59](https://github.com/ff-fab/cosalette-apps/commit/0103c5955b817a1ab468fe28880400f6debd2d6a))
+* upgrade cosalette to 0.9.6 ([#256](https://github.com/ff-fab/cosalette-apps/issues/256)) ([965ef69](https://github.com/ff-fab/cosalette-apps/commit/965ef691d5e810f3790c3c9eb7145c49955ba43d))
+* upgrade to cosalette 0.12.0 ([e544dfc](https://github.com/ff-fab/cosalette-apps/commit/e544dfc0b30891432a623b0cbfcc39ccf380100d))
+* **velux2mqtt:** stop shipping phantom HA-discovery entity ([#201](https://github.com/ff-fab/cosalette-apps/issues/201)) ([733e954](https://github.com/ff-fab/cosalette-apps/commit/733e95430bdfc5f3cb4c7f7c2a8ee40b144b7161))
+
+
+### Documentation
+
+* add zoomable docs images ([#92](https://github.com/ff-fab/cosalette-apps/issues/92)) ([0b14b99](https://github.com/ff-fab/cosalette-apps/commit/0b14b9975b1504fb52e2af1819d1de8ebf0ac9c9))
+* **caldates2mqtt:** complete Epic 4 — documentation, ADR, and deployment ([#69](https://github.com/ff-fab/cosalette-apps/issues/69)) ([5000630](https://github.com/ff-fab/cosalette-apps/commit/50006306def223b63af880bff75f69ed2ce71368))
+* fix ADR-006 link, scope airthings2mqtt device claim, document _meta/ topics ([#229](https://github.com/ff-fab/cosalette-apps/issues/229)) ([4c2f7af](https://github.com/ff-fab/cosalette-apps/commit/4c2f7af29c635d597f95c99f40cc61db95f80c64))
+* update cosalette badge with custom icon and fix click-zoom assets ([faa3724](https://github.com/ff-fab/cosalette-apps/commit/faa37245bd384edb3579b42433bac4b387de4fd5))
+* **wiz2mqtt:** record cap-10u.19 hardware verification findings ([#262](https://github.com/ff-fab/cosalette-apps/issues/262)) ([d3ca03e](https://github.com/ff-fab/cosalette-apps/commit/d3ca03ea6064260dee4804bfa08a8cadce212550))
+
 ## [0.3.0](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.11...caldates2mqtt-v0.3.0) (2026-10-12)
 
 
