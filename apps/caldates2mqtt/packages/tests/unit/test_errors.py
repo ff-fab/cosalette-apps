@@ -9,6 +9,7 @@ from __future__ import annotations
 import socket
 
 import caldav.lib.error
+import cosalette
 import niquests
 import pytest
 
@@ -20,6 +21,7 @@ from caldates2mqtt.errors import (
     CalDavNotFoundError,
     CalDavReadError,
     CalDavTimeoutError,
+    error_type_map,
 )
 
 
@@ -86,3 +88,17 @@ class TestErrorTypeMap:
     def test_socket_timeout_mapped(self) -> None:
         """socket.timeout maps to CalDavTimeoutError."""
         assert ERROR_TYPE_MAP[socket.timeout] is CalDavTimeoutError
+
+
+@pytest.mark.unit
+def test_app_discloses_domain_and_framework_error_messages() -> None:
+    """Mapped domain errors keep publishing their sanitised messages.
+
+    Technique: Specification-based — since cosalette 0.12 error_type_map only
+    assigns labels; disclosure is the explicit set (ADR-091).
+    """
+    from caldates2mqtt.main import app
+
+    assert app.disclose_messages_for == (
+        cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
+    )

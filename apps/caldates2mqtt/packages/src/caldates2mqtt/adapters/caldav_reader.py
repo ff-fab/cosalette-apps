@@ -33,7 +33,7 @@ def _sanitize_url(url: str) -> str:
     ``user:pass@`` userinfo, and the query, params, and fragment are stripped,
     so credentials and query-string tokens never reach logs or the MQTT error
     topic. This matters because these adapter errors are opted into full-message
-    publishing via ``error_type_map`` (cosalette LEAK-01 hardening): the raw
+    publishing via ``disclose_messages_for`` (cosalette LEAK-01 hardening): the raw
     ``str(exc)`` of an upstream niquests/caldav exception can embed the request
     URL, so it must never be surfaced verbatim.
     """
@@ -98,7 +98,7 @@ class CalDavReader:
             # Build a controlled message from safe parts only. The raw str(exc)
             # of niquests/caldav exceptions can embed the request URL (incl.
             # userinfo credentials), and these domain errors are opted into
-            # full-message error-topic publishing via error_type_map, so the
+            # full-message error-topic publishing via disclose_messages_for, so the
             # upstream text must not be forwarded verbatim. The class name is
             # retained for diagnostics (it is what LEAK-01 would publish anyway);
             # the full chain stays available locally via ``from exc``.
