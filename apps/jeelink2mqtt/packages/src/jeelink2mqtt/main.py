@@ -73,6 +73,8 @@ app = cosalette.App(
     adapters={StreamablePort[SensorReading]: (_make_adapter, FakeJeeLinkAdapter)},
     error_type_map=error_type_map,
     disclose_messages_for=disclose_messages_for,
+    # Operator opt-in JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE; off by default.
+    allow_error_publish_verbose=True,
     restart_after_failures=5,
     max_restarts=3,
     # Reopen the receiver adapter once on stream staleness; keep the exit as a

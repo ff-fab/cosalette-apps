@@ -32,7 +32,7 @@ Nested settings use `__` as delimiter (e.g. `JEELINK2MQTT_MQTT__HOST`).
 | `mqtt.password` | `JEELINK2MQTT_MQTT__PASSWORD` | `str` | `""` | MQTT password |
 | `mqtt.protocol_version` | `JEELINK2MQTT_MQTT__PROTOCOL_VERSION` | `str` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
 | `mqtt.message_expiry_interval` | `JEELINK2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `int` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
-| `mqtt.error_publish_verbose` | `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | `bool` | `false` | Ignored: jeelink2mqtt does not allow verbose error messages, so the error topic never carries full exception text |
+| `mqtt.error_publish_verbose` | `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | `bool` | `false` | Set `true` to publish the full exception text on the error topic instead of the class name or sanitised message. The text can name hosts, devices or paths |
 | `logging.levels` | `JEELINK2MQTT_LOGGING__LEVELS` | `dict` | `{}` | Per-logger levels as JSON, e.g. `{"asyncio":"WARNING"}` |
 
 ### MQTT 5 retained-message expiry
@@ -363,8 +363,8 @@ only the exception class name as `message`.
 
 A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
 message `TimeoutError`; before cosalette 0.12 the message was empty or the
-library text. `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: jeelink2mqtt does not opt
-in to verbose error messages.
+library text. Set `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish the full exception
+text instead, which can name hosts, devices or paths; it is off by default.
 
 ---
 
