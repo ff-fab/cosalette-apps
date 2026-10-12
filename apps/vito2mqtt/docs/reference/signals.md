@@ -74,6 +74,11 @@ never restarted. See
 [Health and recovery](configuration.md#health-and-recovery) for the bounds and the
 Docker health probe.
 
+A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
+message `TimeoutError`; before cosalette 0.12 the message was empty or the
+library text. `VITO2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: vito2mqtt does not opt
+in to verbose error messages.
+
 ---
 
 ## Framework Topics
