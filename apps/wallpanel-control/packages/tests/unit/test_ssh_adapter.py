@@ -339,6 +339,29 @@ class TestSshWallpanelReachable:
         assert result is True
         assert mock_connect.call_args.kwargs["known_hosts"] == "~/.ssh/known_hosts"
 
+    async def test_connect_enables_ssh_keepalive(self) -> None:
+        """_connect asks asyncssh to send keepalives and drop a silent peer.
+
+        Technique: Error Guessing — without keepalive a cached connection to a
+        panel that went to sleep stays open and the next command waits the full
+        ssh_timeout before failing.
+        """
+        # Arrange
+        adapter = _make_adapter()
+
+        with patch(
+            "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
+            new_callable=AsyncMock,
+            return_value=_mock_conn(),
+        ) as mock_connect:
+            # Act
+            await adapter.is_reachable()
+
+        # Assert
+        kwargs = mock_connect.call_args.kwargs
+        assert kwargs["keepalive_interval"] == 15.0
+        assert kwargs["keepalive_count_max"] == 3
+
 
 # =============================================================================
 # Unreachable operations

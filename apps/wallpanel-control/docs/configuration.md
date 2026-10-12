@@ -152,6 +152,13 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
     and command details. This level applies to asyncssh alone and is independent of
     `WALLPANEL_CONTROL_LOGGING__LEVEL`.
 
+!!! note "SSH keepalive"
+    The app keeps one SSH connection open and sends an SSH keepalive every 15 s.
+    After 3 unanswered keepalives (about 45 s) asyncssh closes the connection, and the
+    next command opens a fresh one. Without this, the first command after the panel
+    went to sleep would wait the full `WALLPANEL_CONTROL_SSH_TIMEOUT` on a dead
+    connection. The interval and count are fixed.
+
 !!! note "Docker key and known-hosts paths"
     In the Docker Compose setup the SSH key is mounted read-only at
     `/run/secrets/wallpanel_ssh_key` and the known_hosts file at
