@@ -135,6 +135,7 @@ Key settings:
 | `mqtt.topic_prefix` | `SUNCAST_MQTT__TOPIC_PREFIX` | `suncast` | Topic root; unique per instance on a shared broker |
 | `mqtt.protocol_version` | `SUNCAST_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
 | `mqtt.message_expiry_interval` | `SUNCAST_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
+| `mqtt.error_publish_verbose` | `SUNCAST_MQTT__ERROR_PUBLISH_VERBOSE` | `false` | Ignored: suncast does not allow verbose error messages, so the error topic never carries full exception text |
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables
