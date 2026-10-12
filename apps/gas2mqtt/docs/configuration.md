@@ -31,7 +31,7 @@ you need.
 | Reconnect max      | `GAS2MQTT_MQTT__RECONNECT_MAX_INTERVAL` | `300.0`      | Upper bound for reconnect backoff (seconds)            |
 | Protocol version   | `GAS2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
 | Message expiry     | `GAS2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
-| Verbose errors     | `GAS2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | `false` | Set `true` to publish the full exception text on the error topic instead of the class name or sanitised message. The text can name hosts, devices or paths |
+| Verbose errors     | `GAS2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | `false` | For exceptions without an explicitly publishable message, set `true` to publish the full exception text instead of the class name or sanitised message. Text may name hosts, devices or paths |
 
 !!! info "Double-underscore delimiter" MQTT settings are **nested** inside the settings
 model. Environment variables use `__` (double underscore) to separate the nesting

@@ -378,9 +378,17 @@ needs its own topic prefix and instance ID.
 error text: bulbs need no credentials, and the MQTT password is a `SecretStr`. Logs
 and exception text can carry bulb names and IP addresses. These are LAN configuration,
 not credentials, and they are what you need to debug a bulb. The broker-visible error
-payload carries only the exception class name, or a sanitised message for wiz2mqtt's
-own errors and rejected payloads, unless you set
-`WIZ2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true`, which publishes the full exception text.
+payload uses the exception class name by default, while wiz2mqtt's explicitly
+publishable errors and rejected payloads include a sanitised message. Set
+`WIZ2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true` to include full exception text for other
+exceptions; it can contain bulb names and IP addresses.
+
+### Logging (Inherited)
+
+| Setting | Env Variable | Default | Description |
+| ------- | ------------ | ------- | ----------- |
+| `logging.level` | `WIZ2MQTT_LOGGING__LEVEL` | `INFO` | Overall logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) |
+| `logging.levels` | `WIZ2MQTT_LOGGING__LEVELS` | `{}` | Per-logger levels as JSON, e.g. `{"asyncio":"WARNING"}` |
 
 ## Consumer Integration
 
