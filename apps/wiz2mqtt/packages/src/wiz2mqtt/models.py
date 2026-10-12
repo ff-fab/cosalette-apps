@@ -10,6 +10,7 @@ import dataclasses
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass
+from functools import partial
 from typing import Annotated, Any, Literal
 
 from cosalette.schema import (
@@ -276,15 +277,41 @@ machine fight over it (ADR-009)."""
 # reads as OFF (ADR-001 amendment 2026-09-30).
 
 
+def _openhab_null_filter(key: str) -> str:
+    """JSONPATH that yields ``NULL`` for a JSON ``null`` or a missing ``key``.
+
+    A plain ``JSONPATH:$.key`` returns Java ``null`` for a JSON ``null`` and
+    fails on a missing key; either way the binding discards the message, so
+    the Item keeps a stale value. The filter form returns an empty list
+    instead, which the JSONPATH service renders as ``NULL``.
+    """
+    return f"JSONPATH:$[?(@.{key} != null)].{key}"
+
+
 def _openhab_field(
     label: str,
     item_type: str,
     *,
     unit: str | None = None,
     read_only: bool = False,
+    nullable: str | None = None,
     **params: object,
 ) -> dict[str, Any]:
-    """``consumer()`` + ``openhab()`` metadata for one generated openHAB channel."""
+    """``consumer()`` + ``openhab()`` metadata for one generated openHAB channel.
+
+    ``nullable`` names the JSON key of a state channel whose value can be
+    absent: the channel reads it through :func:`_openhab_null_filter` with
+    ``nullValue="NULL"``, so the Item clears instead of going stale. openHAB
+    honours ``nullValue`` on every channel type from 5.1 on (on a String
+    channel earlier); an older release logs a warning and keeps the last
+    value. Command metadata leaves it unset: the generator copies every
+    parameter onto the command channel too.
+    """
+    if nullable:
+        params |= {
+            "transformationPattern": _openhab_null_filter(nullable),
+            "nullValue": "NULL",
+        }
     meta: ConsumerMeta = {"display_name": label}
     if unit:
         meta["unit"] = unit
@@ -302,17 +329,21 @@ def _openhab_field(
 
 _OPENHAB_STATE = _openhab_field("State", "Switch", on="ON", off="OFF")
 _OPENHAB_BRIGHTNESS = _openhab_field("Brightness", "Dimmer", min=0, max=255, step=1)
-_OPENHAB_HSB = _openhab_field(
+_openhab_hsb = partial(
+    _openhab_field,
     "Color",
     "Color",
     colorMode="HSB",
     formatBeforePublish='{"hsb":"%1$d,%2$d,%3$d"}',
 )
-_OPENHAB_EFFECT = _openhab_field("Effect", "String")
+_OPENHAB_HSB = _openhab_hsb(nullable="hsb")
+_OPENHAB_HSB_CMD = _openhab_hsb()
+_OPENHAB_EFFECT = _openhab_field("Effect", "String", nullable="effect")
 _OPENHAB_EFFECT_CMD = _openhab_field(
     "Effect", "String", allowedStates=",".join(WIZ_EFFECT_LIST)
 )
-_OPENHAB_COLOR_TEMP = _openhab_field(
+_openhab_color_temp = partial(
+    _openhab_field,
     "Color temperature",
     "Number",
     unit="K",
@@ -320,28 +351,29 @@ _OPENHAB_COLOR_TEMP = _openhab_field(
     max=_KELVIN_MAX,
     step=1,
 )
-_OPENHAB_EFFECT_SPEED = _openhab_field(
-    "Effect speed", "Number", min=_EFFECT_SPEED_MIN, max=_EFFECT_SPEED_MAX, step=1
+_OPENHAB_COLOR_TEMP = _openhab_color_temp(nullable="color_temp")
+_OPENHAB_COLOR_TEMP_CMD = _openhab_color_temp()
+_openhab_effect_speed = partial(
+    _openhab_field,
+    "Effect speed",
+    "Number",
+    min=_EFFECT_SPEED_MIN,
+    max=_EFFECT_SPEED_MAX,
+    step=1,
 )
-_OPENHAB_POWER_DRAW = _openhab_field("Power", "Number", unit="W", read_only=True)
+_OPENHAB_EFFECT_SPEED = _openhab_effect_speed(nullable="effect_speed")
+_OPENHAB_EFFECT_SPEED_CMD = _openhab_effect_speed()
+_OPENHAB_POWER_DRAW = _openhab_field(
+    "Power", "Number", unit="W", read_only=True, nullable="power_draw_w"
+)
 _OPENHAB_REACHABLE = _openhab_field(
     "Reachable", "Switch", read_only=True, on="true", off="false"
 )
 
 
 def _openhab_json_string(key: str, label: str) -> dict[str, Any]:
-    """Read-only String channel carrying the raw JSON object, or ``NULL``.
-
-    The filter form renders a JSON ``null`` as ``NULL`` (see
-    :func:`openhab_nullable_switch_params`), so the Item clears.
-    """
-    return _openhab_field(
-        label,
-        "String",
-        read_only=True,
-        transformationPattern=f"JSONPATH:$[?(@.{key} != null)].{key}",
-        nullValue="NULL",
-    )
+    """Read-only String channel carrying the raw JSON object, or ``NULL``."""
+    return _openhab_field(label, "String", read_only=True, nullable=key)
 
 
 _OPENHAB_PENDING = _openhab_json_string("pending", "Pending")
@@ -353,16 +385,13 @@ def openhab_nullable_switch_params(
 ) -> dict[str, str]:
     """openHAB channel parameters for a Switch on a nullable JSON ``key``.
 
-    A plain ``JSONPATH:$.key`` returns Java ``null`` for a JSON ``null``, and
-    the binding then discards the message, so the Item keeps a stale value.
-    The filter form returns an empty list instead, which the JSONPATH service
-    renders as ``NULL``. ``nullValue`` maps ``null_value`` to ``NULL``, the
-    only undefined state that the MQTT binding can set. A switch channel
-    honours ``nullValue`` from openHAB 5.1 on; an older release logs a warning
-    and keeps the last value.
+    :func:`_openhab_null_filter` turns a JSON ``null`` into ``NULL``.
+    ``nullValue`` maps ``null_value`` to ``NULL``, the only undefined state
+    that the MQTT binding can set. A switch channel honours ``nullValue`` from
+    openHAB 5.1 on; an older release logs a warning and keeps the last value.
     """
     return {
-        "transformationPattern": f"JSONPATH:$[?(@.{key} != null)].{key}",
+        "transformationPattern": _openhab_null_filter(key),
         "on": on,
         "off": off,
         "nullValue": null_value,
@@ -749,7 +778,7 @@ class BulbSetCommand(BaseModel):
     color: BulbColor | None = None
     color_temp: Annotated[
         _LenientColorTemp | None,
-        Field(default=None, json_schema_extra=_OPENHAB_COLOR_TEMP),
+        Field(default=None, json_schema_extra=_OPENHAB_COLOR_TEMP_CMD),
     ] = None
     effect: Annotated[
         str | None,
@@ -757,11 +786,11 @@ class BulbSetCommand(BaseModel):
     ] = None
     hsb: Annotated[
         str | None,
-        Field(default=None, json_schema_extra=_OPENHAB_HSB),
+        Field(default=None, json_schema_extra=_OPENHAB_HSB_CMD),
     ] = None
     effect_speed: Annotated[
         _LenientEffectSpeed | None,
-        Field(default=None, json_schema_extra=_OPENHAB_EFFECT_SPEED),
+        Field(default=None, json_schema_extra=_OPENHAB_EFFECT_SPEED_CMD),
     ] = None
 
     @field_validator("effect")

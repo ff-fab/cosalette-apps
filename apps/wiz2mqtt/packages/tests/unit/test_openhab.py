@@ -196,6 +196,16 @@ _BULBS = (
     '[[bulbs]]\nname="living-room"\nip="10.0.0.2"\n'
     '[[bulbs]]\nname="hall"\nip="10.0.0.3"\n'
 )
+_NULLABLE = (
+    "hsb",
+    "color_temp",
+    "effect",
+    "effect_speed",
+    "power_draw_w",
+    "pending",
+    "last_applied",
+)
+"""Per-bulb state channels whose key can be absent or ``null``."""
 
 
 def test_power_source_generation(tmp_path: Path) -> None:
@@ -217,9 +227,11 @@ def test_power_source_generation(tmp_path: Path) -> None:
     for bulb in ("Desk", "LivingRoom", "Hall"):
         assert f"String  Wiz2Mqtt_{bulb}_Error " in output, bulb
     # The belief's "unknown" and a JSON null both reach openHAB as NULL:
-    # two Powered bulbs and power_request, plus pending/last_applied per bulb.
+    # two Powered bulbs and power_request, plus the nullable channels per bulb.
     assert output.count('nullValue="unknown"') == 1
-    assert output.count('nullValue="NULL"') == 3 + 2 * _BULBS.count("[[bulbs]]")
+    assert output.count('nullValue="NULL"') == 3 + len(_NULLABLE) * _BULBS.count(
+        "[[bulbs]]"
+    )
     assert "JSONPATH:$[?(@.power_request != null)].power_request" in output
     # Read-only: no command channel on the source, so no relay mapping.
     assert 'commandTopic="wiz2mqtt/circuit/' not in output
@@ -230,19 +242,19 @@ def test_power_source_generation(tmp_path: Path) -> None:
 def test_no_power_source_generates_no_powered_output(tmp_path: Path) -> None:
     """Without a source no bulb gets a Powered channel, Item or null mapping.
 
-    The only null mappings left are each bulb's pending and last_applied.
+    The only null mappings left are each bulb's nullable channels.
     """
     output = _generate(tmp_path, _BULBS)
     assert "powered" not in output.lower()
     assert 'nullValue="unknown"' not in output
-    assert output.count("nullValue=") == 2 * _BULBS.count("[[bulbs]]")
+    assert output.count("nullValue=") == len(_NULLABLE) * _BULBS.count("[[bulbs]]")
 
 
 def _channel(output: str, local: str) -> str:
     """The ``Type ... : <local> "..." [ ... ]`` block of one Thing channel."""
     assert f" : {local} " in output, f"no {local} channel"
     start = output.index(f" : {local} ")
-    return output[start : output.index("]", start)]
+    return output[start : output.index("\n        ]", start)]
 
 
 def test_bulb_channels_cover_commands_and_diagnostics(tmp_path: Path) -> None:
@@ -252,7 +264,7 @@ def test_bulb_channels_cover_commands_and_diagnostics(tmp_path: Path) -> None:
         ("color_temp_cmd", "min=2200"),
         ("effect_speed_cmd", "min=10"),
         ("effect_cmd", 'allowedStates="Alarm,'),
-        ("power_draw_w", "JSONPATH:$.power_draw_w"),
+        ("power_draw_w", "JSONPATH:$[?(@.power_draw_w != null)]"),
         ("error", 'stateTopic="wiz2mqtt/desk/error"'),
         ("reachable", 'on="true"'),
         ("pending", "JSONPATH:$[?(@.pending != null)"),
@@ -272,6 +284,23 @@ def test_bulb_channels_cover_commands_and_diagnostics(tmp_path: Path) -> None:
         'String  Wiz2Mqtt_Desk_LastApplied  "Last applied [%s]"',
     ]:
         assert item in output, item
+
+
+@pytest.mark.parametrize("key", _NULLABLE)
+def test_nullable_state_channels_clear_to_null(tmp_path: Path, key: str) -> None:
+    """A key missing from the state (another colour mode) reads as ``NULL``.
+
+    A plain ``$.key`` would keep the Item's stale value. Command channels
+    carry no read-side parameters.
+    """
+    output = _generate(tmp_path, _BULBS)
+    state = _channel(output, key)
+    assert f'transformationPattern="JSONPATH:$[?(@.{key} != null)].{key}"' in state
+    assert 'nullValue="NULL"' in state
+    if f" : {key}_cmd " in output:
+        command = _channel(output, f"{key}_cmd")
+        assert "transformationPattern" not in command
+        assert "nullValue" not in command
 
 
 def test_on_off_commands_are_formattable(tmp_path: Path) -> None:
