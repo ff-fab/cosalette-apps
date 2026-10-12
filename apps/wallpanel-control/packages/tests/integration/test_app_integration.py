@@ -595,7 +595,7 @@ class TestSystemAction:
         # Assert
         answers = harness.mqtt.get_messages_for(SYSTEM_ACTION_STATE)
         assert [json.loads(payload) for payload, _, _ in answers] == [
-            {"accepted": True, "action": "suspend"}
+            {"accepted": True, "action": "suspend", "observed": None}
         ] * 2
         assert harness.mqtt.get_messages_for(f"{TOPIC_PREFIX}/error") == []
         assert (
@@ -686,7 +686,9 @@ def _harness(app: cosalette.App) -> AppHarness:
         app=app,
         mqtt=MockMqttClient(),
         clock=FakeClock(),
-        settings=make_wallpanel_control_settings(),
+        # The probe is off here: these tests cover the command contract and the
+        # restore; test_panel_probe.py drives the probe with a ManualClock.
+        settings=make_wallpanel_control_settings(probe_enabled=False),
         shutdown_event=asyncio.Event(),
     )
 
@@ -738,6 +740,7 @@ class TestStateRestoredAfterRestart:
         assert json.loads(second.mqtt.get_messages_for(SYSTEM_ACTION_STATE)[0][0]) == {
             "accepted": True,
             "action": "wake",
+            "observed": None,
         }
 
     async def test_restored_unavailable_answer_equals_the_live_answer(

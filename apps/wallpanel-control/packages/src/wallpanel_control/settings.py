@@ -84,6 +84,22 @@ class WallpanelControlSettings(cosalette.Settings):
         description="Broadcast address for Wake-on-LAN packets",
     )
 
+    # Reachability probe (app ADR-001)
+    probe_enabled: bool = Field(
+        default=True,
+        description="Probe the panel over SSH and republish display/state on change",
+    )
+    probe_interval: float = Field(
+        default=30.0,
+        gt=0,
+        description="Seconds between reachability probes",
+    )
+    action_confirm_timeout: float = Field(
+        default=90.0,
+        gt=0,
+        description="Seconds to wait for an accepted sleep or wake to be observed",
+    )
+
     @field_validator("backlight_path")
     @classmethod
     def validate_backlight_path(cls, value: str) -> str:

@@ -13,19 +13,29 @@ Test Techniques Used:
 from __future__ import annotations
 
 from typing import Literal
+from unittest.mock import MagicMock
 
 import pytest
 from pydantic import ValidationError
 
+from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.devices.restore import LastAnswers
 from wallpanel_control.devices.system import (
+    PANEL_PROBE,
     SystemActionCommand,
     SystemActionState,
     handle_system_action,
     router,
 )
 from wallpanel_control.settings import WallpanelControlSettings
+
+
+@pytest.fixture
+def notify() -> MagicMock:
+    """Stand-in for the EntityNotifier that wakes the panel probe."""
+    return MagicMock()
+
 
 # =============================================================================
 # SystemActionCommand — validation
@@ -102,12 +112,16 @@ class TestSystemActionState:
     def test_accepted_true_serialises(self) -> None:
         """accepted=True with action serialises correctly."""
         s = SystemActionState(accepted=True, action="wake")
-        assert s.model_dump() == {"accepted": True, "action": "wake"}
+        assert s.model_dump() == {"accepted": True, "action": "wake", "observed": None}
 
     def test_accepted_false_serialises(self) -> None:
         """accepted=False with action serialises correctly."""
         s = SystemActionState(accepted=False, action="suspend")
-        assert s.model_dump() == {"accepted": False, "action": "suspend"}
+        assert s.model_dump() == {
+            "accepted": False,
+            "action": "suspend",
+            "observed": None,
+        }
 
 
 # =============================================================================
@@ -127,6 +141,7 @@ class TestHandleSystemActionWake:
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """wake action calls wol.wake() with mac and broadcast from settings."""
         result = await handle_system_action(
@@ -135,6 +150,7 @@ class TestHandleSystemActionWake:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         assert fake_wol.calls == [
@@ -148,6 +164,7 @@ class TestHandleSystemActionWake:
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """wake always returns accepted=True regardless of wallpanel state."""
         fake_wallpanel.set_reachable(False)
@@ -158,6 +175,7 @@ class TestHandleSystemActionWake:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         assert result.accepted is True
@@ -180,6 +198,7 @@ class TestHandleSystemActionSuspend:
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """suspend action calls wallpanel.suspend()."""
         result = await handle_system_action(
@@ -188,6 +207,7 @@ class TestHandleSystemActionSuspend:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         assert fake_wallpanel.power_state == "suspended"
@@ -199,6 +219,7 @@ class TestHandleSystemActionSuspend:
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """suspend when unreachable returns accepted=False.
 
@@ -212,6 +233,7 @@ class TestHandleSystemActionSuspend:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         assert result.accepted is False
@@ -235,6 +257,7 @@ class TestHandleSystemActionHibernate:
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """hibernate action calls wallpanel.hibernate()."""
         result = await handle_system_action(
@@ -243,6 +266,7 @@ class TestHandleSystemActionHibernate:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         assert fake_wallpanel.power_state == "hibernating"
@@ -254,6 +278,7 @@ class TestHandleSystemActionHibernate:
         fake_wallpanel: FakeWallpanel,
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """hibernate when unreachable returns accepted=False.
 
@@ -267,6 +292,7 @@ class TestHandleSystemActionHibernate:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         assert result.accepted is False
@@ -292,6 +318,7 @@ class TestHandleSystemActionSleepPending:
         action: Literal["suspend", "hibernate"],
         fake_wol: FakeWol,
         wallpanel_settings: WallpanelControlSettings,
+        notify: MagicMock,
     ) -> None:
         """A repeat during a pending suspend answers accepted=True, raising nothing."""
         # Arrange
@@ -305,10 +332,13 @@ class TestHandleSystemActionSleepPending:
             fake_wol,
             wallpanel_settings,
             LastAnswers(),
+            notify,
         )
 
         # Assert
-        assert result == SystemActionState(accepted=True, action=action)
+        assert result == SystemActionState(
+            accepted=True, action=action, observed="pending"
+        )
         assert wallpanel.power_state == (
             "suspended" if action == "suspend" else "hibernating"
         )
@@ -357,3 +387,57 @@ class TestRouterRegistration:
         reg = next((r for r in router.commands if r.name == "action"), None)
         assert reg is not None, "'action' not registered on router"
         assert reg.state_model is SystemActionState
+
+
+# =============================================================================
+# handle_system_action — observed outcome (app ADR-001)
+# =============================================================================
+
+
+@pytest.mark.unit
+class TestHandleSystemActionObserved:
+    """Verify the acknowledgement starts a probe confirmation when it should.
+
+    Technique: Decision Table — accepted x probe enabled decides observed and
+    whether the probe is woken.
+    """
+
+    @pytest.mark.parametrize(
+        ("reachable", "probe_enabled", "observed"),
+        [
+            (True, True, "pending"),
+            (False, True, None),
+            (True, False, None),
+        ],
+    )
+    async def test_observed_and_probe_wake(
+        self,
+        fake_wol: FakeWol,
+        notify: MagicMock,
+        reachable: bool,
+        probe_enabled: bool,
+        observed: str | None,
+    ) -> None:
+        """Only an accepted action with the probe enabled is pending and wakes it."""
+        # Arrange
+        wallpanel = FakeWallpanel(reachable=reachable)
+        settings = make_wallpanel_control_settings(probe_enabled=probe_enabled)
+        answers = LastAnswers()
+
+        # Act
+        result = await handle_system_action(
+            SystemActionCommand(action="suspend"),
+            wallpanel,
+            fake_wol,
+            settings,
+            answers,
+            notify,
+        )
+
+        # Assert
+        assert result.observed == observed
+        assert answers.current("system/action/state") == result.model_dump(mode="json")
+        if observed is None:
+            notify.assert_not_called()
+        else:
+            notify.assert_called_once_with(PANEL_PROBE)
