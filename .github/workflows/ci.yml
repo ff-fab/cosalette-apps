@@ -31,6 +31,8 @@ jobs:
     outputs:
       apps: ${{ steps.apps.outputs.apps }}
       shared: ${{ steps.filter.outputs.shared }}
+      root_tests: ${{ steps.scope.outputs.root_tests }}
+      docker_lint: ${{ steps.scope.outputs.docker_lint }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,12 +65,14 @@ jobs:
       # Build dorny/paths-filter config dynamically from discovered apps.
       # The shared list lives in .github/ci-shared-paths.txt, which
       # scripts/pre-pr-scope.sh reads too, so local and CI scoping agree.
+      # `changed_paths` matches every file so its list feeds ci-scope.sh; the
+      # underscore keeps it from colliding with an app slug.
       - name: Build path filters
         id: build-filters
         env:
           DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
-          filters="shared:"
+          filters="changed_paths:"$'\n'"  - '**'"$'\n'"shared:"
           while IFS= read -r pattern; do
             filters="$filters"$'\n'"  - '${pattern}'"
           done < <(sed -e 's/#.*//' -e 's/[[:space:]]*$//' -e '/^$/d' .github/ci-shared-paths.txt)
@@ -81,6 +85,18 @@ jobs:
         id: filter
         with:
           filters: /tmp/path-filters.yml
+          list-files: json
+
+      # Root tests and Docker lint run only when their inputs changed; see
+      # scripts/ci-scope.sh for the input surfaces. Pushes to main and shared
+      # changes run both; the file list is then not passed, which keeps a
+      # mass edit's list clear of the per-variable environment size limit.
+      - name: Classify fixed-cost jobs
+        id: scope
+        env:
+          CI_SCOPE_FULL: ${{ (github.event_name != 'pull_request' || steps.filter.outputs.shared == 'true') && '1' || '' }}
+          CHANGED_FILES: ${{ github.event_name == 'pull_request' && steps.filter.outputs.shared != 'true' && steps.filter.outputs.changed_paths_files || '[]' }}
+        run: jq -r '.[]' <<<"$CHANGED_FILES" | bash scripts/ci-scope.sh >> "$GITHUB_OUTPUT"
 
       - name: Build app list (exclude non-app filters)
         id: apps
@@ -96,8 +112,8 @@ jobs:
             exit 0
           fi
           # dorny/paths-filter outputs a JSON array of all matched filter names.
-          # Remove 'shared' since it is not an app — it has its own dedicated job.
-          apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "shared")]')
+          # Remove 'shared' and 'changed_paths' since they are not apps.
+          apps=$(printf '%s' "$FILTER_CHANGES" | jq -c '[.[] | select(. != "shared" and . != "changed_paths")]')
           echo "apps=$apps" >> "$GITHUB_OUTPUT"
 
   # Shared infrastructure check (REUSE, agent-config integrity)
@@ -138,12 +154,14 @@ jobs:
   # Framework-contract and cross-app-convention tests (e.g. the ADR-006 MQTT
   # TLS posture check reads every app's compose.yml/.env.example), plus shell
   # helper tests, can be broken by app-scoped changes without touching the
-  # `shared` path filter above, so these run unconditionally. `task lint` also
-  # runs here: ruff on the root package and scripts/, shellcheck on every
+  # `shared` path filter above, so any app runtime change runs them. `task lint`
+  # also runs here: ruff on the root package and scripts/, shellcheck on every
   # tracked *.sh (some, like .devcontainer/*.sh, sit outside the shared list).
+  # Skipped only when every changed path is inert (docs, Markdown, beads, app
+  # tests or docs) — scripts/ci-scope.sh (cap-2ydw).
   root-tests:
     needs: detect
-    if: needs.detect.result == 'success'
+    if: needs.detect.result == 'success' && needs.detect.outputs.root_tests == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -181,11 +199,12 @@ jobs:
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # hadolint over every Dockerfile (cap-jrpf). Runs on the runner, not inside
-  # the devcontainer, because it needs the Docker daemon. Cheap, so it runs
-  # unconditionally: the devcontainer Dockerfile is outside every path filter.
+  # the devcontainer, because it needs the Docker daemon. Runs when a
+  # Dockerfile (the devcontainer's included), .hadolint.yaml or a shared path
+  # changed — scripts/ci-scope.sh (cap-2ydw).
   docker-lint:
     needs: detect
-    if: needs.detect.result == 'success'
+    if: needs.detect.result == 'success' && needs.detect.outputs.docker_lint == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -223,32 +242,24 @@ jobs:
       DOCKERHUB_TOKEN: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
 
   # Merge gate — the single required status check for branch protection.
-  # Always runs; passes when all upstream jobs succeed or are skipped.
+  # Always runs; passes when every upstream job succeeded or was skipped, and
+  # fails when any failed or was cancelled. detect is a need too: if it fails,
+  # everything downstream is skipped and must not read as a pass. Skips are
+  # safe because ci-scope.sh and the paths-filter only skip a job whose inputs
+  # did not change; the release-please skip of detect is the one intended
+  # whole-run skip.
   ci-gate:
-    needs: [shared, security, app-ci, root-tests, docker-lint]
+    needs: [detect, shared, security, app-ci, root-tests, docker-lint]
     if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Check upstream results
+        env:
+          NEEDS: ${{ toJSON(needs) }}
         run: |
-          if [[ "${{ needs.shared.result }}" == "failure" || "${{ needs.shared.result }}" == "cancelled" ]]; then
-            echo "shared job failed or was cancelled"
-            exit 1
-          fi
-          if [[ "${{ needs.security.result }}" == "failure" || "${{ needs.security.result }}" == "cancelled" ]]; then
-            echo "security job failed or was cancelled"
-            exit 1
-          fi
-          if [[ "${{ needs.app-ci.result }}" == "failure" || "${{ needs.app-ci.result }}" == "cancelled" ]]; then
-            echo "app-ci job failed or was cancelled"
-            exit 1
-          fi
-          if [[ "${{ needs.root-tests.result }}" == "failure" || "${{ needs.root-tests.result }}" == "cancelled" ]]; then
-            echo "root-tests job failed or was cancelled"
-            exit 1
-          fi
-          if [[ "${{ needs.docker-lint.result }}" == "failure" || "${{ needs.docker-lint.result }}" == "cancelled" ]]; then
-            echo "docker-lint job failed or was cancelled"
+          failed=$(jq -r 'to_entries[] | select(.value.result == "failure" or .value.result == "cancelled") | "\(.key): \(.value.result)"' <<<"$NEEDS")
+          if [ -n "$failed" ]; then
+            printf '%s\n' "$failed"
             exit 1
           fi
           echo "All checks passed or were skipped"

@@ -8,6 +8,12 @@
 # Free for public repositories. Python analysis uses the built-in extractor
 # (no build step required).
 #
+# Path scope (cap-2ydw): the analysis reads only Python sources, so push and
+# pull_request runs trigger on a *.py change or a change to this workflow. An
+# app change without Python (compose, docs, Dockerfile) skips it. The weekly
+# schedule still scans the whole tree. CodeQL is not a required check, so a
+# skipped run never blocks a merge; ci-gate is the only required check.
+#
 # Skipped on private repositories: code scanning requires GitHub Advanced
 # Security there, so the job would fail with a configuration error.
 
@@ -16,16 +22,14 @@ name: CodeQL
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
+    paths:
+      - '**/*.py'
+      - '.github/workflows/codeql.yml'
   pull_request:
     branches: [main]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'LICENSE'
+    paths:
+      - '**/*.py'
+      - '.github/workflows/codeql.yml'
   schedule:
     # Weekly Monday 06:00 UTC — catches newly published vulnerability patterns
     - cron: '0 6 * * 1'
