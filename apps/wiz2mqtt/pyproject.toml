@@ -10,7 +10,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.11.4,<0.12",
+    "cosalette>=0.12.0,<0.13",
     "pydantic-settings>=2.14.2",
     "pywizlight>=0.6.6,<0.7",
     "typer>=0.12",
@@ -24,7 +24,7 @@ wiz2mqtt-openhab = "wiz2mqtt.openhab:main"
 [dependency-groups]
 # The schema:* tasks need the full extra. The app's own generator needs no
 # extra: wiz2mqtt-openhab runs `schema dump --format json` (ADR-004).
-dev = ["cosalette[schema]>=0.11.4,<0.12"]
+dev = ["cosalette[schema]>=0.12.0,<0.13"]
 
 [build-system]
 requires = ["hatchling"]

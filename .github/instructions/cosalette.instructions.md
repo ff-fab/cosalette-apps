@@ -411,7 +411,7 @@ present and no provider resolves, the explicit default is used as the fallback (
 
 Return normalization: `state_model` → return annotation → dict (as-is); primitive/list → `{"value": ...}`.
 
-Errors: `PayloadValidationError`, `ReturnValidationError` — caught and published to error topic.
+Errors: `PayloadValidationError`, `ReturnValidationError` — caught and published to error topic (`error_type` `invalid_payload` and `error` respectively).
 
 See `cosalette ai help contracts`.
 
