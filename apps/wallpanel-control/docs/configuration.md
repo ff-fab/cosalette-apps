@@ -143,7 +143,14 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
 | Known hosts  | `WALLPANEL_CONTROL_SSH_KNOWN_HOSTS`         | `~/.ssh/known_hosts`                 | Path to SSH known_hosts file         |
 | Port         | `WALLPANEL_CONTROL_SSH_PORT`                | `22`                                 | SSH port number                      |
 | Timeout      | `WALLPANEL_CONTROL_SSH_TIMEOUT`             | `5.0`                                | Connection timeout in seconds        |
+| Log level    | `WALLPANEL_CONTROL_SSH_LOG_LEVEL`           | `WARNING`                            | asyncssh library log level           |
 | Backlight path | `WALLPANEL_CONTROL_BACKLIGHT_PATH`        | `/sys/class/backlight/intel_backlight/brightness` | Sysfs brightness file |
+
+!!! tip "Debugging SSH"
+    asyncssh logs several `INFO` lines for every command, so the app holds it at
+    `WARNING`. Set `WALLPANEL_CONTROL_SSH_LOG_LEVEL=INFO` or `DEBUG` to see connection
+    and command details. This level applies to asyncssh alone and is independent of
+    `WALLPANEL_CONTROL_LOGGING__LEVEL`.
 
 !!! note "Docker key and known-hosts paths"
     In the Docker Compose setup the SSH key is mounted read-only at

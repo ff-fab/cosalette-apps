@@ -52,6 +52,8 @@ class SshWallpanel:
 
     def __init__(self, settings: WallpanelControlSettings) -> None:
         self._settings = settings
+        # asyncssh logs several INFO lines per command; quiet it unless asked.
+        asyncssh.set_log_level(settings.ssh_log_level)
         self._conn: asyncssh.SSHClientConnection | None = None
         self._pending_sleep_action: str | None = None
         self._quoted_brightness_path = shlex.quote(settings.backlight_path)

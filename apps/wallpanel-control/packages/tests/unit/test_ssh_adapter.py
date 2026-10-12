@@ -4,10 +4,13 @@ Test Techniques Used:
 - Specification-based Testing: WallpanelPort protocol compliance
 - State Transition Testing: Reachable/unreachable via mocked asyncssh
 - Error Guessing: Connection failures return None from getters, raise from mutators
+- Equivalence Partitioning: asyncssh log level default vs explicit setting
 """
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import asyncssh
@@ -424,6 +427,49 @@ class TestSshWallpanelUnreachable:
 
         # Assert
         assert adapter._conn is None
+
+
+# =============================================================================
+# asyncssh log level
+# =============================================================================
+
+
+@pytest.fixture
+def asyncssh_logger() -> Iterator[logging.Logger]:
+    """The asyncssh logger, with its level restored after the test."""
+    ssh_logger = logging.getLogger("asyncssh")
+    level = ssh_logger.level
+    yield ssh_logger
+    ssh_logger.setLevel(level)
+
+
+@pytest.mark.unit
+class TestSshWallpanelLogLevel:
+    """asyncssh logs several INFO lines per command; the adapter quiets them."""
+
+    def test_default_suppresses_asyncssh_info(
+        self, asyncssh_logger: logging.Logger
+    ) -> None:
+        """A default adapter sets asyncssh to WARNING, so INFO is not emitted."""
+        # Arrange
+        asyncssh_logger.setLevel(logging.NOTSET)
+
+        # Act
+        _make_adapter()
+
+        # Assert
+        assert asyncssh_logger.level == logging.WARNING
+        assert not asyncssh_logger.isEnabledFor(logging.INFO)
+
+    def test_setting_lowers_the_asyncssh_level(
+        self, asyncssh_logger: logging.Logger
+    ) -> None:
+        """ssh_log_level=DEBUG lets asyncssh debug output through."""
+        # Act
+        _make_adapter(ssh_log_level="DEBUG")
+
+        # Assert
+        assert asyncssh_logger.level == logging.DEBUG
 
 
 # =============================================================================
