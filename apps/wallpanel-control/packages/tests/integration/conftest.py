@@ -18,6 +18,7 @@ from async_utils import wait_for_condition
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
 from wallpanel_control.devices import display, restore, system
+from wallpanel_control.main import ERROR_TYPE_MAP
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
 
@@ -64,6 +65,7 @@ def build_integration_app(
         heartbeat_interval=None,
         health_check_interval=None,
         store=store if store is not None else MemoryStore(),
+        error_type_map=ERROR_TYPE_MAP,
         adapters={
             WallpanelPort: lambda: fake_wallpanel,
             WolPort: lambda: fake_wol,

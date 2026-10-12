@@ -143,7 +143,21 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
 | Known hosts  | `WALLPANEL_CONTROL_SSH_KNOWN_HOSTS`         | `~/.ssh/known_hosts`                 | Path to SSH known_hosts file         |
 | Port         | `WALLPANEL_CONTROL_SSH_PORT`                | `22`                                 | SSH port number                      |
 | Timeout      | `WALLPANEL_CONTROL_SSH_TIMEOUT`             | `5.0`                                | Connection timeout in seconds        |
+| Log level    | `WALLPANEL_CONTROL_SSH_LOG_LEVEL`           | `WARNING`                            | asyncssh library log level           |
 | Backlight path | `WALLPANEL_CONTROL_BACKLIGHT_PATH`        | `/sys/class/backlight/intel_backlight/brightness` | Sysfs brightness file |
+
+!!! tip "Debugging SSH"
+    asyncssh logs several `INFO` lines for every command, so the app holds it at
+    `WARNING`. Set `WALLPANEL_CONTROL_SSH_LOG_LEVEL=INFO` or `DEBUG` to see connection
+    and command details. This level applies to asyncssh alone and is independent of
+    `WALLPANEL_CONTROL_LOGGING__LEVEL`.
+
+!!! note "SSH keepalive"
+    The app keeps one SSH connection open and sends an SSH keepalive every 15 s.
+    After 3 unanswered keepalives (about 45 s) asyncssh closes the connection, and the
+    next command opens a fresh one. Without this, the first command after the panel
+    went to sleep would wait the full `WALLPANEL_CONTROL_SSH_TIMEOUT` on a dead
+    connection. The interval and count are fixed.
 
 !!! note "Docker key and known-hosts paths"
     In the Docker Compose setup the SSH key is mounted read-only at
@@ -237,7 +251,8 @@ read into a message, the key carries no passphrase, and the MQTT password is a
 `SecretStr`. Logs and exception text can carry the SSH host, port and user, the
 backlight path and the wake-on-LAN MAC address. These are LAN configuration, not
 credentials, and they are what you need to debug a connection. The broker-visible
-error payload carries only the exception class name unless you set
+error payload carries only the exception class name, or for a rejected payload the
+failed fields and their pydantic type codes, unless you set
 `WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true`, which publishes the full
 exception text, including the SSH host and user.
 

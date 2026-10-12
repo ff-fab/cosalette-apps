@@ -4,10 +4,13 @@ Test Techniques Used:
 - Specification-based Testing: WallpanelPort protocol compliance
 - State Transition Testing: Reachable/unreachable via mocked asyncssh
 - Error Guessing: Connection failures return None from getters, raise from mutators
+- Equivalence Partitioning: asyncssh log level default vs explicit setting
 """
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import asyncssh
@@ -336,6 +339,29 @@ class TestSshWallpanelReachable:
         assert result is True
         assert mock_connect.call_args.kwargs["known_hosts"] == "~/.ssh/known_hosts"
 
+    async def test_connect_enables_ssh_keepalive(self) -> None:
+        """_connect asks asyncssh to send keepalives and drop a silent peer.
+
+        Technique: Error Guessing — without keepalive a cached connection to a
+        panel that went to sleep stays open and the next command waits the full
+        ssh_timeout before failing.
+        """
+        # Arrange
+        adapter = _make_adapter()
+
+        with patch(
+            "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
+            new_callable=AsyncMock,
+            return_value=_mock_conn(),
+        ) as mock_connect:
+            # Act
+            await adapter.is_reachable()
+
+        # Assert
+        kwargs = mock_connect.call_args.kwargs
+        assert kwargs["keepalive_interval"] == 15.0
+        assert kwargs["keepalive_count_max"] == 3
+
 
 # =============================================================================
 # Unreachable operations
@@ -424,6 +450,49 @@ class TestSshWallpanelUnreachable:
 
         # Assert
         assert adapter._conn is None
+
+
+# =============================================================================
+# asyncssh log level
+# =============================================================================
+
+
+@pytest.fixture
+def asyncssh_logger() -> Iterator[logging.Logger]:
+    """The asyncssh logger, with its level restored after the test."""
+    ssh_logger = logging.getLogger("asyncssh")
+    level = ssh_logger.level
+    yield ssh_logger
+    ssh_logger.setLevel(level)
+
+
+@pytest.mark.unit
+class TestSshWallpanelLogLevel:
+    """asyncssh logs several INFO lines per command; the adapter quiets them."""
+
+    def test_default_suppresses_asyncssh_info(
+        self, asyncssh_logger: logging.Logger
+    ) -> None:
+        """A default adapter sets asyncssh to WARNING, so INFO is not emitted."""
+        # Arrange
+        asyncssh_logger.setLevel(logging.NOTSET)
+
+        # Act
+        _make_adapter()
+
+        # Assert
+        assert asyncssh_logger.level == logging.WARNING
+        assert not asyncssh_logger.isEnabledFor(logging.INFO)
+
+    def test_setting_lowers_the_asyncssh_level(
+        self, asyncssh_logger: logging.Logger
+    ) -> None:
+        """ssh_log_level=DEBUG lets asyncssh debug output through."""
+        # Act
+        _make_adapter(ssh_log_level="DEBUG")
+
+        # Assert
+        assert asyncssh_logger.level == logging.DEBUG
 
 
 # =============================================================================

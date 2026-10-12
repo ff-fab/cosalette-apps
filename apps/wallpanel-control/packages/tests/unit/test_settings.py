@@ -50,6 +50,11 @@ class TestWallpanelControlSettingsDefaults:
         settings = make_wallpanel_control_settings()
         assert settings.ssh_timeout == 5.0
 
+    def test_default_ssh_log_level(self) -> None:
+        """asyncssh logs at WARNING unless raised for debugging."""
+        settings = make_wallpanel_control_settings()
+        assert settings.ssh_log_level == "WARNING"
+
     def test_default_backlight_path(self) -> None:
         """Default backlight path is the Intel backlight sysfs entry."""
         settings = make_wallpanel_control_settings()
@@ -126,6 +131,11 @@ class TestWallpanelControlSettingsValidation:
         """SSH timeout must be > 0."""
         with pytest.raises(ValidationError):
             make_wallpanel_control_settings(ssh_timeout=-1.0)
+
+    def test_ssh_log_level_rejects_unknown_level(self) -> None:
+        """Only the standard logging level names are accepted."""
+        with pytest.raises(ValidationError):
+            make_wallpanel_control_settings(ssh_log_level="LOUD")
 
     def test_ssh_timeout_accepts_small_positive(self) -> None:
         """Very small SSH timeout is valid."""

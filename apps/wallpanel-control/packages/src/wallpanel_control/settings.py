@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 import re
+from typing import Literal
 
 import cosalette
 from pydantic import Field, field_validator
@@ -62,6 +63,10 @@ class WallpanelControlSettings(cosalette.Settings):
         default=5.0,
         gt=0,
         description="SSH connection timeout in seconds",
+    )
+    ssh_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="WARNING",
+        description="Log level of the asyncssh library (INFO logs every command)",
     )
 
     # Hardware paths

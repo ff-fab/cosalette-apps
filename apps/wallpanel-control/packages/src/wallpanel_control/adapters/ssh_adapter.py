@@ -38,6 +38,12 @@ _UNREACHABLE_ERRORS = (
 # "There's already a shutdown or sleep operation in progress".
 _SLEEP_PENDING_MARKER = "sleep operation in progress"
 
+# Keepalive: asyncssh closes a connection whose peer stopped answering after
+# interval x count_max seconds, so a panel that went to sleep does not cost the
+# next command a full ssh_timeout on a dead cached connection.
+_KEEPALIVE_INTERVAL = 15.0
+_KEEPALIVE_COUNT_MAX = 3
+
 
 class SshWallpanel:
     """WallpanelPort implementation using asyncssh.
@@ -52,6 +58,8 @@ class SshWallpanel:
 
     def __init__(self, settings: WallpanelControlSettings) -> None:
         self._settings = settings
+        # asyncssh logs several INFO lines per command; quiet it unless asked.
+        asyncssh.set_log_level(settings.ssh_log_level)
         self._conn: asyncssh.SSHClientConnection | None = None
         self._pending_sleep_action: str | None = None
         self._quoted_brightness_path = shlex.quote(settings.backlight_path)
@@ -83,6 +91,8 @@ class SshWallpanel:
                 username=self._settings.ssh_user,
                 client_keys=[self._settings.ssh_key_path],
                 known_hosts=self._settings.ssh_known_hosts,
+                keepalive_interval=_KEEPALIVE_INTERVAL,
+                keepalive_count_max=_KEEPALIVE_COUNT_MAX,
             ),
             timeout=self._settings.ssh_timeout,
         )
