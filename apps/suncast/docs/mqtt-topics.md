@@ -118,6 +118,11 @@ deduplicates consecutive identical telemetry errors: a persisting error is repub
 is an object. Telemetry failure streaks add `details.count` and
 `details.first_seen` (ISO 8601); other error paths need not carry those keys.
 
+A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
+message `TimeoutError`; before cosalette 0.12 the message was empty or the
+library text. `SUNCAST_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: suncast does not opt
+in to verbose error messages.
+
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific
     errors to `suncast/shadow/error`. Both topics use the same payload format.
