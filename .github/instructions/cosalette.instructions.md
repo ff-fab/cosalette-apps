@@ -421,9 +421,12 @@ Errors: `PayloadValidationError`, `ReturnValidationError` — caught and publish
 > replaces the framework default, so start from `cosalette.FRAMEWORK_DISCLOSED_ERRORS`.
 > Apps with domain errors define it in `errors.py` next to the map —
 > `cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)` — and only list
-> types whose messages never carry secrets or raw input. `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE`
-> works only with `App(allow_error_publish_verbose=True)`; set it only where the app's
-> docs promise that opt-in (today wiz2mqtt and wallpanel-control).
+> types whose messages never carry secrets, hosts or device paths (vito2mqtt deliberately
+> keeps `InvalidSignalError`, which names the rejected signal, and drops
+> `OptolinkConnectionError`, which names the serial port).
+> `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE` works only with
+> `App(allow_error_publish_verbose=True)`. Every app sets it, so operators can opt in;
+> the setting itself stays off by default and each app documents it with its MQTT settings.
 
 See `cosalette ai help contracts`.
 
