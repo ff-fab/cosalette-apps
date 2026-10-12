@@ -26,6 +26,7 @@ from airthings2mqtt.errors import (
     BleConnectionError,
     BleReadError,
     BleTimeoutError,
+    disclose_messages_for,
     error_type_map,
 )
 from airthings2mqtt.lifecycle import ResetState, track
@@ -52,6 +53,7 @@ app = cosalette.App(
         AirthingsReaderPort: (_make_reader, FakeAirthingsReader),
     },
     error_type_map=error_type_map,
+    disclose_messages_for=disclose_messages_for,
     # bleak/BlueZ log records embed the full sensor MAC; scrub them like the
     # adapter already scrubs error text (cosalette ADR-085).
     redact=redact_macs_in,

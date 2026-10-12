@@ -18,7 +18,7 @@ from pydantic_settings import PydanticBaseSettingsSource
 
 from airthings2mqtt.adapters.bleak import redact_macs_in
 from airthings2mqtt.adapters.fake import FakeAirthingsReader
-from airthings2mqtt.errors import error_type_map
+from airthings2mqtt.errors import disclose_messages_for, error_type_map
 from airthings2mqtt.main import (
     _TRIGGER_MIN_INTERVAL_SECONDS,
     RETRY_ON,
@@ -86,6 +86,7 @@ def build_integration_app(
         settings_class=Airthings2MqttSettings,
         adapters={AirthingsReaderPort: adapter},
         error_type_map=error_type_map,
+        disclose_messages_for=disclose_messages_for,
         redact=redact_macs_in,
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across
