@@ -23,8 +23,10 @@ These settings are inherited from the cosalette `Settings` base class:
 | `VITO2MQTT_MQTT__PASSWORD` | MQTT password (optional) | — |
 | `VITO2MQTT_MQTT__PROTOCOL_VERSION` | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below | `3.1.1` in code, `5` in compose |
 | `VITO2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` | `86400` |
+| `VITO2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | Ignored: vito2mqtt does not allow verbose error messages, so the error topic never carries full exception text | `false` |
 | `VITO2MQTT_MQTT__INSTANCE_ID` | Home Assistant and openHAB discovery identity; set a unique value per instance when several instances share a broker (see [Multiple Devices](docker-deployment.md#multiple-devices)) | _(app name)_ |
 | `VITO2MQTT_LOGGING__LEVEL` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`) | `INFO` |
+| `VITO2MQTT_LOGGING__LEVELS` | Per-logger levels as JSON, e.g. `{"asyncio":"WARNING"}` | `{}` |
 
 !!! note "Nested delimiter"
     MQTT settings use `__` (double underscore) as the nested delimiter. The variable

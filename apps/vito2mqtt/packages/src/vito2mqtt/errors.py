@@ -63,4 +63,9 @@ disclose_messages_for: frozenset[type[Exception]] = (
 The domain errors above carry sanitised messages, and the framework's own
 rejection errors (bad JSON, unknown sub-command, invalid payload) are sanitised
 by cosalette. Every other exception publishes its class name only.
+
+The builtin ``TimeoutError`` stays out on purpose, so a watchdog timeout
+publishes ``error_type`` ``timeout`` with the message ``TimeoutError``. Libraries
+raise ``TimeoutError`` too, with text that can name hosts or addresses, and the
+label already says what happened.
 """

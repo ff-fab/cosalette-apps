@@ -74,6 +74,20 @@ never restarted. See
 [Health and recovery](configuration.md#health-and-recovery) for the bounds and the
 Docker health probe.
 
+The error event's `error_type` names the failure:
+
+| `error_type` | Meaning |
+| ------------ | ------- |
+| `optolink_connection` | The serial port could not be opened, or the boiler reported a protocol error |
+| `optolink_timeout` | The boiler did not answer on the Optolink link in time |
+| `invalid_signal` | A `/set` payload was rejected: invalid JSON or not a JSON object, a non-boolean `__force`, a signal that is not writable in the group, or a value that does not fit the signal |
+| `command_not_writable` | A write targeted a read-only signal. Only the `--dry-run` adapter raises it; `/set` rejects read-only names as `invalid_signal` first |
+| `timeout` | A handler exceeded its watchdog |
+| `error` | Any other exception |
+
+The vito2mqtt errors publish their message. `timeout` and `error` publish only
+the exception class name as `message`.
+
 A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
 message `TimeoutError`; before cosalette 0.12 the message was empty or the
 library text. `VITO2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: vito2mqtt does not opt
