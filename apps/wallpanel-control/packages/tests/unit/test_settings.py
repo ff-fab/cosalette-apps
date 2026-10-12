@@ -12,6 +12,7 @@ import pytest
 from pydantic import ValidationError
 
 from tests.fixtures.config import make_wallpanel_control_settings
+from wallpanel_control.settings import WallpanelControlSettings
 
 # =============================================================================
 # Tests
@@ -50,10 +51,10 @@ class TestWallpanelControlSettingsDefaults:
         settings = make_wallpanel_control_settings()
         assert settings.ssh_timeout == 5.0
 
-    def test_default_ssh_log_level(self) -> None:
-        """asyncssh logs at WARNING unless raised for debugging."""
+    def test_default_quiets_asyncssh(self) -> None:
+        """asyncssh logs at WARNING unless raised via LOGGING__LEVELS."""
         settings = make_wallpanel_control_settings()
-        assert settings.ssh_log_level == "WARNING"
+        assert settings.logging.levels == {"asyncssh": "WARNING"}
 
     def test_default_backlight_path(self) -> None:
         """Default backlight path is the Intel backlight sysfs entry."""
@@ -132,10 +133,10 @@ class TestWallpanelControlSettingsValidation:
         with pytest.raises(ValidationError):
             make_wallpanel_control_settings(ssh_timeout=-1.0)
 
-    def test_ssh_log_level_rejects_unknown_level(self) -> None:
+    def test_logging_levels_reject_unknown_level(self) -> None:
         """Only the standard logging level names are accepted."""
         with pytest.raises(ValidationError):
-            make_wallpanel_control_settings(ssh_log_level="LOUD")
+            make_wallpanel_control_settings(logging={"levels": {"asyncssh": "LOUD"}})
 
     def test_ssh_timeout_accepts_small_positive(self) -> None:
         """Very small SSH timeout is valid."""
@@ -186,3 +187,37 @@ class TestWallpanelControlSettingsValidation:
         """
         with pytest.raises(ValidationError):
             make_wallpanel_control_settings(wol_mac="not-a-mac")
+
+
+@pytest.mark.unit
+class TestLoggingLevelsFromEnvironment:
+    """The asyncssh default survives other LOGGING__* variables.
+
+    Technique: Error Guessing — pydantic-settings drops a nested default that is
+    overridden on the Settings class once any LOGGING__* variable is set; the
+    LoggingSettings subclass keeps it (cosalette 0.12 migration notes).
+    """
+
+    def test_other_logging_variable_keeps_asyncssh_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("WALLPANEL_CONTROL_WOL_MAC", "AA:BB:CC:DD:EE:FF")
+        monkeypatch.setenv("WALLPANEL_CONTROL_LOGGING__LEVEL", "DEBUG")
+
+        settings = WallpanelControlSettings(_env_file=None)  # type: ignore[call-arg]
+
+        assert settings.logging.level == "DEBUG"
+        assert settings.logging.levels == {"asyncssh": "WARNING"}
+
+    def test_levels_variable_replaces_the_default(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("WALLPANEL_CONTROL_WOL_MAC", "AA:BB:CC:DD:EE:FF")
+        monkeypatch.setenv(
+            "WALLPANEL_CONTROL_LOGGING__LEVELS",
+            '{"asyncssh": "info", "cosalette": "DEBUG"}',
+        )
+
+        settings = WallpanelControlSettings(_env_file=None)  # type: ignore[call-arg]
+
+        assert settings.logging.levels == {"asyncssh": "INFO", "cosalette": "DEBUG"}

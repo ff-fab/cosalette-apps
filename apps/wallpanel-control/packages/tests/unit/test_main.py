@@ -277,17 +277,23 @@ class TestHealthPolicy:
 
         assert app._redactor is None
 
-    def test_only_payload_validation_errors_disclose_their_message(self) -> None:
-        """Rejected payloads publish error_type validation; nothing else is mapped.
+    def test_only_framework_errors_disclose_their_message(self) -> None:
+        """Only cosalette's sanitised rejection errors publish their message.
 
-        Technique: Specification-based — cosalette sanitises the validation
-        message, so the legacy map coupling (ADR-061) may disclose it, while
-        every other app error keeps the class name only.
+        Technique: Specification-based — cosalette labels rejected payloads
+        invalid_payload itself (ADR-091), so the app maps nothing, and every
+        other app error keeps the class name only.
         """
         from wallpanel_control.main import app
 
-        assert app.error_type_map == {cosalette.PayloadValidationError: "validation"}
-        assert app.disclose_messages_for is None
+        assert app.error_type_map == {}
+        assert app.disclose_messages_for == cosalette.FRAMEWORK_DISCLOSED_ERRORS
+
+    def test_app_allows_verbose_error_publishing(self) -> None:
+        """The documented MQTT__ERROR_PUBLISH_VERBOSE opt-in stays available."""
+        from wallpanel_control.main import app
+
+        assert app.allow_error_publish_verbose is True
 
     def test_ssh_adapter_has_no_health_check(self) -> None:
         """A powered-off panel is normal, so SSH reachability is no health signal.

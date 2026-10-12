@@ -20,6 +20,7 @@ from wiz2mqtt.errors import (
     WizConnectionError,
     WizQueuedTimeoutError,
     WizTimeoutError,
+    disclose_messages_for,
     error_type_map,
 )
 from wiz2mqtt.models import BulbSetCommand, BulbStateModel, PowerSourceStateModel
@@ -73,6 +74,9 @@ app = cosalette.App(
     settings_class=Wiz2MqttSettings,
     adapters={WizBulbPort: (WizBulbAdapter, FakeWizBulbAdapter)},
     error_type_map=error_type_map,
+    disclose_messages_for=disclose_messages_for,
+    # Keep the documented operator opt-in WIZ2MQTT_MQTT__ERROR_PUBLISH_VERBOSE.
+    allow_error_publish_verbose=True,
     # No exit_after_stale/restart_on_stale: a stale bulb is a per-bulb fault that
     # a process exit or adapter re-entry would not fix, and the adapter's
     # health_check is constant. No redact= (no secrets reach log text). See

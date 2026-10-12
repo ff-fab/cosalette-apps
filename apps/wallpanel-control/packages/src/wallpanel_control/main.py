@@ -43,21 +43,20 @@ def _make_ssh_wallpanel(settings: WallpanelControlSettings) -> SshWallpanel:
     return SshWallpanel(settings)
 
 
-# A rejected payload publishes error_type "validation". Under cosalette's legacy
-# coupling (ADR-061) the map entry also publishes the message, which cosalette
-# already sanitises to field locations and pydantic type codes, never the input.
-# disclose_messages_for would fully define disclosure, forcing the framework's own
-# mapped errors to be re-listed. Every other app error keeps the class name only.
-ERROR_TYPE_MAP: dict[type[Exception], str] = {
-    cosalette.PayloadValidationError: "validation",
-}
+# cosalette labels a rejected payload error_type "invalid_payload" itself. Its
+# message is disclosed: cosalette sanitises it to the parameter name, location
+# placeholders and pydantic type codes, never the input (ADR-091). Every other
+# app error publishes its class name only.
+DISCLOSE_MESSAGES_FOR = cosalette.FRAMEWORK_DISCLOSED_ERRORS
 
 app = cosalette.App(
     name="wallpanel-control",
     version=__version__,
     description="Wall panel display and system control via SSH",
     settings_class=WallpanelControlSettings,
-    error_type_map=ERROR_TYPE_MAP,
+    disclose_messages_for=DISCLOSE_MESSAGES_FOR,
+    # Keep the documented operator opt-in WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE.
+    allow_error_publish_verbose=True,
     adapters={
         WallpanelPort: (_make_ssh_wallpanel, FakeWallpanel),
         WolPort: (UdpWol, FakeWol),

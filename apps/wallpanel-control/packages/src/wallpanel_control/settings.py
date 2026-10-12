@@ -22,6 +22,19 @@ from wallpanel_control.adapters.wol_adapter import _parse_mac
 _DEVICE_RE = re.compile(r"[a-zA-Z0-9._-]+")
 
 
+class WallpanelLoggingSettings(cosalette.LoggingSettings):
+    """Logging settings with a quiet asyncssh by default.
+
+    asyncssh logs several INFO lines per remote command. Override the whole
+    mapping with ``WALLPANEL_CONTROL_LOGGING__LEVELS='{"asyncssh":"INFO"}'``.
+    """
+
+    levels: dict[str, Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]] = Field(
+        default={"asyncssh": "WARNING"},
+        description="Per-logger level overrides; asyncssh is quiet by default.",
+    )
+
+
 class WallpanelControlSettings(cosalette.Settings):
     """Wallpanel control settings.
 
@@ -35,6 +48,8 @@ class WallpanelControlSettings(cosalette.Settings):
         env_file=".env",
         env_file_encoding="utf-8",
     )
+
+    logging: WallpanelLoggingSettings = Field(default_factory=WallpanelLoggingSettings)
 
     # SSH configuration
     ssh_host: str = Field(
@@ -63,10 +78,6 @@ class WallpanelControlSettings(cosalette.Settings):
         default=5.0,
         gt=0,
         description="SSH connection timeout in seconds",
-    )
-    ssh_log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
-        default="WARNING",
-        description="Log level of the asyncssh library (INFO logs every command)",
     )
 
     # Hardware paths

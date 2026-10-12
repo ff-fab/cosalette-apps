@@ -226,7 +226,7 @@ class TestCalDavReaderAsyncBoundary:
         """Mapped (opted-in) errors must not leak URL credentials into the message.
 
         Technique: Security / Error Guessing — the message is published to the
-        MQTT error topic via error_type_map, so a URL with embedded userinfo
+        MQTT error topic via disclose_messages_for, so a URL with embedded userinfo
         must never appear verbatim (LEAK-01 hardening).
         """
         reader = CalDavReader(_make_settings())

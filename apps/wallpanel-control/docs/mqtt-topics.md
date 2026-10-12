@@ -81,7 +81,7 @@ Turn on and set brightness in one command:
 ### Validation
 
 If the payload fails validation (unknown fields, out-of-range values, wrong types), the
-command is rejected and an error with `error_type: "validation"` is published to
+command is rejected and an error with `error_type: "invalid_payload"` is published to
 `wallpanel-control/error`; see [Errors](#errors).
 
 ### State: `wallpanel-control/display/state`
@@ -196,13 +196,14 @@ validation, or adapter-level failure. For non-root commands, cosalette also publ
 same payload to the per-command error topic, such as `wallpanel-control/display/error`
 or `wallpanel-control/system/action/error`.
 
-A rejected payload publishes `error_type: "validation"`. Its `message` names each failed
-field and its pydantic type code, never the rejected value:
+A rejected payload publishes `error_type: "invalid_payload"`. Its `message` names the
+command parameter and the pydantic type code of each failure. Field names render as
+`[field]` and a cross-field rule as `__root__`, and the rejected value is never included:
 
 ```json
 {
-    "error_type": "validation",
-    "message": "Payload validation failed (parameter 'cmd'): brightness_percent: type=less_than_equal",
+    "error_type": "invalid_payload",
+    "message": "Payload validation failed (parameter 'cmd'): [field]: type=less_than_equal",
     "device": "display",
     "timestamp": "2026-02-14T12:34:56+00:00",
     "details": {}

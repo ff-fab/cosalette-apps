@@ -23,6 +23,7 @@ from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import (
     CalDavConnectionError,
     CalDavTimeoutError,
+    disclose_messages_for,
     error_type_map,
 )
 from caldates2mqtt.main import CalendarState, calendar
@@ -108,6 +109,7 @@ def build_integration_app(
         settings_class=_FastPollSettings,
         adapters={CalDavPort: lambda: fake_reader},
         error_type_map=error_type_map,
+        disclose_messages_for=disclose_messages_for,
         store=store or MemoryStore(),
     )
     app.discovery()

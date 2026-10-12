@@ -8,6 +8,8 @@ exception translation.
 
 from __future__ import annotations
 
+import cosalette
+
 
 class AirthingsError(Exception):
     """Base error for all airthings2mqtt operations."""
@@ -52,9 +54,19 @@ error_type_map: dict[type[Exception], str] = {
 }
 """Mapping from domain exception types to MQTT error-topic string identifiers.
 
-Registered with cosalette's :class:`~cosalette.App` (0.5.7 ``error_type_map``
-hook) so these domain exceptions opt in to surfacing their messages on the
-error topic (LEAK-01 hardening: unregistered exception messages are redacted).
+Registered with cosalette's :class:`~cosalette.App` as ``error_type_map``. Since
+cosalette 0.12 the map only assigns labels; :data:`disclose_messages_for` opts
+these types in to publishing their messages (LEAK-01 hardening).
+"""
+
+disclose_messages_for: frozenset[type[Exception]] = (
+    cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
+)
+"""Exception types whose message is published on the error topic (cosalette ADR-091).
+
+The domain errors above carry sanitised messages, and the framework's own
+rejection errors (bad JSON, unknown sub-command, invalid payload) are sanitised
+by cosalette. Every other exception publishes its class name only.
 """
 
 

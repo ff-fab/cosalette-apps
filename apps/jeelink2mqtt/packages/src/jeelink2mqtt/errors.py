@@ -6,6 +6,8 @@ Each exception maps to a structured MQTT error type via the
 
 from __future__ import annotations
 
+import cosalette
+
 
 class SerialConnectionError(Exception):
     """JeeLink serial port unavailable or disconnected."""
@@ -38,4 +40,14 @@ error_type_map: dict[type[Exception], str] = {
 
 Used by cosalette's error publisher to route structured error payloads
 to the correct MQTT sub-topic.
+"""
+
+disclose_messages_for: frozenset[type[Exception]] = (
+    cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
+)
+"""Exception types whose message is published on the error topic (cosalette ADR-091).
+
+The domain errors above carry sanitised messages, and the framework's own
+rejection errors (bad JSON, unknown sub-command, invalid payload) are sanitised
+by cosalette. Every other exception publishes its class name only.
 """

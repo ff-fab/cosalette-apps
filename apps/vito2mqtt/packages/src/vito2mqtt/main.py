@@ -28,7 +28,7 @@ from vito2mqtt import __version__
 from vito2mqtt._registration import configure_app
 from vito2mqtt._store_path import resolve_store_path
 from vito2mqtt.config import Vito2MqttSettings
-from vito2mqtt.errors import error_type_map
+from vito2mqtt.errors import disclose_messages_for, error_type_map
 from vito2mqtt.ports import OptolinkPort
 
 __all__ = ["app", "cli"]
@@ -47,6 +47,7 @@ app = App(
         ),
     },
     error_type_map=error_type_map,
+    disclose_messages_for=disclose_messages_for,
     restart_after_failures=5,
     max_restarts=3,
     # No exit_after_stale/restart_on_stale: every poll opens a fresh Optolink

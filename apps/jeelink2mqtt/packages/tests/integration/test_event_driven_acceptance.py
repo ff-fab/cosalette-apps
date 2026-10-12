@@ -49,7 +49,7 @@ from cosalette.testing import AppHarness, ManualClock
 
 from async_utils import wait_for_condition
 from jeelink2mqtt import main as _main
-from jeelink2mqtt.errors import error_type_map
+from jeelink2mqtt.errors import disclose_messages_for, error_type_map
 from jeelink2mqtt.models import SensorReading, SensorStateModel
 from jeelink2mqtt.settings import Jeelink2MqttSettings, SensorConfigSettings
 from jeelink2mqtt.state import SharedState, build_shared_state
@@ -122,6 +122,7 @@ def build_integration_app(captured: dict[str, Any]) -> cosalette.App:
         settings_class=Jeelink2MqttSettings,
         store=MemoryStore(),
         error_type_map=error_type_map,
+        disclose_messages_for=disclose_messages_for,
     )
 
     @app.state

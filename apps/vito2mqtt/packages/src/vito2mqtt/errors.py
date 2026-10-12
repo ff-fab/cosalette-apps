@@ -24,6 +24,8 @@ suitable for use with cosalette's :class:`~cosalette.ErrorPublisher`.
 
 from __future__ import annotations
 
+import cosalette
+
 
 class VitoBridgeError(Exception):
     """Root error for all vito2mqtt domain exceptions."""
@@ -52,3 +54,13 @@ error_type_map: dict[type[Exception], str] = {
     InvalidSignalError: "invalid_signal",
     CommandNotWritableError: "command_not_writable",
 }
+
+disclose_messages_for: frozenset[type[Exception]] = (
+    cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
+)
+"""Exception types whose message is published on the error topic (cosalette ADR-091).
+
+The domain errors above carry sanitised messages, and the framework's own
+rejection errors (bad JSON, unknown sub-command, invalid payload) are sanitised
+by cosalette. Every other exception publishes its class name only.
+"""

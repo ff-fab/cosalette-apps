@@ -325,8 +325,9 @@ the downstream `paths:` this repo adds — is preserved
 (`_package_cli/_ai_init.py::_merge_instruction_content`). Two things are still lost:
 **comments inside the frontmatter**, and **the entire body**, which is replaced by the
 shipped template. Every repo-specific body note must be re-added afterwards; grep the
-file for `Downstream note` to find them. There are currently three: the MQTT TLS posture
-note under Configuration, the probe (ADR-011) note after "Container liveness", and the
+file for `Downstream note` to find them. There are currently four: the MQTT TLS posture
+note under Configuration, the error-disclosure (`disclose_messages_for`) note under
+"Typed Handler Contracts", the probe (ADR-011) note after "Container liveness", and the
 `discoverable=`/channel-merge note under "Opting a channel out of discovery". Run
 `cosalette ai init --check` first to see the diff.
 

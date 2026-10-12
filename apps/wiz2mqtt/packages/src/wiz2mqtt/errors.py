@@ -7,6 +7,8 @@ operates on domain exceptions rather than the SDK's.
 
 from __future__ import annotations
 
+import cosalette
+
 
 class WizBridgeError(Exception):
     """Root error for all wiz2mqtt domain exceptions."""
@@ -44,6 +46,16 @@ error_type_map: dict[type[Exception], str] = {
     WizIdentityError: "wiz_identity",
     WizUnsupportedCommandError: "wiz_unsupported_command",
 }
+
+disclose_messages_for: frozenset[type[Exception]] = (
+    cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
+)
+"""Exception types whose message is published on the error topic (cosalette ADR-091).
+
+The domain errors above carry sanitised messages, and the framework's own
+rejection errors (bad JSON, unknown sub-command, invalid payload) are sanitised
+by cosalette. Every other exception publishes its class name only.
+"""
 
 RESTORE_UNCONFIRMED = "restore_unconfirmed"
 """``error_type`` of the return-path error the bridge publishes itself when a

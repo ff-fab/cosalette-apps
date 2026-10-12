@@ -20,6 +20,7 @@ from caldates2mqtt.adapters.fake import FakeCalDavReader
 from caldates2mqtt.errors import (
     CalDavConnectionError,
     CalDavTimeoutError,
+    disclose_messages_for,
     error_type_map,
 )
 from caldates2mqtt.ports import CalDavPort
@@ -129,6 +130,7 @@ app = cosalette.App(
         CalDavPort: (CalDavReader, FakeCalDavReader),
     },
     error_type_map=error_type_map,
+    disclose_messages_for=disclose_messages_for,
     # No exit_after_stale or restart_on_stale: the reader keeps no connection,
     # so a restart cannot heal a stale calendar (a server or credential fault),
     # and one stale calendar would restart them all. No redact=: caldav strips
