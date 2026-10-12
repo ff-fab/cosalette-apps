@@ -60,6 +60,7 @@ def _build_integration_app() -> cosalette.App:
     from cosalette.stores import MemoryStore
 
     from jeelink2mqtt import __version__
+    from jeelink2mqtt.errors import disclose_messages_for, error_type_map
     from jeelink2mqtt.main import (
         mapping_assign,
         mapping_list_unknown,
@@ -73,6 +74,8 @@ def _build_integration_app() -> cosalette.App:
         description="JeeLink LaCrosse sensor bridge for MQTT",
         settings_class=Jeelink2MqttSettings,
         store=MemoryStore(),
+        error_type_map=error_type_map,
+        disclose_messages_for=disclose_messages_for,
     )
 
     # Register the same state factory as the real app
