@@ -42,6 +42,8 @@ def create_app() -> cosalette.App:
         version=__version__,
         description="Domestic gas meter reader via QMC5883L magnetometer",
         settings_class=Gas2MqttSettings,
+        # Operator opt-in GAS2MQTT_MQTT__ERROR_PUBLISH_VERBOSE; off by default.
+        allow_error_publish_verbose=True,
         store=_make_store,
         adapters={
             MagnetometerPort: (Qmc5883lAdapter, FakeMagnetometer),
