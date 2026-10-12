@@ -145,6 +145,8 @@ router = cosalette.Router()
 async def _poll_display_state(
     wallpanel: WallpanelPort,
     state: _DisplayHandlerState,
+    *,
+    already_reachable: bool = False,
 ) -> DisplayState:
     """Internal helper: read current display state from the wallpanel.
 
@@ -158,7 +160,7 @@ async def _poll_display_state(
     Returns:
         DisplayState with current values, or unavailable state if unreachable.
     """
-    if not await wallpanel.is_reachable():
+    if not already_reachable and not await wallpanel.is_reachable():
         return _UNAVAILABLE
 
     try:

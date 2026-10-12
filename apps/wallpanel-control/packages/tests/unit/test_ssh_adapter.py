@@ -9,6 +9,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import Iterator
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -306,7 +307,11 @@ class TestSshWallpanelReachable:
             await adapter.hibernate()
 
     async def test_is_reachable_true(self) -> None:
-        """is_reachable returns True when connection succeeds."""
+        """is_reachable runs `true`: a cached connection alone is no proof.
+
+        Technique: Error Guessing — asyncssh keeps a connection to a sleeping
+        panel open until the keepalive gives up.
+        """
         # Arrange
         adapter = _make_adapter()
         mock_conn = _mock_conn()
@@ -317,6 +322,7 @@ class TestSshWallpanelReachable:
 
         # Assert
         assert result is True
+        mock_conn.run.assert_awaited_once_with("true", check=True)
 
     async def test_connect_passes_known_hosts_to_asyncssh(self) -> None:
         """_connect passes ssh_known_hosts so host-key verification is explicit.
@@ -583,3 +589,51 @@ class TestSshWallpanelClosedConnection:
         mock_connect.assert_awaited_once()
         stale.run.assert_not_called()
         assert adapter._conn is fresh
+
+
+@pytest.mark.unit
+class TestSshWallpanelSharedConnect:
+    """The probe and a command racing for the connection share one attempt."""
+
+    async def test_concurrent_callers_share_one_connect(self) -> None:
+        """Two callers without a connection open exactly one session.
+
+        Technique: Error Guessing — the probe and a command reconnecting at the
+        same time must not open competing sessions.
+        """
+        # Arrange
+        adapter = _make_adapter()
+        conn = _mock_conn()
+        conn.run = AsyncMock(return_value=_mock_run_result("500"))
+
+        with patch(
+            "wallpanel_control.adapters.ssh_adapter.asyncssh.connect",
+            new_callable=AsyncMock,
+            return_value=conn,
+        ) as mock_connect:
+            # Act
+            results = await asyncio.gather(
+                adapter.is_reachable(), adapter.get_brightness()
+            )
+
+        # Assert
+        assert results == [True, 500]
+        mock_connect.assert_awaited_once()
+        assert adapter._conn is conn
+
+    async def test_a_failed_call_keeps_a_newer_connection(self) -> None:
+        """An unreachable error drops only the connection that failed.
+
+        Technique: State Transition — a slow call failing on an old connection
+        must not discard the one another caller opened meanwhile.
+        """
+        # Arrange
+        adapter = _make_adapter()
+        old, new = _mock_conn(), _mock_conn()
+        adapter._conn = new
+
+        # Act
+        adapter._drop(old)
+
+        # Assert
+        assert adapter._conn is new

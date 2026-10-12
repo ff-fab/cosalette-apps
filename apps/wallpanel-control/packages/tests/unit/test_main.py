@@ -102,10 +102,10 @@ class TestAdapterRegistry:
 
 @pytest.mark.unit
 class TestDeviceRegistration:
-    """Verify only the startup restore device is registered."""
+    """Verify the one root device is the only device registered."""
 
-    def test_only_restore_device_registered(self) -> None:
-        """Display is a command; the sole device re-publishes saved answers.
+    def test_only_the_root_device_is_registered(self) -> None:
+        """Display is a command; one root device restores answers and probes the panel.
 
         Technique: Structural — display/set is served by a typed command handler.
         """

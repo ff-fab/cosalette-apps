@@ -17,7 +17,7 @@ from cosalette.testing import AppHarness, FakeClock
 from async_utils import wait_for_condition
 from tests.fixtures.config import make_wallpanel_control_settings
 from wallpanel_control.adapters.fake import FakeWallpanel, FakeWol
-from wallpanel_control.devices import display, restore, system
+from wallpanel_control.devices import display, probe, restore, system
 from wallpanel_control.main import ERROR_TYPE_MAP
 from wallpanel_control.ports import WallpanelPort, WolPort
 from wallpanel_control.settings import WallpanelControlSettings
@@ -74,7 +74,7 @@ def build_integration_app(
     app.state(restore.create_last_answers)
     app.include_router(display.router)
     app.include_router(system.router)
-    app.include_router(restore.router)
+    app.include_router(probe.router)
     return app
 
 
@@ -158,6 +158,8 @@ def harness(fake_wallpanel: FakeWallpanel, fake_wol: FakeWol) -> AppHarness:
         app=build_integration_app(fake_wallpanel, fake_wol),
         mqtt=MockMqttClient(),
         clock=FakeClock(),
-        settings=make_wallpanel_control_settings(),
+        # The probe is off here: these tests cover the command contract and the
+        # restore; test_panel_probe.py drives the probe with a ManualClock.
+        settings=make_wallpanel_control_settings(probe_enabled=False),
         shutdown_event=asyncio.Event(),
     )

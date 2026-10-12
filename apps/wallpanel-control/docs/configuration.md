@@ -74,12 +74,13 @@ hours), so the topics stay alive. A topic that nothing refreshes any more, such 
 stopped process, disappears from the broker by itself.
 
 !!! note "State survives a restart"
-    wallpanel-control publishes `display/state` and `system/action/state` only as the
-    answer to a command, and nothing polls the panel. It saves each answer in the store
+    wallpanel-control publishes `display/state` and `system/action/state` as the answer
+    to a command, and the panel probe publishes them again when the panel changes state
+    (see [Panel probe](#panel-probe)). It saves each answer in the store
     and publishes the saved answers again, retained, at every startup. A subscriber that
     connects later, and the Home Assistant light, keep the last known state. The saved
-    answer is not a new reading: it does not show a change that someone made at the panel
-    while wallpanel-control was down.
+    answer is not a new reading. With the probe on, the first probe cycle at startup
+    replaces it with a fresh read, or with `available: false` for a sleeping panel.
 
 **Operator contract**
 
@@ -203,6 +204,36 @@ The shipped `compose.yml` sets it to `/app/data/store.json` on the
     outbound MQTT and SSH client; it does not open an inbound listener. The bundled
     mosquitto broker remains bound to host loopback (`127.0.0.1:1883`).
 
+!!! warning "Wake-on-LAN must answer magic packets only"
+    Enable WoL on the panel NIC with `ethtool -s <nic> wol g` (magic packet only) and
+    make it persistent, for example with a systemd `.link` file
+    (`WakeOnLan=magic`). Other wake sources, such as `wol u` (unicast) or `wol a` (ARP),
+    let the reachability probe itself wake the panel: an SSH connect to a sleeping panel
+    would then wake it every 30 s.
+
+### Panel probe
+
+| Setting                | Environment Variable                         | Default | Description                                                  |
+| ---------------------- | -------------------------------------------- | ------- | ------------------------------------------------------------ |
+| Probe enabled          | `WALLPANEL_CONTROL_PROBE_ENABLED`            | `true`  | Probe the panel over SSH and publish reachability changes    |
+| Probe interval         | `WALLPANEL_CONTROL_PROBE_INTERVAL`           | `30.0`  | Seconds between probe cycles                                 |
+| Action confirm timeout | `WALLPANEL_CONTROL_ACTION_CONFIRM_TIMEOUT`   | `90.0`  | Seconds to wait for a sleep or wake before `observed: timeout` |
+
+Every probe cycle runs `true` over the cached SSH connection, or connects. A failed
+probe is repeated after 5 s; only two failures in a row count as unreachable, so one
+lost packet does not flap the state. The probe republishes `display/state` only when
+the observed reachability differs from the current answer: `available: false` when the
+panel stops answering, and a full read when it answers again. With the default
+interval, `display/state` shows a sleep or a wake within 45 s. A command always wins:
+if a command answers while a probe runs, the probe drops its result.
+
+After an accepted `wake`, `suspend` or `hibernate`, `system/action/state` answers
+`observed: "pending"`. The probe then checks every 5 s and republishes the answer as
+`"confirmed"` once the panel answers (wake) or stops answering (suspend, hibernate), or
+as `"timeout"` after `ACTION_CONFIRM_TIMEOUT` seconds. A timed-out wake logs a
+WARNING that points at host networking, `WOL_BROADCAST` and WoL on the panel NIC. With
+the probe off, `observed` stays `null` and nothing polls the panel.
+
 ### Health and recovery
 
 MQTT is the primary health signal: the `wallpanel-control/status` heartbeat and last
@@ -211,13 +242,17 @@ own availability. Recovery comes from process exits and the `restart: unless-sto
 policy in `compose.yml`.
 
 **No freshness watchdog.** `display` and `system/action` are command-driven devices.
-The app polls nothing on a timer and registers no telemetry or streams, so no entity
-ever turns `"stale"` and cosalette derives no `stale_after` bound. wallpanel-control
+The panel probe runs in the root device `restore_answers`, which also publishes the
+saved answers at startup. The app registers no telemetry or streams, and cosalette
+derives no `stale_after` bound for a root device, so no entity ever turns `"stale"`. wallpanel-control
 therefore sets neither `exit_after_stale` nor `restart_on_stale`: both act only on
 stale telemetry or streams.
 
 **No adapter health check.** A powered-off, suspended or hibernating panel is a normal
-state, so SSH reachability says nothing about the app's health. A health check would
+state, so SSH reachability says nothing about the app's health. The probe treats an
+unreachable panel as an observation: it logs the transition once at INFO and never
+marks a device offline, so the heartbeat's `restore_answers` entry stays `ok` while
+the panel sleeps. A health check would
 mark both devices offline whenever the panel sleeps and spend the adapter restart
 budget, while `wake` must keep working exactly then. The SSH adapter connects lazily
 and drops its connection on any unreachable error, so the next command reconnects and

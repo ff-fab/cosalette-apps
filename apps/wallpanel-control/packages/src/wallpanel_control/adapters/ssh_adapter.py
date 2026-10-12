@@ -61,6 +61,7 @@ class SshWallpanel:
         # asyncssh logs several INFO lines per command; quiet it unless asked.
         asyncssh.set_log_level(settings.ssh_log_level)
         self._conn: asyncssh.SSHClientConnection | None = None
+        self._connecting: asyncio.Future[asyncssh.SSHClientConnection] | None = None
         self._pending_sleep_action: str | None = None
         self._quoted_brightness_path = shlex.quote(settings.backlight_path)
         self._quoted_max_brightness_path = shlex.quote(
@@ -79,12 +80,31 @@ class SshWallpanel:
         # A connection the panel closed (reboot, shutdown) stays cached until
         # replaced: reusing it fails every command with ChannelOpenError, which
         # is not an unreachable error and would never clear it.
-        if self._conn is not None and self._conn.is_closed():
-            self._pending_sleep_action = None
         if self._conn is not None and not self._conn.is_closed():
             return self._conn
+        self._drop(self._conn)
+        # Concurrent callers (the probe and a command) share one connect attempt,
+        # so they neither open competing sessions nor each wait out a timeout.
+        if self._connecting is None:
+            self._connecting = asyncio.ensure_future(self._open())
+            self._connecting.add_done_callback(self._connected)
+        return await asyncio.shield(self._connecting)
 
-        self._conn = await asyncio.wait_for(
+    def _connected(self, task: asyncio.Future[asyncssh.SSHClientConnection]) -> None:
+        """Cache the shared attempt's connection (runs before its awaiters resume)."""
+        self._connecting = None
+        if not task.cancelled() and task.exception() is None:
+            self._conn = task.result()
+
+    def _drop(self, conn: asyncssh.SSHClientConnection | None) -> None:
+        """Forget *conn* unless another caller already replaced it."""
+        if self._conn is conn:
+            self._conn = None
+            self._pending_sleep_action = None
+
+    async def _open(self) -> asyncssh.SSHClientConnection:
+        """Open a new SSH connection, bounded by ``ssh_timeout``."""
+        return await asyncio.wait_for(
             asyncssh.connect(
                 self._settings.ssh_host,
                 port=self._settings.ssh_port,
@@ -96,7 +116,6 @@ class SshWallpanel:
             ),
             timeout=self._settings.ssh_timeout,
         )
-        return self._conn
 
     async def _run(self, command: str) -> str:
         """Execute a command over SSH and return stdout.
@@ -112,6 +131,7 @@ class SshWallpanel:
             Unreachable errors propagate to caller (connection is
             cleared so the next call triggers a fresh connect).
         """
+        conn = None
         try:
             conn = await self._connect()
             result = await asyncio.wait_for(
@@ -121,8 +141,7 @@ class SshWallpanel:
             stdout = result.stdout or ""
             return str(stdout).strip()
         except _UNREACHABLE_ERRORS as exc:
-            self._conn = None
-            self._pending_sleep_action = None
+            self._drop(conn)
             raise WallpanelUnreachableError(str(exc)) from exc
 
     async def _run_or_none(self, command: str) -> str | None:
@@ -216,11 +235,14 @@ class SshWallpanel:
             raise
 
     async def is_reachable(self) -> bool:
-        """Check if wallpanel is reachable via SSH connect."""
+        """Run `true` over the cached connection, or connect; the result is cached.
+
+        A cached connection is not proof: asyncssh keeps one to a sleeping panel
+        open until the keepalive gives up, so a command must answer.
+        """
         try:
-            await self._connect()
-        except _UNREACHABLE_ERRORS:
-            self._conn = None
+            await self._run("true")
+        except WallpanelUnreachableError:
             return False
         return True
 
@@ -242,6 +264,8 @@ class SshWallpanel:
         exc_tb: TracebackType | None,
     ) -> None:
         """Exit async context: close SSH connection."""
+        if self._connecting is not None:
+            self._connecting.cancel()
         if self._conn is not None:
             self._conn.close()
             self._conn = None
