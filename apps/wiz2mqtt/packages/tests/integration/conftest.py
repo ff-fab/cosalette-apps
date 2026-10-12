@@ -16,7 +16,7 @@ from cosalette.testing import AppHarness, ManualClock
 
 from tests.fixtures.settings import build_settings
 from wiz2mqtt.adapters.fake import FakeWizBulbAdapter
-from wiz2mqtt.errors import error_type_map
+from wiz2mqtt.errors import disclose_messages_for, error_type_map
 from wiz2mqtt.main import (
     _SIGNAL_QUEUE_SIZE,
     _bulb_map,
@@ -90,6 +90,7 @@ def build_integration_app(
         settings_class=Wiz2MqttSettings,
         adapters={WizBulbPort: _adapter_factory},
         error_type_map=error_type_map,
+        disclose_messages_for=disclose_messages_for,
         startup_connect_timeout=startup_connect_timeout,
         # An isolated, per-test in-memory store: without this the app falls
         # back to the real on-disk default store path, which persists across

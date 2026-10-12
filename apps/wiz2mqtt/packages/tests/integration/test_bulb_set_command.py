@@ -313,8 +313,10 @@ class TestNonNumericBrightness:
         """``{"brightness": false}`` reaches the error topic, not the bulb.
 
         Technique: Error Guessing — lax ``int`` coerced ``false`` to ``0``,
-        which switched the bulb off. The error payload also carries the
-        ``error_type`` key the generated openHAB Error channel reads.
+        which switched the bulb off. The error payload carries the
+        ``error_type`` key the generated openHAB Error channel reads, with
+        cosalette's ``invalid_payload`` label and a summary that never echoes
+        the rejected value.
         """
         await _run_with_command(harness, "office", {"brightness": False})
 
@@ -322,4 +324,7 @@ class TestNonNumericBrightness:
         assert _ERROR_TOPIC.endswith(_ERROR_TOPIC_SUFFIX)
         payload, _retain, _qos = harness.messages_for(_ERROR_TOPIC)[-1]
         key = _ERROR_TYPE_JSONPATH.removeprefix("JSONPATH:$.")
-        assert json.loads(payload)[key]
+        error = json.loads(payload)
+        assert error[key] == "invalid_payload"
+        assert error["message"].startswith("Payload validation failed")
+        assert "false" not in error["message"].lower()
