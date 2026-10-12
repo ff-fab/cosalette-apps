@@ -337,7 +337,9 @@ channels:
                 channel_params:
                   max: 6500
                   min: 2200
+                  nullValue: 'NULL'
                   step: 1
+                  transformationPattern: JSONPATH:$[?(@.color_temp != null)].color_temp
                 channel_type: number
                 item_type: Number
             color_temp_kelvin:
@@ -358,6 +360,8 @@ channels:
                 channel_params:
                   colorMode: HSB
                   formatBeforePublish: '{"hsb":"%1$d,%2$d,%3$d"}'
+                  nullValue: 'NULL'
+                  transformationPattern: JSONPATH:$[?(@.hsb != null)].hsb
                 channel_type: color
                 item_type: Color
             effect:
@@ -369,7 +373,9 @@ channels:
               x-cosalette-consumer:
                 display_name: Effect
               x-cosalette-openhab:
-                channel_params: {}
+                channel_params:
+                  nullValue: 'NULL'
+                  transformationPattern: JSONPATH:$[?(@.effect != null)].effect
                 channel_type: string
                 item_type: String
             effect_speed:
@@ -384,7 +390,9 @@ channels:
                 channel_params:
                   max: 200
                   min: 10
+                  nullValue: 'NULL'
                   step: 1
+                  transformationPattern: JSONPATH:$[?(@.effect_speed != null)].effect_speed
                 channel_type: number
                 item_type: Number
             power_draw_w:
@@ -398,7 +406,9 @@ channels:
                 unit: W
                 read_only: true
               x-cosalette-openhab:
-                channel_params: {}
+                channel_params:
+                  nullValue: 'NULL'
+                  transformationPattern: JSONPATH:$[?(@.power_draw_w != null)].power_draw_w
                 channel_type: number
                 item_type: Number
             powered:

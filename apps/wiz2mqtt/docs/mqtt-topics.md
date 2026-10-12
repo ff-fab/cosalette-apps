@@ -250,18 +250,23 @@ topic:
 | ------- | ---- | ------ |
 | `state` / `state_cmd` | `switch`, `on="ON"` `off="OFF"` | read `JSONPATH:$.state`; write `{"state":"%s"}` |
 | `brightness` / `brightness_cmd` | `dimmer`, `min` 0 `max` 255 `step` 1 | read `JSONPATH:$.brightness`; write `{"brightness":%s}` |
-| `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"` | read `JSONPATH:$.hsb`; write `{"hsb":"%1$d,%2$d,%3$d"}` |
-| `color_temp` / `color_temp_cmd` | `number`, `min` 2200 `max` 6500 `step` 1, Item label in K | read `JSONPATH:$.color_temp`; write `{"color_temp":%s}` |
-| `effect` / `effect_cmd` | `string`; the command lists the WiZ scenes as `allowedStates` | read `JSONPATH:$.effect`; write `{"effect":"%s"}` |
-| `effect_speed` / `effect_speed_cmd` | `number`, `min` 10 `max` 200 `step` 1 | read `JSONPATH:$.effect_speed`; write `{"effect_speed":%s}` |
-| `power_draw_w` | `number`, read-only, Item label in W | read `JSONPATH:$.power_draw_w` |
+| `hsb` / `hsb_cmd` | `color`, `colorMode="HSB"`; read `nullValue="NULL"` | read `JSONPATH:$[?(@.hsb != null)].hsb`; write `{"hsb":"%1$d,%2$d,%3$d"}` |
+| `color_temp` / `color_temp_cmd` | `number`, `min` 2200 `max` 6500 `step` 1, Item label in K; read `nullValue="NULL"` | read `JSONPATH:$[?(@.color_temp != null)].color_temp`; write `{"color_temp":%s}` |
+| `effect` / `effect_cmd` | `string`; the command lists the WiZ scenes as `allowedStates`; read `nullValue="NULL"` | read `JSONPATH:$[?(@.effect != null)].effect`; write `{"effect":"%s"}` |
+| `effect_speed` / `effect_speed_cmd` | `number`, `min` 10 `max` 200 `step` 1; read `nullValue="NULL"` | read `JSONPATH:$[?(@.effect_speed != null)].effect_speed`; write `{"effect_speed":%s}` |
+| `power_draw_w` | `number`, read-only, Item label in W, `nullValue="NULL"` | read `JSONPATH:$[?(@.power_draw_w != null)].power_draw_w` |
 | `reachable` | `switch`, read-only, `on="true"` `off="false"` | read `JSONPATH:$.reachable` |
 | `pending` | `string`, read-only, `nullValue="NULL"` | read `JSONPATH:$[?(@.pending != null)].pending` (the JSON object) |
 | `last_applied` | `string`, read-only, `nullValue="NULL"` | read `JSONPATH:$[?(@.last_applied != null)].last_applied` (the JSON object) |
 
 `hsb`, `color_temp` and `effect` are only present in the colour mode that
-uses them, so openHAB logs a JSONPATH warning for the other two on each state
-message. The Item keeps its last value.
+uses them. `effect_speed` and `power_draw_w` are absent when the bulb does not
+report them. The filter form of the JSONPATH turns a missing key into `NULL`,
+so the Item clears instead of keeping a stale value: switch the bulb from RGB
+to colour temperature and the `Hsb` Item becomes `NULL`. A rule that triggers
+on `changed` sees these `X -> NULL` transitions; test for `NULL` or trigger on
+the Item you care about. `nullValue` on a `color` or `number` channel needs
+openHAB 5.1 or later. openHAB 5.0 logs a warning and keeps the last value.
 
 The deployment generator (`wiz2mqtt-openhab`, see
 [openHAB generation](configuration.md#openhab-generation)) adds read-only
