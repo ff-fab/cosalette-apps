@@ -171,6 +171,14 @@ class TestAppRestartConfig:
         """
         assert app._max_restarts == 3
 
+    def test_app_allows_verbose_error_publishing(self) -> None:
+        """The VELUX2MQTT_MQTT__ERROR_PUBLISH_VERBOSE opt-in is usable.
+
+        Technique: Specification-based — since cosalette 0.12 the env var is
+        ignored unless the app allows it; the setting itself stays off by default.
+        """
+        assert app.allow_error_publish_verbose is True
+
 
 @pytest.mark.unit
 class TestStoreConfiguration:
