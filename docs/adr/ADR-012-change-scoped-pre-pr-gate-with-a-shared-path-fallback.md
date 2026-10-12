@@ -9,7 +9,7 @@ tags: [testing, security, ci, tooling]
 
 ## Status
 
-Accepted **Date:** 2026-10-08 | Amended **Date:** 2026-10-08
+Accepted **Date:** 2026-10-08 | Amended **Date:** 2026-10-08 | Amended **Date:** 2026-10-12
 
 ## Context
 
@@ -142,3 +142,37 @@ Every step runs, so one pass reports every failure, and the exit code is the cod
 
 - Risk: a failure in an early step no longer saves the time of the later steps. Mitigation: phase 1 is short, and `test:apps` is the only long step either way.
 - Risk: parallel steps contend for CPU and shared caches. Mitigation: the app tests run alone in phase 2, each step keeps its own log and timeout, and `PRE_PR_JOBS=1` reproduces a sequential run.
+
+## Amendment (2026-10-12) — Additive
+
+**Rationale:** The same input-surface reasoning now applies to CI's fixed-cost jobs (cap-2ydw). App-only PRs such as #398 (wallpanel-control source, docs, beads) ran root-tests and docker-lint unconditionally and CodeQL on any non-doc change, although per-app jobs were already path-scoped. Required CI stays the authoritative gate this ADR relies on, so each skip is limited to a job whose inputs did not change.
+
+### Additional Sub-Decision: CI fixed-cost job scope
+
+`scripts/ci-scope.sh` reads the PR's changed paths in the `detect` job of `.github/workflows/ci.yml` and selects:
+
+| Job | Runs when |
+| --- | --- |
+| `root-tests` | any changed path is not inert. Inert: `*.md`, `docs/**`, `.beads/**`, `apps/*/docs/**`, `apps/*/packages/tests/**`; a `*.sh` is never inert. The root tests import every app and read its Dockerfile, compose.yml, .env.example and pyproject.toml, so app runtime changes keep running them. |
+| `docker-lint` | a Dockerfile (devcontainer included) or `.hadolint.yaml` changed |
+| `security` | unchanged: any app or shared change, always the full `security:audit` |
+| CodeQL | a `*.py` file or `codeql.yml` changed; the weekly schedule scans everything |
+
+A shared path (`.github/ci-shared-paths.txt`, which covers every workflow) and every push to main select all jobs. `ci-gate` now needs `detect` and fails on any failed or cancelled need, so a broken classification can never skip jobs into a pass. `scripts/tests/test_ci_scope.sh` covers representative app-only, docs-only, shared and workflow-only diffs; `packages/tests/unit/test_ci_scope_wiring.py` guards the gate and the wiring.
+
+### Additional Considered Options
+
+**Scope security:audit to the changed apps**
+
+Run only detect-secrets and ruff S rules for app-only PRs, skipping pip-audit and actionlint/zizmor.
+
+- *Advantages:* Shorter security job on app-only PRs
+- *Disadvantages:* The devcontainer pull, the job's dominant cost, remains; Contradicts this ADR's mitigation that CI keeps the full audit while the local gate is scoped
+
+### Additional Positive Consequences
+
+- Docs-, beads- and app-test-only PRs skip root-tests and docker-lint; app-only PRs without a Dockerfile change skip docker-lint; PRs without Python skip CodeQL.
+
+### Additional Negative Consequences
+
+- A new root test that reads a currently inert path (for example app docs) must extend the inert list in scripts/ci-scope.sh, or it will not run on such a PR until main.
