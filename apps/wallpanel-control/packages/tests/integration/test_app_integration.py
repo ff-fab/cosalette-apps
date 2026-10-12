@@ -638,22 +638,23 @@ class TestErrorPayloads:
     Technique: Specification-based — docs/mqtt-topics.md > Errors.
     """
 
-    async def test_rejected_display_payload_publishes_validation_reason(
+    async def test_rejected_display_payload_publishes_invalid_payload_reason(
         self, harness: AppHarness
     ) -> None:
-        """An invalid payload publishes error_type validation with the safe summary.
+        """A rejected payload publishes invalid_payload with the safe summary.
 
-        The summary names the field and the pydantic type code but never echoes
-        the rejected input.
+        The summary names the parameter and the pydantic type code but neither
+        the field name nor the rejected input (cosalette 0.12, ADR-091).
         """
         # Act
         command = (DISPLAY_SET, {"brightness_percent": 999})
         error = await _first_error(harness, [command])
 
         # Assert
-        assert error["error_type"] == "validation"
+        assert error["error_type"] == "invalid_payload"
         message = str(error["message"])
-        assert "brightness_percent: type=less_than_equal" in message
+        assert "[field]: type=less_than_equal" in message
+        assert "brightness_percent" not in message
         assert "999" not in message
 
     async def test_other_errors_publish_the_class_name_only(
