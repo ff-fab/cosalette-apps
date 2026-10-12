@@ -249,6 +249,11 @@ device handlers, so telemetry failure-streak reminders and `details.count` /
 `timestamp` is ISO 8601, `id` matches the local log correlation id, and `details`
 is an object. Device-handler errors normally have empty `details`.
 
+A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
+message `TimeoutError`; before cosalette 0.12 the message was empty or the
+library text. `VELUX2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: velux2mqtt does not opt
+in to verbose error messages.
+
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to
     `velux2mqtt/{cover}/error` (e.g., `velux2mqtt/blind/error`). These have the same
