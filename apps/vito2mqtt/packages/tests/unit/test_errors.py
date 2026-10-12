@@ -24,6 +24,7 @@ Test Techniques Used:
 
 from __future__ import annotations
 
+import cosalette
 import pytest
 
 from vito2mqtt.errors import (
@@ -176,3 +177,17 @@ class TestErrorTypeMap:
         """
         values = list(error_type_map.values())
         assert len(values) == len(set(values))
+
+
+@pytest.mark.unit
+def test_app_discloses_domain_and_framework_error_messages() -> None:
+    """Mapped domain errors keep publishing their sanitised messages.
+
+    Technique: Specification-based — since cosalette 0.12 error_type_map only
+    assigns labels; disclosure is the explicit set (ADR-091).
+    """
+    from vito2mqtt.main import app
+
+    assert app.disclose_messages_for == (
+        cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
+    )
