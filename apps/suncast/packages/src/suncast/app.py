@@ -99,6 +99,8 @@ app = cosalette.App(
     version=__version__,
     description="Sun position and shadow visualization service",
     settings_class=SuncastSettings,
+    # Operator opt-in SUNCAST_MQTT__ERROR_PUBLISH_VERBOSE; off by default.
+    allow_error_publish_verbose=True,
     lifespan=_lifespan,
     # Single fixed telemetry entity — no config-removable entities for ADR-048
     # cleanup to manage. cosalette >=0.5.2 auto-suppresses the ephemeral-store
