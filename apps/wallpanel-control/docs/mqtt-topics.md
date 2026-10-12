@@ -210,7 +210,9 @@ command parameter and the pydantic type code of each failure. Field names render
 }
 ```
 
-Every other failure publishes `error_type: "error"` and only the exception class name:
+A handler that exceeds its watchdog publishes `error_type: "timeout"` with the
+message `TimeoutError` (unless `WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE` is
+`true`). Every other failure publishes `error_type: "error"` and only the exception class name:
 
 ```json
 {
