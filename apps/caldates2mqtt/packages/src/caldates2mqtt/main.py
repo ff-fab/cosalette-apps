@@ -131,6 +131,8 @@ app = cosalette.App(
     },
     error_type_map=error_type_map,
     disclose_messages_for=disclose_messages_for,
+    # Operator opt-in CALDATES2MQTT_MQTT__ERROR_PUBLISH_VERBOSE; off by default.
+    allow_error_publish_verbose=True,
     # No exit_after_stale or restart_on_stale: the reader keeps no connection,
     # so a restart cannot heal a stale calendar (a server or credential fault),
     # and one stale calendar would restart them all. No redact=: caldav strips

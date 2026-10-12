@@ -201,8 +201,8 @@ Domain error identifiers are `caldav_error`, `caldav_auth`,
 Unmapped exceptions use `error_type: "error"` and disclose only the exception
 class name by default.
 
-`CALDATES2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: caldates2mqtt does
-not opt in to verbose error messages (cosalette 0.12).
+Set `CALDATES2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish the full exception
+text instead, which can name hosts, devices or paths; it is off by default.
 
 !!! info "Per-device error topics"
     In addition to the global error topic, cosalette publishes device-specific errors to
