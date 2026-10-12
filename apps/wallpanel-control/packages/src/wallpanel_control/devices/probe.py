@@ -134,15 +134,18 @@ class PanelProbe:
 
     async def _finish(self, ack: SystemActionState, observed: Observed) -> None:
         self._pending = None
-        await self._publish(ACTION_TOPIC, ack.model_copy(update={"observed": observed}))
-        self._action_revision = self._answers.revision(ACTION_TOPIC)
+        self._action_revision = await self._publish(
+            ACTION_TOPIC, ack.model_copy(update={"observed": observed})
+        )
 
-    async def _publish(self, topic: str, state: BaseModel) -> None:
+    async def _publish(self, topic: str, state: BaseModel) -> int:
         # ctx.publish skips state_model validation; the payload is a model already.
         self._answers.record(topic, state)
+        revision = self._answers.revision(topic)
         await self._ctx.publish(
             topic, json.dumps(state.model_dump(mode="json")), retain=True
         )
+        return revision
 
 
 router = cosalette.Router()
