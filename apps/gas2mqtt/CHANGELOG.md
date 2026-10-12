@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.2.11...gas2mqtt-v0.3.0) (2026-10-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* error topic payloads follow cosalette 0.12.0 (ADR-091). A timed-out handler (`error_type` `timeout`) now publishes the message `TimeoutError` instead of an empty or library-provided message, and `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE` is ignored unless the app opts in (only wiz2mqtt and wallpanel-control do). Check this release's app-specific notes for further operator actions.
+
+### Features
+
+* allow verbose error opt-in fleet-wide and settle cosalette 0.12.0 error disclosure (cap-mzz4) ([#402](https://github.com/ff-fab/cosalette-apps/issues/402)) ([1af9f8b](https://github.com/ff-fab/cosalette-apps/commit/1af9f8b7998810a84f5c5398f986891e852eba4e))
+
+
+### Bug Fixes
+
+* upgrade to cosalette 0.12.0 ([e544dfc](https://github.com/ff-fab/cosalette-apps/commit/e544dfc0b30891432a623b0cbfcc39ccf380100d))
+
 ## [0.2.11](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.2.10...gas2mqtt-v0.2.11) (2026-10-10)
 
 
