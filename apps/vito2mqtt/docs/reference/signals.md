@@ -90,8 +90,8 @@ the exception class name as `message`.
 
 A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
 message `TimeoutError`; before cosalette 0.12 the message was empty or the
-library text. `VITO2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: vito2mqtt does not opt
-in to verbose error messages.
+library text. Set `VITO2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish the full exception
+text instead, which can name hosts, devices or paths; it is off by default.
 
 ---
 
