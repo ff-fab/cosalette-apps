@@ -32,6 +32,8 @@ Nested settings use `__` as delimiter (e.g. `JEELINK2MQTT_MQTT__HOST`).
 | `mqtt.password` | `JEELINK2MQTT_MQTT__PASSWORD` | `str` | `""` | MQTT password |
 | `mqtt.protocol_version` | `JEELINK2MQTT_MQTT__PROTOCOL_VERSION` | `str` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
 | `mqtt.message_expiry_interval` | `JEELINK2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `int` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
+| `mqtt.error_publish_verbose` | `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | `bool` | `false` | Set `true` to publish the full exception text on the error topic instead of the class name or sanitised message. The text can name hosts, devices or paths |
+| `logging.levels` | `JEELINK2MQTT_LOGGING__LEVELS` | `dict` | `{}` | Per-logger levels as JSON, e.g. `{"asyncio":"WARNING"}` |
 
 ### MQTT 5 retained-message expiry
 
@@ -298,13 +300,20 @@ published to `jeelink2mqtt/mapping/state`.
 
 ### Error Responses
 
+A command that parses but cannot be applied publishes its reason on
+`jeelink2mqtt/mapping/state`:
+
 ```json
-{"error": "Invalid JSON payload"}
-{"error": "Unknown command: foo"}
 {"error": "assign requires 'sensor_name' and 'sensor_id'"}
-{"error": "Sensor ID 42 is already mapped to 'outdoor', cannot assign to 'office'"}
+{"error": "sensor_id must be an integer"}
+{"error": "sensor ID already assigned"}
 {"error": "Unknown sensor name 'foo' — must be one of the configured sensors"}
+{"error": "reset requires 'sensor_name'"}
 ```
+
+A payload that is not a JSON object, lacks `command` or names an unknown command never
+reaches a handler. cosalette rejects it on `jeelink2mqtt/mapping/error` instead;
+see [Error Types](#error-types).
 
 ---
 
@@ -339,10 +348,23 @@ error reporting:
 | `StalenessTimeoutError` | `staleness_timeout` | Sensor hasn't sent readings within the staleness window |
 | `UnknownSensorError` | `unknown_sensor` | Reading from an unrecognised/unmapped sensor ID |
 
+cosalette rejects malformed `jeelink2mqtt/mapping/set` payloads before dispatch
+and publishes them on `jeelink2mqtt/mapping/error` and `jeelink2mqtt/error`:
+
+| MQTT Error Type | Description |
+|----------------|-------------|
+| `invalid_json` | The payload is not valid JSON, or not a JSON object |
+| `missing_sub_key` | The JSON object has no `command` field |
+| `unknown_sub_command` | `command` names no known command. The message carries a fingerprint (`fp=`), never the submitted value |
+
+The messages of these framework errors and of the domain errors above are
+published as they are. Any other exception publishes `error_type` `"error"` with
+only the exception class name as `message`.
+
 A handler that exceeds its watchdog publishes `error_type` `"timeout"` with the
 message `TimeoutError`; before cosalette 0.12 the message was empty or the
-library text. `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` has no effect: jeelink2mqtt does not opt
-in to verbose error messages.
+library text. Set `JEELINK2MQTT_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish the full exception
+text instead, which can name hosts, devices or paths; it is off by default.
 
 ---
 

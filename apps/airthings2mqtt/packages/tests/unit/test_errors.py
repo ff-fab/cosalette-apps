@@ -110,3 +110,15 @@ def test_app_discloses_domain_and_framework_error_messages() -> None:
     assert app.disclose_messages_for == (
         cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)
     )
+
+
+@pytest.mark.unit
+def test_app_allows_verbose_error_publishing() -> None:
+    """The AIRTHINGS2MQTT_MQTT__ERROR_PUBLISH_VERBOSE opt-in is usable.
+
+    Technique: Specification-based — since cosalette 0.12 the env var is
+    ignored unless the app allows it; the setting itself stays off by default.
+    """
+    from airthings2mqtt.main import app
+
+    assert app.allow_error_publish_verbose is True

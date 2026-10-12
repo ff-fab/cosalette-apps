@@ -46,7 +46,10 @@ def _make_ssh_wallpanel(settings: WallpanelControlSettings) -> SshWallpanel:
 # cosalette labels a rejected payload error_type "invalid_payload" itself. Its
 # message is disclosed: cosalette sanitises it to the parameter name, location
 # placeholders and pydantic type codes, never the input (ADR-091). Every other
-# app error publishes its class name only.
+# app error publishes its class name only. The builtin TimeoutError stays out on
+# purpose: a watchdog timeout publishes error_type "timeout" with the message
+# "TimeoutError", because asyncssh and asyncio raise it too, with text that can
+# name the SSH host.
 DISCLOSE_MESSAGES_FOR = cosalette.FRAMEWORK_DISCLOSED_ERRORS
 
 app = cosalette.App(

@@ -289,10 +289,10 @@ read into a message, the key carries no passphrase, and the MQTT password is a
 `SecretStr`. Logs and exception text can carry the SSH host, port and user, the
 backlight path and the wake-on-LAN MAC address. These are LAN configuration, not
 credentials, and they are what you need to debug a connection. The broker-visible
-error payload carries only the exception class name, or for a rejected payload the
-command parameter and the pydantic type codes of the failures, unless you set
-`WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true`, which publishes the full
-exception text, including the SSH host and user.
+error payload uses the exception class name by default. Rejected payloads include the
+command parameter and pydantic type codes, and explicitly publishable errors may
+include a sanitised message. Set `WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true`
+to include full exception text for other exceptions, including the SSH host and user.
 
 ---
 

@@ -61,3 +61,15 @@ class TestStalePolicy:
 
         assert app._exit_after_stale == EXIT_AFTER_STALE
         assert app._restart_on_stale is False
+
+
+@pytest.mark.unit
+def test_app_allows_verbose_error_publishing() -> None:
+    """The GAS2MQTT_MQTT__ERROR_PUBLISH_VERBOSE opt-in is usable.
+
+    Technique: Specification-based — since cosalette 0.12 the env var is
+    ignored unless the app allows it; the setting itself stays off by default.
+    """
+    from gas2mqtt.main import app
+
+    assert app.allow_error_publish_verbose is True

@@ -116,6 +116,8 @@ app = cosalette.App(
     version="0.1.0",
     description="$DESC",
     settings_class=${CLASS_NAME}Settings,
+    # Operator opt-in ${ENV_PREFIX}_MQTT__ERROR_PUBLISH_VERBOSE; off by default.
+    allow_error_publish_verbose=True,
 )
 
 

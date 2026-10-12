@@ -82,6 +82,14 @@ class TestCreateApp:
     def test_app_name(self) -> None:
         assert app.name == "suncast"
 
+    def test_app_allows_verbose_error_publishing(self) -> None:
+        """The SUNCAST_MQTT__ERROR_PUBLISH_VERBOSE opt-in is usable.
+
+        Technique: Specification-based — since cosalette 0.12 the env var is
+        ignored unless the app allows it; the setting itself stays off by default.
+        """
+        assert app.allow_error_publish_verbose is True
+
     def test_shadow_telemetry_registered_declaratively(self) -> None:
         registrations = [r for r in app.telemetry_registrations if r.name == "shadow"]
         assert len(registrations) == 1

@@ -27,6 +27,8 @@ app = cosalette.App(
     version=__version__,
     description="Velux cover control via KLF 050 remotes and GPIO",
     settings_class=Velux2MqttSettings,
+    # Operator opt-in VELUX2MQTT_MQTT__ERROR_PUBLISH_VERBOSE; off by default.
+    allow_error_publish_verbose=True,
     restart_after_failures=5,
     max_restarts=3,
     # No exit_after_stale/restart_on_stale: covers are devices, nothing turns

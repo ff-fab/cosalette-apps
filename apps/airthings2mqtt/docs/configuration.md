@@ -30,6 +30,7 @@ you need.
 | Reconnect max      | `AIRTHINGS2MQTT_MQTT__RECONNECT_MAX_INTERVAL`| `300.0`     | Upper bound for reconnect backoff (seconds)            |
 | Protocol version   | `AIRTHINGS2MQTT_MQTT__PROTOCOL_VERSION` | `3.1.1` in code, `5` in compose | `5` enables retained-message expiry and refresh, `3.1.1` disables both; see below |
 | Message expiry     | `AIRTHINGS2MQTT_MQTT__MESSAGE_EXPIRY_INTERVAL` | `86400` | Expiry of retained messages in seconds, at least `3`; valid only with protocol `5` |
+| Verbose errors     | `AIRTHINGS2MQTT_MQTT__ERROR_PUBLISH_VERBOSE` | `false` | For exceptions without an explicitly publishable message, set `true` to publish the full exception text instead of the class name or sanitised message. Text may name hosts, devices or paths |
 
 !!! info "Double-underscore delimiter"
     MQTT settings are **nested** inside the settings model. Environment variables use
@@ -83,6 +84,7 @@ broker by itself.
 | File          | `AIRTHINGS2MQTT_LOGGING__FILE`           | ---     | Optional log file path                  |
 | Max file size | `AIRTHINGS2MQTT_LOGGING__MAX_FILE_SIZE_MB`| `10`   | Max log file size in MB before rotation |
 | Backup count  | `AIRTHINGS2MQTT_LOGGING__BACKUP_COUNT`   | `3`     | Number of rotated log files to keep     |
+| Levels        | `AIRTHINGS2MQTT_LOGGING__LEVELS` | `{}` | Per-logger levels as JSON, e.g. `{"bleak":"WARNING"}` |
 
 !!! tip "Choosing a log format"
     Use `json` (the default) for Docker and container environments --- structured logs

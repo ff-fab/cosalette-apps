@@ -34,6 +34,7 @@ Test Techniques Used
 from __future__ import annotations
 
 import asyncio
+import json
 
 import pytest
 from cosalette.testing import AppHarness
@@ -301,6 +302,10 @@ class TestCommandErrors:
             "Expected an error message after unknown signal; "
             f"published topics: {[t for t, *_ in harness.mqtt.published]}"
         )
+        # InvalidSignalError is disclosed: the sender sees what was rejected.
+        payload = json.loads(harness.messages_for(f"{TOPIC_PREFIX}/error")[-1][0])
+        assert payload["error_type"] == "invalid_signal"
+        assert "nonexistent_signal" in payload["message"]
 
     @pytest.mark.integration
     @pytest.mark.slow
