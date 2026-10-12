@@ -8,10 +8,10 @@ description: 'cosalette framework development guidance for AI agents'
 # (`_package_cli/_ai_init.py::_merge_instruction_content`). Template-owned keys are
 # updated; every other top-level key, `paths:` included, survives verbatim. Two things do
 # not: these comments, and the entire body below. Re-add every downstream body note
-# after a refresh — grep for "Downstream note"; there are three, one under Configuration
-# (MQTT TLS posture), one after "Container liveness" (default probe, ADR-011) and one
-# under "Opting a channel out of discovery". Run `cosalette ai init --check` first to
-# preview the diff.
+# after a refresh — grep for "Downstream note"; there are four, one under Configuration
+# (MQTT TLS posture), one under "Typed Handler Contracts" (error disclosure), one
+# after "Container liveness" (default probe, ADR-011) and one under "Opting a channel
+# out of discovery". Run `cosalette ai init --check` first to preview the diff.
 applyTo: '**/*.py'
 paths:
   - '**/*.py'
@@ -412,6 +412,18 @@ present and no provider resolves, the explicit default is used as the fallback (
 Return normalization: `state_model` → return annotation → dict (as-is); primitive/list → `{"value": ...}`.
 
 Errors: `PayloadValidationError`, `ReturnValidationError` — caught and published to error topic (`error_type` `invalid_payload` and `error` respectively).
+
+> **Downstream note — not from the shipped template; re-add after `ai init`.**
+>
+> **Error message disclosure (cosalette 0.12.0, ADR-091).** `error_type_map` only assigns
+> labels; an exception's message reaches the error topic only if its exact type is in
+> `App(disclose_messages_for=...)`, otherwise the topic carries the class name. The set
+> replaces the framework default, so start from `cosalette.FRAMEWORK_DISCLOSED_ERRORS`.
+> Apps with domain errors define it in `errors.py` next to the map —
+> `cosalette.FRAMEWORK_DISCLOSED_ERRORS | frozenset(error_type_map)` — and only list
+> types whose messages never carry secrets or raw input. `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE`
+> works only with `App(allow_error_publish_verbose=True)`; set it only where the app's
+> docs promise that opt-in (today wiz2mqtt and wallpanel-control).
 
 See `cosalette ai help contracts`.
 
