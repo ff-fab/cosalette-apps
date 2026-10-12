@@ -81,7 +81,8 @@ Turn on and set brightness in one command:
 ### Validation
 
 If the payload fails validation (unknown fields, out-of-range values, wrong types), the
-command is rejected and an error is published to `wallpanel-control/error`.
+command is rejected and an error with `error_type: "validation"` is published to
+`wallpanel-control/error`; see [Errors](#errors).
 
 ### State: `wallpanel-control/display/state`
 
@@ -186,18 +187,33 @@ validation, or adapter-level failure. For non-root commands, cosalette also publ
 same payload to the per-command error topic, such as `wallpanel-control/display/error`
 or `wallpanel-control/system/action/error`.
 
+A rejected payload publishes `error_type: "validation"`. Its `message` names each failed
+field and its pydantic type code, never the rejected value:
+
 ```json
 {
-    "error_type": "error",
-    "message": "WallpanelUnreachableError",
+    "error_type": "validation",
+    "message": "Payload validation failed (parameter 'cmd'): brightness_percent: type=less_than_equal",
     "device": "display",
     "timestamp": "2026-02-14T12:34:56+00:00",
     "details": {}
 }
 ```
 
-The `message` carries only the exception class name. The full exception text, which
-can include the SSH host and user, goes to the app log. Set
+Every other failure publishes `error_type: "error"` and only the exception class name:
+
+```json
+{
+    "error_type": "error",
+    "message": "RuntimeError",
+    "device": "system/action",
+    "timestamp": "2026-02-14T12:34:56+00:00",
+    "details": {}
+}
+```
+
+The payload also carries a correlation `id`. The full exception text, which can include
+the SSH host and user, goes to the app log under that `id`. Set
 `WALLPANEL_CONTROL_MQTT__ERROR_PUBLISH_VERBOSE=true` to publish it on the broker too.
 
 This topic carries transient error notifications. Do not rely on retained state from

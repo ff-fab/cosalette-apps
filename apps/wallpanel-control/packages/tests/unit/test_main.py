@@ -277,6 +277,18 @@ class TestHealthPolicy:
 
         assert app._redactor is None
 
+    def test_only_payload_validation_errors_disclose_their_message(self) -> None:
+        """Rejected payloads publish error_type validation; nothing else is mapped.
+
+        Technique: Specification-based — cosalette sanitises the validation
+        message, so the legacy map coupling (ADR-061) may disclose it, while
+        every other app error keeps the class name only.
+        """
+        from wallpanel_control.main import app
+
+        assert app.error_type_map == {cosalette.PayloadValidationError: "validation"}
+        assert app.disclose_messages_for is None
+
     def test_ssh_adapter_has_no_health_check(self) -> None:
         """A powered-off panel is normal, so SSH reachability is no health signal.
 

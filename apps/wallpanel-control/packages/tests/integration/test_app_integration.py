@@ -603,6 +603,83 @@ class TestSystemAction:
         )
 
 
+# ---------------------------------------------------------------------------
+# TestErrorPayloads
+# ---------------------------------------------------------------------------
+
+
+async def _first_error(
+    harness: AppHarness, commands: list[tuple[str, dict[str, object]]]
+) -> dict[str, object]:
+    """Deliver *commands* and return the first payload on the global error topic."""
+    error_topic = f"{TOPIC_PREFIX}/error"
+    task = asyncio.create_task(harness.run())
+    try:
+        await wait_for_subscriptions(harness)
+        for topic, payload in commands:
+            await harness.inject_command(None, payload, topic=topic)
+        await wait_for_condition(
+            lambda: bool(harness.mqtt.get_messages_for(error_topic)),
+            timeout=2.0,
+            description="error published",
+        )
+    finally:
+        harness.shutdown_event.set()
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+    payload, _, _ = harness.mqtt.get_messages_for(error_topic)[0]
+    return json.loads(payload)
+
+
+@pytest.mark.integration
+class TestErrorPayloads:
+    """Verify what the error topic tells a consumer.
+
+    Technique: Specification-based — docs/mqtt-topics.md > Errors.
+    """
+
+    async def test_rejected_display_payload_publishes_validation_reason(
+        self, harness: AppHarness
+    ) -> None:
+        """An invalid payload publishes error_type validation with the safe summary.
+
+        The summary names the field and the pydantic type code but never echoes
+        the rejected input.
+        """
+        # Act
+        command = (DISPLAY_SET, {"brightness_percent": 999})
+        error = await _first_error(harness, [command])
+
+        # Assert
+        assert error["error_type"] == "validation"
+        message = str(error["message"])
+        assert "brightness_percent: type=less_than_equal" in message
+        assert "999" not in message
+
+    async def test_other_errors_publish_the_class_name_only(
+        self, harness: AppHarness, fake_wallpanel: FakeWallpanel
+    ) -> None:
+        """A runtime failure keeps error_type error and the class name only.
+
+        Arrange: a suspend is pending, so logind refuses a different sleep.
+        """
+        # Arrange
+        fake_wallpanel.sleep_delayed = True
+
+        # Act
+        error = await _first_error(
+            harness,
+            [
+                (SYSTEM_ACTION_SET, {"action": "suspend"}),
+                (SYSTEM_ACTION_SET, {"action": "hibernate"}),
+            ],
+        )
+
+        # Assert
+        assert error["error_type"] == "error"
+        assert error["message"] == "RuntimeError"
+
+
 def _harness(app: cosalette.App) -> AppHarness:
     """Wrap *app* in a fresh harness; two of them model two runs of one deployment."""
     return AppHarness(

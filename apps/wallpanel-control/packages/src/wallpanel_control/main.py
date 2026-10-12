@@ -41,11 +41,21 @@ def _make_ssh_wallpanel(settings: WallpanelControlSettings) -> SshWallpanel:
     return SshWallpanel(settings)
 
 
+# A rejected payload publishes error_type "validation". Under cosalette's legacy
+# coupling (ADR-061) the map entry also publishes the message, which cosalette
+# already sanitises to field locations and pydantic type codes, never the input.
+# disclose_messages_for would fully define disclosure, forcing the framework's own
+# mapped errors to be re-listed. Every other app error keeps the class name only.
+ERROR_TYPE_MAP: dict[type[Exception], str] = {
+    cosalette.PayloadValidationError: "validation",
+}
+
 app = cosalette.App(
     name="wallpanel-control",
     version=__version__,
     description="Wall panel display and system control via SSH",
     settings_class=WallpanelControlSettings,
+    error_type_map=ERROR_TYPE_MAP,
     adapters={
         WallpanelPort: (_make_ssh_wallpanel, FakeWallpanel),
         WolPort: (UdpWol, FakeWol),
