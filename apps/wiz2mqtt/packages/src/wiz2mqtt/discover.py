@@ -14,12 +14,10 @@ from __future__ import annotations
 import asyncio
 import re
 import sys
-from typing import TYPE_CHECKING, Annotated, Protocol
+from collections.abc import Sequence
+from typing import Annotated, Protocol, cast
 
 import typer
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 # pywizlight #200: discover_lights can hang forever waiting on the closed
 # transport's connection_lost, so every call is wrapped in asyncio.timeout().
@@ -34,8 +32,11 @@ _MAC_RE = re.compile(r"^[0-9a-f]{12}$")
 class _DiscoveredBulb(Protocol):
     """The slice of pywizlight's ``wizlight`` this module reads."""
 
-    ip: str
-    mac: str | None
+    @property
+    def ip(self) -> str: ...
+
+    @property
+    def mac(self) -> str | None: ...
 
 
 async def _discover(
@@ -51,7 +52,13 @@ async def _discover(
     )
 
     async with asyncio.timeout(timeout):
-        return await discover_lights(broadcast_space=broadcast, wait_time=wait)
+        # pywizlight declares the device's IP as ``str | Any``; discovery only
+        # returns wizlight instances, whose IP and MAC are the values consumed
+        # below.
+        return cast(
+            Sequence[_DiscoveredBulb],
+            await discover_lights(broadcast_space=broadcast, wait_time=wait),
+        )
 
 
 def _render_toml(bulbs: Sequence[_DiscoveredBulb]) -> str:
@@ -73,7 +80,7 @@ def _render_toml(bulbs: Sequence[_DiscoveredBulb]) -> str:
         lines.append(f'name = "bulb-{index}"')
         lines.append(f'ip = "{bulb.ip}"')
         mac = _normalise_mac(bulb.mac)
-        if mac:
+        if mac is not None:
             lines.append(f'mac = "{mac}"')
     return "\n".join(lines)
 

@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import logging
 import warnings
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 import cosalette
@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[SharedState]:
+async def _lifespan(ctx: cosalette.AppContext) -> AsyncGenerator[SharedState]:
     """Application lifespan — initialise and tear down shared state.
 
     DEPRECATED: This function is retained for backward compatibility with tests.

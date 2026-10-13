@@ -23,7 +23,7 @@ instead of crashing with an opaque ``ImportError``.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger(__name__)
 
@@ -67,10 +67,13 @@ def svg_to_png(svg_content: str, *, width: int = 800, height: int = 800) -> byte
         raise RasterizationError(msg)
 
     try:
-        png_bytes: bytes = cairosvg.svg2png(
-            bytestring=svg_content.encode("utf-8"),
-            output_width=width,
-            output_height=height,
+        png_bytes = cast(
+            bytes,
+            cairosvg.svg2png(
+                bytestring=svg_content.encode("utf-8"),
+                output_width=width,
+                output_height=height,
+            ),
         )
     except Exception as exc:
         msg = f"SVG-to-PNG conversion failed: {exc}"

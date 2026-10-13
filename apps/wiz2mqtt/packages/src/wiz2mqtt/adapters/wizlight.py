@@ -18,7 +18,7 @@ import contextlib
 import ipaddress
 import logging
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from types import TracebackType
 from typing import TYPE_CHECKING, Annotated, Any, Self
 
@@ -610,7 +610,7 @@ class WizBulbAdapter:
 
 
 @contextlib.contextmanager
-def _wrapped_pywizlight_errors(ip: str, action: str) -> Iterator[None]:
+def _wrapped_pywizlight_errors(ip: str, action: str) -> Generator[None]:
     """Re-raise pywizlight's exceptions as the adapter's own at the boundary.
 
     *action* completes the sentence "... bulb {ip}", e.g. ``"sending command to"``.
@@ -648,7 +648,7 @@ def _capabilities_from_bulb_type(bulb_type: BulbType) -> BulbCapabilities:
 
 
 def _parse_state(parsers: list[PilotParser | None] | None) -> BulbState | None:
-    if not parsers:
+    if parsers is None or len(parsers) == 0:
         return None
     parser = next((p for p in parsers if p is not None), None)
     if parser is None:
@@ -683,10 +683,8 @@ def _hue_saturation_from_parser(
     if is_cct_mode(color_temp_kelvin):
         return None, None
     rgb = parser.get_rgb()
-    if rgb is None:
+    if rgb == (None, None, None):
         return None, None
     r, g, b = rgb
-    if r is None or g is None or b is None:
-        return None, None
     white = max(parser.get_warm_white() or 0, parser.get_cold_white() or 0)
     return rgb_to_hue_saturation(r, g, b, white)

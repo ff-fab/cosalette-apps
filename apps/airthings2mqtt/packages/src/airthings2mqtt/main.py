@@ -11,6 +11,7 @@ import logging
 import weakref
 from dataclasses import replace
 from datetime import timedelta
+from typing import cast
 
 import cosalette
 from cosalette import DeviceStore, SaveOnChange, setting_ref
@@ -98,9 +99,9 @@ def _get_read_lock() -> asyncio.Lock:
     return lock
 
 
-_TRIGGER_MIN_INTERVAL_SECONDS: float = Airthings2MqttSettings.model_fields[
-    "trigger_min_interval"
-].default
+_TRIGGER_MIN_INTERVAL_SECONDS: float = cast(
+    float, Airthings2MqttSettings.model_fields["trigger_min_interval"].default
+)
 """Default spacing between trigger-initiated reads (cosalette ADR-066).
 
 Sourced from the ``trigger_min_interval`` settings field default so the two
@@ -152,7 +153,7 @@ _STORE_KEY = "reset_tracker"
 
 
 @app.telemetry(
-    lambda settings: [settings.device_name],
+    lambda settings: [cast(Airthings2MqttSettings, settings).device_name],
     interval=setting_ref("poll_interval"),
     timeout=setting_ref("poll_timeout"),
     triggerable=True,

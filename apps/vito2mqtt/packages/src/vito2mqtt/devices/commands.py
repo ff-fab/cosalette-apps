@@ -66,7 +66,7 @@ from __future__ import annotations
 import json
 from collections.abc import Awaitable, Callable, Mapping
 from types import MappingProxyType
-from typing import Any
+from typing import Any, cast
 
 from cosalette import EntityNotifier
 
@@ -170,7 +170,10 @@ async def _read_current_values(
     readable_names = [
         n for n in data if COMMANDS[n].access_mode == AccessMode.READ_WRITE
     ]
-    return await port.read_signals(readable_names) if readable_names else {}
+    return cast(
+        dict[str, object],
+        await port.read_signals(readable_names) if readable_names else {},
+    )
 
 
 def _changed_writes(

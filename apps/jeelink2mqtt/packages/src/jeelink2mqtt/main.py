@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from typing import cast
 
 import cosalette
 from cosalette import DeviceStore, StreamablePort
@@ -214,7 +215,7 @@ sleeps that are already free.
 
 
 @app.device(
-    name=lambda s: {sc.name: sc for sc in s.sensors},
+    name=lambda s: {sc.name: sc for sc in cast(Jeelink2MqttSettings, s).sensors},
     # sensor_entity_tick owns stale-frame availability and recovery transitions.
     unavailable_on=None,
     summary=(
@@ -320,7 +321,7 @@ async def mapping_assign(
     if "error" not in result:
         _persist_registry(store, state)
 
-    return result
+    return cast(dict[str, object], result)
 
 
 @app.command(
@@ -357,7 +358,7 @@ async def mapping_reset(
     if "error" not in result:
         _persist_registry(store, state)
 
-    return result
+    return cast(dict[str, object], result)
 
 
 @app.command(
@@ -391,7 +392,7 @@ async def mapping_reset_all(
 
     _persist_registry(store, state)
 
-    return result
+    return cast(dict[str, object], result)
 
 
 @app.command(
@@ -419,7 +420,7 @@ async def mapping_list_unknown(
 
     Note: Does not persist anything to the store.
     """
-    return _commands.handle_list_unknown(state)
+    return cast(dict[str, object], _commands.handle_list_unknown(state))
 
 
 def main() -> None:

@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 
 from jeelink2mqtt.errors import MappingConflictError
 from jeelink2mqtt.state import SharedState
@@ -72,7 +72,7 @@ def parse_command_payload(payload: str) -> dict[str, object]:
         )
         raise MappingCommandPayloadError("JSON payload must be an object")
 
-    return data
+    return cast(dict[str, object], data)
 
 
 # ---------------------------------------------------------------------------
