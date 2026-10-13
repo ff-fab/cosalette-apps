@@ -227,7 +227,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.12.0,<0.13",
+    "cosalette>=0.12.1,<0.13",
 ]
 
 [project.scripts]
@@ -236,7 +236,7 @@ $NAME = "$PKG_NAME.main:main"
 [dependency-groups]
 # The schema:* tasks run cosalette schema, which needs the extra; the app
 # itself does not (ADR-004).
-dev = ["cosalette[schema]>=0.12.0,<0.13"]
+dev = ["cosalette[schema]>=0.12.1,<0.13"]
 
 [build-system]
 requires = ["hatchling"]
