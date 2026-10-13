@@ -86,6 +86,22 @@ class TestSvgToPngWithCairosvg:
         assert call_kwargs["output_width"] == 1024
         assert call_kwargs["output_height"] == 768
 
+    @pytest.mark.parametrize("color", [None, "#000000"])
+    def test_passes_background_color(
+        self, mock_cairosvg: MagicMock, color: str | None
+    ) -> None:
+        """svg_to_png forwards the background color (default: transparent).
+
+        Technique: Specification-based — parameter forwarding.
+        """
+        with (
+            patch("suncast.rasterize._cairosvg_available", True),
+            patch("suncast.rasterize.cairosvg", mock_cairosvg),
+        ):
+            svg_to_png(MINIMAL_SVG, background_color=color)
+
+        assert mock_cairosvg.svg2png.call_args[1]["background_color"] == color
+
     def test_uses_default_dimensions(self, mock_cairosvg: MagicMock) -> None:
         """svg_to_png uses 800x800 when no dimensions are specified.
 

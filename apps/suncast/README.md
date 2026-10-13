@@ -89,6 +89,7 @@ The SVG is written to the shared volume and served by nginx at
 - Sundial ring with hour markers (circle or bar style)
 - Illuminated-edge highlight on the sun-facing side
 - Highlighted regions (e.g., garden, terrace) with custom colors
+- Optional light/dark background and adjustable margin for embedding the raw SVG
 - Optional PNG output via CairoSVG
 - Optional built-in HTTP server for direct SVG serving
 - Automatic MQTT health reporting (heartbeats, LWT, availability)

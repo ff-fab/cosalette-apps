@@ -724,3 +724,106 @@ class TestShadowRenderer:
         # No circle markers
         assert root.findall(".//svg:circle[@class='sunrise-marker']", ns) == []
         assert root.findall(".//svg:circle[@class='sunset-marker']", ns) == []
+
+
+@pytest.mark.unit
+class TestCanvasOptions:
+    """Background color and viewBox margin settings."""
+
+    def test_defaults_keep_legacy_canvas(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """Default settings keep the 20-unit margin and emit no background.
+
+        Technique: Specification-based — backwards-compatible defaults.
+        """
+        svg = renderer.render(daylight_sun, [], geometry)
+
+        assert svg.startswith(
+            '<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 140 140">\n<defs>'
+        )
+        assert "<style>" not in svg
+
+    @pytest.mark.parametrize(
+        ("margin", "view_box"),
+        [(13, "-13 -13 126 126"), (6.5, "-6.5 -6.5 113 113"), (0, "0 0 100 100")],
+    )
+    def test_margin_sets_view_box(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+        margin: float,
+        view_box: str,
+    ) -> None:
+        """The margin pads the canvas on every side of the viewBox.
+
+        Technique: Boundary Value Analysis — zero, integer and fractional margins.
+        """
+        svg = renderer.render(daylight_sun, [], geometry, RenderSettings(margin=margin))
+
+        assert ET.fromstring(svg).get("viewBox") == view_box
+
+    def test_background_color_is_root_css_rule(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """A background color emits one root rule as the first child.
+
+        Technique: Specification-based — background layer placement.
+        """
+        settings = RenderSettings(background_color="#000000")
+
+        root = ET.fromstring(renderer.render(daylight_sun, [], geometry, settings))
+
+        first = root[0]
+        assert first.tag == "{http://www.w3.org/2000/svg}style"
+        assert first.text == "svg{background-color:#000000}"
+        assert len(root.findall("{http://www.w3.org/2000/svg}style")) == 1
+
+    def test_dark_background_follows_color_scheme(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """The dark color applies under prefers-color-scheme: dark only.
+
+        Technique: Specification-based — the light rule stays the fallback for
+        renderers without media query support.
+        """
+        settings = RenderSettings(
+            background_color="#ffffff", background_color_dark="#000000"
+        )
+
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        assert (
+            "<style>svg{background-color:#ffffff}"
+            "@media (prefers-color-scheme:dark){svg{background-color:#000000}}"
+            "</style>"
+        ) in svg
+
+    def test_dark_background_alone(
+        self,
+        renderer: ShadowRenderer,
+        daylight_sun: SunPosition,
+        geometry: GeometryConfig,
+    ) -> None:
+        """A dark-only background stays transparent in light mode.
+
+        Technique: Condition Coverage — dark color set, light color unset.
+        """
+        settings = RenderSettings(background_color_dark="#111")
+
+        svg = renderer.render(daylight_sun, [], geometry, settings)
+
+        assert (
+            "<style>@media (prefers-color-scheme:dark)"
+            "{svg{background-color:#111}}</style>"
+        ) in svg

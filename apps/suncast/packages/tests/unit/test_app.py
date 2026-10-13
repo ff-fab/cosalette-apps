@@ -32,6 +32,7 @@ from suncast.app import (
     PipelineState,
     _build_pipeline,
     _lifespan,
+    _png_background,
     _poll_interval,
     _shadow_handler,
     app,
@@ -133,6 +134,9 @@ class TestBuildPipeline:
             stroke_width=3.0,
             sundial_mode="compact",
             marker_style="bar",
+            background_color="#eeeeee",
+            background_color_dark="#111111",
+            margin=13,
         )
         with patch("suncast.app.load_geometry", return_value=_TEST_GEOMETRY):
             state = _build_pipeline(settings)
@@ -144,6 +148,19 @@ class TestBuildPipeline:
         assert state.render_settings.stroke_width == 3.0
         assert state.render_settings.sundial_mode == "compact"
         assert state.render_settings.marker_style == "bar"
+        assert state.render_settings.background_color == "#eeeeee"
+        assert state.render_settings.background_color_dark == "#111111"
+        assert state.render_settings.margin == 13
+
+
+@pytest.mark.unit
+class TestPngBackground:
+    """PNG output gets the light background; ``none`` stays transparent."""
+
+    @pytest.mark.parametrize(("color", "expected"), [("none", None), ("#000", "#000")])
+    def test_maps_setting(self, color: str, expected: str | None) -> None:
+        settings = _make_settings(background_color=color, background_color_dark="#fff")
+        assert _png_background(settings) == expected
 
 
 @pytest.mark.unit

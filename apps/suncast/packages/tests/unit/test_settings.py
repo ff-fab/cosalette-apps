@@ -187,6 +187,31 @@ class TestValidation:
         s = _make_settings(primary_color=color)
         assert s.primary_color == color
 
+    @pytest.mark.parametrize("field", ["background_color", "background_color_dark"])
+    @pytest.mark.parametrize("color", ["none", "#000", "#1a2B3c"])
+    def test_background_accepts_hex_or_none(self, field: str, color: str) -> None:
+        assert getattr(_make_settings(**{field: color}), field) == color
+
+    @pytest.mark.parametrize("field", ["background_color", "background_color_dark"])
+    @pytest.mark.parametrize("color", ["", "None", "black", "#12345", "none;}"])
+    def test_background_rejects_other_values(self, field: str, color: str) -> None:
+        """Only hex or ``none`` may reach the SVG ``<style>`` element.
+
+        Technique: Error Guessing — CSS injection and near-miss keywords.
+        """
+        with pytest.raises(ValidationError, match=field):
+            _make_settings(**{field: color})
+
+    def test_canvas_defaults(self) -> None:
+        s = _make_settings()
+        assert s.background_color == "none"
+        assert s.background_color_dark == "none"
+        assert s.margin == 20
+
+    def test_margin_rejects_negative(self) -> None:
+        with pytest.raises(ValidationError, match="margin"):
+            _make_settings(margin=-1)
+
 
 @pytest.mark.unit
 class TestFrozenOverride:

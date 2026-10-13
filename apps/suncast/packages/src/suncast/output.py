@@ -56,6 +56,9 @@ class OutputSettings:
     png_height: int = 800
     """PNG image height in pixels."""
 
+    png_background_color: str | None = None
+    """PNG background fill; ``None`` keeps it transparent."""
+
     mqtt_svg_channel: str = "svg"
     """MQTT channel name for SVG payload."""
 
@@ -118,7 +121,11 @@ class OutputManager:
         if s.png_enabled:
             try:
                 png_bytes = await asyncio.to_thread(
-                    svg_to_png, svg_content, width=s.png_width, height=s.png_height
+                    svg_to_png,
+                    svg_content,
+                    width=s.png_width,
+                    height=s.png_height,
+                    background_color=s.png_background_color,
                 )
             except RasterizationError as exc:
                 result.errors.append(str(exc))
