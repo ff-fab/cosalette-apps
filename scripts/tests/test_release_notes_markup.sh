@@ -22,11 +22,17 @@ expect() {
 
 expect "clean header passes" 0 "fix: upgrade to cosalette 0.12.0"
 expect "tag in header fails" 1 "feat(wiz2mqtt): validate <bulb>/set payloads"
+expect "tag-like text with attributes in header fails" 1 "docs: document <device name> values"
+expect "tag-like text with trailing whitespace in header fails" 1 "docs: document <PREFIX > values"
 expect "tag in squash-body header fails" 1 $'fix: x\n\n* fix(gas2mqtt): use <PREFIX> name'
 expect "tag in breaking note fails" 1 \
     $'fix!: x\n\nBREAKING CHANGE: `<PREFIX>_MQTT__ERROR_PUBLISH_VERBOSE` is ignored'
 expect "tag on breaking continuation line fails" 1 \
     $'fix!: x\n\nBREAKING CHANGE: the setting\n`<PREFIX>_MQTT__TLS` moved'
+expect "co-author trailer ends breaking note" 0 \
+    $'fix!: x\n\nBREAKING CHANGE: changes behavior\nCo-Authored-By: Claude <noreply@anthropic.com>'
+expect "signed-off trailer ends breaking note" 0 \
+    $'fix!: x\n\nBREAKING CHANGE: changes behavior\nSigned-off-by: Example <dev@example.com>'
 expect "tag in ordinary body passes" 0 $'fix: x\n\nThe <PREFIX> placeholder is documented.'
 expect "co-author trailer passes" 0 \
     $'fix: x\n\nCo-Authored-By: Claude <noreply@anthropic.com>'

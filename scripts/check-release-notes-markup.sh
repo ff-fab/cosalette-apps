@@ -19,9 +19,10 @@ set -euo pipefail
 
 awk '
     /^[[:space:]]*$/ { in_note = 0; next }
+    in_note && /^[[:alnum:]][[:alnum:]-]*: / { in_note = 0 }
     /^(\* )?BREAKING[ -]CHANGE:/ { in_note = 1 }
     in_note || /^(\* )?[a-z]+(\([^)]*\))?!?: / {
-        if (match($0, /<\/?[A-Za-z][^<>[:space:]]*>/)) {
+        if (match($0, /<\/?[A-Za-z][^<>]*>/)) {
             printf "line %d: %s\n", NR, $0
             bad = 1
         }
