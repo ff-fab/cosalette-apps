@@ -36,7 +36,7 @@ def build_state_payload(state: BulbState, powered: Belief | None) -> dict[str, o
     present, rendered as ``true``/``false``/``null`` — ``None`` (no power
     source) and ``"unknown"`` both map to the wire ``null``.
     """
-    payload: dict[str, object] = {"state": "ON" if state.state else "OFF"}
+    payload: dict[str, object] = {"state": "ON" if state.state is True else "OFF"}
     payload.update(_color_fields(state))
     payload.update(_optional_fields(state))
     payload["powered"] = _powered_wire_value(powered)

@@ -65,6 +65,12 @@ LEGIONELLA_SETPOINT_SIGNAL = "hot_water_setpoint"
 _STORE_KEY_ORIGINAL_SETPOINT = "original_setpoint"
 _STORE_KEY_ACTIVE = "active"
 
+
+def _is_shutdown(ctx: DeviceContext) -> bool:
+    """Read shutdown state afresh across async generator reaction boundaries."""
+    return ctx.shutdown_requested
+
+
 # ---------------------------------------------------------------------------
 # Heating window check
 # ---------------------------------------------------------------------------
@@ -268,7 +274,7 @@ async def _wait_for_legionella_action(
     """Wait for an allowed action without extending the original timeout budget."""
     deadline = ctx.clock.now() + timeout
 
-    while not ctx.shutdown_requested:
+    while not _is_shutdown(ctx):
         remaining = deadline - ctx.clock.now()
         if remaining <= 0:
             return None
@@ -301,7 +307,7 @@ async def _heating_countdown(
     via ctx.commands().  Uses 60-second timeout so that cancel commands
     are acted on immediately rather than waiting for the next minute tick.
     """
-    while remaining_minutes > 0 and not ctx.shutdown_requested:
+    while remaining_minutes > 0 and not _is_shutdown(ctx):
         action = await _wait_for_legionella_action(
             ctx,
             timeout=60.0,
@@ -315,7 +321,7 @@ async def _heating_countdown(
             break
 
         remaining_minutes -= 1
-        if remaining_minutes > 0 and not ctx.shutdown_requested:
+        if remaining_minutes > 0 and not _is_shutdown(ctx):
             await ctx.publish_state(
                 {
                     "status": "heating",
@@ -349,7 +355,7 @@ async def _restore_setpoint(
     next startup.  The shutdown path does not yield (no meaningful
     intermediate state to expose).
     """
-    if not ctx.shutdown_requested:
+    if not _is_shutdown(ctx):
         await ctx.publish_state(
             {
                 "status": "restoring",
@@ -360,7 +366,7 @@ async def _restore_setpoint(
         # Re-check after yield: shutdown may be requested while the framework
         # is between reaction steps.  Use the bounded write to avoid hanging
         # teardown at the elevated temperature.
-        if ctx.shutdown_requested:
+        if _is_shutdown(ctx):
             try:
                 await asyncio.wait_for(
                     port.write_signal(LEGIONELLA_SETPOINT_SIGNAL, original_setpoint),

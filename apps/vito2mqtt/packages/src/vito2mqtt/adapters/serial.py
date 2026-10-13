@@ -36,7 +36,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncGenerator, Mapping, Sequence
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -318,7 +318,7 @@ class OptolinkAdapter:
     # -- private helpers ----------------------------------------------------
 
     @asynccontextmanager
-    async def _open_session(self) -> AsyncIterator[P300Session]:
+    async def _open_session(self) -> AsyncGenerator[P300Session]:
         """Open a serial connection and yield a P300 session.
 
         Uses ``serial_asyncio`` (lazy-imported) to open the serial port,

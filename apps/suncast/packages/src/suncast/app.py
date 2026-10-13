@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime
@@ -73,7 +73,7 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
 
 
 @asynccontextmanager
-async def _lifespan(ctx: cosalette.AppContext) -> AsyncIterator[None]:
+async def _lifespan(ctx: cosalette.AppContext) -> AsyncGenerator[None]:
     """Application lifespan — starts HTTP server if enabled."""
     settings = cast(SuncastSettings, ctx.settings)
     http_settings = HttpSettings(

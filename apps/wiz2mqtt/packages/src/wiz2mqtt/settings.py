@@ -309,7 +309,7 @@ def _index_sources_by_name(
 
 def _is_compatible_no_power_source(source: dict[str, Any], bulb_name: object) -> bool:
     """Whether *source* already is the single-bulb ``no_power`` mapping."""
-    return (
+    return bool(
         source.get("members") == [bulb_name]
         and source.get("group") is None
         and source.get("when_unreachable", "fault") == "no_power"
@@ -405,7 +405,7 @@ def _check_source_names(
 
     if source.signal_topic is None:
         return
-    if previous_source := signal_topics.get(source.signal_topic):
+    if (previous_source := signal_topics.get(source.signal_topic)) is not None:
         raise ValueError(
             f"Power sources {previous_source!r} and {source.name!r} "
             "share signal_topic "

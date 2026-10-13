@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Annotated
+from typing import Annotated, cast
 
 import cosalette
 from cosalette.schema import consumer, ha_entities, ha_entity
@@ -151,9 +151,9 @@ def _calendar_map(s: cosalette.Settings) -> dict[str, CalendarConfig]:
     return {cal.key: cal for cal in s.calendars}
 
 
-_TRIGGER_MIN_INTERVAL_SECONDS: float = CalDates2MqttSettings.model_fields[
-    "trigger_min_interval"
-].default
+_TRIGGER_MIN_INTERVAL_SECONDS: float = cast(
+    float, CalDates2MqttSettings.model_fields["trigger_min_interval"].default
+)
 """Default spacing between trigger-initiated fetches (cosalette ADR-066).
 
 Sourced from the ``trigger_min_interval`` settings field default so the two

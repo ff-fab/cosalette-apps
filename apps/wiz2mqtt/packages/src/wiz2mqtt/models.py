@@ -307,13 +307,13 @@ def _openhab_field(
     value. Command metadata leaves it unset: the generator copies every
     parameter onto the command channel too.
     """
-    if nullable:
+    if nullable is not None:
         params |= {
             "transformationPattern": _openhab_null_filter(nullable),
             "nullValue": "NULL",
         }
     meta: ConsumerMeta = {"display_name": label}
-    if unit:
+    if unit is not None:
         meta["unit"] = unit
     if read_only:
         meta["read_only"] = True

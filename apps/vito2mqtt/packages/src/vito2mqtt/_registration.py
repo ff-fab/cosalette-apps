@@ -22,6 +22,8 @@ place prevents production/test drift when signal groups or devices change.
 
 from __future__ import annotations
 
+from typing import cast
+
 from cosalette import App, OnChange, setting_ref
 
 from vito2mqtt.config import Vito2MqttSettings
@@ -61,9 +63,9 @@ the ``asyncio.shield`` in ``OptolinkAdapter.write_signals`` so a healthy
 bus still lands every signal after cancellation unwinds.
 """
 
-COMMAND_WAKE_MIN_INTERVAL_SECONDS: float = Vito2MqttSettings.model_fields[
-    "command_wake_min_interval"
-].default
+COMMAND_WAKE_MIN_INTERVAL_SECONDS: float = cast(
+    float, Vito2MqttSettings.model_fields["command_wake_min_interval"].default
+)
 """Default floor on the spacing between two command-triggered telemetry runs.
 
 Sourced from the ``command_wake_min_interval`` settings field default so the two

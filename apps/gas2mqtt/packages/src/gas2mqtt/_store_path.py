@@ -26,12 +26,12 @@ def resolve_store_path() -> Path:
     """
     # 1. Explicit override
     explicit = os.environ.get("GAS2MQTT_STATE_FILE")
-    if explicit:
+    if explicit is not None and explicit != "":
         return Path(explicit)
 
     # 2. XDG_STATE_HOME (with standard fallback)
     xdg_state = os.environ.get("XDG_STATE_HOME")
-    if xdg_state:
+    if xdg_state is not None and xdg_state != "":
         return Path(xdg_state) / _APP_NAME / _STATE_FILENAME
 
     # 3. XDG default: ~/.local/state/<app>/state.json
