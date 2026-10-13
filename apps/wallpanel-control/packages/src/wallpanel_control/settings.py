@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Literal
 
 import cosalette
 from pydantic import Field, field_validator
@@ -20,6 +19,7 @@ from pydantic_settings import SettingsConfigDict
 from wallpanel_control.adapters.wol_adapter import _parse_mac
 
 _DEVICE_RE = re.compile(r"[a-zA-Z0-9._-]+")
+_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
 
 
 class WallpanelLoggingSettings(cosalette.LoggingSettings):
@@ -29,10 +29,18 @@ class WallpanelLoggingSettings(cosalette.LoggingSettings):
     mapping with ``WALLPANEL_CONTROL_LOGGING__LEVELS='{"asyncssh":"INFO"}'``.
     """
 
-    levels: dict[str, Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]] = Field(
+    levels: dict[str, str] = Field(
         default={"asyncssh": "WARNING"},
         description="Per-logger level overrides; asyncssh is quiet by default.",
     )
+
+    @field_validator("levels")
+    @classmethod
+    def validate_levels(cls, value: dict[str, str]) -> dict[str, str]:
+        """Keep the accepted values aligned with cosalette's log levels."""
+        if invalid := set(value.values()) - _LOG_LEVELS:
+            raise ValueError(f"Invalid logging levels: {sorted(invalid)}")
+        return value
 
 
 class WallpanelControlSettings(cosalette.Settings):

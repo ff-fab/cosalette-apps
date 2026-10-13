@@ -22,7 +22,7 @@ import re
 import struct
 from collections.abc import Buffer
 from dataclasses import replace
-from typing import Self
+from typing import Self, TypeGuard
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.device import BLEDevice
@@ -85,6 +85,11 @@ _BLUEZ_ADAPTER_PATH = "/org/bluez/hci0"
 _HEALTH_CHECK_TIMEOUT_SECONDS = 5.0
 
 logger = logging.getLogger(__name__)
+
+
+def _is_single_body(body: object) -> TypeGuard[list[object]]:
+    """Validate an untrusted D-Bus reply body before indexing it."""
+    return isinstance(body, list) and len(body) == 1
 
 
 def _redact_mac(mac: str) -> str:
@@ -242,13 +247,11 @@ class BleakAirthingsReader:
             )
         )
         # An error reply (BlueZ down, no hci0) is unhealthy, but the bus is fine.
-        body = reply.body
-        if (
-            reply.message_type is not MessageType.METHOD_RETURN
-            or not isinstance(body, list)
-            or len(body) != 1
+        if reply.message_type is not MessageType.METHOD_RETURN or not _is_single_body(
+            reply.body
         ):
             return False
+        body = reply.body
         powered = body[0]
         return (
             isinstance(powered, Variant)

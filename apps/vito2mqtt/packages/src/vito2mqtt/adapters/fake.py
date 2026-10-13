@@ -131,7 +131,9 @@ class FakeOptolinkAdapter:
         responses: dict[str, Any] | None = None,
     ) -> None:
         self._language: str = settings.signal_language if settings else "en"
-        self._responses: dict[str, Any] = dict(responses) if responses else {}
+        self._responses: dict[str, Any] = (
+            dict(responses) if responses is not None else {}
+        )
         self.writes: dict[str, Any] = {}
 
     # -- async context manager (protocol compatibility) ---------------------

@@ -64,7 +64,7 @@ def load_cached_capabilities(store: Store, bulb_name: str) -> BulbCapabilities |
     corrupt/legacy record) — callers keep the static superset in that case.
     """
     record = store.load(bulb_name)
-    if not record:
+    if record is None:
         return None
     raw = record.get(_CAPABILITIES_KEY)
     if not isinstance(raw, dict):
@@ -140,7 +140,7 @@ def _bulb_name_from_state_topic(state_topic: str | None) -> str | None:
     The name is always the second-to-last segment, independent of how many
     segments the configurable topic prefix contributes.
     """
-    if not state_topic:
+    if state_topic is None:
         return None
     parts = state_topic.rsplit("/", 2)
     if len(parts) < 3:

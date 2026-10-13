@@ -26,7 +26,7 @@ import logging
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeGuard
 
 import yaml
 
@@ -63,15 +63,15 @@ def _shape_name(element: ET.Element, index: int) -> str:
     Priority: id > inkscape:label > data-name > auto-generated.
     """
     name = element.get("id")
-    if name:
+    if name is not None and len(name) > 0:
         return name
 
     name = element.get(f"{{{_NS_INKSCAPE}}}label")
-    if name:
+    if name is not None and len(name) > 0:
         return name
 
     name = element.get("data-name")
-    if name:
+    if name is not None and len(name) > 0:
         return name
 
     return f"shape_{index}"
@@ -146,7 +146,7 @@ def _parse_path_d(d_attr: str) -> list[tuple[float, float]] | None:
 def _parse_viewbox(svg_root: ET.Element) -> tuple[float, float, float, float] | None:
     """Extract viewBox (min-x, min-y, width, height) or None."""
     vb = svg_root.get("viewBox")
-    if not vb:
+    if vb is None:
         return None
     parts = vb.replace(",", " ").split()
     if len(parts) != 4:
@@ -277,6 +277,13 @@ def _element_vertices(el: ET.Element, name: str) -> list[tuple[float, float]] | 
     return None
 
 
+def _has_usable_vertices(
+    verts: list[tuple[float, float]] | None,
+) -> TypeGuard[list[tuple[float, float]]]:
+    """Whether a shape has enough vertices to form a polygon."""
+    return verts is not None and len(verts) >= 3
+
+
 def load_svg_geometry(
     svg_path: Path,
     sidecar_path: Path | None = None,
@@ -316,7 +323,7 @@ def load_svg_geometry(
     for counter, el in enumerate(_unique_shape_elements(root), start=1):
         name = _shape_name(el, counter)
         verts = _element_vertices(el, name)
-        if not verts or len(verts) < 3:
+        if not _has_usable_vertices(verts):
             continue
         verts = _transform_vertices(verts, viewbox, canvas_size)
 

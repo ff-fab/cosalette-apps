@@ -42,7 +42,7 @@ def _sanitize_url(url: str) -> str:
     netloc = parsed.hostname or ""
     if ":" in netloc:
         netloc = f"[{netloc}]"
-    if parsed.port:
+    if parsed.port is not None:
         netloc += f":{parsed.port}"
     return urlunparse((parsed.scheme, netloc, parsed.path, "", "", ""))
 

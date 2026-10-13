@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncGenerator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from typing import Any
@@ -112,7 +112,7 @@ def _build_app(
 async def create_http_lifespan(
     svg_provider: SvgProvider,
     settings: HttpSettings,
-) -> AsyncIterator[None]:
+) -> AsyncGenerator[None]:
     """Async context manager that runs the HTTP server during its lifespan.
 
     Intended for use as a cosalette ``lifespan`` hook or within an

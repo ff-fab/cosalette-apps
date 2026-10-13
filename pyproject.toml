@@ -37,6 +37,10 @@ members = ["apps/*"]
 # CVE-2026-48817, CVE-2026-54283 et al: starlette <1.3.1
 # CVE-2026-54591: asyncssh <2.23.1
 [tool.uv]
+# Match Renovate's minimum release age during local lock refreshes.
+exclude-newer = "7 days"
+# These minimums cannot be satisfied under the age policy.
+exclude-newer-package = { cosalette = false, pydantic-settings = false }
 constraint-dependencies = [
     "aiohttp>=3.14.3",
     "asyncssh>=2.23.1",
