@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.3.0...caldates2mqtt-v0.3.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* upgrade cosalette to 0.12.1 ([#410](https://github.com/ff-fab/cosalette-apps/issues/410)) ([32be1c6](https://github.com/ff-fab/cosalette-apps/commit/32be1c6ecdddac0837b1a43a7ea5a438c373ff69))
+
 ## [0.3.0](https://github.com/ff-fab/cosalette-apps/compare/caldates2mqtt-v0.2.11...caldates2mqtt-v0.3.0) (2026-10-12)
 
 
