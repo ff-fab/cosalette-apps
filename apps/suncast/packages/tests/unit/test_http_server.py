@@ -333,6 +333,22 @@ class TestHandlerResponses:
             body=fake_png, content_type="image/png"
         )
 
+    async def test_png_uses_background_color(self) -> None:
+        """GET /shadow.png rasterizes with the configured background.
+
+        Technique: Specification-based — settings forwarding.
+        """
+        settings = HttpSettings(png_background_color="#000")
+        mock_web, handlers = _build_with_mock_web(lambda: SAMPLE_SVG, settings)
+
+        with (
+            patch("suncast.http_server.web", mock_web),
+            patch("suncast.http_server.svg_to_png", return_value=b"png") as png,
+        ):
+            await handlers["/shadow.png"](MagicMock())
+
+        assert png.call_args.kwargs["background_color"] == "#000"
+
     async def test_health_returns_ok(self) -> None:
         """GET /health returns 200 with 'ok'.
 

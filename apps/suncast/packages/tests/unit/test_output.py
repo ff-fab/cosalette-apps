@@ -106,6 +106,20 @@ class TestOutputManagerDeliver:
         assert png_file.exists()
         assert png_file.read_bytes() == FAKE_PNG
 
+    async def test_png_uses_background_color(self, tmp_path: Path) -> None:
+        """deliver() rasterizes with the configured PNG background.
+
+        Technique: Specification-based — settings forwarding.
+        """
+        settings = OutputSettings(
+            output_path=tmp_path, png_enabled=True, png_background_color="#000"
+        )
+
+        with patch("suncast.output.svg_to_png", return_value=FAKE_PNG) as png:
+            await OutputManager(settings).deliver(SAMPLE_SVG, SAMPLE_SUN_STATE)
+
+        assert png.call_args.kwargs["background_color"] == "#000"
+
     async def test_no_files_when_output_path_none(self, tmp_path: Path) -> None:
         """deliver() writes no files when output_path is None.
 
