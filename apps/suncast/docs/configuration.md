@@ -131,7 +131,7 @@ default of 20 leaves empty space around the dial. The outermost elements reach:
 
 | `sundial_mode`    | Outermost element                         | Smallest margin | Suggested |
 | ----------------- | ----------------------------------------- | --------------- | --------- |
-| `ring`            | noon/midnight bars, 12 units outside the circle | 12        | 13        |
+| `ring`            | noon/midnight bars, 12 units outside the circle | 13        | 13        |
 | `compact`, `off`  | sun marker and sunrise/sunset markers, 5 units outside | 5  | 6         |
 
 These distances are in canvas units and do not scale with `canvas.size`. In `ring` and
