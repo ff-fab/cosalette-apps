@@ -665,6 +665,22 @@ class TestGetState:
         assert state.hue == pytest.approx(0.0, abs=0.01)
         assert state.saturation == pytest.approx(100.0, abs=0.01)
 
+    @pytest.mark.parametrize(
+        "rgb",
+        [(None, 0.0, 0.0), (255.0, None, 0.0), (255.0, 0.0, None)],
+    )
+    async def test_wizlight_get_state_ignores_incomplete_rgb(
+        self, ctx: _Ctx, rgb: tuple[float | None, float | None, float | None]
+    ) -> None:
+        """Incomplete RGB readbacks do not provide a usable colour."""
+        ctx.fake_bulbs[_IP] = _FakeWizLight(_IP)
+        ctx.fake_bulbs[_IP].update_state_result = [_FakeParser(rgb=rgb)]
+
+        state = await ctx.adapter.get_state(_IP)
+
+        assert state.hue is None
+        assert state.saturation is None
+
     async def test_wizlight_get_state_uses_warm_white_for_pastel_colour(
         self, ctx: _Ctx
     ) -> None:
