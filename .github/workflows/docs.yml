@@ -46,7 +46,8 @@ jobs:
           app_names=()
           for config in apps/*/zensical.toml; do
             [[ -f "$config" ]] || continue
-            app=$(basename "$(dirname "$config")")
+            app=${config#apps/}
+            app=${app%/zensical.toml}
             if [[ ! "$app" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
               echo "::error::Rejected app name failing slug validation"
               exit 1

@@ -22,6 +22,22 @@ _WORKFLOWS = _ROOT / ".github/workflows"
 
 
 @pytest.mark.unit
+def test_docs_preview_never_receives_dockerhub_credentials() -> None:
+    """PR-controlled preview actions cannot receive long-lived registry secrets."""
+    contents = (_WORKFLOWS / "docs-preview.yml").read_text()
+    assert "secrets.DOCKERHUB_" not in contents
+    data = yaml.safe_load(contents)
+    assert any(
+        step.get("uses") == "./.github/actions/devcontainer-run"
+        for step in data["jobs"]["build"]["steps"]
+    )
+    for step in data["jobs"]["build"]["steps"]:
+        inputs = step.get("with", {})
+        assert "dockerhub-username" not in inputs
+        assert "dockerhub-token" not in inputs
+
+
+@pytest.mark.unit
 @pytest.mark.parametrize(
     ("ref", "event", "expected"),
     [
@@ -121,20 +137,27 @@ def test_optional_login_requires_complete_credentials(
         "valid-app",
         "bad name",
         "bad\nname",
+        "valid-app\n",
         "bad'name",
         "$(touch injected)",
         "-option",
     ],
 )
-def test_docs_discovery_rejects_unsafe_app_names(tmp_path: Path, app: str) -> None:
+@pytest.mark.parametrize("workflow", ["docs", "docs-preview"])
+def test_docs_discovery_rejects_unsafe_app_names(
+    tmp_path: Path, app: str, workflow: str
+) -> None:
     """Run the real discovery script against valid and hostile directory names."""
     config = tmp_path / "apps" / app / "zensical.toml"
     config.parent.mkdir(parents=True)
     config.touch()
     output = tmp_path / "output"
-    data = yaml.safe_load((_WORKFLOWS / "docs.yml").read_text())
+    data = yaml.safe_load((_WORKFLOWS / f"{workflow}.yml").read_text())
     discovery = next(
-        step for step in data["jobs"]["detect"]["steps"] if step.get("id") == "discover"
+        step
+        for job in data["jobs"].values()
+        for step in job["steps"]
+        if step.get("id") == "discover"
     )
     result = subprocess.run(  # noqa: S603 — fixed workflow script, isolated workspace
         ["bash", "-e", "-c", discovery["run"]],
@@ -146,7 +169,8 @@ def test_docs_discovery_rejects_unsafe_app_names(tmp_path: Path, app: str) -> No
     )
     if app in {"gas2mqtt", "valid-app"}:
         assert result.returncode == 0
-        assert json.loads(output.read_text().removeprefix("apps=")) == [app]
+        apps = output.read_text().removeprefix("apps=").strip()
+        assert (json.loads(apps) if workflow == "docs" else apps.split()) == [app]
     else:
         assert result.returncode == 1
         assert not output.exists()
@@ -154,10 +178,57 @@ def test_docs_discovery_rejects_unsafe_app_names(tmp_path: Path, app: str) -> No
 
 
 @pytest.mark.unit
-def test_docs_shell_scripts_do_not_interpolate_step_outputs() -> None:
+@pytest.mark.parametrize("workflow", ["docs", "docs-preview"])
+def test_docs_shell_scripts_do_not_interpolate_step_outputs(workflow: str) -> None:
     """Untrusted JSON reaches scripts through environment variables."""
-    data = yaml.safe_load((_WORKFLOWS / "docs.yml").read_text())
+    data = yaml.safe_load((_WORKFLOWS / f"{workflow}.yml").read_text())
     for job in data["jobs"].values():
         for step in job.get("steps", []):
-            assert "${{ steps." not in step.get("run", "")
-            assert "${{ needs." not in step.get("run", "")
+            script = step.get("run", "") + step.get("with", {}).get("run-cmd", "")
+            assert "${{ steps." not in script
+            assert "${{ needs." not in script
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("failing_task", ["docs:build", "first-app:docs:build", ""])
+def test_docs_preview_stops_after_failed_build(
+    tmp_path: Path, failing_task: str
+) -> None:
+    """A failed root or intermediate app build cannot be hidden by later success."""
+    for app in ("first-app", "last-app"):
+        config = tmp_path / "apps" / app / "zensical.toml"
+        config.parent.mkdir(parents=True)
+        config.touch()
+    executable = tmp_path / "task"
+    executable.write_text(
+        '#!/bin/bash\nprintf "%s\\n" "$1" >> "$TASK_LOG"\n'
+        '[[ "$1" != "$FAILING_TASK" ]]\n'
+    )
+    executable.chmod(0o755)
+    log = tmp_path / "task-log"
+    data = yaml.safe_load((_WORKFLOWS / "docs-preview.yml").read_text())
+    build = next(
+        step
+        for step in data["jobs"]["build"]["steps"]
+        if "run-cmd" in step.get("with", {})
+    )
+    result = subprocess.run(  # noqa: S603 — actual workflow script, isolated task stub
+        ["bash", "-c", build["with"]["run-cmd"]],
+        cwd=tmp_path,
+        env={
+            **os.environ,
+            "PATH": f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
+            "TASK_LOG": str(log),
+            "FAILING_TASK": failing_task,
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == (1 if failing_task else 0)
+    expected = ["docs:build"]
+    if failing_task != "docs:build":
+        expected.append("first-app:docs:build")
+    if not failing_task:
+        expected.append("last-app:docs:build")
+    assert log.read_text().splitlines() == expected
