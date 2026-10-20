@@ -48,8 +48,12 @@ runs:
 
     # Bump the vN suffix to force-invalidate when cache format or path layout changes.
     # restore, not actions/cache: the explicit save below owns the write.
+    # Once per job: a job that calls this action several times (ci-app.yml's
+    # check job) keeps .cache/uv in the workspace between calls, so later calls
+    # skip the 5-10 s restore and the redundant save (see the last uv step).
     - name: Restore uv cache
       id: restore-uv
+      if: env.DEVCONTAINER_RUN_UV_CACHE != 'done'
       uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .cache/uv
@@ -96,9 +100,13 @@ runs:
     # .devcontainer/ content and skip the ~60 s image build (cap-wvh8). A PR
     # that changes .devcontainer/ hashes to a tag that does not exist yet, so
     # it still builds its own image from the Dockerfile below. The CI config
-    # (plain JSON, no comments) sets only the image and workspace mount: the
-    # image's devcontainer.metadata label already carries the features,
-    # remoteUser, remoteEnv and lifecycle commands.
+    # (plain JSON, no comments) sets only the image, the workspace mount and
+    # one extra mount: the image's devcontainer.metadata label already carries
+    # the features, remoteUser, remoteEnv and lifecycle commands. The extra
+    # mount puts a no-op over the docker-in-docker entrypoint: no CI step needs
+    # dockerd inside the container, and starting it intermittently hung
+    # `devcontainer up` (cap-1a0u). The fallback build keeps DinD; the job
+    # timeout caps it.
     - name: Select prebuilt devcontainer image
       id: prebuilt
       shell: bash
@@ -168,10 +176,17 @@ runs:
     # on every run adds needless API traffic across the whole matrix.
     - name: Save uv cache
       uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      if: always() && steps.restore-uv.outputs.cache-hit != 'true'
+      if: always() && env.DEVCONTAINER_RUN_UV_CACHE != 'done' && steps.restore-uv.outputs.cache-hit != 'true'
       with:
         path: .cache/uv
         key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
+
+    # The first call's postCreate `uv sync --all-packages` downloads every
+    # wheel, so later calls in the same job have nothing new to restore or save.
+    - name: Mark uv cache handled for this job
+      if: always()
+      shell: bash
+      run: echo "DEVCONTAINER_RUN_UV_CACHE=done" >> "$GITHUB_ENV"
 
     - name: Prune Rust incremental artifacts before cache save
       if: always() && inputs.cargo-cache == 'true'

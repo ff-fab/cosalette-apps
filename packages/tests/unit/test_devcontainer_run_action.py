@@ -4,10 +4,15 @@ Test Techniques Used:
 - Error Guessing: a cache saved before the step that populates it (cap-2m52).
 - Error Guessing: the prebuilt-image lookup drifts from what is published
   (cap-wvh8).
+- Error Guessing: the CI devcontainer starts dockerd again and hangs
+  `devcontainer up` (cap-1a0u).
+- Error Guessing: a failed step in the merged per-app check job silently
+  skips the checks after it (cap-4fbt).
 """
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 import subprocess
@@ -40,6 +45,56 @@ def test_uv_cache_restore_has_no_implicit_post_save() -> None:
     """actions/cache would save a second time in its post step."""
     restore = _steps()[_index("Restore uv cache")]
     assert restore["uses"].startswith("actions/cache/restore@")
+
+
+@pytest.mark.unit
+def test_uv_cache_is_restored_and_saved_once_per_job() -> None:
+    """Later calls in one job reuse the workspace's .cache/uv (cap-4fbt)."""
+    skip = "env.DEVCONTAINER_RUN_UV_CACHE != 'done'"
+    assert _steps()[_index("Restore uv cache")]["if"] == skip
+    assert skip in _steps()[_index("Save uv cache")]["if"]
+    mark = _steps()[_index("Mark uv cache handled for this job")]
+    assert _index("Mark uv cache handled for this job") > _index("Save uv cache")
+    assert mark["if"] == "always()"
+    assert mark["run"].strip() == (
+        'echo "DEVCONTAINER_RUN_UV_CACHE=done" >> "$GITHUB_ENV"'
+    )
+
+
+@pytest.mark.unit
+def test_ci_devcontainer_replaces_the_dind_entrypoint_with_a_noop() -> None:
+    """The prebuilt CI config must not start dockerd (cap-1a0u).
+
+    The target is the docker-in-docker:2 feature's entrypoint; a new major
+    version of the feature may move it, so the pin is asserted too.
+    """
+    ci_dir = _ROOT / ".github/devcontainer-ci"
+    config = json.loads((ci_dir / "devcontainer.json").read_text())
+    assert config["mounts"] == [
+        "source=${localWorkspaceFolder}/.github/devcontainer-ci/docker-init.sh,"
+        "target=/usr/local/share/docker-init.sh,type=bind,readonly"
+    ]
+    shim = ci_dir / "docker-init.sh"
+    assert shim.stat().st_mode & 0o111
+    code = [line for line in shim.read_text().splitlines() if not line.startswith("#")]
+    assert code == ['exec "$@"']
+    features = (_ROOT / ".devcontainer/devcontainer.json").read_text()
+    assert '"ghcr.io/devcontainers/features/docker-in-docker:2"' in features
+
+
+@pytest.mark.unit
+def test_app_check_job_runs_every_step_after_a_failure() -> None:
+    """One failing check must not hide the results of the others (cap-4fbt)."""
+    workflow = yaml.safe_load((_ROOT / ".github/workflows/ci-app.yml").read_text())
+    steps = workflow["jobs"]["check"]["steps"]
+    first = next(
+        i
+        for i, step in enumerate(steps)
+        if step.get("uses") == "./.github/actions/devcontainer-run"
+    )
+    later = steps[first + 1 :]
+    assert later
+    assert all(step.get("if") == "${{ !cancelled() }}" for step in later)
 
 
 @pytest.mark.unit
