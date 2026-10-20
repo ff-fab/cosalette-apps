@@ -28,6 +28,7 @@ jobs:
       || github.actor != 'ff-fab-release-bot[bot]'
       || !startsWith(github.head_ref, 'release-please--')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       apps: ${{ steps.apps.outputs.apps }}
       shared: ${{ steps.filter.outputs.shared }}
@@ -121,6 +122,7 @@ jobs:
     needs: detect
     if: needs.detect.outputs.shared == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read
@@ -163,6 +165,7 @@ jobs:
     needs: detect
     if: needs.detect.result == 'success' && needs.detect.outputs.root_tests == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read
@@ -183,6 +186,7 @@ jobs:
     needs: detect
     if: needs.detect.result == 'success' && (needs.detect.outputs.shared == 'true' || needs.detect.outputs.apps != '[]')
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read
@@ -208,6 +212,7 @@ jobs:
       && (github.actor != 'ff-fab-release-bot[bot]'
           || !startsWith(github.head_ref, 'release-please--'))
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -235,6 +240,7 @@ jobs:
     needs: detect
     if: needs.detect.result == 'success' && needs.detect.outputs.docker_lint == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -281,6 +287,7 @@ jobs:
     needs: [detect, shared, security, app-ci, root-tests, docker-lint, release-notes-markup]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Check upstream results
         env:
