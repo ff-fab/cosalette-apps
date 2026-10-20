@@ -113,6 +113,18 @@
           "jsonpath": "$.package[?(@.name.value=='wiz2mqtt')].version"
         }
       ]
+    },
+    "apps/geiger2mqtt": {
+      "component": "geiger2mqtt",
+      "release-type": "python",
+      "extra-files": [
+        { "type": "generic", "path": "docs/schema.yaml" },
+        {
+          "type": "toml",
+          "path": "/uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='geiger2mqtt')].version"
+        }
+      ]
     }
   }
 }

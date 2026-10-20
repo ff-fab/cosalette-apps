@@ -1,0 +1,10 @@
+asyncapi: 3.0.0
+info:
+  title: geiger2mqtt
+  version: 0.1.0 # x-release-please-version
+  x-cosalette-contract-version: '2'
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

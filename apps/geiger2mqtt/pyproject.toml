@@ -1,0 +1,96 @@
+[project]
+name = "geiger2mqtt"
+version = "0.1.0"
+description = "GPIO geiger counter to MQTT bridge"
+readme = "README.md"
+requires-python = ">=3.14"
+license = "MIT"
+authors = [
+    { name = "Fabian Koerner", email = "mail@fabiankoerner.com" }
+]
+
+dependencies = [
+    "cosalette>=0.12.1,<0.13",
+    "gpiozero>=2.0",
+    "lgpio>=0.2.2.0; sys_platform == 'linux'",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+]
+
+[project.scripts]
+geiger2mqtt = "geiger2mqtt.main:main"
+
+[dependency-groups]
+# The schema:* tasks run cosalette schema, which needs the extra; the app
+# itself does not (ADR-004).
+dev = ["cosalette[schema]>=0.12.1,<0.13"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["packages/src/geiger2mqtt"]
+
+[tool.pytest.ini_options]
+testpaths = ["packages/tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# Shared cross-app test helpers (packages/tests/fixtures/ at the repo root);
+# resolved relative to this app's rootdir.
+pythonpath = ["../../packages/tests/fixtures"]
+addopts = [
+    "-v",
+    "--tb=short",
+    "--strict-markers",
+    "--strict-config",
+]
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (require mock servers)",
+    "slow: Tests that take > 1 second",
+]
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning",
+]
+
+[tool.coverage.run]
+source = ["packages/src/geiger2mqtt"]
+branch = true
+omit = [
+    "*/__pycache__/*",
+    "*/tests/*",
+    "*/main.py",  # Composition root — covered by integration tests
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+    "@abstractmethod",
+    "def __repr__",
+    'if __name__ == "__main__":',
+    "^\\s*\\.\\.\\.$",
+]
+fail_under = 80
+show_missing = true
+skip_covered = false
+
+[tool.coverage.json]
+output = "coverage.json"
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+# Inherit root's [tool.ruff] select and rule config (cap-4lc).
+[tool.ruff]
+extend = "../../pyproject.toml"
+
+[tool.ruff.lint.isort]
+# The shared fixture modules are reached via pythonpath above, not PyPI.
+known-first-party = ["geiger2mqtt", "ha_discovery", "mqtt5_broker", "mqtt5_contract"]
