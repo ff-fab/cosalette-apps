@@ -69,6 +69,9 @@ class HttpSettings:
     png_height: int = 800
     """PNG height for the ``/shadow.png`` endpoint."""
 
+    png_background_color: str | None = None
+    """PNG background fill for ``/shadow.png``; ``None`` keeps it transparent."""
+
 
 SvgProvider = Callable[[], str | None]
 """Callable that returns the latest SVG content, or None if not yet available."""
@@ -92,7 +95,11 @@ def _build_app(
             return web.Response(status=503, text="No shadow data available yet")
         try:
             png_bytes = await asyncio.to_thread(
-                svg_to_png, svg, width=settings.png_width, height=settings.png_height
+                svg_to_png,
+                svg,
+                width=settings.png_width,
+                height=settings.png_height,
+                background_color=settings.png_background_color,
             )
         except RasterizationError as exc:
             return web.Response(status=500, text=str(exc))

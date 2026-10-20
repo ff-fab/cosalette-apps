@@ -44,13 +44,21 @@ class RasterizationError(Exception):
     """Raised when SVG-to-PNG conversion fails."""
 
 
-def svg_to_png(svg_content: str, *, width: int = 800, height: int = 800) -> bytes:
+def svg_to_png(
+    svg_content: str,
+    *,
+    width: int = 800,
+    height: int = 800,
+    background_color: str | None = None,
+) -> bytes:
     """Convert an SVG string to PNG bytes.
 
     Args:
         svg_content: Raw SVG markup.
         width: Target image width in pixels.
         height: Target image height in pixels.
+        background_color: Fill behind the image; ``None`` keeps it transparent.
+            cairosvg ignores the SVG's root CSS background, so it is passed here.
 
     Returns:
         PNG image data as bytes.
@@ -73,6 +81,7 @@ def svg_to_png(svg_content: str, *, width: int = 800, height: int = 800) -> byte
                 bytestring=svg_content.encode("utf-8"),
                 output_width=width,
                 output_height=height,
+                background_color=background_color,
             ),
         )
     except Exception as exc:

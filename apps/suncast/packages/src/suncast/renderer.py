@@ -299,6 +299,25 @@ def _sun_marker(frame: _Frame) -> str:
     )
 
 
+def _background_section(style: RenderSettings) -> list[str]:
+    """Background as a root CSS rule, so it fills the whole viewport.
+
+    Unlike an in-canvas ``<rect>``, a background on the root ``<svg>`` also
+    covers the letterbox around the square viewBox when the image is shown in
+    a non-square WebView or frame. The dark variant follows the viewer's
+    ``prefers-color-scheme``.
+    """
+    rules = []
+    if style.background_color != "none":
+        rules.append(f"svg{{background-color:{style.background_color}}}")
+    if style.background_color_dark != "none":
+        rules.append(
+            "@media (prefers-color-scheme:dark)"
+            f"{{svg{{background-color:{style.background_color_dark}}}}}"
+        )
+    return [f"<style>{''.join(rules)}</style>"] if rules else []
+
+
 class ShadowRenderer:
     """Renders an SVG shadow visualization."""
 
@@ -312,7 +331,8 @@ class ShadowRenderer:
         """Return a complete SVG string."""
         style = settings or RenderSettings()
         canvas = geometry.canvas.size
-        margin = 20
+        margin = style.margin
+        origin = 0 - margin  # not -margin: a zero margin would print "-0"
         total = canvas + 2 * margin
         frame = _Frame(
             sun=sun,
@@ -327,7 +347,8 @@ class ShadowRenderer:
         parts = [
             # 1. SVG root
             f'<svg xmlns="http://www.w3.org/2000/svg" '
-            f'viewBox="{-margin} {-margin} {total} {total}">',
+            f'viewBox="{origin:g} {origin:g} {total:g} {total:g}">',
+            *_background_section(style),
             # 2. Defs: circular clip mask
             "<defs>",
             '<mask id="circle-mask">',

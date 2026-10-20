@@ -29,7 +29,10 @@ type SundialMode = Literal["ring", "compact", "off"]
 # Colors are interpolated directly into SVG output (see renderer.py) without
 # escaping, so they're restricted to hex-color syntax to close off SVG/
 # attribute injection via a malicious SUNCAST_*_COLOR value.
-_HEX_COLOR_PATTERN = r"^#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$"
+_HEX_COLOR = r"#(?:[0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})"
+_HEX_COLOR_PATTERN = rf"^{_HEX_COLOR}$"
+# Background colors also accept "none" (the default): no background is drawn.
+_BACKGROUND_PATTERN = rf"^(?:none|{_HEX_COLOR})$"
 
 
 class RenderStyle(BaseModel):
@@ -52,6 +55,9 @@ class RenderStyle(BaseModel):
     stroke_width: float = 1.0
     sundial_mode: SundialMode = "ring"
     marker_style: Literal["circle", "bar"] = "circle"
+    background_color: str = Field(default="none", pattern=_BACKGROUND_PATTERN)
+    background_color_dark: str = Field(default="none", pattern=_BACKGROUND_PATTERN)
+    margin: float = Field(default=20, ge=0)
 
 
 class SuncastSettings(RenderStyle, cosalette.Settings):

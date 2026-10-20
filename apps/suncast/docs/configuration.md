@@ -51,7 +51,10 @@ for a complete template.
 | `shadow_color`    | `SUNCAST_SHADOW_COLOR`     | `#2F3338`   | Shadow projection color                     |
 | `stroke_width`    | `SUNCAST_STROKE_WIDTH`     | `1.0`       | SVG stroke width for building outlines      |
 | `sundial_mode`    | `SUNCAST_SUNDIAL_MODE`     | `ring`      | Sundial display: `ring`, `compact`, or `off` |
-| `marker_style`    | `SUNCAST_MARKER_STYLE`     | `circle`    | Hour marker style: `circle` or `bar`         |
+| `marker_style`    | `SUNCAST_MARKER_STYLE`     | `circle`    | Sunrise/sunset marker style: `circle` or `bar` |
+| `background_color` | `SUNCAST_BACKGROUND_COLOR` | `none` | Background behind the image: hex color or `none` (transparent) |
+| `background_color_dark` | `SUNCAST_BACKGROUND_COLOR_DARK` | `none` | Background when the viewer prefers a dark color scheme: hex color or `none` |
+| `margin`          | `SUNCAST_MARGIN`           | `20`        | Padding around the canvas in the SVG `viewBox`, in canvas units (≥ 0) |
 
 #### Marker style comparison
 
@@ -97,6 +100,47 @@ for a complete template.
         </figcaption>
     </figure>
 </div>
+
+#### Background and margin
+
+suncast's SVG is transparent by default. Opened directly in a browser or WebView it shows
+the page's default background, which is white even when the device is in dark mode. Set
+a background so the raw SVG URL can be embedded without a wrapper page:
+
+```bash
+SUNCAST_BACKGROUND_COLOR=#ffffff       # light mode, and every renderer without media queries
+SUNCAST_BACKGROUND_COLOR_DARK=#000000  # used when the viewer prefers a dark color scheme
+```
+
+The colors go into a `<style>` rule on the root `<svg>`, not into a shape inside the
+drawing. A browser therefore paints the whole viewport, including the bands left and
+right of (or above and below) the square image when a WebView or frame is not square.
+The dark color follows `prefers-color-scheme`: for a standalone SVG that is the
+operating system's setting; in an `<img>` or iframe, browsers generally use the
+embedding page's color scheme. Either
+setting works alone; with only the dark color set, the image stays transparent in light
+mode.
+
+PNG output (file, MQTT and `/shadow.png`) fills the whole image with
+`background_color`. A raster cannot follow the viewer's color scheme, so
+`background_color_dark` does not apply to it.
+
+The `viewBox` pads the `canvas.size` square by `margin` units on every side, so
+`SUNCAST_MARGIN=13` with `canvas.size: 100` gives `viewBox="-13 -13 126 126"`. The
+default of 20 leaves empty space around the dial. The outermost elements reach:
+
+| `sundial_mode`    | Outermost element                         | Smallest margin | Suggested |
+| ----------------- | ----------------------------------------- | --------------- | --------- |
+| `ring`            | noon/midnight bars, 12 units outside the circle | 13        | 13        |
+| `compact`, `off`  | sun marker and sunrise/sunset markers, 5 units outside | 5  | 6         |
+
+These distances are in canvas units and do not scale with `canvas.size`. In `ring` and
+`off` mode the day/night arc reaches `stroke_width` units outside the circle, so keep the
+margin above `stroke_width` too.
+
+The SVG sets no `width` or `height`. A standalone SVG then fills the viewport; in an
+`<img>` or iframe, size the element with CSS and the drawing scales to fit, keeping
+its aspect ratio.
 
 ### Output
 
@@ -302,6 +346,9 @@ SUNCAST_TIMEZONE=Europe/Berlin
 # SUNCAST_STROKE_WIDTH=1.0
 # SUNCAST_SUNDIAL_MODE=ring
 # SUNCAST_MARKER_STYLE=circle
+# SUNCAST_BACKGROUND_COLOR=none
+# SUNCAST_BACKGROUND_COLOR_DARK=none
+# SUNCAST_MARGIN=20
 
 # --- Output ---
 # SUNCAST_OUTPUT_PATH=/output

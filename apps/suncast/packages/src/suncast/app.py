@@ -51,6 +51,12 @@ class PipelineState:
     output_manager: OutputManager
 
 
+def _png_background(settings: SuncastSettings) -> str | None:
+    """The light background for PNGs; a raster cannot follow the color scheme."""
+    color = settings.background_color
+    return None if color == "none" else color
+
+
 def _build_pipeline(settings: SuncastSettings) -> PipelineState:
     """Build pipeline state from settings (invoked as ``init=`` callback)."""
     geometry = load_geometry(settings.geometry_file)
@@ -63,6 +69,7 @@ def _build_pipeline(settings: SuncastSettings) -> PipelineState:
         png_enabled=settings.png_enabled,
         png_width=settings.png_width,
         png_height=settings.png_height,
+        png_background_color=_png_background(settings),
     )
     return PipelineState(
         geometry=geometry,
@@ -82,6 +89,7 @@ async def _lifespan(ctx: cosalette.AppContext) -> AsyncGenerator[None]:
         http_port=settings.http_port,
         png_width=settings.png_width,
         png_height=settings.png_height,
+        png_background_color=_png_background(settings),
     )
     async with create_http_lifespan(lambda: _latest_svg[0], http_settings):
         yield
