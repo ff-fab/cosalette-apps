@@ -670,17 +670,15 @@ tasks:
   # ── CI Tasks (used in GitHub Actions) ─────────────────────
 
   ci:test:unit:
-    desc: CI unit tests with coverage summary
-    vars:
-      MODULE_NAME: cosalette_apps
+    desc: CI repository-contract tests with per-test timeout
     cmds:
       - |
         if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
           echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
           exit 0
         fi
-        uv run pytest {{.PKG}}/tests/unit/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml {{.CI_TIMEOUT}}
-        uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=80
+        # These repository contracts do not exercise the root package scaffolding.
+        uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml {{.CI_TIMEOUT}}
 
   ci:test:integration:
     desc: CI integration tests (pytest)

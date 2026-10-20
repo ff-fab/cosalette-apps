@@ -9,6 +9,8 @@ Test Techniques Used:
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -61,3 +63,35 @@ def test_prebuilt_config_exists_and_runs_the_published_image() -> None:
     config = re.search(r"config=(\S+)\"", select)
     assert config is not None
     assert "${localEnv:DEVCONTAINER_PREBUILT_IMAGE}" in (_ROOT / config[1]).read_text()
+
+
+@pytest.mark.unit
+def test_root_ci_uses_the_timeout_enabled_unit_task() -> None:
+    """Root CI must use the CI task for its per-test hang protection."""
+    workflow = yaml.safe_load((_ROOT / ".github/workflows/ci.yml").read_text())
+    steps = workflow["jobs"]["root-tests"]["steps"]
+    command = next(
+        step["with"]["run-cmd"] for step in steps if "run-cmd" in step.get("with", {})
+    )
+    assert "task ci:test:unit" in command.split(" && ")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("prefix", ["", "gas2mqtt:"])
+@pytest.mark.parametrize("name", ["ci:test:unit", "ci:test:integration", "test:unit"])
+def test_pytest_timeout_is_enabled_only_in_ci(prefix: str, name: str) -> None:
+    """Resolve includes and variables so a template wiring regression is caught."""
+    task = shutil.which("task")
+    assert task is not None
+    result = subprocess.run(  # noqa: S603 — resolved task binary, fixed task names
+        [task, "--dry", f"{prefix}{name}"],
+        cwd=_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    assert "pytest" in result.stderr
+    if name.startswith("ci:"):
+        assert "--timeout=300 --timeout-method=thread" in result.stderr
+    else:
+        assert "--timeout" not in result.stderr

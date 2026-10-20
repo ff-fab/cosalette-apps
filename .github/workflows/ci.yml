@@ -176,7 +176,7 @@ jobs:
       - name: Run repo-root lint, unit and script test suites inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
-          run-cmd: task lint && task test:unit && task test:scripts
+          run-cmd: task lint && task ci:test:unit && task test:scripts
           token: ${{ secrets.GITHUB_TOKEN }}
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
