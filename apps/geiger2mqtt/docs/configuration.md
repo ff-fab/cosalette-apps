@@ -143,8 +143,10 @@ crashed task exits with code 4 and a blocked loop with code 6. geiger2mqtt there
 sets no `exit_after_stale`.
 
 **GPIO health check.** Every 30 seconds the adapter checks that `GPIO_CHIP` exists.
-After five failed checks in a row, cosalette re-opens the pin, at most three times;
-then the app exits.
+After five failed checks in a row, cosalette closes the input device and its owned
+lgpio factory, then creates a fresh factory to re-open the chip and pin, at most
+three times; then the app exits. Chip selection follows lgpio's Raspberry Pi
+auto-detection; `GPIO_CHIP` only selects the path checked for health.
 
 **Loop-stall watchdog.** The GPIO callbacks run on lgpio's own thread, and the
 event loop does no blocking I/O. `compose.yml` still sets

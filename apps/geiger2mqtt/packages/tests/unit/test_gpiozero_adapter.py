@@ -46,12 +46,29 @@ class FakeInputDevice:
         self.closed = True
 
 
+class FakeFactory:
+    """Tracks chip-handle ownership without importing lgpio."""
+
+    instances: list[FakeFactory] = []
+
+    def __init__(self) -> None:
+        self.closed = False
+        FakeFactory.instances.append(self)
+
+    def close(self) -> None:
+        self.closed = True
+
+
 @pytest.fixture
 def fake_gpiozero(monkeypatch: pytest.MonkeyPatch) -> type[FakeInputDevice]:
     module = ModuleType("gpiozero")
     module.DigitalInputDevice = FakeInputDevice  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "gpiozero", module)
+    lgpio_module = ModuleType("gpiozero.pins.lgpio")
+    lgpio_module.LGPIOFactory = FakeFactory  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "gpiozero.pins.lgpio", lgpio_module)
     FakeInputDevice.instances = []
+    FakeFactory.instances = []
     return FakeInputDevice
 
 
@@ -78,7 +95,11 @@ async def test_default_reads_line_as_is_active_low(
         (device,) = fake_gpiozero.instances
 
     assert device.pin == 17
-    assert device.kwargs == {"pull_up": None, "active_state": False}
+    assert device.kwargs == {
+        "pull_up": None,
+        "active_state": False,
+        "pin_factory": FakeFactory.instances[0],
+    }
 
 
 async def test_pull_up_mode_enables_internal_pull_up(
@@ -90,7 +111,10 @@ async def test_pull_up_mode_enables_internal_pull_up(
         (device,) = fake_gpiozero.instances
 
     assert device.pin == 4
-    assert device.kwargs == {"pull_up": True}
+    assert device.kwargs == {
+        "pull_up": True,
+        "pin_factory": FakeFactory.instances[0],
+    }
 
 
 async def test_only_activation_counts(
@@ -134,7 +158,85 @@ async def test_exit_closes_device(
         assert device.closed is False
 
     assert device.closed is True
+    assert FakeFactory.instances[0].closed is True
     await counter.__aexit__(None, None, None)  # second exit is a no-op
+
+
+async def test_restart_reopens_chip_with_fresh_factory(
+    fake_gpiozero: type[FakeInputDevice],
+) -> None:
+    counter = GpiozeroPulseCounter(make_settings())
+
+    async with counter:
+        first_factory = FakeFactory.instances[0]
+    async with counter:
+        second_factory = FakeFactory.instances[1]
+        assert first_factory.closed
+        assert not second_factory.closed
+        assert first_factory is not second_factory
+        assert fake_gpiozero.instances[1].kwargs["pin_factory"] is second_factory
+
+    assert second_factory.closed
+
+
+async def test_device_constructor_failure_closes_factory(
+    fake_gpiozero: type[FakeInputDevice], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*args: Any, **kwargs: Any) -> None:
+        raise OSError("pin unavailable")
+
+    monkeypatch.setattr(sys.modules["gpiozero"], "DigitalInputDevice", fail)
+    counter = GpiozeroPulseCounter(make_settings())
+
+    with pytest.raises(OSError, match="pin unavailable"):
+        await counter.__aenter__()
+
+    assert FakeFactory.instances[0].closed
+    await counter.__aexit__(None, None, None)
+
+
+async def test_callback_setup_failure_closes_device_and_factory(
+    fake_gpiozero: type[FakeInputDevice], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def set_callback(device: FakeInputDevice, callback: Any) -> None:
+        if callback is not None:
+            raise OSError("callback unavailable")
+
+    monkeypatch.setattr(
+        FakeInputDevice, "when_activated", property(fset=set_callback), raising=False
+    )
+    counter = GpiozeroPulseCounter(make_settings())
+
+    with pytest.raises(OSError, match="callback unavailable"):
+        await counter.__aenter__()
+
+    assert fake_gpiozero.instances[0].closed
+    assert FakeFactory.instances[0].closed
+
+
+@pytest.mark.parametrize("failing_resource", [FakeInputDevice, FakeFactory])
+async def test_close_failure_releases_both_resources_and_allows_restart(
+    fake_gpiozero: type[FakeInputDevice],
+    monkeypatch: pytest.MonkeyPatch,
+    failing_resource: type[FakeInputDevice] | type[FakeFactory],
+) -> None:
+    def fail_close(resource: FakeInputDevice | FakeFactory) -> None:
+        resource.closed = True
+        raise OSError("close failed")
+
+    counter = GpiozeroPulseCounter(make_settings())
+    await counter.__aenter__()
+    with monkeypatch.context() as patch:
+        patch.setattr(failing_resource, "close", fail_close)
+        with pytest.raises(OSError, match="close failed"):
+            await counter.__aexit__(None, None, None)
+        # Failed cleanup must not leave stale references for another exit.
+        await counter.__aexit__(None, None, None)
+
+    assert fake_gpiozero.instances[0].closed
+    assert FakeFactory.instances[0].closed
+    async with counter:
+        assert not FakeFactory.instances[1].closed
 
 
 def test_pulses_pruned_to_longest_window(fake_time: FakeTime) -> None:

@@ -17,6 +17,7 @@ from geiger2mqtt.settings import Geiger2MqttSettings
 
 if TYPE_CHECKING:
     from gpiozero import DigitalInputDevice
+    from gpiozero.pins.lgpio import LGPIOFactory
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +40,28 @@ class GpiozeroPulseCounter(PulseBuffer):
         super().__init__(retention=settings.average_window, clock=clock)
         self._settings = settings
         self._device: DigitalInputDevice | None = None
+        self._factory: LGPIOFactory | None = None
 
     async def __aenter__(self) -> Self:
         from gpiozero import DigitalInputDevice
+        from gpiozero.pins.lgpio import LGPIOFactory
 
         pin = self._settings.gpio_pin
-        if self._settings.gpio_pull_up:
-            device = DigitalInputDevice(pin, pull_up=True)
-        else:
-            device = DigitalInputDevice(pin, pull_up=None, active_state=False)
-        self.reset()
-        device.when_activated = self.record
-        self._device = device
+        self._factory = LGPIOFactory()
+        try:
+            if self._settings.gpio_pull_up:
+                self._device = DigitalInputDevice(
+                    pin, pull_up=True, pin_factory=self._factory
+                )
+            else:
+                self._device = DigitalInputDevice(
+                    pin, pull_up=None, active_state=False, pin_factory=self._factory
+                )
+            self.reset()
+            self._device.when_activated = self.record
+        except BaseException:
+            self._close()
+            raise
         logger.info(
             "Counting pulses on GPIO %d (pull-up %s)",
             pin,
@@ -64,9 +75,17 @@ class GpiozeroPulseCounter(PulseBuffer):
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
     ) -> None:
-        if self._device is not None:
-            self._device.close()
-            self._device = None
+        self._close()
+
+    def _close(self) -> None:
+        device, factory = self._device, self._factory
+        self._device = self._factory = None
+        try:
+            if device is not None:
+                device.close()
+        finally:
+            if factory is not None:
+                factory.close()
 
     async def health_check(self) -> bool:
         """Return True if the configured GPIO character device exists."""

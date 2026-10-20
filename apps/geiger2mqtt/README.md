@@ -7,8 +7,8 @@ GPIO geiger counter to MQTT bridge
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
-structure, and development guidelines.
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup instructions, common commands,
+project structure, and development guidelines.
 
 ## License
 
