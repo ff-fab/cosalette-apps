@@ -21,7 +21,11 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
+  # Lint, typecheck and tests in one job (cap-4fbt): each job paid ~1.5-2 min
+  # of checkout, cache and devcontainer setup for 20-40 s of work. Later steps
+  # run even when an earlier one failed, so one run still reports every check.
+  # ci-gate in ci.yml is the only required status check.
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -39,6 +43,7 @@ jobs:
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
       - name: Validate AsyncAPI schema inside devcontainer
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:schema:check
@@ -46,42 +51,23 @@ jobs:
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
       - name: Check complexity and duplication inside devcontainer
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:complexity && task ${{ inputs.app }}:similarity
           token: ${{ secrets.GITHUB_TOKEN }}
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
-
-  typecheck:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
       - name: Run type checking inside devcontainer
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:typecheck
           token: ${{ secrets.GITHUB_TOKEN }}
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
-
-  test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    permissions:
-      contents: read
-      packages: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
       - name: Run unit tests inside devcontainer
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:ci:test:unit
@@ -89,11 +75,12 @@ jobs:
           dockerhub-username: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_USERNAME || '' }}
           dockerhub-token: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && secrets.DOCKERHUB_TOKEN || '' }}
       - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        if: always()
+        if: ${{ !cancelled() }}
         with:
           files: apps/${{ inputs.app }}/coverage.xml
           flags: ${{ inputs.app }}
       - name: Run integration tests inside devcontainer
+        if: ${{ !cancelled() }}
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: task ${{ inputs.app }}:ci:test:integration
