@@ -331,7 +331,7 @@ $BADGE
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup instructions, common commands, project
 structure, and development guidelines.
 
 ## License
@@ -411,6 +411,7 @@ services:
       - ${PKG_NAME//-/_}-data:/app/data
     environment:
       ${ENV_PREFIX}_MQTT__HOST: mosquitto
+      ${ENV_PREFIX}_MQTT__TLS: \${${ENV_PREFIX}_MQTT__TLS:-false}
     depends_on:
       - mosquitto
 

@@ -10,6 +10,7 @@ Test Techniques Used:
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -65,3 +66,31 @@ def test_scaffold_dockerfile_leaves_no_uv_lock_in_app() -> None:
 
     assert "COPY pyproject.toml uv.lock" not in scaffold
     assert "--mount=type=bind,source=uv.lock,target=/app/uv.lock" in scaffold
+
+
+def test_scaffold_compose_preserves_tls_default_and_override() -> None:
+    """Render the heredoc in isolation to catch shell interpolation mistakes."""
+    scaffold = (_REPO_ROOT / "scripts/scaffold-app.sh").read_text(encoding="utf-8")
+    template = scaffold.split('cat > "$APP/compose.yml" <<EOF\n', 1)[1].split(
+        "\nEOF", 1
+    )[0]
+    rendered = subprocess.run(
+        ["bash", "-eu", "-c", f"cat <<EOF\n{template}\nEOF"],
+        env={"NAME": "example", "PKG_NAME": "example", "ENV_PREFIX": "EXAMPLE"},
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+
+    assert "EXAMPLE_MQTT__HOST: mosquitto" in rendered
+    tls_setting = "${EXAMPLE_MQTT__TLS:-false}"
+    assert f"EXAMPLE_MQTT__TLS: {tls_setting}" in rendered
+    for override, expected in [(None, "false"), ("true", "true")]:
+        interpolated = subprocess.run(
+            ["bash", "-eu", "-c", f'echo "{tls_setting}"'],
+            env={} if override is None else {"EXAMPLE_MQTT__TLS": override},
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        assert interpolated == expected
