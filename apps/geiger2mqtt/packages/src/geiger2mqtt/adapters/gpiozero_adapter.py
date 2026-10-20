@@ -71,3 +71,8 @@ class GpiozeroPulseCounter(PulseBuffer):
     async def health_check(self) -> bool:
         """Return True if the configured GPIO character device exists."""
         return os.path.exists(self._settings.gpio_chip)
+
+
+def gpiozero_pulse_counter(settings: Geiger2MqttSettings) -> GpiozeroPulseCounter:
+    """Adapter factory for cosalette, which can inject only the settings."""
+    return GpiozeroPulseCounter(settings)

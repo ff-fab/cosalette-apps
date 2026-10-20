@@ -8,6 +8,7 @@ the fake deterministically in tests.
 
 from __future__ import annotations
 
+import math
 import random
 import time
 from types import TracebackType
@@ -32,7 +33,7 @@ class FakePulseCounter(PulseBuffer):
         super().__init__(retention=settings.average_window, clock=clock)
         self._rng = random.Random(seed)  # simulation, not crypto
         self._rate = cpm / 60.0
-        self._next = self.started_at + self._rng.expovariate(self._rate)
+        self._next = self.started_at + self._gap()
 
     @override
     def snapshot(self, since: float) -> list[float]:
@@ -44,15 +45,19 @@ class FakePulseCounter(PulseBuffer):
         self._generate()
         return super().last_pulse()
 
+    def _gap(self) -> float:
+        """Seconds to the next pulse; a rate of 0 simulates a dead tube."""
+        return self._rng.expovariate(self._rate) if self._rate else math.inf
+
     def _generate(self) -> None:
         now = self.now()
         while self._next <= now:
             self._record_at(self._next)
-            self._next += self._rng.expovariate(self._rate)
+            self._next += self._gap()
 
     async def __aenter__(self) -> Self:
         self.reset()
-        self._next = self.started_at + self._rng.expovariate(self._rate)
+        self._next = self.started_at + self._gap()
         return self
 
     async def __aexit__(
@@ -62,3 +67,8 @@ class FakePulseCounter(PulseBuffer):
         exc_tb: TracebackType | None,
     ) -> None:
         return None
+
+
+def fake_pulse_counter(settings: Geiger2MqttSettings) -> FakePulseCounter:
+    """Adapter factory for cosalette, which can inject only the settings."""
+    return FakePulseCounter(settings)
