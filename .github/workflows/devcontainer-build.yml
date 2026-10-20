@@ -2,13 +2,14 @@
 #
 # This is separate from the CI workflow (Separation of Concerns):
 # - The image changes rarely (only when dev tooling changes)
-# - CI jobs pull the pre-built image instead of building from scratch each run
+# - CI jobs run on the image tagged with the hash of .devcontainer/ when it
+#   exists, and build from the buildcache otherwise
 # - Weekly schedule picks up base image security patches automatically
 #
 # The image is pushed to
 # ghcr.io/ff-fab/cosalette-apps-devcontainer
-# and used by ci.yml / ci-app.yml / docs.yml via the devcontainers/ci
-# action's cacheFrom parameter.
+# (tags latest and the .devcontainer/ content hash) and used by ci.yml /
+# ci-app.yml / docs.yml through .github/actions/devcontainer-run.
 
 name: DevContainer Build
 
@@ -66,6 +67,9 @@ jobs:
           INSTALL_CLAUDE_CODE: 'false'
         with:
           imageName: ghcr.io/ff-fab/cosalette-apps-devcontainer
+          # The content-hash tag lets the devcontainer-run action run on this
+          # image instead of rebuilding it; keep the hashFiles() pattern in sync.
+          imageTag: latest,${{ hashFiles('.devcontainer/**') }}
           # Cache layers via dedicated buildcache manifest for faster rebuilds
           cacheFrom: type=registry,ref=ghcr.io/ff-fab/cosalette-apps-devcontainer:buildcache
           cacheTo: type=registry,ref=ghcr.io/ff-fab/cosalette-apps-devcontainer:buildcache,mode=max
