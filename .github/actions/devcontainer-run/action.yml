@@ -46,24 +46,15 @@ runs:
       run: mkdir -p .cache/uv .cache/cargo-home/registry .cache/cargo-home/git target
 
     # Bump the vN suffix to force-invalidate when cache format or path layout changes.
+    # restore, not actions/cache: the explicit save below owns the write.
     - name: Restore uv cache
       id: restore-uv
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .cache/uv
         key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
         restore-keys: |
           ${{ runner.os }}-uv-v1-
-
-    # Skip the save on an exact cache hit — nothing changed, and every job in
-    # the per-app matrix shares this key, so a redundant reserve-cache call
-    # on every run adds needless API traffic across the whole matrix.
-    - name: Save uv cache
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      if: always() && steps.restore-uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv
-        key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
 
     - name: Restore cargo registry cache
       if: inputs.cargo-cache == 'true'
@@ -136,6 +127,22 @@ runs:
           CARGO_HOME=/workspaces/cosalette-apps/.cache/cargo-home
           CARGO_TARGET_DIR=/workspaces/cosalette-apps/target
         runCmd: ${{ inputs.run-cmd }}
+
+    # Save after the run step, which populates the cache via `uv sync`; saving
+    # before it would store only the restore-keys fallback under the new key,
+    # so the cache would never gain new wheels (cap-2m52). always() keeps a
+    # failed test run from discarding the downloads. No `uv cache prune --ci`:
+    # it drops exactly the downloaded wheels this cache exists to keep, and
+    # the ~150 MB archive is far below the 10 GB repo budget.
+    # Skip the save on an exact cache hit — nothing changed, and every job in
+    # the per-app matrix shares this key, so a redundant reserve-cache call
+    # on every run adds needless API traffic across the whole matrix.
+    - name: Save uv cache
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      if: always() && steps.restore-uv.outputs.cache-hit != 'true'
+      with:
+        path: .cache/uv
+        key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
 
     - name: Prune Rust incremental artifacts before cache save
       if: always() && inputs.cargo-cache == 'true'
