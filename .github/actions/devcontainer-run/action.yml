@@ -98,7 +98,10 @@ runs:
     # it still builds its own image from the Dockerfile below. The CI config
     # (plain JSON, no comments) sets only the image and workspace mount: the
     # image's devcontainer.metadata label already carries the features,
-    # remoteUser, remoteEnv and lifecycle commands.
+    # remoteUser, remoteEnv and lifecycle commands. It also mounts a no-op over
+    # the docker-in-docker entrypoint: no CI step needs dockerd inside the
+    # container, and starting it intermittently hung `devcontainer up`
+    # (cap-1a0u). The fallback build keeps DinD; the job timeout caps it.
     - name: Select prebuilt devcontainer image
       id: prebuilt
       shell: bash

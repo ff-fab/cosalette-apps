@@ -2,5 +2,8 @@
   "name": "cosalette-apps (CI, prebuilt image)",
   "image": "${localEnv:DEVCONTAINER_PREBUILT_IMAGE}",
   "workspaceFolder": "/workspaces/cosalette-apps",
-  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/cosalette-apps,type=bind"
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/cosalette-apps,type=bind",
+  "mounts": [
+    "source=${localWorkspaceFolder}/.github/devcontainer-ci/docker-init.sh,target=/usr/local/share/docker-init.sh,type=bind,readonly"
+  ]
 }
