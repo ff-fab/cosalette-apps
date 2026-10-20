@@ -6,6 +6,30 @@
 
 **GPIO geiger counter to MQTT bridge**
 
+geiger2mqtt counts the pulses of a Geiger-Müller counter board on one GPIO pin of a
+Raspberry Pi. Every 30 seconds it publishes the counts per minute (CPM), the dose rate
+derived from them and an average dose rate over the last 15 minutes as one JSON
+message. Home Assistant discovers the three values as sensors.
+
+## Features
+
+- **Exact counts.** CPM is the number of pulses in the last 60 s, and the average
+  covers the last 15 minutes ([ADR-001](adr/ADR-001-measurement-model.md)).
+- **Any tube.** Set the conversion factor for your tube; the default suits an SBM-20.
+- **Dead-tube detection.** Five minutes without a pulse mark the sensor offline. The
+  next pulse brings it back online, without a restart.
+- **Home Assistant discovery.** Three sensors with units and icons.
+- **Unprivileged container.** Only `/dev/gpiochip0` is passed in, on every Raspberry
+  Pi from the Zero 2 W to the Pi 5 ([ADR-002](adr/ADR-002-gpio-backend.md)).
+
+## Hardware
+
+| Component | Requirement                                                     |
+| --------- | --------------------------------------------------------------- |
+| Counter   | Geiger counter board with a pulse output (SBM-20, J305, ...)     |
+| Interface | One GPIO input; the board pulls its output low for each pulse    |
+| Platform  | Raspberry Pi with Docker                                         |
+
 ---
 
 ## Quick Links
