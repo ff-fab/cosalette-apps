@@ -72,20 +72,34 @@ def test_missing_command_item_fails() -> None:
         add_groups("", settings)
 
 
+@pytest.mark.parametrize(
+    ("error", "detail"),
+    [
+        (subprocess.CalledProcessError(2, "schema", stderr="schema failed"), "failed"),
+        (subprocess.TimeoutExpired("schema", 120), "timed out"),
+    ],
+)
 def test_framework_failure_is_reported(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    error: subprocess.SubprocessError,
+    detail: str,
 ) -> None:
-    """CLI propagates the schema tool's useful diagnostic and a failing exit."""
+    """CLI propagates the schema tool's diagnostic, or its timeout, as a failing exit.
+
+    Technique: Error Guessing — a wedged schema child must fail the generator
+    rather than hang it.
+    """
     config = tmp_path / "wiz2mqtt.toml"
     config.write_text("bulbs=[]\n")
 
     def fail(*args: str) -> str:
-        raise subprocess.CalledProcessError(2, args, stderr="schema failed")
+        raise error
 
     monkeypatch.setattr("wiz2mqtt.openhab._schema_cli", fail)
     result = CliRunner().invoke(cli, ["--config-file", str(config)])
     assert result.exit_code == 1
-    assert "schema failed" in result.output
+    assert detail in result.output
 
 
 def test_generator_runs_without_pyyaml(
