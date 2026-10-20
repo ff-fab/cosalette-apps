@@ -48,9 +48,11 @@ echo "📌 Updating version from git tags..."
 cd /workspaces/cosalette-apps
 uv run --group dev python /workspaces/cosalette-apps/scripts/update_version.py || echo "⚠️  Could not update version (git tags may not be available in this checkout)"
 
-# Install pre-commit hooks (if configured)
+# Install pre-commit hooks (if configured). CI never runs pre-commit, and
+# installing the hook environments costs ~30 s per job, so the devcontainer-run
+# action sets DEVCONTAINER_CI=true to skip it.
 cd /workspaces/cosalette-apps
-if [ -f ".pre-commit-config.yaml" ]; then
+if [ -f ".pre-commit-config.yaml" ] && [ "${DEVCONTAINER_CI:-}" != "true" ]; then
     echo "🪝 Installing pre-commit hook environments..."
     # Beads owns core.hooksPath (.beads/hooks/) and chains to pre-commit there,
     # so we only need to download hook environments — not install git shims.

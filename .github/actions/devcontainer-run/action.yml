@@ -43,7 +43,7 @@ runs:
   steps:
     - name: Prepare workspace cache directories
       shell: bash
-      run: mkdir -p .cache/uv .cache/pre-commit .cache/cargo-home/registry .cache/cargo-home/git target
+      run: mkdir -p .cache/uv .cache/cargo-home/registry .cache/cargo-home/git target
 
     # Bump the vN suffix to force-invalidate when cache format or path layout changes.
     - name: Restore uv cache
@@ -64,22 +64,6 @@ runs:
       with:
         path: .cache/uv
         key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
-
-    - name: Restore pre-commit cache
-      id: restore-pre-commit
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      with:
-        path: .cache/pre-commit
-        key: ${{ runner.os }}-pre-commit-v1-${{ hashFiles('.pre-commit-config.yaml') }}
-        restore-keys: |
-          ${{ runner.os }}-pre-commit-v1-
-
-    - name: Save pre-commit cache
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      if: always() && steps.restore-pre-commit.outputs.cache-hit != 'true'
-      with:
-        path: .cache/pre-commit
-        key: ${{ runner.os }}-pre-commit-v1-${{ hashFiles('.pre-commit-config.yaml') }}
 
     - name: Restore cargo registry cache
       if: inputs.cargo-cache == 'true'
@@ -148,7 +132,7 @@ runs:
         # workspaceFolder, not the runner's ${{ github.workspace }}.
         env: |
           UV_CACHE_DIR=/workspaces/cosalette-apps/.cache/uv
-          PRE_COMMIT_HOME=/workspaces/cosalette-apps/.cache/pre-commit
+          DEVCONTAINER_CI=true
           CARGO_HOME=/workspaces/cosalette-apps/.cache/cargo-home
           CARGO_TARGET_DIR=/workspaces/cosalette-apps/target
         runCmd: ${{ inputs.run-cmd }}
