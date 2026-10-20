@@ -34,6 +34,13 @@ built on the [cosalette](https://github.com/ff-fab/cosalette) framework.
     Reads a domestic gas meter using a QMC5883L magnetometer over I2C and publishes
     counter ticks, temperature, and debug data to MQTT.
 
+-   **[geiger2mqtt](geiger2mqtt/)** <span class="card-license">MIT</span>
+
+    ---
+
+    Counts the pulses of a Geiger counter on a Raspberry Pi GPIO pin and publishes
+    counts per minute and dose rates to MQTT, with Home Assistant discovery.
+
 -   **[jeelink2mqtt](jeelink2mqtt/)** <span class="card-license">MIT</span>
 
     ---
