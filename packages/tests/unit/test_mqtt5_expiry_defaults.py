@@ -30,6 +30,7 @@ _MQTT5_APP_DIRS = {
     "airthings2mqtt",
     "caldates2mqtt",
     "gas2mqtt",
+    "geiger2mqtt",
     "jeelink2mqtt",
     "suncast",
     "velux2mqtt",

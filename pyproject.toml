@@ -56,6 +56,18 @@ constraint-dependencies = [
     "starlette>=1.3.1",
 ]
 
+# lgpio (geiger2mqtt) ships no cp314 wheels, so every sync builds its sdist.
+# PYPI=1 statically links the bundled lg C sources instead of a system liblgpio,
+# and swig generates the Python bindings. swig 4.3 dropped the PyInt_* aliases
+# that lgpio.i still uses, so the build pins swig<4.3. The lg sources predate
+# C23 (GCC 15 default) and GCC 14 pointer checks, hence gnu17 and the -Wno-error.
+# See apps/geiger2mqtt/docs/adr/ADR-002.
+[tool.uv.extra-build-dependencies]
+lgpio = ["swig<4.3"]
+
+[tool.uv.extra-build-variables]
+lgpio = { PYPI = "1", CFLAGS = "-std=gnu17 -Wno-error=incompatible-pointer-types" }
+
 [tool.pytest.ini_options]
 testpaths = ["packages/tests"]
 asyncio_mode = "auto"
@@ -185,7 +197,7 @@ pythonVersion = "3.14"
 venvPath = "."
 venv = ".venv"
 # Updated dynamically as apps are added:
-extraPaths = ["apps/wiz2mqtt/packages/src", "apps/wallpanel-control/packages/src", "apps/suncast/packages/src", "apps/caldates2mqtt/packages/src", "apps/airthings2mqtt/packages/src", "apps/velux2mqtt/packages/src", "apps/gas2mqtt/packages/src", "apps/jeelink2mqtt/packages/src", "apps/vito2mqtt/packages/src"]
+extraPaths = ["apps/geiger2mqtt/packages/src", "apps/wiz2mqtt/packages/src", "apps/wallpanel-control/packages/src", "apps/suncast/packages/src", "apps/caldates2mqtt/packages/src", "apps/airthings2mqtt/packages/src", "apps/velux2mqtt/packages/src", "apps/gas2mqtt/packages/src", "apps/jeelink2mqtt/packages/src", "apps/vito2mqtt/packages/src"]
 
 [dependency-groups]
 docs = [

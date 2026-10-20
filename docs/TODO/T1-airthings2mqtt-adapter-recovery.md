@@ -39,7 +39,7 @@ did not help. Two app-side gaps remain after the error classification fix (`cap-
 ## Resolution
 
 **Decided 2026-10-02 (gate `cap-oxdp.7` closed).** Recorded as
-[airthings2mqtt ADR-003](../../apps/airthings2mqtt/docs/adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side.md).
+[airthings2mqtt ADR-003](https://ff-fab.github.io/cosalette-apps/airthings2mqtt/adr/ADR-003-no-adapter-power-cycling-bluetooth-adapter-recovery-is-host-side/).
 airthings2mqtt must not change the Bluetooth adapter's power state. Option B is rejected. Inside the app, recovery is
 reconnect and backoff only: retry, then mark the entity `offline`. Recovering the
 adapter is the job of the host and the operator. Option C stays acceptable only if it

@@ -162,6 +162,15 @@ _SPEC_MATRIX = (
     ),
     pytest.param(
         SettingsSpec(
+            module_name="geiger2mqtt.settings",
+            class_name="Geiger2MqttSettings",
+            env_prefix="GEIGER2MQTT",
+            app_dir="geiger2mqtt",
+        ),
+        id="geiger2mqtt",
+    ),
+    pytest.param(
+        SettingsSpec(
             module_name="jeelink2mqtt.settings",
             class_name="Jeelink2MqttSettings",
             env_prefix="JEELINK2MQTT",

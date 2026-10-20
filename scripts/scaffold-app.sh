@@ -249,6 +249,9 @@ packages = ["packages/src/$PKG_NAME"]
 testpaths = ["packages/tests"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
+# Shared cross-app test helpers (packages/tests/fixtures/ at the repo root);
+# resolved relative to this app's rootdir.
+pythonpath = ["../../packages/tests/fixtures"]
 addopts = [
     "-v",
     "--tb=short",
@@ -298,8 +301,13 @@ directory = "htmlcov"
 [tool.coverage.xml]
 output = "coverage.xml"
 
+# Inherit root's [tool.ruff] select and rule config (cap-4lc).
+[tool.ruff]
+extend = "../../pyproject.toml"
+
 [tool.ruff.lint.isort]
-known-first-party = ["$PKG_NAME"]
+# The shared fixture modules are reached via pythonpath above, not PyPI.
+known-first-party = ["$PKG_NAME", "ha_discovery", "mqtt5_broker", "mqtt5_contract"]
 EOF
 
 # ── Badges ───────────────────────────────────────────────────
@@ -323,7 +331,7 @@ $BADGE
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions, common commands, project
+See [CONTRIBUTING.md](../../CONTRIBUTING.md) for setup instructions, common commands, project
 structure, and development guidelines.
 
 ## License
@@ -403,6 +411,7 @@ services:
       - ${PKG_NAME//-/_}-data:/app/data
     environment:
       ${ENV_PREFIX}_MQTT__HOST: mosquitto
+      ${ENV_PREFIX}_MQTT__TLS: \${${ENV_PREFIX}_MQTT__TLS:-false}
     depends_on:
       - mosquitto
 

@@ -7,5 +7,6 @@
   "apps/caldates2mqtt": "0.3.1",
   "apps/suncast": "0.3.2",
   "apps/wallpanel-control": "0.4.1",
-  "apps/wiz2mqtt": "0.3.1"
+  "apps/wiz2mqtt": "0.3.1",
+  "apps/geiger2mqtt": "0.1.0"
 }

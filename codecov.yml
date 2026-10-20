@@ -45,6 +45,10 @@ flags:
     paths:
       - apps/wiz2mqtt/packages/src/
     carryforward: true
+  geiger2mqtt:
+    paths:
+      - apps/geiger2mqtt/packages/src/
+    carryforward: true
 
 comment:
   layout: 'condensed_header, condensed_files, condensed_footer, components'

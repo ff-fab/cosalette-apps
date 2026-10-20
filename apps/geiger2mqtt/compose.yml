@@ -1,0 +1,46 @@
+services:
+  geiger2mqtt:
+    build:
+      context: ../..
+      dockerfile: apps/geiger2mqtt/Dockerfile
+    image: ghcr.io/ff-fab/geiger2mqtt:latest
+    restart: unless-stopped
+    # Only the GPIO character device is passed in; no privileged mode.
+    devices:
+      - /dev/gpiochip0:/dev/gpiochip0
+    # The image has no gpio group, so add the host's gpio GID by number.
+    # GIDs are assigned at install time: check yours with `getent group gpio`
+    # and set GEIGER2MQTT_GPIO_GID in .env if it is not 997.
+    group_add:
+      - ${GEIGER2MQTT_GPIO_GID:-997}
+    env_file: .env
+    environment:
+      GEIGER2MQTT_MQTT__HOST: mosquitto
+      # Broker terminates plaintext MQTT; see docs/adr/ADR-006.
+      GEIGER2MQTT_MQTT__TLS: ${GEIGER2MQTT_MQTT__TLS:-false}
+      # MQTT 5 retained-message expiry; the bundled mosquitto:2 supports it.
+      # Set to 3.1.1 for a broker without MQTT 5; see docs/adr/ADR-009.
+      GEIGER2MQTT_MQTT__PROTOCOL_VERSION: ${GEIGER2MQTT_MQTT__PROTOCOL_VERSION:-5}
+      GEIGER2MQTT_STORE_PATH: ${GEIGER2MQTT_STORE_PATH:-/app/data/store.json}
+      # Exit 6 if a synchronous GPIO call stalls the event loop; see
+      # docs/configuration.md > Health and recovery.
+      COSALETTE_LOOP_STALL_TIMEOUT: ${COSALETTE_LOOP_STALL_TIMEOUT:-120}
+    volumes:
+      - geiger2mqtt-data:/app/data
+    depends_on:
+      - mosquitto
+
+  mosquitto:
+    image: eclipse-mosquitto:2
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:1883:1883'
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data
+      - mosquitto-log:/mosquitto/log
+
+volumes:
+  geiger2mqtt-data:
+  mosquitto-data:
+  mosquitto-log:

@@ -1,0 +1,81 @@
+asyncapi: 3.0.0
+info:
+  title: geiger2mqtt
+  version: 0.1.0 # x-release-please-version
+  x-cosalette-contract-version: '2'
+channels:
+  radiationAvailability:
+    address: geiger2mqtt/radiation/availability
+    x-cosalette-app: geiger2mqtt
+    messages:
+      message:
+        payload:
+          type: string
+          enum:
+          - online
+          - offline
+    bindings:
+      mqtt:
+        qos: 1
+        retain: true
+    x-cosalette-framework: availability
+    x-cosalette-discoverable: false
+  radiationState:
+    address: geiger2mqtt/radiation/state
+    x-cosalette-app: geiger2mqtt
+    messages:
+      message:
+        payload:
+          description: 'Published ``radiation`` payload; the ``state_model`` of the
+            channel.
+
+
+            No ``device_class``: Home Assistant has none for radiation.'
+          properties:
+            cpm:
+              title: Cpm
+              type: integer
+              x-cosalette-consumer:
+                display_name: Counts per minute
+                unit: CPM
+                state_class: measurement
+                icon: mdi:radioactive
+            dose_rate:
+              title: Dose Rate
+              type: number
+              x-cosalette-consumer:
+                display_name: Dose rate
+                unit: µSv/h
+                state_class: measurement
+                icon: mdi:radioactive
+            dose_rate_avg:
+              title: Dose Rate Avg
+              type: number
+              x-cosalette-consumer:
+                display_name: Average dose rate
+                unit: µSv/h
+                state_class: measurement
+                icon: mdi:radioactive
+          required:
+          - cpm
+          - dose_rate
+          - dose_rate_avg
+          title: RadiationState
+          type: object
+    x-cosalette-archetype: telemetry
+    x-cosalette-summary: Counts per minute and dose rates from a GPIO geiger counter
+operations:
+  publishRadiationAvailability:
+    action: send
+    channel:
+      $ref: '#/channels/radiationAvailability'
+  publishRadiationState:
+    action: send
+    channel:
+      $ref: '#/channels/radiationState'
+    summary: Counts per minute and dose rates from a GPIO geiger counter
+x-cosalette-enforcement:
+  mode: warn
+  on_configure: true
+  on_publish: false
+  network_level: false

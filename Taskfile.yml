@@ -11,6 +11,7 @@ vars:
   # Add apps here as they are migrated. Order doesn't matter.
   APPS:
     [
+      geiger2mqtt,
       wiz2mqtt,
       wallpanel-control,
       suncast,
@@ -123,6 +124,13 @@ includes:
       SMOKE: |
         docker run --rm --network none -v "$PWD:/cfg:ro" --entrypoint wiz2mqtt-openhab "$IMAGE" --config-file /cfg/wiz2mqtt.example.toml --output both | grep -F "Thing mqtt:topic:" > /dev/null
         docker run --rm --network none --entrypoint wiz2mqtt-discover "$IMAGE" --broadcast 127.0.0.1 --wait 0.1 --timeout 2 > /dev/null
+
+  geiger2mqtt:
+    taskfile: ./taskfiles/PythonApp.yml
+    dir: ./apps/geiger2mqtt
+    vars:
+      APP_NAME: geiger2mqtt
+      MODULE_NAME: geiger2mqtt
 
 tasks:
   wiz2mqtt:openhab:
