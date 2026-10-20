@@ -32,6 +32,7 @@ assert_contains() {
         _pass "$desc"
     else
         _fail "$desc — '$needle' not found in output"
+        printf '%s\n' "$haystack" | sed 's/^/        | /'
     fi
 }
 
