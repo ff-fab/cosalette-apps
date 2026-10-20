@@ -2,7 +2,7 @@
 # lgpio publishes no cp314 or musllinux wheels, so the locked sdist is built here
 # and only the finished wheel reaches the runtime image (docs/adr/ADR-002).
 # PYPI=1 makes setup.py compile the bundled lg C sources statically instead of
-# linking a system liblgpio. swig is pinned below 4.3 because 4.3 removed the
+# linking a system liblgpio. swig is pinned to 4.2.1 because 4.3 removed the
 # PyInt_* aliases lgpio.i still uses. The lg sources predate C23 (GCC 15 default)
 # and GCC 14 strict pointer checks, so CFLAGS selects gnu17 and keeps the
 # pointer mismatch a warning. The root pyproject applies the same settings to uv sync.
@@ -18,7 +18,7 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
     uv export --frozen --no-dev --no-emit-workspace --package geiger2mqtt \
       --format requirements-txt >/tmp/requirements.txt \
     && sed -n '/^lgpio==/,/^[^ ]/{/^lgpio==\|^ /p}' /tmp/requirements.txt >/tmp/lgpio.txt \
-    && pip install --no-cache-dir "swig<4.3" setuptools \
+    && pip install --no-cache-dir swig==4.2.1.post0 setuptools==80.9.0 \
     && PYPI=1 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" pip wheel --no-cache-dir --no-deps --no-build-isolation \
       --no-binary lgpio --require-hashes -r /tmp/lgpio.txt -w /wheels
 

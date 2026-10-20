@@ -31,7 +31,7 @@ class FakePulseCounter(PulseBuffer):
         cpm: float = BACKGROUND_CPM,
     ) -> None:
         super().__init__(retention=settings.average_window, clock=clock)
-        self._rng = random.Random(seed)  # simulation, not crypto
+        self._rng = random.Random(seed)  # noqa: S311 - simulation, not crypto
         self._rate = cpm / 60.0
         self._next = self.started_at + self._gap()
 
