@@ -683,8 +683,8 @@ def _hue_saturation_from_parser(
     if is_cct_mode(color_temp_kelvin):
         return None, None
     rgb = parser.get_rgb()
-    if rgb is None or any(channel is None for channel in rgb):
-        return None, None
     r, g, b = rgb
+    if r is None or g is None or b is None:
+        return None, None
     white = max(parser.get_warm_white() or 0, parser.get_cold_white() or 0)
     return rgb_to_hue_saturation(r, g, b, white)

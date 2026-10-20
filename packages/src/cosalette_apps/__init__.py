@@ -4,6 +4,7 @@ A monorepo collection for various cosalette based smart home apps.
 """
 
 from importlib.metadata import PackageNotFoundError, version
+from typing import cast
 
 try:
     # Prefer the generated version file (setuptools_scm at build time)
@@ -16,5 +17,5 @@ except ImportError:
         # Last resort fallback for editable installs without metadata
         _v = "0.0.0+unknown"
 
-__version__: str = _v
+__version__: str = cast(str, _v)
 __all__ = ["__version__"]
