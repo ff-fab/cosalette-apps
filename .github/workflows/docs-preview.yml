@@ -18,7 +18,6 @@ on:
       - '.github/workflows/docs-preview.yml'
 
 env:
-  DEVCONTAINER_IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer
   SURGE_DOMAIN: cosalette-apps-pr-${{ github.event.pull_request.number }}.surge.sh
 
 permissions:
@@ -42,25 +41,45 @@ jobs:
       - name: Discover doc-enabled apps
         id: discover
         run: |
-          apps=$(for f in apps/*/zensical.toml; do [ -f "$f" ] && basename "$(dirname "$f")"; done | tr '\n' ' ')
-          echo "apps=$apps" >> "$GITHUB_OUTPUT"
+          app_names=()
+          for config in apps/*/zensical.toml; do
+            [[ -f "$config" ]] || continue
+            app=${config#apps/}
+            app=${app%/zensical.toml}
+            if [[ ! "$app" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+              echo "::error::Rejected app name failing slug validation"
+              exit 1
+            fi
+            app_names+=("$app")
+          done
+          echo "apps=${app_names[*]}" >> "$GITHUB_OUTPUT"
 
       # Docker Hub inputs stay empty: this job runs PR-controlled code.
       - name: Build all docs inside devcontainer
         uses: ./.github/actions/devcontainer-run
         with:
           run-cmd: |
+            set -euo pipefail
             task docs:build
-            for app in ${{ steps.discover.outputs.apps }}; do
+            for config in apps/*/zensical.toml; do
+              [[ -f "$config" ]] || continue
+              app=${config#apps/}
+              app=${app%/zensical.toml}
+              if [[ ! "$app" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+                echo "::error::Rejected app name failing slug validation"
+                exit 1
+              fi
               task "${app}:docs:build"
             done
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Merge into unified site
+        env:
+          DISCOVERED_APPS: ${{ steps.discover.outputs.apps }}
         run: |
           mkdir -p merged
           rsync -a --exclude='.*' site/ merged/
-          for app in ${{ steps.discover.outputs.apps }}; do
+          for app in $DISCOVERED_APPS; do
             if [ -d "apps/$app/site" ]; then
               mkdir -p "merged/$app"
               rsync -a --exclude='.*' "apps/$app/site/" "merged/$app/"
