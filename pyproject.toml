@@ -213,6 +213,7 @@ dev = [
     "pytest-asyncio>=1.4.0",
     "pytest-cov>=7.1.0",
     "pytest-httpx>=0.36.2",
+    "pytest-timeout>=2.4.0",
     # Linting & Type Checking
     "ty>=0.0.65",
     "ruff>=0.16.1",

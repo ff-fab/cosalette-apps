@@ -25,6 +25,9 @@ vars:
   # Root package vars (used by top-level test/lint/typecheck tasks)
   PKG: packages
   MODULE_NAME: cosalette_apps
+  # Per-test timeout for the ci:test:* tasks (root and per-app, cap-rthh): a
+  # hung test fails with a thread stack dump instead of stalling the job.
+  CI_TIMEOUT: --timeout=300 --timeout-method=thread
   HAS_UNIT_TESTS:
     sh: >-
       find {{.PKG}}/tests/unit/ \( -name 'test_*.py' -o -name '*_test.py' \)
@@ -667,17 +670,15 @@ tasks:
   # ── CI Tasks (used in GitHub Actions) ─────────────────────
 
   ci:test:unit:
-    desc: CI unit tests with coverage summary
-    vars:
-      MODULE_NAME: cosalette_apps
+    desc: CI repository-contract tests with per-test timeout
     cmds:
       - |
         if [ "{{.HAS_UNIT_TESTS}}" != "true" ]; then
           echo "ℹ No unit tests found in {{.PKG}}/tests/unit/ — skipping"
           exit 0
         fi
-        uv run pytest {{.PKG}}/tests/unit/ --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch --cov-report=xml --cov-report=json --cov-report=term --junitxml=results-unit.xml
-        uv run python {{.PKG}}/tests/scripts/summarize_tests.py --coverage-file=coverage.json --fail-under=80
+        # These repository contracts do not exercise the root package scaffolding.
+        uv run pytest {{.PKG}}/tests/unit/ -v --tb=short --junitxml=results-unit.xml {{.CI_TIMEOUT}}
 
   ci:test:integration:
     desc: CI integration tests (pytest)
@@ -687,7 +688,7 @@ tasks:
           echo "ℹ No integration tests found — skipping"
           exit 0
         fi
-        uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration --junitxml=results-integration.xml
+        uv run pytest {{.PKG}}/tests/integration/ -v --tb=short -m integration --junitxml=results-integration.xml {{.CI_TIMEOUT}}
 
   ci:lint:
     desc: CI lint task (strict)

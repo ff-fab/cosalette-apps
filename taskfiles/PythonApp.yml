@@ -251,7 +251,8 @@ tasks:
         uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/unit/ \
           --cov={{.PKG}}/src/{{.MODULE_NAME}} --cov-branch \
           --cov-report=xml --cov-report=json --cov-report=term \
-          --junitxml=results-unit.xml --cov-fail-under=80
+          --junitxml=results-unit.xml --cov-fail-under=80 \
+          {{.CI_TIMEOUT}}
 
   ci:test:integration:
     desc: 'CI integration tests for {{.APP_NAME}}'
@@ -260,7 +261,7 @@ tasks:
         if find {{.PKG}}/tests/integration/ \( -name 'test_*.py' -o -name '*_test.py' \) 2>/dev/null | grep -qm1 .; then
           uv run --package {{.APP_NAME}} pytest {{.PKG}}/tests/integration/ \
             -v --tb=short -m integration \
-            --junitxml=results-integration.xml
+            --junitxml=results-integration.xml {{.CI_TIMEOUT}}
         else
           echo "ℹ No integration tests found in {{.PKG}}/tests/integration/ — skipping"
         fi

@@ -1,6 +1,7 @@
 name: 'Run in DevContainer'
 description: >
-  Prepare runner caches, log in to GHCR, set up Buildx, and run a command
+  Prepare runner caches, log in to GHCR, pick the prebuilt devcontainer image
+  for the current .devcontainer/ content (or build it), and run a command
   inside the project devcontainer via devcontainers/ci.
 
 # Security trust boundary:
@@ -46,24 +47,15 @@ runs:
       run: mkdir -p .cache/uv .cache/cargo-home/registry .cache/cargo-home/git target
 
     # Bump the vN suffix to force-invalidate when cache format or path layout changes.
+    # restore, not actions/cache: the explicit save below owns the write.
     - name: Restore uv cache
       id: restore-uv
-      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
       with:
         path: .cache/uv
         key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
         restore-keys: |
           ${{ runner.os }}-uv-v1-
-
-    # Skip the save on an exact cache hit — nothing changed, and every job in
-    # the per-app matrix shares this key, so a redundant reserve-cache call
-    # on every run adds needless API traffic across the whole matrix.
-    - name: Save uv cache
-      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-      if: always() && steps.restore-uv.outputs.cache-hit != 'true'
-      with:
-        path: .cache/uv
-        key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
 
     - name: Restore cargo registry cache
       if: inputs.cargo-cache == 'true'
@@ -100,7 +92,31 @@ runs:
         username: ${{ inputs.dockerhub-username }}
         password: ${{ inputs.dockerhub-token }}
 
+    # Run on the image devcontainer-build.yml published for this exact
+    # .devcontainer/ content and skip the ~60 s image build (cap-wvh8). A PR
+    # that changes .devcontainer/ hashes to a tag that does not exist yet, so
+    # it still builds its own image from the Dockerfile below. The CI config
+    # (plain JSON, no comments) sets only the image and workspace mount: the
+    # image's devcontainer.metadata label already carries the features,
+    # remoteUser, remoteEnv and lifecycle commands.
+    - name: Select prebuilt devcontainer image
+      id: prebuilt
+      shell: bash
+      env:
+        IMAGE: ghcr.io/ff-fab/cosalette-apps-devcontainer:${{ hashFiles('.devcontainer/**') }}
+      run: |
+        if docker manifest inspect "$IMAGE" >/dev/null 2>&1; then
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "config=.github/devcontainer-ci/devcontainer.json" >> "$GITHUB_OUTPUT"
+        else
+          echo "::notice::No prebuilt devcontainer image for this .devcontainer/ content; building it"
+        fi
+
+    # Only the fallback build needs it: on the prebuilt path the default docker
+    # driver adds the metadata label in place, where a docker-container builder
+    # would pull the whole image and export it back into the daemon.
     - name: Set up Docker Buildx
+      if: steps.prebuilt.outputs.image == ''
       # docker-container driver required for type=registry cache-from (mode=max format).
       # Without it, the docker driver falls back to inline-cache only, missing all
       # cached layers and triggering a full rebuild that pulls the base image from MCR.
@@ -118,7 +134,11 @@ runs:
         # installing Claude Code on a cache-miss rebuild since CI never
         # invokes `claude`. Local devcontainer builds default to installing it.
         INSTALL_CLAUDE_CODE: 'false'
+        # Read by .github/devcontainer-ci/devcontainer.json's image.
+        DEVCONTAINER_PREBUILT_IMAGE: ${{ steps.prebuilt.outputs.image }}
       with:
+        # Empty (fallback) means the default .devcontainer/devcontainer.json.
+        configFile: ${{ steps.prebuilt.outputs.config }}
         # Aligns with the buildcache manifest devcontainer-build.yml writes to
         # via cacheTo type=registry,...,mode=max — matching the write side's
         # tag here is what makes cache hits actually land instead of silently
@@ -136,6 +156,22 @@ runs:
           CARGO_HOME=/workspaces/cosalette-apps/.cache/cargo-home
           CARGO_TARGET_DIR=/workspaces/cosalette-apps/target
         runCmd: ${{ inputs.run-cmd }}
+
+    # Save after the run step, which populates the cache via `uv sync`; saving
+    # before it would store only the restore-keys fallback under the new key,
+    # so the cache would never gain new wheels (cap-2m52). always() keeps a
+    # failed test run from discarding the downloads. No `uv cache prune --ci`:
+    # it drops exactly the downloaded wheels this cache exists to keep, and
+    # the ~150 MB archive is far below the 10 GB repo budget.
+    # Skip the save on an exact cache hit — nothing changed, and every job in
+    # the per-app matrix shares this key, so a redundant reserve-cache call
+    # on every run adds needless API traffic across the whole matrix.
+    - name: Save uv cache
+      uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      if: always() && steps.restore-uv.outputs.cache-hit != 'true'
+      with:
+        path: .cache/uv
+        key: ${{ runner.os }}-uv-v1-${{ hashFiles('uv.lock') }}
 
     - name: Prune Rust incremental artifacts before cache save
       if: always() && inputs.cargo-cache == 'true'

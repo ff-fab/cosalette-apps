@@ -140,6 +140,9 @@ def test_parse_value(input, expected):
     assert parse_value(input) == expected
 ```
 
+In CI, the `ci:test:*` tasks run pytest with `--timeout=300 --timeout-method=thread`
+(pytest-timeout), so a hung test fails with a stack dump instead of stalling the job.
+Local runs have no timeout, so a debugger can pause freely.
 
 
 ## Test Organization
