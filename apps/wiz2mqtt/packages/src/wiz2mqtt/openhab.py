@@ -17,6 +17,10 @@ from wiz2mqtt.settings import Wiz2MqttSettings
 
 cli = typer.Typer()
 
+# A schema run takes well under a second; the bound turns a wedged child into
+# a reported failure instead of a generator (or test suite) that never returns.
+_SCHEMA_CLI_TIMEOUT = 120.0
+
 
 def _schema_cli(*args: str) -> str:
     """Keep framework schema internals behind the supported CLI boundary."""
@@ -24,7 +28,9 @@ def _schema_cli(*args: str) -> str:
         [sys.executable, "-m", "cosalette", "schema", *args],
         check=True,
         capture_output=True,
+        stdin=subprocess.DEVNULL,
         text=True,
+        timeout=_SCHEMA_CLI_TIMEOUT,
     ).stdout
 
 
@@ -248,7 +254,7 @@ def generate(
             typer.echo("// ---\n")
         if output in ("items", "both"):
             typer.echo(items)
-    except (ValueError, subprocess.CalledProcessError) as exc:
+    except (ValueError, subprocess.SubprocessError) as exc:
         detail = (
             exc.stderr if isinstance(exc, subprocess.CalledProcessError) else str(exc)
         )
