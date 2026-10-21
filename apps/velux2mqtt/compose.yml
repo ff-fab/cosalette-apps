@@ -5,10 +5,14 @@ services:
       dockerfile: apps/velux2mqtt/Dockerfile
     image: ghcr.io/ff-fab/velux2mqtt:latest
     restart: unless-stopped
+    # Only the GPIO character device is passed in; no privileged mode.
     devices:
       - /dev/gpiochip0:/dev/gpiochip0 # Pi Zero 2 W / Pi 4; use /dev/gpiochip4 for Pi 5
+    # The image has no gpio group, so add the host's gpio GID by number.
+    # GIDs are assigned at install time: check yours with `getent group gpio`
+    # and set VELUX2MQTT_GPIO_GID in .env if it is not 997.
     group_add:
-      - gpio
+      - ${VELUX2MQTT_GPIO_GID:-997}
     env_file: .env
     environment:
       VELUX2MQTT_MQTT__HOST: mosquitto

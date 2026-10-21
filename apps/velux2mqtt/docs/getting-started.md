@@ -46,7 +46,7 @@ triggering the VELUX motor.
         devices:
           - /dev/gpiochip0:/dev/gpiochip0 # Pi Zero 2 W / Pi 4; use /dev/gpiochip4 for Pi 5
         group_add:
-          - gpio
+          - ${VELUX2MQTT_GPIO_GID:-997} # numeric GID of the host gpio group
         env_file: .env
         environment:
           VELUX2MQTT_MQTT__HOST: mosquitto
@@ -86,7 +86,7 @@ triggering the VELUX motor.
     ```
 
     The container needs GPIO host access (`/dev/gpiochip0`), which the Compose file
-    maps automatically.
+    maps automatically. See [GPIO access](#gpio-access) for the group it runs with.
 
     !!! tip "Download everything at once"
         Prefer `curl` over copy-paste? Grab all three files in one go:
@@ -106,21 +106,72 @@ triggering the VELUX motor.
 
 === "Manual (pip/uv)"
 
-    Install velux2mqtt directly on your Pi:
+    Use a Python 3.14 virtual environment on your Pi/Linux host. Install a C
+    compiler, Linux headers, and development headers matching your Python first.
+    On Debian/Raspberry Pi OS, with Python 3.14 available from your configured
+    repositories:
 
     ```bash
+    sudo apt-get install build-essential linux-libc-dev python3.14-dev python3.14-venv
+    ```
+
+    lgpio has no prebuilt wheel for Python 3.14. Build its bundled C library with
+    `PYPI=1`, SWIG 4.2.1, and the compiler compatibility flags below. Disabling
+    build isolation lets the build use the pinned tools in your virtual environment.
+
+    **With pip:**
+
+    ```bash
+    python3.14 -m venv .venv
+    source .venv/bin/activate
+    pip install swig==4.2.1.post0 setuptools==80.9.0
+    PYPI=1 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" \
+      pip install --no-build-isolation --no-binary=lgpio lgpio==0.2.2.0
     pip install velux2mqtt
-    # or with uv:
+    ```
+
+    **With uv:**
+
+    ```bash
+    uv venv --python 3.14 .venv
+    source .venv/bin/activate
+    uv pip install swig==4.2.1.post0 setuptools==80.9.0
+    PYPI=1 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" \
+      uv pip install --no-build-isolation --no-binary=lgpio lgpio==0.2.2.0
     uv pip install velux2mqtt
     ```
 
-    Create a `.env` file or set environment variables, then run:
+    Create a `.env` file or set environment variables, then run from the activated
+    environment:
 
     ```bash
+    export GPIOZERO_PIN_FACTORY=lgpio LG_WD=/tmp
     velux2mqtt
     ```
 
-    velux2mqtt reads `.env` from the current directory by default.
+    velux2mqtt reads `.env` from the current directory by default. Your user must
+    have access to `/dev/gpiochip*` (usually through the host's `gpio` group).
+    `GPIOZERO_PIN_FACTORY` selects lgpio explicitly; `LG_WD` gives its notification
+    pipes a writable directory.
+
+---
+
+### GPIO access
+
+The image uses gpiozero's lgpio pin factory, which talks only to the GPIO character
+device (`/dev/gpiochip0`); it needs neither `/dev/gpiomem` nor privileged mode. The
+container runs as a non-root user, and on the host that device belongs to the `gpio`
+group. The image has no group of that name, so Compose adds the host's group by its
+numeric ID. The ID is assigned when the system is installed and differs between
+installations, so look it up:
+
+```bash
+getent group gpio
+# gpio:x:997:pi
+```
+
+The third field is the GID. Compose uses `997` unless you set `VELUX2MQTT_GPIO_GID` in
+`.env`.
 
 ---
 
@@ -172,7 +223,8 @@ You should see `velux2mqtt/blind/state` update with the position tracking to 50.
     - Check velux2mqtt logs:
       `docker compose logs velux2mqtt` or the terminal output
     - Verify GPIO access: `ls -la /dev/gpiochip*`
-    - Check user is in gpio group: `groups`
+    - Check that `VELUX2MQTT_GPIO_GID` matches `getent group gpio` (see
+      [GPIO access](#gpio-access))
 
 ---
 

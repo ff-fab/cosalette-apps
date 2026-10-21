@@ -72,8 +72,11 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
 ENV GPIOZERO_PIN_FACTORY=lgpio \
     LG_WD=/tmp
 
-# Fail the build if the compiled extension does not load.
-RUN python -c "import lgpio, gpiozero.pins.lgpio"
+# Fail the build if the compiled extension does not load. Importing lgpio as root
+# creates a root-owned notification FIFO in LG_WD that appuser could not open at
+# runtime, so remove it again.
+RUN python -c "import lgpio, gpiozero.pins.lgpio" \
+    && rm -f /tmp/.lgd-nfy*
 
 # Prepare persistence directory and non-root user
 RUN adduser -D appuser \
