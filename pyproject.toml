@@ -43,7 +43,7 @@ members = ["apps/*"]
 exclude-newer = "7 days"
 # These minimums cannot be satisfied under the age policy.
 # certifi and pillow (cap-t60o): the security fixes above are newer than 7 days.
-# Drop both exemptions once certifi 2026.10.19 and pillow 13.0.0 are 7 days old.
+# Remove both on 2026-10-28 once the uploads are 7 days old (cap-4vnr).
 exclude-newer-package = { certifi = false, cosalette = false, pillow = false, pydantic-settings = false }
 constraint-dependencies = [
     "aiohttp>=3.14.3",

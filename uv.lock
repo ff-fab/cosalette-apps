@@ -3424,6 +3424,7 @@ http = [
 ]
 png = [
     { name = "cairosvg" },
+    { name = "pillow" },
 ]
 
 [package.dev-dependencies]
@@ -3437,6 +3438,7 @@ requires-dist = [
     { name = "astral", specifier = ">=3.2" },
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.9.1" },
     { name = "cosalette", specifier = ">=0.12.1,<0.13" },
+    { name = "pillow", marker = "extra == 'png'", specifier = ">=13.0.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pyyaml", specifier = ">=6.0" },
 ]

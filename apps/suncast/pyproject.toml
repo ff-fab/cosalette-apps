@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-png = ["cairosvg>=2.9.1"]
+png = ["cairosvg>=2.9.1", "pillow>=13.0.0"]
 http = ["aiohttp>=3.9"]
 
 [project.scripts]
