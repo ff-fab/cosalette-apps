@@ -106,25 +106,53 @@ triggering the VELUX motor.
 
 === "Manual (pip/uv)"
 
-    Install velux2mqtt directly on your Pi:
+    Use a Python 3.14 virtual environment on your Pi/Linux host. Install a C
+    compiler, Linux headers, and development headers matching your Python first.
+    On Debian/Raspberry Pi OS, with Python 3.14 available from your configured
+    repositories:
 
     ```bash
+    sudo apt-get install build-essential linux-libc-dev python3.14-dev python3.14-venv
+    ```
+
+    lgpio has no prebuilt wheel for Python 3.14. Build its bundled C library with
+    `PYPI=1`, SWIG 4.2.1, and the compiler compatibility flags below. Disabling
+    build isolation lets the build use the pinned tools in your virtual environment.
+
+    **With pip:**
+
+    ```bash
+    python3.14 -m venv .venv
+    source .venv/bin/activate
+    pip install swig==4.2.1.post0 setuptools==80.9.0
+    PYPI=1 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" \
+      pip install --no-build-isolation --no-binary=lgpio lgpio==0.2.2.0
     pip install velux2mqtt
-    # or with uv:
+    ```
+
+    **With uv:**
+
+    ```bash
+    uv venv --python 3.14 .venv
+    source .venv/bin/activate
+    uv pip install swig==4.2.1.post0 setuptools==80.9.0
+    PYPI=1 CFLAGS="-std=gnu17 -Wno-error=incompatible-pointer-types" \
+      uv pip install --no-build-isolation --no-binary=lgpio lgpio==0.2.2.0
     uv pip install velux2mqtt
     ```
 
-    Create a `.env` file or set environment variables, then run:
+    Create a `.env` file or set environment variables, then run from the activated
+    environment:
 
     ```bash
+    export GPIOZERO_PIN_FACTORY=lgpio LG_WD=/tmp
     velux2mqtt
     ```
 
-    velux2mqtt reads `.env` from the current directory by default.
-
-    lgpio, the GPIO library velux2mqtt uses, has no prebuilt wheel for Python 3.14,
-    so pip builds it from source. The build needs a C compiler and `swig` older
-    than 4.3.
+    velux2mqtt reads `.env` from the current directory by default. Your user must
+    have access to `/dev/gpiochip*` (usually through the host's `gpio` group).
+    `GPIOZERO_PIN_FACTORY` selects lgpio explicitly; `LG_WD` gives its notification
+    pipes a writable directory.
 
 ---
 
