@@ -12,6 +12,7 @@ authors = [
 dependencies = [
     "cosalette>=0.12.1,<0.13",
     "gpiozero>=2.0",
+    "lgpio>=0.2.2.0; sys_platform == 'linux'",
     "pydantic>=2.10.0",
     "pydantic-settings>=2.6.0",
 ]

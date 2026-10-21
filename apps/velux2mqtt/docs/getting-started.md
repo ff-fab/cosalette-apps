@@ -46,7 +46,7 @@ triggering the VELUX motor.
         devices:
           - /dev/gpiochip0:/dev/gpiochip0 # Pi Zero 2 W / Pi 4; use /dev/gpiochip4 for Pi 5
         group_add:
-          - gpio
+          - ${VELUX2MQTT_GPIO_GID:-997} # numeric GID of the host gpio group
         env_file: .env
         environment:
           VELUX2MQTT_MQTT__HOST: mosquitto
@@ -86,7 +86,7 @@ triggering the VELUX motor.
     ```
 
     The container needs GPIO host access (`/dev/gpiochip0`), which the Compose file
-    maps automatically.
+    maps automatically. See [GPIO access](#gpio-access) for the group it runs with.
 
     !!! tip "Download everything at once"
         Prefer `curl` over copy-paste? Grab all three files in one go:
@@ -121,6 +121,29 @@ triggering the VELUX motor.
     ```
 
     velux2mqtt reads `.env` from the current directory by default.
+
+    lgpio, the GPIO library velux2mqtt uses, has no prebuilt wheel for Python 3.14,
+    so pip builds it from source. The build needs a C compiler and `swig` older
+    than 4.3.
+
+---
+
+### GPIO access
+
+The image uses gpiozero's lgpio pin factory, which talks only to the GPIO character
+device (`/dev/gpiochip0`); it needs neither `/dev/gpiomem` nor privileged mode. The
+container runs as a non-root user, and on the host that device belongs to the `gpio`
+group. The image has no group of that name, so Compose adds the host's group by its
+numeric ID. The ID is assigned when the system is installed and differs between
+installations, so look it up:
+
+```bash
+getent group gpio
+# gpio:x:997:pi
+```
+
+The third field is the GID. Compose uses `997` unless you set `VELUX2MQTT_GPIO_GID` in
+`.env`.
 
 ---
 
@@ -172,7 +195,8 @@ You should see `velux2mqtt/blind/state` update with the position tracking to 50.
     - Check velux2mqtt logs:
       `docker compose logs velux2mqtt` or the terminal output
     - Verify GPIO access: `ls -la /dev/gpiochip*`
-    - Check user is in gpio group: `groups`
+    - Check that `VELUX2MQTT_GPIO_GID` matches `getent group gpio` (see
+      [GPIO access](#gpio-access))
 
 ---
 

@@ -74,6 +74,9 @@ includes:
       # against this checked-in representative profile (see .env.schema,
       # cap-0cg, cap-wv9 part b resolved in cosalette 0.6.0).
       SCHEMA_ENV_FILE: .env.schema
+      # Image smoke test: lgpio must load as the non-root runtime user (cap-lejv).
+      SMOKE: |
+        docker run --rm --network none --entrypoint python "$IMAGE" -c "import lgpio, gpiozero.pins.lgpio"
 
   airthings2mqtt:
     taskfile: ./taskfiles/PythonApp.yml

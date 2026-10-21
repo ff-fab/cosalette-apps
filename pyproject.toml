@@ -62,7 +62,7 @@ constraint-dependencies = [
     "starlette>=1.3.1",
 ]
 
-# lgpio (geiger2mqtt) ships no cp314 wheels, so every sync builds its sdist.
+# lgpio (geiger2mqtt, velux2mqtt) ships no cp314 wheels, so every sync builds its sdist.
 # PYPI=1 statically links the bundled lg C sources instead of a system liblgpio,
 # and swig generates the Python bindings. swig 4.3 dropped the PyInt_* aliases
 # that lgpio.i still uses, so the build pins swig<4.3. The lg sources predate

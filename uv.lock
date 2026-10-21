@@ -3656,6 +3656,7 @@ source = { editable = "apps/velux2mqtt" }
 dependencies = [
     { name = "cosalette" },
     { name = "gpiozero" },
+    { name = "lgpio", marker = "sys_platform == 'linux'" },
     { name = "pydantic" },
     { name = "pydantic-settings" },
 ]
@@ -3669,6 +3670,7 @@ dev = [
 requires-dist = [
     { name = "cosalette", specifier = ">=0.12.1,<0.13" },
     { name = "gpiozero", specifier = ">=2.0" },
+    { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
     { name = "pydantic", specifier = ">=2.10.0" },
     { name = "pydantic-settings", specifier = ">=2.6.0" },
 ]

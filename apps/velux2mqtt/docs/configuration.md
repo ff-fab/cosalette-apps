@@ -203,6 +203,12 @@ no cover ever turns `"stale"` and cosalette derives no `stale_after` bound.
 velux2mqtt therefore sets neither `exit_after_stale` nor `restart_on_stale`: both
 watch stale telemetry or streams, and velux2mqtt has neither.
 
+**GPIO access.** The image selects gpiozero's lgpio pin factory
+(`GPIOZERO_PIN_FACTORY=lgpio`, `LG_WD=/tmp`), so it needs only the GPIO character
+device. `VELUX2MQTT_GPIO_GID` (default `997`) is read by `compose.yml`, not by the app:
+it adds the host's `gpio` group by number. See
+[Getting Started](getting-started.md#gpio-access).
+
 **Adapter health check.** Every 30 s, cosalette checks that the GPIO character device
 (`VELUX2MQTT_GPIO_CHIP_DEVICE`) exists. A failed check marks every cover `offline`.
 After 5 failed checks it releases and reopens the GPIO pins, at most 3 times. The
@@ -247,6 +253,11 @@ cp .env.example .env
 # velux2mqtt Configuration
 # All settings can be set via environment variables with VELUX2MQTT_ prefix.
 # Nested settings use __ delimiter (e.g., VELUX2MQTT_MQTT__HOST).
+
+# --- Container ---
+# Numeric GID of the host's gpio group (the image has no gpio group by name).
+# It differs between installs: check with `getent group gpio`.
+VELUX2MQTT_GPIO_GID=997
 
 # --- MQTT Settings (cosalette base) ---
 VELUX2MQTT_MQTT__HOST=localhost

@@ -5,7 +5,8 @@ Each pin drives one switch control input: HIGH closes the switch
 (bridging KLF 050 button contacts), LOW opens it.
 
 Compatible with Raspberry Pi 4, Pi 5, and Pi Zero 2 W via
-gpiozero's pin factory abstraction (RPi.GPIO, lgpio, or native).
+gpiozero's pin factory abstraction. The container image selects the lgpio
+factory (GPIOZERO_PIN_FACTORY=lgpio), which needs only /dev/gpiochip*.
 """
 
 from __future__ import annotations
