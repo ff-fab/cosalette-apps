@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.3.1...velux2mqtt-v0.3.2) (2026-10-21)
+
+
+### Bug Fixes
+
+* **velux2mqtt:** ship lgpio pin factory in the container image ([#425](https://github.com/ff-fab/cosalette-apps/issues/425)) ([29892f0](https://github.com/ff-fab/cosalette-apps/commit/29892f0cc8d734b878e34c71ffb774d1173632f6))
+
 ## [0.3.1](https://github.com/ff-fab/cosalette-apps/compare/velux2mqtt-v0.3.0...velux2mqtt-v0.3.1) (2026-10-13)
 
 

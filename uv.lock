@@ -1267,7 +1267,7 @@ dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }
 
 [[package]]
 name = "geiger2mqtt"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "apps/geiger2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3409,7 +3409,7 @@ wheels = [
 
 [[package]]
 name = "suncast"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "apps/suncast" }
 dependencies = [
     { name = "astral" },
@@ -3651,7 +3651,7 @@ wheels = [
 
 [[package]]
 name = "velux2mqtt"
-version = "0.3.1"
+version = "0.3.2"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
     { name = "cosalette" },
