@@ -54,6 +54,12 @@ class _CountingFakeJeeLinkAdapter(FakeJeeLinkAdapter):
     def __init__(self) -> None:
         super().__init__()
         self.entries = 0
+        self.callback_registered = asyncio.Event()
+
+    def register_callback(self, callback: Callable[[SensorReading], None]) -> None:
+        """Record when framework stream startup has completed registration."""
+        super().register_callback(callback)
+        self.callback_registered.set()
 
     async def __aenter__(self) -> _CountingFakeJeeLinkAdapter:
         self.entries += 1
@@ -125,8 +131,10 @@ async def _running(
     task = asyncio.create_task(harness.run())
     try:
         await harness.wait_for_publish_count(_STATUS_TOPIC, 1)
-        # The framework registers the stream callback once the stream starts.
-        await clock.settle(until=lambda: adapter._callback is not None)
+        # Stream startup also loads the device store in a worker thread, so a
+        # bounded event-loop settle can expire before startup reaches callback
+        # registration under CI load. Wait for the actual readiness signal.
+        await asyncio.wait_for(adapter.callback_registered.wait(), timeout=2.0)
         yield harness, adapter, advance_to, task
     finally:
         harness.shutdown_event.set()
