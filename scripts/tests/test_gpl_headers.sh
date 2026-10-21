@@ -65,10 +65,13 @@ SPDX-License-Identifier = "MIT"
 TOML
 }
 
+# The script is stdlib-only, so run it in a throwaway environment. Going through
+# the workspace venv (uv run --project) syncs and reads the .venv that parallel
+# pre-pr:full groups install into: the likely cause of the Test 6 flake (cap-oc3c).
 _run_check() {
     local repo="$1"
     local out rc
-    out=$(uv run --project "$REPO_ROOT" "$repo/scripts/add_gpl_headers.py" --check 2>&1)
+    out=$(uv run --isolated --no-project "$repo/scripts/add_gpl_headers.py" --check 2>&1)
     rc=$?
     printf '%s\nEXIT:%d\n' "$out" "$rc"
 }
