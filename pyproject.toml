@@ -36,18 +36,24 @@ members = ["apps/*"]
 # PYSEC-2026-196: pip <26.1.2; PYSEC-2026-3721: pip <26.2
 # CVE-2026-48817, CVE-2026-54283 et al: starlette <1.3.1
 # CVE-2026-54591: asyncssh <2.23.1
+# PYSEC-2026-4320: certifi <2026.10.19
+# CVE-2026-112395/112397/112400/112404/112895/112896/112897/112899: pillow <13.0.0
 [tool.uv]
 # Match Renovate's minimum release age during local lock refreshes.
 exclude-newer = "7 days"
 # These minimums cannot be satisfied under the age policy.
-exclude-newer-package = { cosalette = false, pydantic-settings = false }
+# certifi and pillow (cap-t60o): the security fixes above are newer than 7 days.
+# Remove both on 2026-10-28 once the uploads are 7 days old (cap-4vnr).
+exclude-newer-package = { certifi = false, cosalette = false, pillow = false, pydantic-settings = false }
 constraint-dependencies = [
     "aiohttp>=3.14.3",
     "asyncssh>=2.23.1",
+    "certifi>=2026.10.19",
     "cryptography>=50.0.0",
     "idna>=3.15",
     "lxml>=6.1.0",
     "msgpack>=1.2.1",
+    "pillow>=13.0.0",
     "pip>=26.2",
     "pydantic-settings>=2.14.2",
     "pyjwt>=2.14.0",
