@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.3](https://github.com/ff-fab/cosalette-apps/compare/suncast-v0.3.2...suncast-v0.3.3) (2026-10-21)
+
+
+### Bug Fixes
+
+* **deps:** bump certifi to 2026.10.19 and pillow to 13.0.0 ([#424](https://github.com/ff-fab/cosalette-apps/issues/424)) ([84afba3](https://github.com/ff-fab/cosalette-apps/commit/84afba36a522f5b02b90e2cb3426e07257da873a))
+
 ## [0.3.2](https://github.com/ff-fab/cosalette-apps/compare/suncast-v0.3.1...suncast-v0.3.2) (2026-10-13)
 
 
