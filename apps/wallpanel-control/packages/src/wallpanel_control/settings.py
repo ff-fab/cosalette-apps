@@ -19,28 +19,6 @@ from pydantic_settings import SettingsConfigDict
 from wallpanel_control.adapters.wol_adapter import _parse_mac
 
 _DEVICE_RE = re.compile(r"[a-zA-Z0-9._-]+")
-_LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-
-
-class WallpanelLoggingSettings(cosalette.LoggingSettings):
-    """Logging settings with a quiet asyncssh by default.
-
-    asyncssh logs several INFO lines per remote command. Override the whole
-    mapping with ``WALLPANEL_CONTROL_LOGGING__LEVELS='{"asyncssh":"INFO"}'``.
-    """
-
-    levels: dict[str, str] = Field(
-        default={"asyncssh": "WARNING"},
-        description="Per-logger level overrides; asyncssh is quiet by default.",
-    )
-
-    @field_validator("levels")
-    @classmethod
-    def validate_levels(cls, value: dict[str, str]) -> dict[str, str]:
-        """Keep the accepted values aligned with cosalette's log levels."""
-        if invalid := set(value.values()) - _LOG_LEVELS:
-            raise ValueError(f"Invalid logging levels: {sorted(invalid)}")
-        return value
 
 
 class WallpanelControlSettings(cosalette.Settings):
@@ -57,7 +35,21 @@ class WallpanelControlSettings(cosalette.Settings):
         env_file_encoding="utf-8",
     )
 
-    logging: WallpanelLoggingSettings = Field(default_factory=WallpanelLoggingSettings)
+    # asyncssh logs several INFO lines per remote command. Operators can replace
+    # this mapping with WALLPANEL_CONTROL_LOGGING__LEVELS.
+    logging: cosalette.LoggingSettings = Field(
+        default_factory=lambda: cosalette.LoggingSettings(
+            levels={"asyncssh": "WARNING"}
+        )
+    )
+
+    @field_validator("logging", mode="before")
+    @classmethod
+    def default_asyncssh_level(cls, value: object) -> object:
+        """Keep the quiet default when only other logging options are set."""
+        if isinstance(value, dict):
+            return {"levels": {"asyncssh": "WARNING"}, **value}
+        return value
 
     # SSH configuration
     ssh_host: str = Field(

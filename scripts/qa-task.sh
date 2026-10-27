@@ -64,8 +64,9 @@ run_task() {
 _do_security_deps() {
     local cache="${PIP_AUDIT_CACHE_DIR:-.cache/pip-audit}"
     mkdir -p "$cache"
+    # uv exports the complete pinned graph; pip resolution would reinstall it.
     uv export --format requirements-txt --all-packages --all-extras --all-groups --no-emit-workspace --no-hashes \
-        | uv run pip-audit -r /dev/stdin --progress-spinner off --timeout 10 --cache-dir "$cache"
+        | uv run pip-audit -r /dev/stdin --no-deps --disable-pip --progress-spinner off --timeout 10 --cache-dir "$cache"
 }
 
 _do_security_secrets() {
@@ -195,6 +196,7 @@ case "$TASK_NAME" in
         wait $PID_ACT     || AUDIT_FAILURES+=(security:actions)
 
         if [ ${#AUDIT_FAILURES[@]} -gt 0 ]; then
+            cat "$LOG_FILE"
             echo "==> [security:audit] FAILED: ${AUDIT_FAILURES[*]}" | tee -a "$LOG_FILE"
             echo "1" > "$STATUS_FILE"
             exit 1
