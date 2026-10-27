@@ -96,6 +96,37 @@ rm -f "$T3_LOG"
 assert_contains "qa-task.sh: no-arg usage message" "Usage:" "$T3_OUT"
 assert_exit_eq "qa-task.sh: no-arg exits 1" "1" "$T3_RC"
 
+# Test the real parallel audit with stubbed tools so failed leaf diagnostics
+# reach the console as well as the persistent aggregate log.
+AUDIT_DIR=$(mktemp -d)
+mkdir -p "$AUDIT_DIR/bin" "$AUDIT_DIR/packages/src"
+touch "$AUDIT_DIR/.secrets.baseline"
+cat > "$AUDIT_DIR/bin/uv" << 'EOF'
+#!/usr/bin/env bash
+if [ "${1:-}" = "export" ]; then exit 0; fi
+if [ "${2:-}" = "pip-audit" ]; then
+    echo "audit dependency diagnostic" >&2
+    exit 7
+fi
+if [ "${2:-}" = "ruff" ]; then
+    echo "audit Python diagnostic" >&2
+    exit 9
+fi
+exit 0
+EOF
+printf '#!/usr/bin/env bash\nexit 0\n' > "$AUDIT_DIR/bin/git"
+chmod +x "$AUDIT_DIR/bin/uv" "$AUDIT_DIR/bin/git"
+AUDIT_OUT=$(
+    cd "$AUDIT_DIR" || exit 1
+    PATH="$AUDIT_DIR/bin:$PATH" bash "$REPO_ROOT/scripts/qa-task.sh" security:audit 2>&1
+); AUDIT_RC=$?
+assert_exit_eq "qa-task.sh audit: failures exit 1" "1" "$AUDIT_RC"
+assert_contains "qa-task.sh audit: prints dependency details" "audit dependency diagnostic" "$AUDIT_OUT"
+assert_contains "qa-task.sh audit: prints Python details" "audit Python diagnostic" "$AUDIT_OUT"
+assert_contains "qa-task.sh audit: names all failed checks" "FAILED: security:deps security:python" "$AUDIT_OUT"
+assert_eq "qa-task.sh audit: records failed status" "1" "$(cat "$AUDIT_DIR/.qa-logs/security--audit.status")"
+rm -rf "$AUDIT_DIR"
+
 # ── Tests: pre-pr.sh ─────────────────────────────────────────────────────────
 
 printf "\n=== pre-pr.sh ===\n"

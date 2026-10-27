@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* refresh locked runtime dependencies, including Pydantic and Pydantic Settings
+
 ## [0.1.1](https://github.com/ff-fab/cosalette-apps/compare/geiger2mqtt-v0.1.0...geiger2mqtt-v0.1.1) (2026-10-21)
 
 

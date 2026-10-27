@@ -56,6 +56,17 @@ class TestWallpanelControlSettingsDefaults:
         settings = make_wallpanel_control_settings()
         assert settings.logging.levels == {"asyncssh": "WARNING"}
 
+    def test_partial_logging_keeps_asyncssh_default(self) -> None:
+        """Changing root logging options retains the per-logger default."""
+        settings = make_wallpanel_control_settings(logging={"level": "DEBUG"})
+        assert settings.logging.level == "DEBUG"
+        assert settings.logging.levels == {"asyncssh": "WARNING"}
+
+    def test_explicit_empty_levels_removes_asyncssh_default(self) -> None:
+        """Operators can opt out of all per-logger overrides."""
+        settings = make_wallpanel_control_settings(logging={"levels": {}})
+        assert settings.logging.levels == {}
+
     def test_default_backlight_path(self) -> None:
         """Default backlight path is the Intel backlight sysfs entry."""
         settings = make_wallpanel_control_settings()

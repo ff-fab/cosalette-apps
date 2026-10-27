@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Bug Fixes
+
+* refresh locked runtime dependencies, including Pydantic and Pydantic Settings
+
 ## [0.3.1](https://github.com/ff-fab/cosalette-apps/compare/wiz2mqtt-v0.3.0...wiz2mqtt-v0.3.1) (2026-10-13)
 
 

@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Literal
 
 import cosalette
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 from pydantic_settings import SettingsConfigDict
 
 type SundialMode = Literal["ring", "compact", "off"]
@@ -35,7 +35,7 @@ _HEX_COLOR_PATTERN = rf"^{_HEX_COLOR}$"
 _BACKGROUND_PATTERN = rf"^(?:none|{_HEX_COLOR})$"
 
 
-class RenderStyle(BaseModel):
+class RenderStyle(BaseModel, frozen=True):
     """Visual style for the SVG renderer.
 
     Single source of truth for the render defaults: mixed into
@@ -43,10 +43,6 @@ class RenderStyle(BaseModel):
     directly by the renderer as its frozen value object, so the palette can't
     drift between the config layer and the renderer.
     """
-
-    # Frozen here; SuncastSettings below explicitly re-sets frozen=False to
-    # keep the settings object mutable despite this mixin.
-    model_config = ConfigDict(frozen=True)
 
     primary_color: str = Field(default="#614c1f", pattern=_HEX_COLOR_PATTERN)
     secondary_color: str = Field(default="#b38c3a", pattern=_HEX_COLOR_PATTERN)
