@@ -206,7 +206,7 @@ class TestLoggingLevelsFromEnvironment:
 
     Technique: Error Guessing — pydantic-settings drops a nested default that is
     overridden on the Settings class once any LOGGING__* variable is set; the
-    LoggingSettings subclass keeps it (cosalette 0.12 migration notes).
+    before-validator restores it when no explicit levels mapping is supplied.
     """
 
     def test_other_logging_variable_keeps_asyncssh_default(
