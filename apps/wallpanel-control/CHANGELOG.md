@@ -6,6 +6,13 @@
 
 * refresh locked runtime dependencies, including Pydantic and Pydantic Settings
 
+## [0.4.2](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.4.1...wallpanel-control-v0.4.2) (2026-10-27)
+
+
+### Bug Fixes
+
+* **deps:** refresh runtime dependencies and clear audit findings ([#428](https://github.com/ff-fab/cosalette-apps/issues/428)) ([c9d5930](https://github.com/ff-fab/cosalette-apps/commit/c9d5930cd945ae7edac55f128c33d662721a8534))
+
 ## [0.4.1](https://github.com/ff-fab/cosalette-apps/compare/wallpanel-control-v0.4.0...wallpanel-control-v0.4.1) (2026-10-13)
 
 
