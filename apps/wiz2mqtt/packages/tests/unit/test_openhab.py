@@ -11,6 +11,8 @@ Test Techniques Used:
 - Equivalence Partitioning: a bulb in a power source gets a Powered channel
   and Item; a bulb outside every source gets none. Every bulb gets an Error
   channel and Item either way
+- Equivalence Partitioning (invalid partition): a missing config file or an
+  unknown ``--output`` value is a usage error (exit 2) naming the option
 - Specification-based: every bulb exposes colour temperature, effect speed,
   power draw and the error topic, with commands openHAB can actually send
 - Error Guessing: the generator needing PyYAML, which only the dev group
@@ -203,6 +205,26 @@ def _generate(tmp_path: Path, toml: str) -> str:
     result = CliRunner().invoke(cli, ["--config-file", str(config)])
     assert result.exit_code == 0, result.output
     return result.output
+
+
+@pytest.mark.parametrize(
+    ("args", "option"),
+    [
+        (["--config-file", "missing.toml"], "--config-file"),
+        (["--output", "all"], "--output"),
+    ],
+)
+def test_generate_rejects_invalid_options_as_usage_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, args: list[str], option: str
+) -> None:
+    """A missing config file or unknown ``--output`` exits 2 naming the option."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "wiz2mqtt.toml").write_text("")
+
+    result = CliRunner().invoke(cli, args)
+
+    assert result.exit_code == 2
+    assert option in result.output
 
 
 _BULBS = (

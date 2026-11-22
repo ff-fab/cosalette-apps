@@ -43,7 +43,7 @@ members = ["apps/*"]
 # Match Renovate's minimum release age during local lock refreshes.
 exclude-newer = "7 days"
 # Exempt our own framework so app minimums on fresh cosalette releases resolve.
-# Security minimums above are enforced by constraint-dependencies; exempt a package
+# Security minimums are enforced by constraint-dependencies below; exempt a package
 # here only while its fix is younger than 7 days, with a dated removal task.
 exclude-newer-package = { cosalette = false }
 constraint-dependencies = [
