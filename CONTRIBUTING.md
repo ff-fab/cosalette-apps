@@ -441,6 +441,45 @@ stay consistent with. If `bd setup --check` flags Copilot as "not installed," th
 expected — this repo's Copilot integration is the `.github/` tree itself, not `bd`'s
 recipe.
 
+### Upgrading beads (`bd`) and dolt
+
+`bd` and `dolt` are pinned in `.devcontainer/Dockerfile`, so a version bump reaches you
+when you rebuild the container. A new `bd` can carry a schema migration, and it never
+applies one to this repo's dolt sql-server on its own: until you consent, reads work and
+every write fails with `refusing to auto-apply N pending schema migrations`. The
+migration cannot be undone in place — an older `bd` refuses the migrated database with
+`schema version mismatch` — so take the backup before you rebuild.
+
+The bd 1.3 upgrade (from 1.1.x) migrates schema v53 to v66. Steps:
+
+1. **Before rebuilding, in the old container**, back up the database. `tmp/` is
+   gitignored and survives a rebuild:
+
+   ```bash
+   mkdir -p tmp/beads-pre-upgrade
+   bd export --all -o tmp/beads-pre-upgrade/issues.jsonl
+   bd dolt stop
+   cp -a .beads/dolt tmp/beads-pre-upgrade/dolt
+   rm -f .beads/dolt-server.pid .beads/dolt-server.port
+   ```
+
+2. **Rebuild the container.** `post-start.sh` starts the new dolt on port 3317.
+3. **Migrate once, then check:**
+
+   ```bash
+   bd migrate schema        # applies the pending migrations (a few seconds)
+   bd recompute-blocked     # idempotent; repairs is_blocked flags if an old dolt ran 0059
+   bd doctor
+   task beads:sync          # one-time JSONL diff: comment ids change (content-derived ids)
+   ```
+
+   Commit the refreshed `.beads/issues.jsonl` like any other beads change.
+
+**Recovery.** To go back, stop the server (`bd dolt stop`), replace `.beads/dolt` with
+`tmp/beads-pre-upgrade/dolt`, and rebuild the container from a commit with the old pins.
+For a read-only look at a migrated database with an old `bd`, set
+`BD_IGNORE_SCHEMA_SKEW=1`.
+
 ## Code Quality
 
 - **Linting & formatting**: [Ruff](https://docs.astral.sh/ruff/) (88-char line length,
