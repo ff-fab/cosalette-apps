@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Bug Fixes
-
-* refresh locked runtime dependencies, including Pydantic and Pydantic Settings
-
 ## [0.3.4](https://github.com/ff-fab/cosalette-apps/compare/suncast-v0.3.3...suncast-v0.3.4) (2026-10-27)
 
 

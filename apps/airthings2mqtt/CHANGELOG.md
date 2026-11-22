@@ -1,14 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Bug Fixes
-
-* refresh locked runtime dependencies, including Pydantic and Pydantic Settings
-
-* honor `AIRTHINGS2MQTT_DEVICE_NAME` for state, set, error, and availability topics, correcting routing for non-default device names
-* check BlueZ adapter power over the system D-Bus for bounded, read-only operational health reporting instead of probing for `/sys/class/bluetooth/hci0`
-
 ## [0.4.2](https://github.com/ff-fab/cosalette-apps/compare/airthings2mqtt-v0.4.1...airthings2mqtt-v0.4.2) (2026-10-27)
 
 
