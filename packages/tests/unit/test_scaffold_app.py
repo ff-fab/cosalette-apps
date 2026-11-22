@@ -45,7 +45,12 @@ def test_scaffold_dockerfile_installs_from_the_lockfile() -> None:
         in scaffold
     )
     assert re.search(r"(?m)^ENV TYPER_USE_RICH", scaffold) is None
-    assert 'dev = ["cosalette[schema]>=0.12.1,<0.13"]' in scaffold
+    root = (_REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    spec = re.search(r'"cosalette\[mcp\](>=[^"]+)"', root)
+    assert spec, "root dev group must pin cosalette[mcp]"
+    # Scaffolded apps start on the workspace's cosalette floor, not a stale one.
+    assert f'"cosalette{spec[1]}",' in scaffold
+    assert f'dev = ["cosalette[schema]{spec[1]}"]' in scaffold
     assert "RUN uv pip install --system --no-cache --compile-bytecode ./apps" not in (
         scaffold
     )
