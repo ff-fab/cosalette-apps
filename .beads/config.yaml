@@ -53,4 +53,5 @@
 # - github.org
 # - github.repo
 
+# Fallback only: BEADS_DOLT_SERVER_PORT (devcontainer.json) wins in bd >= 1.3.
 dolt.port: 3317

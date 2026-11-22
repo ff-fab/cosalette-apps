@@ -248,12 +248,12 @@ __marimo__/
 .beads/dolt/dolt-server.log
 .beads/dolt/dolt-monitor.pid
 .beads/dolt-monitor.pid
-.beads/proxieddb/
-# bd >= 1.3 takes an advisory lock next to .beads/ (.beads.gate.lock)
-*.gate.lock*
+# bd >= 1.3 takes an advisory flock beside .beads/; the patterns for files inside
+# .beads/ live in .beads/.gitignore (bd doctor checks that file).
+/.beads.gate.lock*
 
 # Beads sensitive runtime files
-.beads-credential-key
+.beads/.beads-credential-key
 
 # Dolt database files (added by bd init)
 .dolt/
