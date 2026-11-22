@@ -25,6 +25,16 @@
     }
   },
 
+  "containerEnv": {
+    // Pin the beads dolt sql-server port (cap-fp5u). bd >= 1.3 ranks the dolt
+    // data dir's own config (.beads/dolt/config.yaml listener.port, local and
+    // often stale) above dolt.port in .beads/config.yaml and dolt_server_port in
+    // .beads/metadata.json, so those are fallbacks; only this variable keeps
+    // 3317 fixed. The container has its own network namespace, so a fixed port
+    // does not collide across devcontainers.
+    "BEADS_DOLT_SERVER_PORT": "3317"
+  },
+
   "remoteEnv": {
     "PATH": "/home/vscode/.local/bin:/workspaces/cosalette-apps/.venv/bin:${containerEnv:PATH}",
     "UV_LINK_MODE": "copy",

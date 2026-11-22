@@ -441,6 +441,55 @@ stay consistent with. If `bd setup --check` flags Copilot as "not installed," th
 expected — this repo's Copilot integration is the `.github/` tree itself, not `bd`'s
 recipe.
 
+### Upgrading beads (`bd`) and dolt
+
+`bd` and `dolt` are pinned in `.devcontainer/Dockerfile`, so a version bump reaches you
+when you rebuild the container. A new `bd` can carry a schema migration, and it never
+applies one to this repo's dolt sql-server on its own: until you consent, reads work and
+every write fails with `refusing to auto-apply N pending schema migrations`. The
+migration cannot be undone in place — an older `bd` refuses the migrated database with
+`schema version mismatch` — so take the backup before you rebuild.
+
+Steps for any `bd` bump:
+
+1. **Before rebuilding, in the old container**, back up the database. `tmp/` is
+   gitignored and survives a rebuild; `bd dolt stop` also removes the server's pid and
+   port files. Close other VS Code windows on this repo first: the beads extension calls
+   `bd`, and an older `bd` may restart the server mid-copy. The `pgrep` guard refuses to
+   copy a live database:
+
+   ```bash
+   export BEADS_DOLT_AUTO_START=0
+   mkdir -p tmp/beads-pre-upgrade
+   bd export --all -o tmp/beads-pre-upgrade/issues.jsonl
+   bd dolt stop
+   pgrep -f 'dolt sql-server' && echo "dolt still running; stop it first" \
+     || cp -a .beads/dolt tmp/beads-pre-upgrade/dolt
+   ```
+
+2. **Rebuild the container.** `post-start.sh` starts the new dolt on port 3317.
+3. **Migrate once, then check:**
+
+   ```bash
+   bd migrate schema        # applies pending migrations; a no-op when there are none
+   bd doctor
+   task beads:sync
+   ```
+
+   Commit the refreshed `.beads/issues.jsonl` like any other beads change.
+
+**Recovery.** To go back, stop the server (`bd dolt stop`), replace `.beads/dolt` with
+`tmp/beads-pre-upgrade/dolt`, and rebuild the container from a commit with the old pins.
+For a read-only look at a migrated database with an old `bd`, set
+`BD_IGNORE_SCHEMA_SKEW=1`.
+
+> **1.1.x → 1.3.x (2026-11, remove once every checkout has migrated).** This bump
+> migrates schema v53 to v66. After `bd migrate schema`, also run `bd recompute-blocked`
+> once: it is idempotent and repairs `is_blocked` flags if migration 0059 ever ran on a
+> dolt older than 2.4. Expect a one-time `issues.jsonl` diff, because comment ids become
+> content-derived. Do not run `bd compact` or `bd flatten` on a clone that picked up the
+> migration through a pull (upstream beads issue 7039).
+
 ## Code Quality
 
 - **Linting & formatting**: [Ruff](https://docs.astral.sh/ruff/) (88-char line length,

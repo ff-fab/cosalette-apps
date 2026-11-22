@@ -46,9 +46,17 @@
     },
     {
       "description": "Kilo (Kilo-Org/kilocode) is a smaller-community fork with less audit history — flag version bumps for manual SHA-256 verification before merge",
-      "matchManagers": ["dockerfile"],
       "matchDepNames": ["Kilo-Org/kilocode"],
       "addLabels": ["needs-manual-sha-verification"],
+      "automerge": false
+    },
+    {
+      "description": "A beads (bd) bump can carry a schema migration that every checkout must apply by hand — point the reviewer at the operator steps",
+      "matchDepNames": ["gastownhall/beads"],
+      "addLabels": ["beads-migration"],
+      "prBodyNotes": [
+        "⚠️ A bd bump may migrate the beads schema. Before merging, read the release notes for migrations and follow CONTRIBUTING.md > \"Upgrading beads (`bd`) and dolt\" (back up `.beads/dolt` before rebuilding, then `bd migrate schema`)."
+      ],
       "automerge": false
     }
   ],
