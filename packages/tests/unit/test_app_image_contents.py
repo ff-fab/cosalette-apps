@@ -57,7 +57,7 @@ def test_every_app_is_covered() -> None:
 @pytest.mark.unit
 @pytest.mark.parametrize("app_dir", _APP_DIRS)
 def test_dockerfile_ships_neither_uv_nor_pip(app_dir: str) -> None:
-    """uv is bind-mounted for the install step only and pip is uninstalled.
+    """uv is bind-mounted by digest for the install step only; pip is uninstalled.
 
     Technique: Error Guessing — ``COPY --from=...uv`` keeps a 40 MB binary in
     the final layer; the base image's pip adds another 13 MB.
@@ -67,7 +67,8 @@ def test_dockerfile_ships_neither_uv_nor_pip(app_dir: str) -> None:
 
     assert re.search(r"(?im)^\s*COPY\s+--from=ghcr\.io/astral-sh/uv", contents) is None
     assert re.search(
-        r"(?m)^RUN --mount=from=ghcr\.io/astral-sh/uv:[\w.]+,source=/uv,target=/bin/uv",
+        r"(?m)^RUN --mount=from=ghcr\.io/astral-sh/uv:[\w.]+@sha256:[0-9a-f]{64},"
+        r"source=/uv,target=/bin/uv",
         contents,
     )
     assert "uv pip uninstall --system pip" in contents
