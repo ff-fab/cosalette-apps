@@ -11,7 +11,7 @@ FROM python:3.14-alpine AS lgpio-build
 RUN apk add --no-cache build-base linux-headers
 
 WORKDIR /build
-RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.8,source=/uv,target=/bin/uv \
     --mount=type=bind,source=pyproject.toml,target=/build/pyproject.toml \
     --mount=type=bind,source=uv.lock,target=/build/uv.lock \
     --mount=type=bind,source=apps/geiger2mqtt/pyproject.toml,target=/build/apps/geiger2mqtt/pyproject.toml \
@@ -54,7 +54,7 @@ COPY apps/geiger2mqtt/packages/src/ apps/geiger2mqtt/packages/src/
 # neither at runtime, and together they would add about 53 MB to the image.
 # The workspace pyproject.toml and uv.lock are bind-mounted too, so they stay
 # out of the image (about 0.5 MB).
-RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.8,source=/uv,target=/bin/uv \
     --mount=from=lgpio-build,source=/wheels,target=/wheels \
     --mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml \
     --mount=type=bind,source=uv.lock,target=/app/uv.lock \
