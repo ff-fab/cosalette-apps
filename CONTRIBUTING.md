@@ -256,11 +256,11 @@ loads every session.
 
 Claude Code loads both through a **plugin**, which is why they need no duplication:
 
-| File                                 | Role                                                  |
-| ------------------------------------ | ----------------------------------------------------- |
-| `.github/.claude-plugin/plugin.json` | declares the skills dir and the agent files           |
-| `.claude-plugin/marketplace.json`    | repo-root marketplace whose one plugin is `./.github` |
-| `.claude/settings.json`              | registers the marketplace and enables the plugin      |
+| File                                 | Role                                                                            |
+| ------------------------------------ | ------------------------------------------------------------------------------- |
+| `.github/.claude-plugin/plugin.json` | declares the skills dir and the agent files                                     |
+| `.claude-plugin/marketplace.json`    | repo-root marketplace whose one plugin is `./.github`                           |
+| `.claude/settings.json`              | registers the marketplace and enables the plugin, once the workspace is trusted |
 
 Components appear namespaced: `cosalette:orchestrator`, `/cosalette:pr-review`.
 
@@ -411,10 +411,13 @@ you remembered to create a symlink or that a skill actually loads.
   registered (`claude --debug` logs
   `Skipping orphaned enabledPlugins entry cosalette@cosalette-apps: marketplace not registered`).
   Trust is per user, kept in `~/.claude.json` under
-  `projects["<repo path>"].hasTrustDialogAccepted`. Sessions in the VS Code extension
-  did not set it here; the terminal trust dialog does. Run `claude` once in the repo
-  root, accept the trust dialog, then restart the session.
-  `claude plugin marketplace list` then shows `cosalette-apps`.
+  `projects["<repo path>"].hasTrustDialogAccepted`. As observed with Claude Code
+  2.1.330, opening the repo in the VS Code extension does not set this flag; the
+  terminal trust dialog does. Run `claude` once in the repo root, accept the trust
+  dialog, then restart the session. `claude plugin marketplace list` then shows
+  `cosalette-apps`. Trust lets the repo's hooks, plugins and MCP servers run as you, so
+  only trust a checkout whose `.claude/` and `.github/` content you have reviewed (for
+  example `main` or your own branch).
 - **Rule (`.github/instructions/*.instructions.md`) not loading in Claude Code.** This
   is the known gap above — check for a `.claude/rules/` symlink pointing at the file
   (`ls -la .claude/rules/`) and, for scoped rules, that `paths:` is present and matches

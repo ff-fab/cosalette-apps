@@ -275,10 +275,11 @@ Agent configuration lives in `.github/` and is consumed by every tool:
 
 Claude Code loads the skills and agents through a plugin manifest at
 `.github/.claude-plugin/plugin.json`, served by the repo-root local marketplace
-`.claude-plugin/marketplace.json` and auto-enabled by `.claude/settings.json`. They
-appear as `cosalette:<name>` (e.g. `cosalette:orchestrator`, `/cosalette:pr-review`).
-Adding a skill needs no manifest change — the whole `./skills/` directory is registered.
-Adding an **agent** does: the manifest lists agent files individually.
+`.claude-plugin/marketplace.json` and auto-enabled by `.claude/settings.json` once the
+workspace is trusted (see CONTRIBUTING.md > Troubleshooting). They appear as
+`cosalette:<name>` (e.g. `cosalette:orchestrator`, `/cosalette:pr-review`). Adding a
+skill needs no manifest change — the whole `./skills/` directory is registered. Adding
+an **agent** does: the manifest lists agent files individually.
 
 **Why the response style sits outside `.github/`.** It is the one surface in the table
 that does not live there, which looks like an oversight and is not. Claude Code resolves
