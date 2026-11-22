@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.3](https://github.com/ff-fab/cosalette-apps/compare/geiger2mqtt-v0.1.2...geiger2mqtt-v0.1.3) (2026-11-22)
+
+
+### Bug Fixes
+
+* **deps:** lock file maintenance ([#431](https://github.com/ff-fab/cosalette-apps/issues/431)) ([f4e3e4c](https://github.com/ff-fab/cosalette-apps/commit/f4e3e4cee3059a45fe83e516156eccebdff1a884))
+* **deps:** update all dependencies, cosalette 0.12.2 and tooling ([#435](https://github.com/ff-fab/cosalette-apps/issues/435)) ([a6fda85](https://github.com/ff-fab/cosalette-apps/commit/a6fda85ac1494abfa415334f2f29252b7747b8f2))
+
 ## [0.1.2](https://github.com/ff-fab/cosalette-apps/compare/geiger2mqtt-v0.1.1...geiger2mqtt-v0.1.2) (2026-10-27)
 
 

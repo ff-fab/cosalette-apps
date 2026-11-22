@@ -199,7 +199,7 @@ wheels = [
 
 [[package]]
 name = "airthings2mqtt"
-version = "0.4.2"
+version = "0.4.3"
 source = { editable = "apps/airthings2mqtt" }
 dependencies = [
     { name = "bleak" },
@@ -437,7 +437,7 @@ wheels = [
 
 [[package]]
 name = "caldates2mqtt"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "apps/caldates2mqtt" }
 dependencies = [
     { name = "caldav" },
@@ -1255,7 +1255,7 @@ wheels = [
 
 [[package]]
 name = "gas2mqtt"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "apps/gas2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -1282,7 +1282,7 @@ dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }
 
 [[package]]
 name = "geiger2mqtt"
-version = "0.1.2"
+version = "0.1.3"
 source = { editable = "apps/geiger2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -1502,7 +1502,7 @@ wheels = [
 
 [[package]]
 name = "jeelink2mqtt"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "apps/jeelink2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3381,7 +3381,7 @@ wheels = [
 
 [[package]]
 name = "suncast"
-version = "0.3.4"
+version = "0.3.5"
 source = { editable = "apps/suncast" }
 dependencies = [
     { name = "astral" },
@@ -3642,7 +3642,7 @@ wheels = [
 
 [[package]]
 name = "velux2mqtt"
-version = "0.3.3"
+version = "0.3.4"
 source = { editable = "apps/velux2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3687,7 +3687,7 @@ wheels = [
 
 [[package]]
 name = "vito2mqtt"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "apps/vito2mqtt" }
 dependencies = [
     { name = "cosalette" },
@@ -3716,7 +3716,7 @@ dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }
 
 [[package]]
 name = "wallpanel-control"
-version = "0.4.2"
+version = "0.4.3"
 source = { editable = "apps/wallpanel-control" }
 dependencies = [
     { name = "asyncssh" },
@@ -4060,7 +4060,7 @@ wheels = [
 
 [[package]]
 name = "wiz2mqtt"
-version = "0.3.2"
+version = "0.3.3"
 source = { editable = "apps/wiz2mqtt" }
 dependencies = [
     { name = "cosalette" },
