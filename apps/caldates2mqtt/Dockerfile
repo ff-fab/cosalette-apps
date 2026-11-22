@@ -42,7 +42,7 @@ COPY apps/caldates2mqtt/packages/src/ apps/caldates2mqtt/packages/src/
 # neither at runtime, and together they would add about 53 MB to the image.
 # The workspace pyproject.toml and uv.lock are bind-mounted too, so they stay
 # out of the image (about 0.5 MB).
-RUN --mount=from=ghcr.io/astral-sh/uv:0.13.8,source=/uv,target=/bin/uv \
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.8@sha256:5cc1805e2426484abca4ad46ea783bab281fdb225fd82d8ce6d66a81254bac85,source=/uv,target=/bin/uv \
     --mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml \
     --mount=type=bind,source=uv.lock,target=/app/uv.lock \
     uv export --frozen --no-dev --no-emit-workspace --prune rich --package caldates2mqtt \
