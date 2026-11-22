@@ -214,13 +214,13 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "bleak", specifier = ">=1.0" },
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "dbus-fast", specifier = ">=1.83.0" },
+    { name = "bleak", specifier = ">=3.1.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "dbus-fast", specifier = ">=5.2.0" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "annotated-doc"
@@ -451,12 +451,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "caldav", specifier = ">=1.4" },
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
+    { name = "caldav", specifier = ">=3.7.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "caldav"
@@ -779,37 +779,37 @@ docs = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "actionlint-py", specifier = ">=1.7.12.24" },
-    { name = "cosalette", extras = ["mcp"], specifier = ">=0.12.1,<0.13" },
-    { name = "coverage", specifier = ">=7.15.2" },
+    { name = "actionlint-py", specifier = ">=1.7.12.25" },
+    { name = "cosalette", extras = ["mcp"], specifier = ">=0.12.2,<0.13" },
+    { name = "coverage", specifier = ">=7.17.3" },
     { name = "detect-secrets", specifier = ">=1.5.0" },
-    { name = "flake8", specifier = ">=7.3.0" },
+    { name = "flake8", specifier = ">=7.5.0" },
     { name = "flake8-cognitive-complexity", specifier = ">=0.1.0" },
     { name = "jsonschema", specifier = ">=4.26.0" },
     { name = "pip-audit", specifier = ">=2.10.1" },
-    { name = "pre-commit", specifier = ">=4.6.1" },
-    { name = "pylint", specifier = ">=4.0.6" },
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pre-commit", specifier = ">=4.7.0" },
+    { name = "pylint", specifier = ">=4.1.4" },
+    { name = "pytest", specifier = ">=9.2.0" },
+    { name = "pytest-asyncio", specifier = ">=1.5.0" },
     { name = "pytest-cov", specifier = ">=7.1.0" },
     { name = "pytest-httpx", specifier = ">=0.36.2" },
     { name = "pytest-timeout", specifier = ">=2.4.0" },
     { name = "radon", specifier = ">=6.0.1" },
-    { name = "reuse", specifier = ">=5.0.2" },
-    { name = "ruff", specifier = ">=0.16.1" },
-    { name = "setuptools-scm", extras = ["toml"], specifier = ">=10.2.1" },
-    { name = "shellcheck-py", specifier = ">=0.11" },
-    { name = "ty", specifier = ">=0.0.65" },
-    { name = "types-pyyaml", specifier = ">=6.0.12.20260724" },
-    { name = "urllib3", specifier = ">=2.7.0" },
+    { name = "reuse", specifier = ">=6.3.0" },
+    { name = "ruff", specifier = ">=0.17.5" },
+    { name = "setuptools-scm", extras = ["toml"], specifier = ">=10.3.4" },
+    { name = "shellcheck-py", specifier = ">=0.11.0.1" },
+    { name = "ty", specifier = ">=0.0.104" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20261113" },
+    { name = "urllib3", specifier = ">=2.8.0" },
     { name = "xenon", specifier = ">=0.9.3" },
-    { name = "zizmor", specifier = ">=1.28.0" },
+    { name = "zizmor", specifier = ">=1.32.0" },
 ]
 docs = [
-    { name = "mkdocs-autorefs", specifier = ">=1.4.4" },
+    { name = "mkdocs-autorefs", specifier = ">=1.4.5" },
     { name = "mkdocs-click-zoom", git = "https://github.com/ff-fab/mkdocs-click-zoom.git?rev=v0.2.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.6" },
-    { name = "zensical", specifier = ">=0.0.52" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=1.0.8" },
+    { name = "zensical", specifier = ">=0.1.1" },
 ]
 
 [[package]]
@@ -1271,14 +1271,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.6.0" },
-    { name = "smbus2", specifier = ">=0.6.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pydantic-settings", specifier = ">=2.16.3" },
+    { name = "smbus2", specifier = ">=0.6.1" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "geiger2mqtt"
@@ -1299,15 +1299,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "gpiozero", specifier = ">=2.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "gpiozero", specifier = ">=2.0.1" },
     { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.6.0" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pydantic-settings", specifier = ">=2.16.3" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "ghp-import"
@@ -1518,14 +1518,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pydantic-settings", specifier = ">=2.16.3" },
     { name = "pylacrosse", specifier = ">=0.4" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "jh2"
@@ -3406,18 +3406,18 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", marker = "extra == 'http'", specifier = ">=3.9" },
+    { name = "aiohttp", marker = "extra == 'http'", specifier = ">=3.14.5" },
     { name = "astral", specifier = ">=3.2" },
     { name = "cairosvg", marker = "extra == 'png'", specifier = ">=2.9.1" },
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
     { name = "pillow", marker = "extra == 'png'", specifier = ">=13.0.0" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
 ]
 provides-extras = ["png", "http"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "tinycss2"
@@ -3659,15 +3659,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "gpiozero", specifier = ">=2.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "gpiozero", specifier = ">=2.0.1" },
     { name = "lgpio", marker = "sys_platform == 'linux'", specifier = ">=0.2.2.0" },
-    { name = "pydantic", specifier = ">=2.10.0" },
-    { name = "pydantic-settings", specifier = ">=2.6.0" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pydantic-settings", specifier = ">=2.16.3" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "virtualenv"
@@ -3704,15 +3704,15 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pydantic-settings", specifier = ">=2.12.0" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "pydantic", specifier = ">=2.14.3" },
+    { name = "pydantic-settings", specifier = ">=2.16.3" },
     { name = "pyserial", specifier = ">=3.5" },
     { name = "pyserial-asyncio", specifier = ">=0.6" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "wallpanel-control"
@@ -3730,12 +3730,12 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "asyncssh", specifier = ">=2.20.0" },
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
+    { name = "asyncssh", specifier = ">=2.24.1" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "wassima"
@@ -4076,14 +4076,14 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "cosalette", specifier = ">=0.12.1,<0.13" },
-    { name = "pydantic-settings", specifier = ">=2.14.2" },
-    { name = "pywizlight", specifier = ">=0.6.6,<0.7" },
-    { name = "typer", specifier = ">=0.12" },
+    { name = "cosalette", specifier = ">=0.12.2,<0.13" },
+    { name = "pydantic-settings", specifier = ">=2.16.3" },
+    { name = "pywizlight", specifier = ">=0.6.7,<0.7" },
+    { name = "typer", specifier = ">=0.29.1" },
 ]
 
 [package.metadata.requires-dev]
-dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.1,<0.13" }]
+dev = [{ name = "cosalette", extras = ["schema"], specifier = ">=0.12.2,<0.13" }]
 
 [[package]]
 name = "x-wr-timezone"

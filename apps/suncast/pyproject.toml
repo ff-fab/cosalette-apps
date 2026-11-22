@@ -10,15 +10,15 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.12.1,<0.13",
+    "cosalette>=0.12.2,<0.13",
     "astral>=3.2",
-    "pydantic>=2.10.0",
-    "pyyaml>=6.0",
+    "pydantic>=2.14.3",
+    "pyyaml>=6.0.3",
 ]
 
 [project.optional-dependencies]
 png = ["cairosvg>=2.9.1", "pillow>=13.0.0"]
-http = ["aiohttp>=3.9"]
+http = ["aiohttp>=3.14.5"]
 
 [project.scripts]
 suncast = "suncast.main:main"
@@ -26,7 +26,7 @@ suncast = "suncast.main:main"
 [dependency-groups]
 # The schema:* tasks run `cosalette schema ...`, which needs the extra; the app
 # itself does not (ADR-004).
-dev = ["cosalette[schema]>=0.12.1,<0.13"]
+dev = ["cosalette[schema]>=0.12.2,<0.13"]
 
 [build-system]
 requires = ["hatchling"]
