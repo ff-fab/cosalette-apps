@@ -275,7 +275,7 @@ claude plugin validate ./.github   # the plugin
 claude plugin validate .           # the marketplace
 ```
 
-Verified against Claude Code 2.1.220: all 9 agents and all 8 skills load, and the
+Verified against Claude Code 2.1.330: all 9 agents and all 9 skills load, and the
 `*.agent.md` filenames are accepted as-is — no renaming needed.
 
 ### How Claude Code reaches MCP servers
@@ -406,6 +406,15 @@ you remembered to create a symlink or that a skill actually loads.
   `mcp.json`) don't hot-reload — run `/reload-plugins` or restart. Only edits to an
   already-loaded `SKILL.md`'s content apply immediately. Confirm the plugin itself is
   enabled: `.claude/settings.json` → `enabledPlugins`.
+- **No `cosalette:*` skill or agent at all.** Claude Code ignores the project's
+  `extraKnownMarketplaces` until the workspace is trusted, so the marketplace is never
+  registered (`claude --debug` logs
+  `Skipping orphaned enabledPlugins entry cosalette@cosalette-apps: marketplace not registered`).
+  Trust is per user, kept in `~/.claude.json` under
+  `projects["<repo path>"].hasTrustDialogAccepted`. Sessions in the VS Code extension
+  did not set it here; the terminal trust dialog does. Run `claude` once in the repo
+  root, accept the trust dialog, then restart the session.
+  `claude plugin marketplace list` then shows `cosalette-apps`.
 - **Rule (`.github/instructions/*.instructions.md`) not loading in Claude Code.** This
   is the known gap above — check for a `.claude/rules/` symlink pointing at the file
   (`ls -la .claude/rules/`) and, for scoped rules, that `paths:` is present and matches
