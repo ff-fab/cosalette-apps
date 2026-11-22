@@ -1,11 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Bug Fixes
-
-* refresh locked runtime dependencies, including Pydantic and Pydantic Settings
-
 ## [0.3.2](https://github.com/ff-fab/cosalette-apps/compare/gas2mqtt-v0.3.1...gas2mqtt-v0.3.2) (2026-10-27)
 
 

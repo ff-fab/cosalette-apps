@@ -93,10 +93,10 @@ output = "coverage.xml"
 
 # suncast uses optional imports (aiohttp, cairosvg) guarded by _X_available flags
 # at runtime. ty cannot correlate the guard variable with the bound module name,
-# so unresolved-attribute errors on web.X / cairosvg.X are suppressed app-wide.
+# so missing-attribute errors on web.X / cairosvg.X are suppressed app-wide.
 [tool.ty.rules]
 all = "error"
-unresolved-attribute = "ignore"
+missing-attribute = "ignore"
 
 # Inherit root's [tool.ruff] select and rule config; see the rationale
 # comment on root pyproject.toml's [tool.ruff] table (cap-4lc).
