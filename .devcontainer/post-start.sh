@@ -38,20 +38,16 @@ if command -v bd >/dev/null 2>&1; then
         fi
     fi
 
-    # Start the beads dolt SQL server.
-    # bd auto-starts dolt on demand, but starting it explicitly here ensures the
-    # VSCode extension has a live server to connect to when it initialises.
-    # The port is pinned to 3317 (dolt_server_port in .beads/metadata.json,
-    # dolt.port in .beads/config.yaml), so bd never depends on the runtime
-    # .beads/dolt-server.port file, which could vanish while the server kept
-    # running (cap-fp5u). The container has its own network namespace, so the
-    # fixed port does not collide across devcontainers.
+    # Start the beads dolt SQL server on the port pinned by BEADS_DOLT_SERVER_PORT
+    # (see devcontainer.json, cap-fp5u). bd does not auto-start dolt on a pinned
+    # port, so this start is what gives bd and the VSCode extension a server.
+    # `bd dolt start` is idempotent, so a failure here is real; warn, never block.
     if command -v dolt >/dev/null 2>&1; then
-        if bd dolt start 2>/dev/null; then
-            echo "✅ Beads dolt server started"
+        if bd dolt start >/dev/null 2>&1; then
+            echo "✅ Beads dolt server running"
+        else
+            echo "⚠️  bd dolt start failed; check 'bd dolt status' (recover: task beads:recover)"
         fi
-        # If the server was already running (second start attempt), the command
-        # returns non-zero — that is expected and safe; the 'if' swallows the error.
     fi
 else
     echo "⚠️  bd not found on PATH; skipping beads startup cleanup"

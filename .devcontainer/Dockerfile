@@ -54,12 +54,12 @@ RUN set -eux; \
 # Baked into the image so the container starts reliably without a runtime download.
 # This project runs bd in server mode (`bd init --server` in post-create.sh,
 # `bd dolt start` in post-start.sh), which requires an external dolt binary.
-# Verified against beads v1.1.2.
+# Verified against beads v1.3.4.
 # renovate: datasource=github-releases depName=dolthub/dolt
-ARG DOLT_VERSION=v2.2.3
+ARG DOLT_VERSION=v2.7.6
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG DOLT_SHA256_AMD64=ffafa7cc172cada5f77ca3fb96306545ddac44a111625f75f870306c7f197301
-ARG DOLT_SHA256_ARM64=5e8f4dbe61931c36f8359022ee32337e5daf65aba06a29791a066e50677c8b3a
+ARG DOLT_SHA256_AMD64=02479bf57f3c46c46c4f6977e948d56e88f5ee5f2a73da8226e7ebc31039639e
+ARG DOLT_SHA256_ARM64=143ed0be2948be091fe61cbebb3de4501dc1e924dd0829ecbc447db2a3c8e42d
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     case "${ARCH}" in \
@@ -81,12 +81,12 @@ RUN set -eux; \
 # Baked into the image so the VS Code extension (planet57.vscode-beads) can
 # discover the project during activation, before any lifecycle scripts run.
 # The tarball ships a single binary that links only libc and the loader
-# (verified with `readelf -d` on both linux/amd64 and linux/arm64 at v1.1.2).
+# (verified with `readelf -d` on both linux/amd64 and linux/arm64 at v1.3.4).
 # renovate: datasource=github-releases depName=gastownhall/beads
-ARG BD_VERSION=v1.1.2
+ARG BD_VERSION=v1.3.4
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG BD_SHA256_AMD64=a72d71ed374955dc9f83a0f90b54bd7b6a0016709dd1676ae2e368651ed401c2
-ARG BD_SHA256_ARM64=a134015faf4be0a43f8681a8d602eaf0b7c255c957f09d3c933257c8c92fdd10
+ARG BD_SHA256_AMD64=175c26904bde3ff9168d2282ff6b56f17b17f60c22fa5acb3dacc9fb3465303a
+ARG BD_SHA256_ARM64=f4ee6eb3ec79bb2d7eb9d717c73efbcb6fa763cc70f726b4d055b72afdd68ad5
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \
     case "${ARCH}" in \

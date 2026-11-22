@@ -5,8 +5,8 @@
 # Recover bd from an orphaned dolt sql-server (cap-bqfr).
 #
 # bd can lose .beads/dolt-server.pid while the server it started keeps the
-# database lock. bd then auto-starts a new server on every call, and each one
-# fails with 'database "dolt" is locked by another dolt process'. This script
+# database lock. bd then cannot start a server it tracks: each attempt fails
+# with 'database "dolt" is locked by another dolt process'. This script
 # stops the orphan (never touching the database or its lock files) and lets bd
 # start a server it tracks again.
 set -euo pipefail
