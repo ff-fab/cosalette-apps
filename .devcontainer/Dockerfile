@@ -141,7 +141,7 @@ RUN set -eux; \
 # radius is limited to local/interactive devcontainer builds. Revisit if a
 # pinned checksum becomes available upstream.
 # renovate: datasource=npm depName=@anthropic-ai/claude-code
-ARG CLAUDE_CODE_VERSION=2.1.220
+ARG CLAUDE_CODE_VERSION=2.1.330
 # Claude Code is a local/interactive dev tool only — CI never invokes `claude`.
 # Default to installing it (local devcontainer builds via VS Code / `devcontainer
 # up` get it out of the box); the CI devcontainer-build workflows set
@@ -153,16 +153,21 @@ RUN set -eux; \
     if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then \
       INSTALLER="/tmp/claude-install.sh"; \
       curl -fsSL https://claude.ai/install.sh -o "${INSTALLER}"; \
-      bash "${INSTALLER}" "${CLAUDE_CODE_VERSION}"; \
+      # Install as the container user, not root: the installer writes to
+      # "$HOME/.local", and root's /root is mode 0700, so a root install left
+      # /usr/local/bin/claude dangling for vscode. The binary is vscode-owned
+      # by design (vscode has passwordless sudo anyway); root should not run
+      # claude. DISABLE_AUTOUPDATER below keeps the pinned version authoritative.
+      runuser -u vscode -- bash "${INSTALLER}" "${CLAUDE_CODE_VERSION}"; \
       rm -f "${INSTALLER}"; \
-      # The installer places the binary at "${HOME}/.local/bin/claude" and only
-      # advises adding that dir to PATH via shell rc files (~/.bashrc etc).
-      # Non-interactive Docker RUN layers never source those, so `claude` is
-      # not found in later RUN steps (or in non-login CI/devcontainer shells).
-      # Symlink into /usr/local/bin, already on PATH everywhere, matching how
+      # The installer only advises adding ~/.local/bin to PATH via shell rc
+      # files, which non-interactive shells never source. Symlink into
+      # /usr/local/bin, already on PATH everywhere, matching how
       # task/dolt/bd/kilo are installed above.
-      ln -sf "${HOME}/.local/bin/claude" /usr/local/bin/claude; \
+      ln -sf /home/vscode/.local/bin/claude /usr/local/bin/claude; \
     fi
+# Stay on the Renovate-reviewed CLAUDE_CODE_VERSION instead of self-updating.
+ENV DISABLE_AUTOUPDATER=1
 
 # Configure uv to use project-local virtual environments
 ENV UV_PROJECT_ENVIRONMENT="/workspaces/cosalette-apps/.venv"
@@ -175,4 +180,4 @@ RUN mkdir -p /home/vscode/.vscode-server /home/vscode/.vscode-server/extensions 
 # Verify installations
 RUN set -eux; \
     uv --version && python --version && task --version && fzf --version && dolt version && bd version && kilo --version; \
-    if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then claude --version; fi
+    if [ "${INSTALL_CLAUDE_CODE}" = "true" ]; then runuser -u vscode -- claude --version; fi

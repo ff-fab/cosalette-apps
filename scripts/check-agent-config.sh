@@ -6,9 +6,9 @@
 #      (broken target) fails silently at Claude Code runtime: the rule is just not
 #      loaded, with no error anywhere. This check makes that loud instead.
 #   2. claude plugin validate — runs `claude plugin validate .github` when the
-#      `claude` binary is on PATH. It is not installed in the devcontainer image
-#      (and we are not adding it), so this check skips gracefully rather than
-#      failing CI on a missing binary.
+#      `claude` binary is on PATH. Local devcontainer builds install it; CI images
+#      do not (INSTALL_CLAUDE_CODE=false), so this check skips gracefully rather
+#      than failing CI on a missing binary.
 #   3. .claude/output-styles/ tripwire — an output style is injected verbatim into
 #      every Claude Code session that opens the repo, from a branch-controlled file,
 #      and no schema validates it. This check is deliberately narrow: it verifies the
@@ -190,8 +190,8 @@ check_output_style() {
 }
 
 # ── Check: claude plugin validate (only if the binary is on PATH) ─
-# The `claude` binary is not installed in the devcontainer image and we are not adding
-# it just for this check, so skip gracefully instead of failing CI in that environment.
+# CI devcontainer images are built without the `claude` binary (INSTALL_CLAUDE_CODE=false),
+# so skip gracefully instead of failing CI in that environment.
 check_claude_plugin_validate() {
   if ! command -v claude >/dev/null 2>&1; then
     printf "%b⊘ SKIP:%b 'claude' binary not on PATH — skipping 'claude plugin validate .github'\n" "$YELLOW" "$NC"
