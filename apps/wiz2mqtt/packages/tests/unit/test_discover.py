@@ -10,7 +10,8 @@ Test Techniques Used:
   against BulbConfig (the paste-ready contract)
 - Boundary Value Analysis: ``--timeout`` must strictly exceed ``--wait`` (equal
   case rejected)
-- Equivalence Partitioning: TimeoutError vs OSError both map to exit code 1
+- Equivalence Partitioning: TimeoutError vs OSError both map to exit code 1;
+  a non-numeric ``--wait`` (invalid partition) is a usage error (exit 2)
 - Error Guessing: malformed IP sort key, empty discovery result, and TOML
   injection via a hostile MAC
 """
@@ -133,6 +134,17 @@ def test_cli_rejects_timeout_not_exceeding_wait() -> None:
 
     assert result.exit_code != 0
     assert "must exceed" in result.output
+
+
+def test_cli_rejects_non_numeric_wait() -> None:
+    """A non-numeric ``--wait`` is a usage error, not a crash.
+
+    Technique: Equivalence Partitioning — invalid partition of the float option.
+    """
+    result = runner.invoke(app, ["--wait", "abc"])
+
+    assert result.exit_code == 2
+    assert "--wait" in result.output
 
 
 def test_cli_exits_nonzero_on_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

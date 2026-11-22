@@ -110,11 +110,11 @@ class TestTelemetryTriggerConfig:
         subscribe a per-bulb trigger topic nobody publishes to and still
         leave the push path dead.
         """
-        assert self._bulb_entity_registration().triggerable == "local"  # ty: ignore[unresolved-attribute]
+        assert self._bulb_entity_registration().triggerable == "local"  # ty: ignore[missing-attribute]
 
     def test_bulb_entity_leaves_availability_to_three_failure_policy(self) -> None:
         """Framework failures must not bypass bulb_entity_tick's debounce."""
-        assert self._bulb_entity_registration().unavailable_on is None  # ty: ignore[unresolved-attribute]
+        assert self._bulb_entity_registration().unavailable_on is None  # ty: ignore[missing-attribute]
 
     def test_bulb_entity_carries_no_storm_throttle(self) -> None:
         """Technique: Specification-based — deliberate absence of min_interval.
@@ -122,7 +122,7 @@ class TestTelemetryTriggerConfig:
         A WiZ bulb pushes only on change and ``OnChange()`` already drops
         identical payloads, so a throttle would add latency for no gain.
         """
-        assert self._bulb_entity_registration().min_interval is None  # ty: ignore[unresolved-attribute]
+        assert self._bulb_entity_registration().min_interval is None  # ty: ignore[missing-attribute]
 
     def test_bulb_entity_publishes_on_change(self) -> None:
         """Technique: Specification-based — trigger wakes reuse the publish gate.
@@ -132,7 +132,7 @@ class TestTelemetryTriggerConfig:
         """
         from cosalette import OnChange  # noqa: PLC0415
 
-        assert isinstance(self._bulb_entity_registration().publish_strategy, OnChange)  # ty: ignore[unresolved-attribute]
+        assert isinstance(self._bulb_entity_registration().publish_strategy, OnChange)  # ty: ignore[missing-attribute]
 
     def test_heartbeat_interval_matches_the_push_staleness_threshold(self) -> None:
         """Technique: Specification-based — the two constants are one decision.
@@ -159,7 +159,7 @@ class TestTelemetryTriggerConfig:
 
         worst_case = TIMEOUT + 3 * 2 * TIMEOUT + 2 * 30.0
 
-        assert self._bulb_entity_registration().timeout > worst_case  # ty: ignore[unresolved-attribute]
+        assert self._bulb_entity_registration().timeout > worst_case  # ty: ignore[missing-attribute]
 
 
 class TestBulbSet:

@@ -224,7 +224,11 @@ def generate(
 ) -> None:
     """Render the configured inventory without contacting bulbs or the broker."""
     try:
-        settings = Wiz2MqttSettings(_config_file=str(config_file.resolve()))
+        # cosalette pops _config_file in Settings.__init__; ty's synthesized
+        # pydantic signature does not know it (cap-88ng).
+        settings = Wiz2MqttSettings(
+            _config_file=str(config_file.resolve())  # ty: ignore[unknown-argument]
+        )
         with tempfile.TemporaryDirectory() as directory:
             # JSON keeps the schema CLI free of PyYAML, which the image omits.
             schema = Path(directory) / "schema.json"
