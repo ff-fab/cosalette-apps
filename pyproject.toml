@@ -210,47 +210,47 @@ extraPaths = ["apps/geiger2mqtt/packages/src", "apps/wiz2mqtt/packages/src", "ap
 
 [dependency-groups]
 docs = [
-    "mkdocs-autorefs>=1.4.4",
+    "mkdocs-autorefs>=1.4.5",
     "mkdocs-click-zoom @ git+https://github.com/ff-fab/mkdocs-click-zoom.git@v0.2.0",
-    "mkdocstrings[python]>=1.0.6",
-    "zensical>=0.0.52",
+    "mkdocstrings[python]>=1.0.8",
+    "zensical>=0.1.1",
 ]
 dev = [
     # Testing
-    "coverage>=7.15.2",
-    "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
+    "coverage>=7.17.3",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.5.0",
     "pytest-cov>=7.1.0",
     "pytest-httpx>=0.36.2",
     "pytest-timeout>=2.4.0",
     # Linting & Type Checking
-    "ty>=0.0.65",
-    "ruff>=0.16.1",
-    "flake8>=7.3.0",
+    "ty>=0.0.104",
+    "ruff>=0.17.5",
+    "flake8>=7.5.0",
     "flake8-cognitive-complexity>=0.1.0",
     # Code Similarity
-    "pylint>=4.0.6",
+    "pylint>=4.1.4",
     # Complexity Analysis
     "radon>=6.0.1",
     "xenon>=0.9.3",
     # Type Stubs
-    "types-PyYAML>=6.0.12.20260724",
+    "types-PyYAML>=6.0.12.20261113",
     # Development Tools
-    "pre-commit>=4.6.1",
-    "setuptools-scm[toml]>=10.2.1",
-    "reuse>=5.0.2",
+    "pre-commit>=4.7.0",
+    "setuptools-scm[toml]>=10.3.4",
+    "reuse>=6.3.0",
     # Security Auditing
     "pip-audit>=2.10.1",
     "detect-secrets>=1.5.0",
-    "actionlint-py>=1.7.12.24",
-    "zizmor>=1.28.0",
+    "actionlint-py>=1.7.12.25",
+    "zizmor>=1.32.0",
     # Platform Compatibility Workarounds
-    "urllib3>=2.7.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
+    "urllib3>=2.8.0",  # 2.6.3 wheel has empty RECORD on Python 3.14
     # AI/MCP tooling support (cosalette ai mcp serve)
-    "cosalette[mcp]>=0.12.1,<0.13",
+    "cosalette[mcp]>=0.12.2,<0.13",
     # ADR tooling: scripts/render_adr.py validates input against the committed
     # JSON schema (cap-ak7). Declared explicitly rather than relied on
     # transitively via cosalette[schema].
     "jsonschema>=4.26.0",
-    "shellcheck-py>=0.11",
+    "shellcheck-py>=0.11.0.1",
 ]

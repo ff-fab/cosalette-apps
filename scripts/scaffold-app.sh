@@ -227,7 +227,7 @@ authors = [
 ]
 
 dependencies = [
-    "cosalette>=0.12.1,<0.13",
+    "cosalette>=0.12.2,<0.13",
 ]
 
 [project.scripts]
@@ -236,7 +236,7 @@ $NAME = "$PKG_NAME.main:main"
 [dependency-groups]
 # The schema:* tasks run cosalette schema, which needs the extra; the app
 # itself does not (ADR-004).
-dev = ["cosalette[schema]>=0.12.1,<0.13"]
+dev = ["cosalette[schema]>=0.12.2,<0.13"]
 
 [build-system]
 requires = ["hatchling"]
@@ -378,7 +378,7 @@ COPY apps/$NAME/packages/src/ apps/$NAME/packages/src/
 # neither at runtime, and together they would add about 53 MB to the image.
 # The workspace pyproject.toml and uv.lock are bind-mounted too, so they stay
 # out of the image (about 0.5 MB).
-RUN --mount=from=ghcr.io/astral-sh/uv:0.6,source=/uv,target=/bin/uv \\
+RUN --mount=from=ghcr.io/astral-sh/uv:0.13.8@sha256:5cc1805e2426484abca4ad46ea783bab281fdb225fd82d8ce6d66a81254bac85,source=/uv,target=/bin/uv \\
     --mount=type=bind,source=pyproject.toml,target=/app/pyproject.toml \\
     --mount=type=bind,source=uv.lock,target=/app/uv.lock \\
     uv export --frozen --no-dev --no-emit-workspace --prune rich --package $NAME \\

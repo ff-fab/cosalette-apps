@@ -131,9 +131,13 @@ def test_dotenv_filtering_dependency_floor_ships_at_runtime() -> None:
     requires = importlib.metadata.requires("wiz2mqtt") or []
     runtime = [r for r in requires if "extra ==" not in r]
 
-    assert any(
-        re.match(r"(?i)pydantic-settings>=2\.14\.2(?:[; ]|$)", r) for r in runtime
-    )
+    floors = [
+        tuple(map(int, m.groups()))
+        for r in runtime
+        if (m := re.match(r"(?i)pydantic-settings>=(\d+)\.(\d+)\.(\d+)", r))
+    ]
+    assert floors, runtime
+    assert floors[0] >= (2, 14, 2)
 
 
 @pytest.mark.parametrize("output", ["things", "items", "both"])

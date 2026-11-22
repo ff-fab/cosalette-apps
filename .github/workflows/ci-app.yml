@@ -123,8 +123,8 @@ jobs:
       - name: Install Task
         uses: go-task/setup-task@a00fbb05ce67b35648be3c78cbc9fd85354c757e # v2.2.0
         with:
-          version: 3.52.0
-          checksum: 02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd # pragma: allowlist secret
+          version: 3.54.0
+          checksum: 680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb # pragma: allowlist secret
       - name: Smoke-test the image
         env:
           APP: ${{ inputs.app }}

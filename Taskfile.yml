@@ -562,7 +562,7 @@ tasks:
     desc: Update all dependencies to latest compatible versions
     cmds:
       - uv lock --upgrade
-      - uv sync --all-groups
+      - task: sync
 
   # WARNING: cosalette-apps is a monorepo; the copier template is
   # single-project. A raw `copier update` WILL regress the app-matrix CI,
