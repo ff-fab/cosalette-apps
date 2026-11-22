@@ -9,7 +9,7 @@ tags: [packaging, dependencies, cli]
 
 ## Status
 
-Accepted **Date:** 2026-10-09 | Amended **Date:** 2026-10-09
+Accepted **Date:** 2026-10-09 | Amended **Date:** 2026-10-09 | Amended **Date:** 2026-11-22
 
 ## Context
 
@@ -145,3 +145,11 @@ Every app Dockerfile keeps `uv export --prune rich` and the `--no-deps` install.
 ### Additional Negative Consequences
 
 - An app that later adds its own Typer CLI must add the variable; the test fails until it does
+
+## Amendment (2026-11-22) — Minor
+
+!!! note "Editorial note (2026-11-22)"
+    The `uv:0.6` tag in the Decision snippet is only an example. The real pin is in the app Dockerfiles and `scripts/scaffold-app.sh`. Since PR #435 it is `ghcr.io/astral-sh/uv:0.13.8`, pinned by index digest, and Renovate keeps it current.
+
+!!! note "Editorial note (2026-11-22)"
+    uv 0.13.8 does not change the pattern of exporting with `--prune rich` and installing with `--no-deps`. The exported requirements are byte-identical to those from uv 0.6.17, and the CI image smoke test runs the pattern on every app build.
