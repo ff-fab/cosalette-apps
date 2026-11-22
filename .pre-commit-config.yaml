@@ -5,7 +5,7 @@
 repos:
   # EditorConfig: Validate all files match .editorconfig settings
   - repo: https://github.com/editorconfig-checker/editorconfig-checker.python
-    rev: 3.6.1
+    rev: 3.11.1
     hooks:
       - id: editorconfig-checker
         name: EditorConfig (whitespace & encoding)
@@ -61,7 +61,7 @@ repos:
   # versions (never alpha/beta), which is what keeps this off v4 alpha's
   # "exits non-zero on no-file matches" bug by construction, not by luck.
   - repo: https://github.com/rbubley/mirrors-prettier
-    rev: v3.9.6
+    rev: v3.10.1
     hooks:
       - id: prettier
         name: Prettier (JS, TS, JSON, MD, YAML)
@@ -82,14 +82,18 @@ repos:
           )$
 
   # Ruff: Lint and format Python
+  # ruff-pre-commit added markdown to ruff-format's types_or; pinning it back
+  # keeps the hook off Markdown code blocks: rendered ADRs are generated from
+  # JSON (task adr:create), and doc snippets keep their hand-aligned comments.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.1
+    rev: v0.17.5
     hooks:
-      - id: ruff
+      - id: ruff-check
         name: Ruff (lint Python)
         args: ['--fix']
       - id: ruff-format
         name: Ruff (format Python)
+        types_or: [python, pyi, jupyter]
 
   # ty: Type checking for Python (Astral)
   # Config lives in [tool.ty] in pyproject.toml.
@@ -119,7 +123,7 @@ repos:
 
   # REUSE: Verify license annotations cover all files
   - repo: https://github.com/fsfe/reuse-tool
-    rev: v6.2.0
+    rev: v6.3.0
     hooks:
       - id: reuse
         name: REUSE (license compliance)
@@ -137,7 +141,7 @@ repos:
 
   # Claude Code plugin manifest: validate against SchemaStore's schema
   - repo: https://github.com/python-jsonschema/check-jsonschema
-    rev: 0.37.4
+    rev: 0.39.0
     hooks:
       - id: check-jsonschema
         name: Validate plugin.json (Claude Code plugin manifest)
