@@ -8,7 +8,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install uv (fast Python package manager)
 # renovate: datasource=docker depName=ghcr.io/astral-sh/uv
-COPY --from=ghcr.io/astral-sh/uv:0.12.1 /uv /uvx /bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.8 /uv /uvx /bin/
 
 
 
@@ -25,9 +25,9 @@ RUN rm -f /etc/apt/sources.list.d/yarn.list \
 
 # Install go-task (task runner — https://taskfile.dev)
 # renovate: datasource=github-releases depName=go-task/task
-ARG TASK_VERSION=v3.52.0
-ARG TASK_SHA256_AMD64=02c679ffae53dca791804847d78b31731615894e292948397c971c87ac9e95bd
-ARG TASK_SHA256_ARM64=7e0044108830cec0534577b289564e3b7c83e6df276feb631a1edc63d04e4ebe
+ARG TASK_VERSION=v3.54.0
+ARG TASK_SHA256_AMD64=680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb
+ARG TASK_SHA256_ARM64=d7189d439d4a6058e39e1b2acd7c8b27acd4856691b408f23b242e4294e1df5b
 RUN set -eux; \
     ARCH="$(dpkg --print-architecture)"; \
     case "${ARCH}" in \
@@ -107,10 +107,10 @@ RUN set -eux; \
 
 # Install Kilo CLI (AI coding agent — https://kilocode.ai)
 # renovate: datasource=github-releases depName=Kilo-Org/kilocode
-ARG KILO_VERSION=v7.4.18
+ARG KILO_VERSION=v7.8.27
 # SHA-256 digests for supply-chain integrity verification (update on version bump)
-ARG KILO_SHA256_AMD64=4f4e870080a4cebaa5a8bd3600cd0d045ec53fbf257fd8fc86a899c8e975ba71
-ARG KILO_SHA256_ARM64=355cf7dc20630f3e73af2bfb130a88b631191d499e312bec00447907b7fb7028
+ARG KILO_SHA256_AMD64=4c08aa46dd87453a329f48b0f00d34d0fa7b8f0ac910fe8937814d4e8582de08
+ARG KILO_SHA256_ARM64=65491b899f62b07beafb3ce89b88b987a03197c88563afbf976d38fb78df5ff6
 # Kilo releases use x64/arm64 naming (not amd64) — ARCH_NAME remaps from dpkg convention
 RUN set -eux; \
     ARCH=$(dpkg --print-architecture); \

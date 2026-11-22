@@ -65,7 +65,7 @@ def test_uv_cache_is_restored_and_saved_once_per_job() -> None:
 def test_ci_devcontainer_replaces_the_dind_entrypoint_with_a_noop() -> None:
     """The prebuilt CI config must not start dockerd (cap-1a0u).
 
-    The target is the docker-in-docker:2 feature's entrypoint; a new major
+    The target is the docker-in-docker:4 feature's entrypoint; a new major
     version of the feature may move it, so the pin is asserted too.
     """
     ci_dir = _ROOT / ".github/devcontainer-ci"
@@ -79,7 +79,7 @@ def test_ci_devcontainer_replaces_the_dind_entrypoint_with_a_noop() -> None:
     code = [line for line in shim.read_text().splitlines() if not line.startswith("#")]
     assert code == ['exec "$@"']
     features = (_ROOT / ".devcontainer/devcontainer.json").read_text()
-    assert '"ghcr.io/devcontainers/features/docker-in-docker:2"' in features
+    assert '"ghcr.io/devcontainers/features/docker-in-docker:4"' in features
 
 
 @pytest.mark.unit
